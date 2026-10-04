@@ -138,7 +138,7 @@ object SourceHelper {
             } else if (url.startsWith("http")) {
                 result = OkHttp.string(url, null)
                 if (!result!!.isEmpty()) {
-                    result = tryMinifyJson(gson, result!!)
+                    result = tryMinifyJson(gson, result)
                     if (result.length > 2500) result = url
                     extendCache.putIfAbsent(key, result)
                 }
