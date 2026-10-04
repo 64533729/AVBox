@@ -33,7 +33,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.github.tvbox.osc.base.App;
-import com.github.tvbox.osc.data.CacheManager;
+import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.subtitle.model.Subtitle;
 import com.github.tvbox.osc.subtitle.model.Time;
 import com.github.tvbox.osc.util.FileUtils;
@@ -122,10 +122,10 @@ public class DefaultSubtitleEngine implements SubtitleEngine {
                     File cacheSubtitleFile = new File(subtitleFile);
                     boolean writeResult = FileUtils.writeSimple(subtitleLoadSuccessResult.content.getBytes(), cacheSubtitleFile);
                     if (writeResult && playSubtitleCacheKey != null) {
-                        CacheManager.save(MD5.string2MD5(getPlaySubtitleCacheKey()), subtitleFile);
+                        AppGraph.getCacheRepository().save(MD5.string2MD5(getPlaySubtitleCacheKey()), subtitleFile);
                     }
                 } else {
-                    CacheManager.save(MD5.string2MD5(getPlaySubtitleCacheKey()), path);
+                    AppGraph.getCacheRepository().save(MD5.string2MD5(getPlaySubtitleCacheKey()), path);
                 }
             }
 

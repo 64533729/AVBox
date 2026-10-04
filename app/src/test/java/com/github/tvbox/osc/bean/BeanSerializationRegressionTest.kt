@@ -19,7 +19,7 @@ import java.util.LinkedHashMap
  * - XStream(`AbsXml`/`AbsSortXml`/`Movie`/`MovieSort`):字段名 + `@XStreamAlias`/`@XStreamAsAttribute`/
  *   `@XStreamImplicit`/`@XStreamConverter` 必须仍落在**字段**上(Kotlin 属性化后注解很容易跑偏);
  * - Gson(`AbsJson`/`AbsSortJson`/`Movie.Video`/`MovieSort.SortData`/`VodInfo`/`ProxyRule`):字段名即契约,
- *   其中 `VodInfo` 的 `seriesFlags`/`seriesMap` 是 `RoomDataManger` 用字符串比对排除的字段名。
+ *   其中 `VodInfo` 的 `seriesFlags`/`seriesMap` 是 `RoomHistoryRepository` 用字符串比对排除的字段名。
  */
 class BeanSerializationRegressionTest {
 
@@ -315,7 +315,7 @@ class BeanSerializationRegressionTest {
         }
 
         val json = gson.toJson(info)
-        // RoomDataManger 的 ExclusionStrategy 是按这两个**字段名**字符串排除的
+        // RoomHistoryRepository 的 ExclusionStrategy 是按这两个**字段名**字符串排除的
         assertTrue(json.contains("\"seriesFlags\""))
         assertTrue(json.contains("\"seriesMap\""))
         assertTrue(json.contains("\"playFlag\""))

@@ -13,7 +13,7 @@ import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.bean.ParseBean;
 import com.github.tvbox.osc.bean.SourceBean;
 import com.github.tvbox.osc.bean.VodInfo;
-import com.github.tvbox.osc.data.CacheManager;
+import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.util.DefaultConfig;
@@ -134,7 +134,7 @@ public class PlaybackController {
         // 无痕:旧记录连读都不读 —— 只拦写的话,重进仍会从上次留下的位置接着播,隐身等于没开
         if (HistoryHelper.isIncognito()) return skip;
         WatchProgressStore.awaitWrites();
-        Object theCache = CacheManager.getCache(MD5.string2MD5(url));
+        Object theCache = AppGraph.getCacheRepository().get(MD5.string2MD5(url));
         if (theCache == null) {
             return skip;
         }
@@ -995,7 +995,7 @@ public class PlaybackController {
             inheritProgressKey = null;
             inheritProgress = 0;
             WatchProgressStore.clear(progressOwner(), progressKey());
-            CacheManager.delete(MD5.string2MD5(subtitleCacheKey()), 0);
+            AppGraph.getCacheRepository().delete(MD5.string2MD5(subtitleCacheKey()), 0);
         } else {
             inheritProgressIfNeeded();
             // 外挂字幕视图先复位为隐藏,真有字幕再由字幕决策链路(applyDefaultSubtitle/setSubtitlePath)显示

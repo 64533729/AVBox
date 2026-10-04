@@ -7,7 +7,7 @@ import android.os.Looper;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.MutableLiveData;
 
-import com.github.tvbox.osc.data.CacheManager;
+import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.HistoryHelper;
@@ -266,7 +266,7 @@ public final class PreloadCoordinator {
         if (!HistoryHelper.isIncognito()) {
             try {
                 WatchProgressStore.awaitWrites();
-                Object history = CacheManager.getCache(MD5.string2MD5(snapshot.nextKey));
+                Object history = AppGraph.getCacheRepository().get(MD5.string2MD5(snapshot.nextKey));
                 long rec = 0;
                 if (history instanceof Long) {
                     rec = (Long) history;

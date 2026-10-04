@@ -1,5 +1,11 @@
 package com.github.tvbox.osc.data
 
+import com.github.tvbox.osc.util.LOG
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
+
 /**
  * 键值缓存(Room `cache` 表)的访问接口。
  *
@@ -17,17 +23,90 @@ interface CacheRepository {
     fun clearAllProgress(): List<String>
 }
 
-internal class RoomCacheRepository : CacheRepository {
+/** Room 实现;DAO 由装配点传入的理由见 [RoomHistoryRepository] */
+internal class RoomCacheRepository(
+    private val caches: () -> CacheDao,
+) : CacheRepository {
 
-    override fun get(key: String): Any? = CacheManager.getCache(key)
+    override fun get(key: String): Any? {
+        val cache = caches().getCache(key) ?: return null
+        val data = cache.data ?: return null
+        return toObject(data)
+    }
 
     override fun save(key: String, body: Any?) {
-        CacheManager.save(key, body)
+        val cache = Cache()
+        cache.key = key
+        cache.data = toByteArray(body)
+        caches().save(cache)
     }
 
     override fun delete(key: String, body: Any?) {
-        CacheManager.delete(key, body)
+        val cache = Cache()
+        cache.key = key
+        cache.data = toByteArray(body)
+        caches().delete(cache)
     }
 
-    override fun clearAllProgress(): List<String> = CacheManager.clearAllProgress()
+    /**
+     * 删除全部进度行(反序列化是 Long 的行;字幕/歌词缓存是 String,不受影响),返回被删缓存键供调用方作废后续回写。
+     * 供"清空历史"兜底:没有索引条目的存量进度键是 MD5,反推不出归属,只能这样清。
+     */
+    override fun clearAllProgress(): List<String> {
+        val dao = caches()
+        val rows = dao.getAll()
+        val removed = ArrayList<String>()
+        for (row in rows) {
+            val data = row.data ?: continue
+            if (toObject(data) is Long) {
+                dao.delete(row)
+                removed.add(row.key)
+            }
+        }
+        return removed
+    }
+
+    //反序列,把二进制数据转换成java object对象
+    private fun toObject(data: ByteArray): Any? {
+        var bais: ByteArrayInputStream? = null
+        var ois: ObjectInputStream? = null
+        try {
+            bais = ByteArrayInputStream(data)
+            ois = ObjectInputStream(bais)
+            return ois.readObject()
+        } catch (e: Exception) {
+            LOG.e("RoomCacheRepository", e)
+        } finally {
+            try {
+                bais?.close()
+                ois?.close()
+            } catch (ignore: Exception) {
+                LOG.e("RoomCacheRepository", ignore)
+            }
+        }
+        return null
+    }
+
+    //序列化存储数据需要转换成二进制
+    private fun toByteArray(body: Any?): ByteArray {
+        var baos: ByteArrayOutputStream? = null
+        var oos: ObjectOutputStream? = null
+        try {
+            baos = ByteArrayOutputStream()
+            oos = ObjectOutputStream(baos)
+            oos.writeObject(body)
+            oos.flush()
+            return baos.toByteArray()
+        } catch (e: Exception) {
+            LOG.e("RoomCacheRepository", e)
+        } finally {
+            try {
+                baos?.close()
+                oos?.close()
+            } catch (e: Exception) {
+                LOG.e("RoomCacheRepository", e)
+            }
+        }
+        return ByteArray(0)
+    }
 }

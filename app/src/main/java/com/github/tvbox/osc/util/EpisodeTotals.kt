@@ -5,7 +5,7 @@ import com.github.tvbox.osc.bean.VodInfo
 /**
  * 影片总集数快照(历史页进度条用)。
  *
- * 历史记录落库时 `seriesMap` 被 Gson 排除策略剔掉了(见 `RoomDataManger.vodInfoStrategy`),历史里读不到集数,
+ * 历史记录落库时 `seriesMap` 被 Gson 排除策略剔掉了(见 `RoomHistoryRepository.vodInfoStrategy`),历史里读不到集数,
  * 只能由详情页拿到详情数据时另记一份。
  */
 object EpisodeTotals {

@@ -5,8 +5,8 @@ import com.github.tvbox.osc.bean.VodInfo
 /**
  * 收藏(Room `vodCollect` 表)的访问接口。
  *
- * 迁移期实现为对既有 Java 门面的薄委托,只做依赖倒置、不改行为;跨订阅路由语义(`currentCid`)
- * 随实现一起留在数据层。
+ * 跨订阅路由语义(`currentCid`)留在数据层:收藏按 cid 归属,列表全局显示、点击时按它路由回原订阅。
+ * 方法一律阻塞式,理由见 [HistoryRepository]。
  */
 interface CollectRepository {
 
@@ -26,22 +26,49 @@ interface CollectRepository {
     fun deleteVodCollectAll()
 }
 
-internal class RoomCollectRepository : CollectRepository {
+/** Room 实现;DAO 由装配点传入的理由见 [RoomHistoryRepository] */
+internal class RoomCollectRepository(
+    private val collects: () -> VodCollectDao,
+) : CollectRepository {
 
-    override fun currentCid(): String = RoomDataManger.currentCid()
+    override fun currentCid(): String = CurrentSubscription.cid()
 
-    override fun isVodCollect(sourceKey: String?, vodId: String?): Boolean =
-        RoomDataManger.isVodCollect(sourceKey, vodId)
+    override fun isVodCollect(sourceKey: String?, vodId: String?): Boolean {
+        val record = collects().getVodCollect(CurrentSubscription.cid(), sourceKey, vodId)
+        return record != null
+    }
 
-    override fun getAllVodCollect(): List<VodCollect> = RoomDataManger.getAllVodCollect()
+    override fun getAllVodCollect(): List<VodCollect> = collects().getAll()
 
-    override fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo) =
-        RoomDataManger.insertVodCollect(sourceKey, vodInfo)
+    override fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo) {
+        val cid = CurrentSubscription.cid()
+        val dao = collects()
+        if (dao.getVodCollect(cid, sourceKey, vodInfo.id) != null) {
+            return
+        }
+        val record = VodCollect()
+        record.cid = cid
+        record.sourceKey = sourceKey
+        record.vodId = vodInfo.id
+        record.updateTime = System.currentTimeMillis()
+        record.name = vodInfo.name
+        record.pic = vodInfo.pic
+        dao.insert(record)
+    }
 
-    override fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo) =
-        RoomDataManger.deleteVodCollect(sourceKey, vodInfo)
+    override fun deleteVodCollect(id: Int) {
+        collects().delete(id)
+    }
 
-    override fun deleteVodCollect(id: Int) = RoomDataManger.deleteVodCollect(id)
+    override fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo) {
+        val dao = collects()
+        val record = dao.getVodCollect(CurrentSubscription.cid(), sourceKey, vodInfo.id)
+        if (record != null) {
+            dao.delete(record)
+        }
+    }
 
-    override fun deleteVodCollectAll() = RoomDataManger.deleteVodCollectAll()
+    override fun deleteVodCollectAll() {
+        collects().deleteAll()
+    }
 }

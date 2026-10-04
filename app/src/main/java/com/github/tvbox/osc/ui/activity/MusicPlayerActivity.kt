@@ -260,7 +260,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     }
 
     /**
-     * 刷新观看历史。音乐页不走详情页的 preparePlaySession,而 RoomDataManger.insertVodRecord 是历史的
+     * 刷新观看历史。音乐页不走详情页的 preparePlaySession,而 HistoryRepository.insertVodRecord 是历史的
      * 唯一落库点 —— 不在这里补,历史会永远停在详情页交接那一刻(集数/备注/时间都不再更新)。
      */
     private fun syncHistory() {

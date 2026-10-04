@@ -21,7 +21,7 @@ import androidx.annotation.NonNull;
 import com.github.tvbox.osc.R;
 import android.widget.FrameLayout;
 import com.github.tvbox.osc.bean.VodInfo;
-import com.github.tvbox.osc.data.CacheManager;
+import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.dlna.CastVideo;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.player.ExoPlayer;
@@ -999,7 +999,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
      */
     private String cachedPlayPath(String cacheKey) {
         if (TextUtils.isEmpty(cacheKey)) return "";
-        Object cached = CacheManager.getCache(MD5.string2MD5(cacheKey));
+        Object cached = AppGraph.getCacheRepository().get(MD5.string2MD5(cacheKey));
         if (!(cached instanceof String)) return "";
         String path = (String) cached;
         if (TextUtils.isEmpty(path)) return "";
