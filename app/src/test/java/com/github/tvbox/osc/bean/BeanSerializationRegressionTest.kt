@@ -215,6 +215,19 @@ class BeanSerializationRegressionTest {
     }
 
     @Test
+    fun absSortJson_skipsNullClassEntries() {
+        // Gson 会把 JSON 数组里的 null 也塞进表:Java 版逐个跳过。
+        // (list 那一侧 Java 同样会 NPE,故只钉 class 这一侧)
+        val json = """{"class":[null,{"type_id":"1","type_name":"电影"},{"type_id":null,"type_name":"x"}]}"""
+
+        val absSortXml = gson.fromJson(json, AbsSortJson::class.java).toAbsSortXml()
+
+        val sortList = absSortXml.classes!!.sortList!!
+        assertEquals(1, sortList.size)
+        assertEquals("1", sortList[0].id)
+    }
+
+    @Test
     fun movieVideo_gsonRoundTripKeepsFieldNamesAndNestedBeans() {
         val video = Movie.Video()
         video.id = "v1"
@@ -398,5 +411,22 @@ class BeanSerializationRegressionTest {
     @Test
     fun proxyRule_arrayFrom_toleratesNullInput() {
         assertTrue(ProxyRule.arrayFrom(null).isEmpty())
+    }
+
+    @Test
+    fun proxyRule_init_skipsNullHostEntries() {
+        // 本条不能走 Gson(见上),只能反射塞字段;判空被优化掉的话这里会 NPE
+        val wildcardRule = ProxyRule()
+        val hosts = ProxyRule::class.java.getDeclaredField("hosts")
+        hosts.isAccessible = true
+        hosts.set(wildcardRule, arrayListOf<String?>(null, "*.b.com"))
+        val plainRule = ProxyRule()
+
+        wildcardRule.init()
+        plainRule.init()
+
+        // wildcard 是私有字段,用 compareTo(Boolean.compare) 间接判定
+        assertTrue(wildcardRule.compareTo(plainRule) > 0)
+        assertTrue(plainRule.compareTo(wildcardRule) < 0)
     }
 }
