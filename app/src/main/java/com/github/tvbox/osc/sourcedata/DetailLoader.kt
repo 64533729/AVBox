@@ -2,7 +2,6 @@ package com.github.tvbox.osc.sourcedata
 
 import android.os.Looper
 import android.util.Base64
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie

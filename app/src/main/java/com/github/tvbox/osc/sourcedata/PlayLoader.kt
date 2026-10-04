@@ -3,7 +3,6 @@ package com.github.tvbox.osc.sourcedata
 import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
@@ -173,7 +172,8 @@ class PlayLoader(
         val result = JSONObject()
         try {
             result.put("key", url)
-            val playUrl = sourceBean.playerUrl!!.trim()
+            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
+            val playUrl = sourceBean.playerUrl!!.trim { it <= ' ' }
             if (DefaultConfig.isVideoFormat(requestUrl) && playUrl.isEmpty()) {
                 result.put("parse", 0)
                 result.put("url", requestUrl)

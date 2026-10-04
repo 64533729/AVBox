@@ -2,7 +2,6 @@ package com.github.tvbox.osc.sourcedata
 
 import android.text.TextUtils
 import androidx.lifecycle.ViewModel
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.AbsXml

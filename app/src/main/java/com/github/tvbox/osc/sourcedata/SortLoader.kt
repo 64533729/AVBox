@@ -1,7 +1,6 @@
 package com.github.tvbox.osc.sourcedata
 
 import android.os.Looper
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.Movie
