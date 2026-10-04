@@ -13,10 +13,13 @@ import org.junit.Test
  * 上限与 access-order 是 2026-09-13(`aa5b132`)定的语义 —— 换源清理和"连 get 都算访问"都靠它,
  * 搬位置时容易只搬字段、把 `removeEldestEntry` 或 access-order 参数丢了。
  *
- * 未覆盖(已知缺口):"5 个 Loader 拿到的是同一个 map 实例"这条接线**没有**用例 —— 读它需要
- * new `SourceViewModel`(构造器初始化 `MutableLiveData`,纯 JVM 单测拿不到 Looper,见
- * `history/features.md` 记的同一个坑),而 Loader 没有实例就拿不到字段。改动
- * `SourceViewModel` 构造器里那 5 行传参时要人工确认传的是 `SourceRuntimeState` 的字段本身。
+ * "5 个 Loader 拿到的是同一个 map 实例"这条接线**已另有用例**:
+ * `SourceViewModelWiringTest.loadersShareTheRuntimeStateCacheInstances`(M4a 审查轮补)。
+ * 它需要 `new SourceViewModel()` —— 之前这条一直挂着"未覆盖",注释给的阻塞理由是"构造器初始化
+ * `MutableLiveData`,纯 JVM 单测拿不到 Looper";**实测该理由不成立**(那两个 `MutableLiveData`
+ * 只是字段装配,构造器可以实例化;真正拿不到 Looper 的是消费方 `observeForever` 的
+ * `assertMainThread`,已随 M4a 把消费面换成 `flow` 而消失)。改动 `SourceViewModel` 构造器里
+ * 那 5 行传参时仍请人工确认传的是 `SourceRuntimeState` 的字段本身。
  */
 class SourceRuntimeStateTest {
 

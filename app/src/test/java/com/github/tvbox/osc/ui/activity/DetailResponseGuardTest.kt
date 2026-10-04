@@ -12,9 +12,11 @@ import org.junit.Test
  * 见第二个用例的注释 —— V4 首版正是在这里漏了自增)。
  *
  * **未覆盖(已知缺口)**:没有任何用例锁"代次在哪几条路径上自增"。`DetailViewModel` 在纯 JUnit 下
- * 无法实例化(`Handler(Looper.getMainLooper())`、`App.getInstance()`、`MutableLiveData` 初始化器),
- * 所以那条不变量目前只有代码注释与 `loadDetail` 里的自增位置守着 —— 改动 `loadDetail`/`loadDetailInternal`
- * 时请人工确认:换片/换源/重试(含早退分支)必须换代,fallback 候选站沿用当代。
+ * 无法实例化(实测:构造器末尾 `init` 里 `viewModelScope.launch` → `Dispatchers.Main` 在无 Looper 的
+ * 单测环境直接抛 `The main looper is not available`;早先记录的"`observeForever` 触发 `assertMainThread`"
+ * 那条阻塞已随 M4a 换成 `flow` 而消失,但 `Dispatchers.Main` 仍在),所以那条不变量目前只有代码注释与
+ * `loadDetail` 里的自增位置守着 —— 改动 `loadDetail`/`loadDetailInternal` 时请人工确认:
+ * 换片/换源/重试(含早退分支)必须换代,fallback 候选站沿用当代。
  */
 class DetailResponseGuardTest {
 
