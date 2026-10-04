@@ -1,5 +1,7 @@
 package com.github.tvbox.osc.sourcedata
 
+import com.github.tvbox.osc.bean.AbsXml
+import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.util.MD5
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
@@ -36,5 +38,28 @@ class SourceHelperExtendTest {
         // 地址用 127.0.0.1/file/ 走本地读文件分支,测试不发网络请求(后台任务的失败被 Future 吞掉)。
         val extend = "http://127.0.0.1/file/missing-extend-${System.nanoTime()}.json"
         assertEquals(extend, SourceHelper.getFixUrl(cache, gson, extend, -1))
+    }
+
+    @Test
+    fun absXmlSplitsPlayUrlWithJavaRegexSemantics() {
+        val urlInfo = Movie.Video.UrlBean.UrlInfo()
+        urlInfo.urls = "第1集\$http://a.example/1.m3u8#"
+        val urlBean = Movie.Video.UrlBean()
+        urlBean.infoList = arrayListOf(urlInfo)
+        val video = Movie.Video()
+        video.urlBean = urlBean
+        val movie = Movie()
+        movie.videoList = arrayListOf(video)
+        val data = AbsXml()
+        data.movie = movie
+
+        SourceHelper.absXml(data, "src")
+
+        // Java 的 split("#") 是正则切分:尾部空串被丢掉;Kotlin 的字面量切分会保留,
+        // 多出来的空串会变成一条空集(旧实现没有这一条)
+        val beans = urlInfo.beanList!!
+        assertEquals(1, beans.size)
+        assertEquals("第1集", beans[0].name)
+        assertEquals("http://a.example/1.m3u8", beans[0].url)
     }
 }

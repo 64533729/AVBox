@@ -10,6 +10,7 @@ import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
+import com.github.tvbox.osc.util.RegexUtils
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.lzy.okgo.OkGo
@@ -93,7 +94,8 @@ object SourceHelper {
                 if (infoList != null) {
                     for (urlInfo in infoList) {
                         val urls = urlInfo.urls!!
-                        val str: List<String> = if (urls.contains("#")) urls.split("#") else listOf(urls)
+                        // Java 的 split("#") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
+                        val str: Array<String> = if (urls.contains("#")) RegexUtils.getPattern("#").split(urls) else arrayOf(urls)
                         val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()
                         for (s in str) {
                             val ss = s.split(Regex("\\$"), 2)
@@ -194,7 +196,8 @@ object SourceHelper {
     private fun tryMinifyJson(gson: Gson, raw: String): String {
         var text = raw
         try {
-            text = text.trim()
+            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
+            text = text.trim { it <= ' ' }
             val jsonElement = JsonParser.parseString(text)
             return gson.toJson(jsonElement)
         } catch (e: Exception) {

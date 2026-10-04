@@ -12,8 +12,6 @@ import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
-import com.google.gson.JsonArray
-import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
@@ -181,7 +179,8 @@ class SourceResultParser(
 
     fun json(result: MutableLiveData<AbsXml>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         try {
-            if (json == null || json.trim().isEmpty()) {
+            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
+            if (json == null || json.trim { it <= ' ' }.isEmpty()) {
                 if (result != null) {
                     LOG.i("echo--parse-empty-body:$sourceKey (站点返回空响应;JSON 型源(ac=detail)拿不到内容时常见,或该源实为 XML 类型)")
                 }

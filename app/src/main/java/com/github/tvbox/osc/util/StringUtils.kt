@@ -79,7 +79,8 @@ class StringUtils {
                 return url
             }
             val baseUrls = url!!.replace("http://", "").replace("https://", "")
-            val baseUrl2 = baseUrls.split(Regex("/"))[0]
+            // Java 的 split("/") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
+            val baseUrl2 = RegexUtils.getPattern("/").split(baseUrls)[0]
             val baseUrl: String
             if (url.startsWith("https")) {
                 baseUrl = "https://$baseUrl2"

@@ -5,16 +5,15 @@ import android.util.Base64
 
 import androidx.lifecycle.MutableLiveData
 
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.AbsJson
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
-import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
+import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.thunder.Thunder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -201,7 +200,8 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Mutab
                                 val urlInfo = infoList[key]
                                 val playList = urlMap[key]!!
                                 urlInfo.urls = playList
-                                val str = playList.split("#")
+                                // Java 的 split("#") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
+                                val str = RegexUtils.getPattern("#").split(playList)
                                 val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()
                                 for (s in str) {
                                     if (s.contains("$")) {
