@@ -2,7 +2,8 @@ package com.github.tvbox.osc.util
 
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.CacheManager
+import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.data.CacheRepository
 import com.github.tvbox.osc.player.PlaybackService
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -31,6 +32,9 @@ object WatchProgressStore {
             Thread(runnable, WRITER_THREAD_NAME).also { writerThread = it }
         }
     }
+
+    /** 进度载荷落在 Room `cache` 表,存取走数据层接口 */
+    private val cache: CacheRepository by lazy { AppGraph.cacheRepository }
 
     /** 在飞行中的落库任务数:为 0 时 [awaitWrites] 直接返回,不起线程跳转 */
     private val pendingWrites = AtomicInteger(0)
@@ -121,7 +125,7 @@ object WatchProgressStore {
         submit {
             // 执行时复查:排队期间刚落下的删除、刚打开的无痕,都要能拦住这次写
             if (isDiscarded(progressKey) || HistoryHelper.isIncognito()) return@submit
-            CacheManager.save(md5(progressKey), positionMs)
+            cache.save(md5(progressKey), positionMs)
             remember(owner, progressKey)
         }
     }
@@ -151,7 +155,7 @@ object WatchProgressStore {
     fun clear(owner: String?, progressKey: String?) {
         if (progressKey.isNullOrEmpty()) return
         submit {
-            CacheManager.delete(md5(progressKey), 0L)
+            cache.delete(md5(progressKey), 0L)
             forget(owner, progressKey)
         }
     }
@@ -171,8 +175,8 @@ object WatchProgressStore {
         submit {
             // 读-判-写必须在同一条串行通道里:排队期间同键可能已有更新值落盘,读到了就必须放弃继承
             if (isDiscarded(toKey) || HistoryHelper.isIncognito()) return@submit
-            if (CacheManager.getCache(md5(toKey)) != null) return@submit
-            CacheManager.save(md5(toKey), positionMs)
+            if (cache.get(md5(toKey)) != null) return@submit
+            cache.save(md5(toKey), positionMs)
             remember(owner, toKey)
         }
     }
@@ -233,7 +237,7 @@ object WatchProgressStore {
         discard(keys)
         PlaybackService.peek()?.discardStartedContentOf(owners)
         // 索引清完再兜底扫一遍:没有索引条目的存量进度(键是 MD5,反推不出归属)只能这样清
-        val stale = CacheManager.clearAllProgress()
+        val stale = cache.clearAllProgress()
         discardHashed(stale)
         LOG.i("echo-progress clear-all titles=" + titles + " eps=" + keys.size + " stale=" + stale.size)
         PlaybackProgress.forgetAll()
@@ -247,7 +251,7 @@ object WatchProgressStore {
         eps.forEach {
             // 先登记作废再删:迟到/在飞的落盘看到它就不再补写,否则删过的片会被救回来
             discardedKeys.add(md5(it))
-            CacheManager.delete(md5(it), 0L)
+            cache.delete(md5(it), 0L)
         }
         KV.delete(indexKey)
         return eps
