@@ -40,6 +40,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStreamReader
+import java.nio.charset.Charset
 import java.util.ArrayList
 import java.util.HashMap
 import java.util.LinkedHashMap
@@ -90,6 +91,9 @@ class ApiConfig private constructor() {
     private val configLoader = ConfigLoader(this)
     private val gson: Gson
     private var searchSourceBeanList: MutableList<SourceBean> = ArrayList()
+
+    /** 直播设置组:Java 里是带初始值的字段(初始化早于构造器体),Kotlin 侧同样在 init 之前初始化 */
+    val liveSettingGroupList: MutableList<LiveSettingGroup> = ArrayList()
 
     init {
         clearLoader()
@@ -342,15 +346,16 @@ class ApiConfig private constructor() {
 
     private fun parseLiveConfigContent(apiUrl: String, f: File) {
         // BugReview #27:close 放 finally/try-with-resources,读失败时防 FD 泄漏
-        BufferedReader(InputStreamReader(FileInputStream(f), "UTF-8")).use { bReader ->
+        val content = BufferedReader(InputStreamReader(FileInputStream(f), "UTF-8")).use { bReader ->
             val sb = StringBuilder()
             var s: String? = bReader.readLine()
             while (s != null) {
                 sb.append(s + "\n")
                 s = bReader.readLine()
             }
-            parseLiveConfigContent(apiUrl, sb.toString())
+            sb.toString()
         }
+        parseLiveConfigContent(apiUrl, content)
     }
 
     fun parseLiveConfigContent(apiUrl: String, content: String) {
@@ -419,8 +424,6 @@ class ApiConfig private constructor() {
         OkGoHelper.refreshHosts()
         LOG.i("echo-api-live-config-----------load")
     }
-
-    val liveSettingGroupList: MutableList<LiveSettingGroup> = ArrayList()
 
     private fun initLiveSettings() {
         val groupNames = ArrayList(
@@ -995,13 +998,13 @@ class ApiConfig private constructor() {
                 val matcher = pattern.matcher(content)
                 if (matcher.find()) {
                     content = content.substring(content.indexOf(matcher.group()) + 10)
-                    content = String(Base64.decode(content, Base64.DEFAULT))
+                    content = String(Base64.decode(content, Base64.DEFAULT), Charset.defaultCharset())
                 }
                 content = content.trim { it <= ' ' }
                 if (content.startsWith("2423")) {
                     content = content.replace(Regex("\\s+"), "")
                     val data = content.substring(content.indexOf("2324") + 4, content.length - 26)
-                    content = String(AES.toBytes(content)).lowercase(Locale.getDefault())
+                    content = String(AES.toBytes(content), Charset.defaultCharset()).lowercase(Locale.getDefault())
                     val key = AES.rightPadding(content.substring(content.indexOf("\$#") + 2, content.indexOf("#\$")), "0", 16)
                     val iv = AES.rightPadding(content.substring(content.length - 13), "0", 16)
                     json = AES.CBC(data, key, iv)

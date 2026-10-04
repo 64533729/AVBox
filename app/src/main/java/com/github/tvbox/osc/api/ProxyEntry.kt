@@ -2,7 +2,6 @@ package com.github.tvbox.osc.api
 
 import android.text.TextUtils
 
-import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
