@@ -241,7 +241,7 @@ class SearchViewModel : ViewModel() {
             .filter { it.isSearchable() && (checked == null || checked.containsKey(it.key)) }
             .sortedBy { it.key != home.key }
         arriveSeq = 0
-        results.value = sources.map { SourceResult(it.key, it.name.orEmpty(), ResultState.Pending, emptyList()) }
+        results.value = sources.map { SourceResult(it.key.orEmpty(), it.name.orEmpty(), ResultState.Pending, emptyList()) }
         sitesEmpty.value = sources.isEmpty()
         if (sources.isEmpty()) {
             running.value = false
@@ -255,7 +255,7 @@ class SearchViewModel : ViewModel() {
                         semaphore.withPermit {
                             if (myToken != token) return@async
                             val done = kotlinx.coroutines.CompletableDeferred<Unit>()
-                            pendingSources[bean.key] = done
+                            pendingSources[bean.key.orEmpty()] = done
                             try {
                                 withTimeoutOrNull(SEARCH_TIMEOUT_MS) {
                                     withContext(Dispatchers.IO) {

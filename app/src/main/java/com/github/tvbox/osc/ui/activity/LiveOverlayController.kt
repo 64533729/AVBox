@@ -216,10 +216,10 @@ internal class LiveOverlayController(
                     date.after(info.startdateTime) && date.before(info.enddateTime)
                 ) {
                     current = info.start + "-" + info.end
-                    currentTitle = info.title
+                    currentTitle = info.title.orEmpty()
                     if (size != list.size - 1) {
                         next = list[size + 1].start + "-" + list[size + 1].end
-                        nextTitle = list[size + 1].title
+                        nextTitle = list[size + 1].title.orEmpty()
                     } else {
                         next = info.end + "-23:59"
                         nextTitle = activity.getString(R.string.live_epg_hot_no_info)

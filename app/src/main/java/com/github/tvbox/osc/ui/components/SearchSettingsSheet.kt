@@ -56,7 +56,7 @@ private val SourceCardShapeRight = RoundedCornerShape(
 /** @param onSelectionChanged 勾选落盘后的通知(调用方自己去刷新搜索结果用的选择缓存) */
 fun SearchSettingsSheet(onDismiss: () -> Unit, onSelectionChanged: () -> Unit) {
     val sources = remember { ApiConfig.get().getSourceBeanList().filter(SourceBean::isSearchable) }
-    val allKeys = remember(sources) { sources.map { it.key }.toSet() }
+    val allKeys = remember(sources) { sources.map { it.key.orEmpty() }.toSet() }
     val homeLayout by HomeSettings.layoutFlow.collectAsStateWithLifecycle()
     var exactMatch by remember { mutableStateOf(SearchSettings.isExactMatchEnabled()) }
     var selected by remember {
@@ -167,28 +167,30 @@ fun SearchSettingsSheet(onDismiss: () -> Unit, onSelectionChanged: () -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             val left = pair[0]
+                            val leftKey = left.key.orEmpty()
                             SourceCard(
-                                name = left.name?.takeIf { it.isNotEmpty() } ?: left.key,
-                                selected = left.key in selected,
+                                name = left.name?.takeIf { it.isNotEmpty() } ?: leftKey,
+                                selected = leftKey in selected,
                                 dotOnLeft = true,
                                 shape = SourceCardShapeLeft,
                                 onClick = {
                                     applySelection(
-                                        if (left.key in selected) selected - left.key else selected + left.key,
+                                        if (leftKey in selected) selected - leftKey else selected + leftKey,
                                     )
                                 },
                                 modifier = Modifier.weight(1f),
                             )
                             val right = pair.getOrNull(1)
                             if (right != null) {
+                                val rightKey = right.key.orEmpty()
                                 SourceCard(
-                                    name = right.name?.takeIf { it.isNotEmpty() } ?: right.key,
-                                    selected = right.key in selected,
+                                    name = right.name?.takeIf { it.isNotEmpty() } ?: rightKey,
+                                    selected = rightKey in selected,
                                     dotOnLeft = false,
                                     shape = SourceCardShapeRight,
                                     onClick = {
                                         applySelection(
-                                            if (right.key in selected) selected - right.key else selected + right.key,
+                                            if (rightKey in selected) selected - rightKey else selected + rightKey,
                                         )
                                     },
                                     modifier = Modifier.weight(1f),

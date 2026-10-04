@@ -21,8 +21,9 @@ internal object LiveSettingsRules {
     /** 当前频道是否有可切换的线路:url 列表存在、数量大于 0,且当前下标落在范围内 */
     internal fun hasChannelSource(item: LiveChannelItem?): Boolean {
         val channel = item ?: return false
-        return channel.channelUrls != null && channel.sourceNum > 0 &&
-                channel.sourceIndex >= 0 && channel.sourceIndex < channel.channelUrls.size
+        val urls = channel.channelUrls ?: return false
+        return channel.sourceNum > 0 &&
+                channel.sourceIndex >= 0 && channel.sourceIndex < urls.size
     }
 
     /**

@@ -153,7 +153,7 @@ fun PlayerBottomBar(
                     items(parseList.size) { index ->
                         val item = parseList[index]
                         PlayerMenuButton(
-                            item.name,
+                            item.name.orEmpty(),
                             onClick = { actions.onParseSelected(index) },
                             textColor = if (item.isDefault) Color(0xFF02F8E1) else Color.White,
                             textSizeId = R.dimen.ts_20,

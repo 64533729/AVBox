@@ -285,8 +285,8 @@ fun SubtitleSearchSheet(sheet: SubtitleSearchSheetState, onDismiss: () -> Unit) 
                     return@post
                 }
                 if (list.isNotEmpty()) {
-                    if (data.isZip) {
-                        if (data.isNew) {
+                    if (data.isZip == true) {
+                        if (data.isNew == true) {
                             items = list
                             zipCache.clear()
                             zipCache.addAll(list)

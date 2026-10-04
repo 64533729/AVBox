@@ -458,7 +458,7 @@ class DetailViewModel : ViewModel() {
                     async {
                         semaphore.withPermit {
                             val done = CompletableDeferred<Unit>()
-                            pendingSearchDone.put(bean.key, done)?.complete(Unit)
+                            pendingSearchDone.put(bean.key.orEmpty(), done)?.complete(Unit)
                             try {
                                 withTimeoutOrNull(SOURCE_SEARCH_TIMEOUT_MS) {
                                     withContext(Dispatchers.IO) {

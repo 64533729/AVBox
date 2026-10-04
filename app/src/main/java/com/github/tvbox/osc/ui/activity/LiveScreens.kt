@@ -450,7 +450,7 @@ private fun ChannelListSection(activity: LivePlayActivity, modifier: Modifier) {
 @Composable
 private fun GroupHeaderRow(activity: LivePlayActivity, group: LiveChannelGroup) {
     val expanded = activity.expandedGroups.contains(group.groupIndex)
-    val locked = group.groupPassword.isNotEmpty() && !activity.isPasswordConfirmedForUi(group.groupIndex)
+    val locked = group.groupPassword.orEmpty().isNotEmpty() && !activity.isPasswordConfirmedForUi(group.groupIndex)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -572,7 +572,7 @@ private fun EpgSheet(activity: LivePlayActivity) {
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = epg.title,
+                        text = epg.title.orEmpty(),
                         fontSize = 14.sp,
                         fontWeight = if (selected || isNow) FontWeight.Bold else FontWeight.Normal,
                         color = when {
@@ -643,13 +643,13 @@ private fun SettingsSheet(activity: LivePlayActivity) {
                             ) {
                                 if (group.groupIndex == 4) {
                                     SettingsSwitchRow(
-                                        title = item.itemName,
+                                        title = item.itemName.orEmpty(),
                                         checked = activity.settingChecked(item.itemIndex),
                                         onCheckedChange = { activity.clickSettingItem(group.groupIndex, item.itemIndex) },
                                     )
                                 } else {
                                     SettingsOptionRow(
-                                        title = item.itemName,
+                                        title = item.itemName.orEmpty(),
                                         selected = activity.settingSelectedIndex(group.groupIndex) == item.itemIndex,
                                         onClick = { activity.clickSettingItem(group.groupIndex, item.itemIndex) },
                                         onLongClick = if (group.groupIndex == 6 && item.itemIndex > 0) {

@@ -1,0 +1,93 @@
+package com.github.tvbox.osc.bean
+
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.PlayerHelper
+import org.json.JSONException
+import org.json.JSONObject
+import xyz.doikki.videoplayer.player.VideoView
+
+class LivePlayerManager {
+    @JvmField
+    var defaultPlayerConfig: JSONObject = JSONObject()
+
+    @JvmField
+    var currentPlayerConfig: JSONObject? = null
+
+    fun init(videoView: VideoView<*>) {
+        try {
+            defaultPlayerConfig.put("exo", KV.get(HawkConfig.EXO_DECODE, "硬解码")) // i18n: keep
+            defaultPlayerConfig.put("pr", KV.get(HawkConfig.PLAY_RENDER, 1))
+            defaultPlayerConfig.put("sc", KV.get(HawkConfig.LIVE_PLAY_SCALE, 0))
+        } catch (e: JSONException) {
+            LOG.e("LivePlayerManager", e)
+        }
+        getDefaultLiveChannelPlayer(videoView)
+    }
+
+    fun getDefaultLiveChannelPlayer(videoView: VideoView<*>) {
+        PlayerHelper.updateCfg(videoView, defaultPlayerConfig)
+        try {
+            currentPlayerConfig = JSONObject(defaultPlayerConfig.toString())
+        } catch (e: JSONException) {
+            LOG.e("LivePlayerManager", e)
+        }
+    }
+
+    /**
+     * BugReview:异步回调(如代理配置加载)可能在 mVideoView 已释放(init 未执行)时触达播放链路,
+     * currentPlayerConfig 此时为 null;统一回落到 defaultPlayerConfig,杜绝 NPE(2026-09-10 22:34 崩溃)
+     */
+    private fun currentOrDefaultConfig(): JSONObject {
+        return currentPlayerConfig ?: defaultPlayerConfig
+    }
+
+    /** 直播「播放解码」档位下标:0=硬解 1=软解(取值"直播配置 → 缺省全局 EXO_DECODE") */
+    val livePlayerType: Int
+        get() {
+            val decode = currentOrDefaultConfig().optString("exo", KV.get(HawkConfig.EXO_DECODE, "硬解码")) // i18n: keep
+            return if ("软解码" == decode) 1 else 0 // i18n: keep
+        }
+
+    val livePlayerScale: Int
+        get() = currentOrDefaultConfig().optInt("sc", 0)
+
+    fun changeLivePlayerType(videoView: VideoView<*>, playerType: Int) {
+        var playerConfig: JSONObject
+        try {
+            playerConfig = JSONObject(currentOrDefaultConfig().toString())
+        } catch (e: JSONException) {
+            playerConfig = JSONObject()
+        }
+        try {
+            val decode = if (playerType == 1) "软解码" else "硬解码" // i18n: keep
+            playerConfig.put("exo", decode) // i18n: keep
+            defaultPlayerConfig.put("exo", decode) // i18n: keep
+        } catch (e: JSONException) {
+            LOG.e("LivePlayerManager", e)
+        }
+        PlayerHelper.updateCfg(videoView, playerConfig)
+        currentPlayerConfig = playerConfig
+    }
+
+    fun changeLivePlayerScale(videoView: VideoView<*>, playerScale: Int) {
+        videoView.setScreenScaleType(playerScale)
+        KV.put(HawkConfig.LIVE_PLAY_SCALE, playerScale)
+
+        var playerConfig: JSONObject
+        try {
+            playerConfig = JSONObject(currentOrDefaultConfig().toString())
+        } catch (e: JSONException) {
+            playerConfig = JSONObject()
+        }
+        try {
+            playerConfig.put("sc", playerScale)
+            defaultPlayerConfig.put("sc", playerScale)
+        } catch (e: JSONException) {
+            LOG.e("LivePlayerManager", e)
+        }
+
+        currentPlayerConfig = playerConfig
+    }
+}

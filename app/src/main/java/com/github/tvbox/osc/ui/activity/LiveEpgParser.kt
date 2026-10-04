@@ -261,12 +261,14 @@ internal object LiveEpgParser {
         val epgInfo = Epginfo(epgDate, title, epgDate, timeFormat.format(startDate), timeFormat.format(endDate), index)
         epgInfo.startdateTime = startDate
         epgInfo.enddateTime = endDate
-        epgInfo.start = timeFormat.format(startDate)
-        epgInfo.end = timeFormat.format(endDate)
-        epgInfo.originStart = epgInfo.start
-        epgInfo.originEnd = epgInfo.end
-        epgInfo.datestart = epgInfo.start.replace(":", "").toInt()
-        epgInfo.dateend = epgInfo.end.replace(":", "").toInt()
+        val startText = timeFormat.format(startDate)
+        val endText = timeFormat.format(endDate)
+        epgInfo.start = startText
+        epgInfo.end = endText
+        epgInfo.originStart = startText
+        epgInfo.originEnd = endText
+        epgInfo.datestart = startText.replace(":", "").toInt()
+        epgInfo.dateend = endText.replace(":", "").toInt()
         return epgInfo
     }
     internal fun getCatchupValue(catchupObj: JsonObject?, key: String): String {

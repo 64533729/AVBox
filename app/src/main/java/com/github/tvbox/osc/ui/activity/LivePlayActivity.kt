@@ -569,7 +569,7 @@ class LivePlayActivity : BaseActivity() {
 
     private fun isNeedInputPassword(groupIndex: Int): Boolean {
         val group = liveChannelGroupList.getOrNull(groupIndex) ?: return false
-        return group.groupPassword.isNotEmpty() && !isPasswordConfirmed(groupIndex)
+        return group.groupPassword.orEmpty().isNotEmpty() && !isPasswordConfirmed(groupIndex)
     }
 
     private fun isPasswordConfirmed(groupIndex: Int): Boolean {
@@ -595,8 +595,8 @@ class LivePlayActivity : BaseActivity() {
             return
         }
         initLiveObj()
-        if (list.size == 1 && list[0].groupName.startsWith("http://127.0.0.1")) {
-            loadProxyLives(list[0].groupName)
+        if (list.size == 1 && list[0].groupName.orEmpty().startsWith("http://127.0.0.1")) {
+            loadProxyLives(list[0].groupName.orEmpty())
         } else {
             applyLiveChannelGroups(ArrayList(list))
         }
@@ -881,8 +881,8 @@ class LivePlayActivity : BaseActivity() {
         val header = HashMap<String, String>()
         liveWebHeader()?.let { header.putAll(it) }
         item.headers?.let { header.putAll(it) }
-        if (item.channelFormat.isNotEmpty()) {
-            header[ExoMediaSourceHelper.HEADER_FORMAT] = item.channelFormat
+        if (item.channelFormat.orEmpty().isNotEmpty()) {
+            header[ExoMediaSourceHelper.HEADER_FORMAT] = item.channelFormat.orEmpty()
         }
         return if (header.isEmpty()) null else header
     }

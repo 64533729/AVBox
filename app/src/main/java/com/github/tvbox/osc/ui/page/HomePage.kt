@@ -450,7 +450,7 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                         color = MaterialTheme.colorScheme.surfaceBright,
                     ) {
                         SettingsOptionRow(
-                            title = bean.name ?: bean.key,
+                            title = bean.name ?: bean.key.orEmpty(),
                             selected = selected,
                             onClick = {
                                 if (!selected) {
