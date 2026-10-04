@@ -136,7 +136,7 @@ object AppBootstrap {
         val apiUrl = KV.get(HawkConfig.API_URL, "")
         if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) return false
         val app = App.getInstance() ?: return false
-        val cache = File(app.filesDir, MD5.encode(apiUrl))
+        val cache = File(app.filesDir, MD5.encode(apiUrl)!!)
         return cache.exists() &&
             System.currentTimeMillis() - cache.lastModified() < CONFIG_CACHE_TTL_MS
     }

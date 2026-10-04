@@ -25,7 +25,7 @@ class SourceHelperExtendTest {
     @Test
     fun cacheHitIsKeyedByMd5OfExtend() {
         val extend = "http://ext.example/api.json"
-        cache[MD5.string2MD5(extend)] = """{"minified":true}"""
+        cache[MD5.string2MD5(extend)!!] = """{"minified":true}"""
         assertEquals("""{"minified":true}""", SourceHelper.getFixUrl(cache, gson, extend, 15))
     }
 
