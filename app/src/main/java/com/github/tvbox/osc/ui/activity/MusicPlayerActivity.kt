@@ -15,7 +15,7 @@ import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.BaseActivity
 import com.github.tvbox.osc.ui.components.SheetHostScaffold
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.dlna.CastVideo
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.KernelDecision
@@ -133,7 +133,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
             }
         }
         ui.playMode = MusicPlayMode.of(MusicSettings.playMode())
-        ui.collected = RoomDataManger.isVodCollect(sourceKey, vod.id)
+        ui.collected = AppGraph.collectRepository.isVodCollect(sourceKey, vod.id)
         refreshMeta()
         syncLyric()
         ready = true
@@ -300,10 +300,10 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
 
     private fun toggleCollect() {
         if (ui.collected) {
-            RoomDataManger.deleteVodCollect(sourceKey, vod)
+            AppGraph.collectRepository.deleteVodCollect(sourceKey, vod)
             ui.collected = false
         } else {
-            RoomDataManger.insertVodCollect(sourceKey, vod)
+            AppGraph.collectRepository.insertVodCollect(sourceKey, vod)
             ui.collected = true
         }
         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))

@@ -63,7 +63,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.data.CollectRepository
 import com.github.tvbox.osc.data.VodCollect
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.ui.WindowSize
@@ -82,7 +83,9 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
-class CollectViewModel : ViewModel() {
+class CollectViewModel(
+    private val collect: CollectRepository = AppGraph.collectRepository,
+) : ViewModel() {
     val loading = MutableStateFlow(true)
     val items = MutableStateFlow<List<VodCollect>>(emptyList())
 
@@ -117,7 +120,7 @@ class CollectViewModel : ViewModel() {
         if (items.value.isEmpty()) loading.value = true
         if (scrollToTop) placementAnim.value = false
         viewModelScope.launch(Dispatchers.IO) {
-            items.value = RoomDataManger.getAllVodCollect()
+            items.value = collect.getAllVodCollect()
             recomputeUnavailableNow()
             loading.value = false
             if (scrollToTop) scrollSignal.value++
@@ -132,7 +135,7 @@ class CollectViewModel : ViewModel() {
 
     /** 订阅已不在列表、或当前订阅里站点没了,都算打不开(其他订阅的收藏要先切回去才知道) */
     private fun computeUnavailable(list: List<VodCollect>): Set<String> {
-        val current = RoomDataManger.currentCid()
+        val current = collect.currentCid()
         val known = SubscribeList.vodUrls()
         return list.filter { item ->
             val cid = item.cid.orEmpty()
@@ -159,7 +162,7 @@ class CollectViewModel : ViewModel() {
         if (list.isEmpty()) return
         placementAnim.value = true
         viewModelScope.launch(Dispatchers.IO) {
-            list.forEach { item -> RoomDataManger.deleteVodCollect(item.id) }
+            list.forEach { item -> collect.deleteVodCollect(item.id) }
             refresh()
         }
     }
@@ -167,7 +170,7 @@ class CollectViewModel : ViewModel() {
   
     fun deleteAll() {
         viewModelScope.launch(Dispatchers.IO) {
-            RoomDataManger.deleteVodCollectAll()
+            collect.deleteVodCollectAll()
             refresh()
         }
     }
@@ -342,7 +345,7 @@ fun CollectPage(
                                         } else {
                                             val cid = item.cid.orEmpty()
                                             when {
-                                                cid.isEmpty() || cid == RoomDataManger.currentCid() ->
+                                                cid.isEmpty() || cid == AppGraph.collectRepository.currentCid() ->
                                                     context.jumpToDetail(
                                                         item.vodId, item.sourceKey, item.name, item.pic, collect = true,
                                                     )

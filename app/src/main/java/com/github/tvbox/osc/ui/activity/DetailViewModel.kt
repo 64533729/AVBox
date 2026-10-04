@@ -10,7 +10,7 @@ import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.PlaybackSession
 import com.github.tvbox.osc.util.EpisodeTotals
@@ -283,7 +283,7 @@ class DetailViewModel : ViewModel() {
         sourceKey = key.orEmpty()
         firstsourceKey = sourceKey
         usedSourceKeys.add(firstsourceKey)
-        collected.value = RoomDataManger.isVodCollect(sourceKey, vodId)
+        collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
         if (DetailResponseGuard.isUnloadableTarget(vodId, ApiConfig.get().getSource(sourceKey) == null)) {
             onDetailUnavailable()
             return
@@ -356,7 +356,7 @@ class DetailViewModel : ViewModel() {
             val recordId = vodId
             viewModelScope.launch {
                 val record = withContext(Dispatchers.IO) {
-                    if (HistoryHelper.isIncognito()) null else RoomDataManger.getVodInfo(recordKey, recordId)
+                    if (HistoryHelper.isIncognito()) null else AppGraph.historyRepository.getVodInfo(recordKey, recordId)
                 }
                 if (detailToken != detailBuildToken || sourceKey != recordKey || vodId != recordId) return@launch
                 if (record != null) {
@@ -630,7 +630,7 @@ class DetailViewModel : ViewModel() {
         vodId = vid
         sourceKey = key
         firstsourceKey = key
-        collected.value = RoomDataManger.isVodCollect(sourceKey, vodId)
+        collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
         sourceViewModel.getDetail(sourceKey, vodId, true, requestToken)
     }
 
@@ -763,10 +763,10 @@ class DetailViewModel : ViewModel() {
     fun toggleCollect() {
         val info = vodInfo ?: return
         if (collected.value) {
-            RoomDataManger.deleteVodCollect(sourceKey, info)
+            AppGraph.collectRepository.deleteVodCollect(sourceKey, info)
             toastEvent.value = str(R.string.toast_removed_from_collect)
         } else {
-            RoomDataManger.insertVodCollect(sourceKey, info)
+            AppGraph.collectRepository.insertVodCollect(sourceKey, info)
             toastEvent.value = str(R.string.toast_added_to_collect)
         }
         collected.value = !collected.value

@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.data.HistoryRepository
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.util.EpisodeTotals
 import com.github.tvbox.osc.util.HawkConfig
@@ -22,7 +23,9 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
-class HistoryViewModel : ViewModel() {
+class HistoryViewModel(
+    private val history: HistoryRepository = AppGraph.historyRepository,
+) : ViewModel() {
     val loading = MutableStateFlow(true)
     val items = MutableStateFlow<List<VodInfo>>(emptyList())
     val episodeTotals = MutableStateFlow<Map<String, Int>>(emptyMap())
@@ -65,11 +68,11 @@ class HistoryViewModel : ViewModel() {
         if (scrollToTop) placementAnim.value = false
         viewModelScope.launch(Dispatchers.IO) {
             val limit = HistoryHelper.getHisNum(KV.get(HawkConfig.HISTORY_NUM, 0))
-            val all = RoomDataManger.getAllVodRecord(limit)
+            val all = history.getAllVodRecord(limit)
             if (HistoryMerge.isEnabled()) {
                 // 历史合并:同一部剧只保留最新一条,被合并掉的旧记录直接清库(上游"历史合并"语义,见 HistoryMerge)
                 val (kept, dropped) = HistoryMerge.dedupe(all) { it.name }
-                dropped.forEach { RoomDataManger.deleteVodRecord(it.sourceKey, it) }
+                dropped.forEach { history.deleteVodRecord(it.sourceKey, it) }
                 items.value = kept
             } else {
                 items.value = all
@@ -140,7 +143,7 @@ class HistoryViewModel : ViewModel() {
         placementAnim.value = true
         viewModelScope.launch(Dispatchers.IO) {
             list.forEach { item ->
-                RoomDataManger.deleteVodRecord(item.sourceKey, item)
+                history.deleteVodRecord(item.sourceKey, item)
                 // 记录删了,该片的进度痕迹与轨道/字幕记忆一并清掉,免得留下访问不到的孤儿键
                 WatchProgressStore.clearOwner(WatchProgressStore.ownerOf(item))
                 TrackMemory.delete(TrackMemory.contentKey(item.sourceKey, item.id))
@@ -152,7 +155,7 @@ class HistoryViewModel : ViewModel() {
     fun deleteAll() {
         placementAnim.value = false
         viewModelScope.launch(Dispatchers.IO) {
-            RoomDataManger.deleteVodRecordAll()
+            history.deleteVodRecordAll()
             WatchProgressStore.clearAll()
             TrackMemory.deleteAll()
             refresh()

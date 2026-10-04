@@ -12,7 +12,7 @@ import androidx.compose.ui.res.stringResource
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.event.RefreshEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +28,7 @@ class VodCardMenuState internal constructor(private val scope: CoroutineScope) {
     fun show(video: Movie.Video) {
         scope.launch {
             val collected = withContext(Dispatchers.IO) {
-                RoomDataManger.isVodCollect(video.sourceKey, video.id)
+                AppGraph.collectRepository.isVodCollect(video.sourceKey, video.id)
             }
             menu = video to collected
         }
@@ -62,11 +62,11 @@ fun VodCardMenu(state: VodCardMenuState, onSearchSimilar: (String) -> Unit) {
             onSelect = { option ->
                 when (option) {
                     collectLabel -> scope.launch(Dispatchers.IO) {
-                        RoomDataManger.insertVodCollect(video.sourceKey, toVodInfo(video))
+                        AppGraph.collectRepository.insertVodCollect(video.sourceKey, toVodInfo(video))
                         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
                     }
                     uncollectLabel -> scope.launch(Dispatchers.IO) {
-                        RoomDataManger.deleteVodCollect(video.sourceKey, toVodInfo(video))
+                        AppGraph.collectRepository.deleteVodCollect(video.sourceKey, toVodInfo(video))
                         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
                     }
                     searchSimilarLabel -> onSearchSimilar(video.name ?: "")

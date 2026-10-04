@@ -1,7 +1,7 @@
 package com.github.tvbox.osc.util
 
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.RoomDataManger
+import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.event.RefreshEvent
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
@@ -24,7 +24,7 @@ object HistoryWriter {
 
     private fun writeNow(sourceKey: String, info: VodInfo) {
         try {
-            RoomDataManger.insertVodRecord(sourceKey, info)
+            AppGraph.historyRepository.insertVodRecord(sourceKey, info)
         } catch (th: Throwable) {
             // 序列化与主线程持有同一份 VodInfo:并发改写可能抛异常,失败要留日志而不是静默丢历史
             LOG.e("HistoryWriter", "echo-history insert failed: " + th, th)
