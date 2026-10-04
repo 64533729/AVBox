@@ -75,7 +75,7 @@ object SourceHelper {
     /** 首页源判定:兜底源可能不是列表第 0 项(第 0 项被标 hide 时会往后挑),所以比首页源 key 而不是下标 0 */
     @JvmStatic
     fun isHomeSource(sourceKey: String?): Boolean {
-        return !TextUtils.isEmpty(sourceKey) && sourceKey == ApiConfig.get().homeSourceBean.key
+        return !TextUtils.isEmpty(sourceKey) && sourceKey == ApiConfig.get().getHomeSourceBean().key
     }
 
     @JvmStatic

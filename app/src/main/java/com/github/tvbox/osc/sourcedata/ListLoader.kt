@@ -46,7 +46,7 @@ class ListLoader(
             listResult.postValue(null)
             return
         }
-        val homeSourceBean = ApiConfig.get().homeSourceBean
+        val homeSourceBean = ApiConfig.get().getHomeSourceBean()
         val type = homeSourceBean.type
         if (type == 3) {
             getListFromSpider(homeSourceBean, sortData, page)

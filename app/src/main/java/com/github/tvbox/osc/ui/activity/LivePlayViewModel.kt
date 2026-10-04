@@ -204,20 +204,20 @@ internal class LivePlayViewModel : ViewModel() {
                         })
                     }
 
-                    override fun error(msg: String) {
+                    override fun error(msg: String?) {
                         host.postToMain(Runnable {
                             if (requestId != liveConfigRequestId || host.isFinishing()) return@Runnable
                             host.releasePlayerKernel()
                             ApiConfig.get().refreshLiveApiHistoryItems()
                             host.setEmptyChannelList(false)
-                            host.toast(msg)
+                            host.toast(msg ?: "")
                         })
                     }
 
-                    override fun notice(msg: String) {
+                    override fun notice(msg: String?) {
                         host.postToMain(Runnable {
                             if (requestId != liveConfigRequestId || host.isFinishing()) return@Runnable
-                            host.toast(msg)
+                            host.toast(msg ?: "")
                         })
                     }
                 })

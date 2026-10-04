@@ -615,14 +615,14 @@ class LivePlayActivity : BaseActivity() {
                 }
             }
 
-            override fun error(msg: String) {
+            override fun error(msg: String?) {
                 mHandler.post {
                     loadingLiveConfigOnEnter = false
                     setEmptyLiveChannelList()
                 }
             }
 
-            override fun notice(msg: String) {
+            override fun notice(msg: String?) {
                 mHandler.post {
                     Toast.makeText(this@LivePlayActivity, msg, Toast.LENGTH_SHORT).show()
                 }

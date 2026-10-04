@@ -224,7 +224,7 @@ object ConfigParser {
 
     /** 频道显示名:优先 name,没写时用首地址兜底(与 Depot/parseApiCollection 同口径);两者都空返回空串=该条不该进列表 */
     @JvmStatic
-    fun parseLiveChannelName(obj: JsonObject?, sourceUrls: ArrayList<String?>): String {
+    fun parseLiveChannelName(obj: JsonObject?, sourceUrls: ArrayList<String>): String {
         if (obj != null && obj.has("name")) {
             val name = obj.get("name")
             if (name != null && name.isJsonPrimitive) {
@@ -233,7 +233,7 @@ object ConfigParser {
             }
         }
         for (url in sourceUrls) {
-            if (url != null && url.isNotEmpty()) return url
+            if (url.isNotEmpty()) return url
         }
         return ""
     }

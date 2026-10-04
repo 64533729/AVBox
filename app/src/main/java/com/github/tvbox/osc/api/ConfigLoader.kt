@@ -36,7 +36,7 @@ class ConfigLoader(private val owner: ApiConfig) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val configLoadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
-    fun loadConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback, activity: Activity) {
+    fun loadConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback, activity: Activity?) {
         val apiUrl = KV.get(HawkConfig.API_URL, "")
         if (apiUrl.isEmpty()) {
             callback.error("-1")

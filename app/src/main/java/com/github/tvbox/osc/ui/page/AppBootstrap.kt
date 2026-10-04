@@ -113,7 +113,7 @@ object AppBootstrap {
                     }
                 } else {
                     dataInitOk = true
-                    if (ApiConfig.get().getSpider().isEmpty()) jarInitOk = true
+                    if (ApiConfig.get().getSpider()!!.isEmpty()) jarInitOk = true
                 }
             }
             if (dataInitOk && !jarInitOk) {
