@@ -201,10 +201,10 @@ class SpiderLoader {
     private fun getImgJar(body: String): ByteArray? {
         val pattern = RegexUtils.getPattern("[A-Za-z0-9]{8}\\*\\*")
         val matcher = pattern.matcher(body)
-        var fixBody = body
+        var body = body
         if (matcher.find()) {
-            fixBody = fixBody.substring(fixBody.indexOf(matcher.group()) + 10)
-            return Base64.decode(fixBody, Base64.DEFAULT)
+            body = body.substring(body.indexOf(matcher.group()) + 10)
+            return Base64.decode(body, Base64.DEFAULT)
         }
         return "".toByteArray(Charset.defaultCharset())
     }
