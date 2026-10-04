@@ -327,7 +327,7 @@ fun CollectPage(
                                 }
                                 CollectCard(
                                     item = item,
-                                    unavailable = unavailableKeys.contains(item.sourceKey),
+                                    unavailable = item.sourceKey?.let { unavailableKeys.contains(it) } == true,
                                     editMode = editMode,
                                     selected = item.id in selected,
                                     modifier = Modifier.animateItem(
