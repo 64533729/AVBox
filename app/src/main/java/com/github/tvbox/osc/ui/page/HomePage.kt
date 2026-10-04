@@ -359,7 +359,7 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                         }
                     }
                 }
-                items(partitions, key = { it.sort.id }) { p ->
+                items(partitions, key = { it.sort.id.orEmpty() }) { p ->
                     PartitionSection(
                         title = p.sort.name ?: "",
                         state = p.state,

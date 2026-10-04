@@ -343,7 +343,7 @@ class DetailViewModel : ViewModel() {
             mVideo.id = vodId
             if (mVideo.name.isNullOrEmpty()) mVideo.name = vodName
             if (mVideo.name.isNullOrEmpty()) mVideo.name = "TVBox"
-            if ((mVideo.pic == null || mVideo.pic.isEmpty()) && vodPicture.isNotEmpty()) {
+            if (mVideo.pic.isNullOrEmpty() && vodPicture.isNotEmpty()) {
                 mVideo.pic = vodPicture
             }
             val info = VodInfo()
@@ -379,13 +379,13 @@ class DetailViewModel : ViewModel() {
                 val playingList = info.seriesMap?.get(info.playFlag)
                 if (!playingList.isNullOrEmpty()) {
                     info.playIndex = info.playIndex.coerceIn(0, playingList.size - 1)
-                    for (flag in info.seriesFlags) {
+                    for (flag in info.seriesFlags.orEmpty()) {
                         flag.selected = flag.name == info.playFlag
                     }
                 }
                 vodInfo = info
                 if (searchTitle.isEmpty() && !info.name.isNullOrEmpty()) {
-                    searchTitle = info.name.trim()
+                    searchTitle = info.name.orEmpty().trim()
                     startSourceSearch()
                 }
                 vodName = mVideo.name ?: vodName
@@ -682,7 +682,7 @@ class DetailViewModel : ViewModel() {
             info.playIndex = matched
             return
         }
-        for (flag in info.seriesFlags) {
+        for (flag in info.seriesFlags.orEmpty()) {
             if (flag.name.isNullOrEmpty() || flag.name == preferredFlag) continue
             matched = findMatchingEpisodeIndex(episode, info.seriesMap?.get(flag.name))
             if (matched >= 0) {
@@ -744,7 +744,7 @@ class DetailViewModel : ViewModel() {
             info.playIndex = findSameEpisodeIndex(currentSeries, newList, currentIndex)
             newList.forEachIndexed { index, series -> series.selected = index == info.playIndex }
         }
-        info.seriesFlags.forEach { it.selected = it.name == flagName }
+        info.seriesFlags.orEmpty().forEach { it.selected = it.name == flagName }
         manualLineSwitchPending = true
         bumpRevision()
         requestPlay()
@@ -864,7 +864,7 @@ class DetailViewModel : ViewModel() {
         info.playFlag = newFlag
         info.playIndex = newIndex
         if (playing.playerCfg != null) info.playerCfg = playing.playerCfg
-        info.seriesFlags.forEach { it.selected = it.name == newFlag }
+        info.seriesFlags.orEmpty().forEach { it.selected = it.name == newFlag }
         info.seriesMap?.values?.forEach { list -> list.forEach { it.selected = false } }
         newList[newIndex].selected = true
         // "真看过"落库要过观看门槛,短看即退会让库里的集号停在上一集(卡片与续播都跟着错),故同步集号即落库

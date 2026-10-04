@@ -67,8 +67,9 @@ class SourceResultParserRoutingTest {
         newParser(search, detail).json(detail, payload, "src")
         assertEquals(1, detail.posted.size)
         val data = detail.posted[0]!!
-        assertEquals(1, data.movie.videoList.size)
-        assertEquals("测试片", data.movie.videoList[0].name)
+        val videos = data.movie!!.videoList!!
+        assertEquals(1, videos.size)
+        assertEquals("测试片", videos[0].name)
         assertEquals("src", data.sourceKey)
     }
 

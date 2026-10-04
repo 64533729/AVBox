@@ -388,7 +388,7 @@ private fun HomeSortTabRow(
             sorts.forEach { item ->
                 Tab(
                     selected = item.id == selectedId,
-                    onClick = { onSelect(item.id) },
+                    onClick = { onSelect(item.id.orEmpty()) },
                     text = {
                         Text(
                             text = item.name ?: "",
@@ -425,7 +425,7 @@ private fun HomeSortTabRow(
 @Composable
 private fun HomeFilterChipsRow(sort: MovieSort.SortData, onPick: (Map<String, String>) -> Unit) {
     val filter = sort.filters.firstOrNull() ?: return
-    val entries = filter.values.entries.toList()
+    val entries = filter.values.orEmpty().entries.toList()
     val selectedKey = sort.filterSelect[filter.key]
     val style = MaterialTheme.typography.labelLarge
     val density = LocalDensity.current

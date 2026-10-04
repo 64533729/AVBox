@@ -51,14 +51,14 @@ fun FilterSheet(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    filter.values.forEach { (valueKey, valueName) ->
+                    filter.values.orEmpty().forEach { (valueKey, valueName) ->
                         FilterChip(
-                            selected = selection[filter.key] == valueKey,
+                            selected = selection[filter.key.orEmpty()] == valueKey,
                             onClick = {
-                                selection = if (selection[filter.key] == valueKey) {
-                                    selection - filter.key
+                                selection = if (selection[filter.key.orEmpty()] == valueKey) {
+                                    selection - filter.key.orEmpty()
                                 } else {
-                                    selection + (filter.key to valueKey)
+                                    selection + (filter.key.orEmpty() to valueKey)
                                 }
                             },
                             label = { Text(valueName) },

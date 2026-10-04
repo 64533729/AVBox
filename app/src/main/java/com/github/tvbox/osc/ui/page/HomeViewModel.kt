@@ -289,8 +289,9 @@ class HomeViewModel : ViewModel() {
         }
 
         LOG.i("echo--sort-result: src=$key hasClasses=${absXml?.classes?.sortList != null} sortSize=${absXml?.classes?.sortList?.size}")
-        val adjusted = if (absXml?.classes?.sortList != null) {
-            DefaultConfig.adjustSort(key, absXml.classes.sortList, true)
+        val sortList = absXml?.classes?.sortList
+        val adjusted = if (sortList != null) {
+            DefaultConfig.adjustSort(key, sortList, true)
         } else {
             DefaultConfig.adjustSort(key, ArrayList(), true)
         }
@@ -368,7 +369,7 @@ class HomeViewModel : ViewModel() {
 
     private fun requestPartition(current: Partition, page: Int) {
         val generation = loadGeneration
-        val loader = loaders.getOrPut(current.sort.id) { PartitionLoader(current.sort) }
+        val loader = loaders.getOrPut(current.sort.id.orEmpty()) { PartitionLoader(current.sort) }
         scope.launch {
             loadSemaphore.withPermit {
                 if (generation != loadGeneration || loader.released) return@withPermit
@@ -377,7 +378,7 @@ class HomeViewModel : ViewModel() {
                     loader.request(page) { r -> if (cont.isActive) cont.resume(r) }
                 }
                 if (!result.stale) {
-                    applyPartitionResult(current.sort.id, page, result.absXml)
+                    applyPartitionResult(current.sort.id.orEmpty(), page, result.absXml)
                 }
             }
         }
