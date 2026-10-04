@@ -16,8 +16,7 @@ import java.lang.reflect.Type
 /**
  * 观看历史(Room `vodRecord` 表)的访问接口。
  *
- * 方法一律阻塞式:现有调用点全是同步调用(主线程或调用方自己的 IO 线程),改 suspend/Flow 会一并
- * 改动线程与时序(D6)。
+ * 方法一律阻塞式:调用点都是同步调用,改 suspend/Flow 必须同时把消费方协程化,否则线程与时序都会变。
  */
 interface HistoryRepository {
 
@@ -34,10 +33,8 @@ interface HistoryRepository {
 }
 
 /**
- * Room 实现。
- *
- * DAO 由装配点(AppGraph)以 provider 传入:`AppDataManager.backup/restore` 会 close 并重建 DB 实例,
- * 缓存 DAO 会让恢复之后的读写落到已关闭实例。
+ * Room 实现。DAO 由装配点以 provider 传入:`AppDataManager.backup/restore` 会 close 并重建 DB 实例,
+ * 缓存 DAO 会让恢复之后的读写落到已关闭的库。
  */
 internal class RoomHistoryRepository(
     private val records: () -> VodRecordDao,

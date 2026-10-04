@@ -7,17 +7,18 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 
 /**
- * 键值缓存(Room `cache` 表)的访问接口。
+ * 键值缓存(Room `cache` 表)的访问接口;载荷走 Java 序列化,与既有实现一致。
  *
- * 载荷走 Java 序列化,与既有实现一致;`clearAllProgress` 是"清空历史"的兜底扫尾入口。
+ * `key` 来自 `MD5.string2MD5(...)`(空串入参返回 null),故 `get`/`delete` 可空(旧实现对 null 是"查不到/空操作"),
+ * `save` 保持非空:主键空键写入旧实现本就抛异常。
  */
 interface CacheRepository {
 
-    fun get(key: String): Any?
+    fun get(key: String?): Any?
 
     fun save(key: String, body: Any?)
 
-    fun delete(key: String, body: Any?)
+    fun delete(key: String?, body: Any?)
 
     /** 删除全部进度行(载荷是 Long 的行),返回被删缓存键供调用方作废后续回写 */
     fun clearAllProgress(): List<String>
@@ -28,7 +29,7 @@ internal class RoomCacheRepository(
     private val caches: () -> CacheDao,
 ) : CacheRepository {
 
-    override fun get(key: String): Any? {
+    override fun get(key: String?): Any? {
         val cache = caches().getCache(key) ?: return null
         val data = cache.data ?: return null
         return toObject(data)
@@ -41,7 +42,8 @@ internal class RoomCacheRepository(
         caches().save(cache)
     }
 
-    override fun delete(key: String, body: Any?) {
+    override fun delete(key: String?, body: Any?) {
+        if (key == null) return
         val cache = Cache()
         cache.key = key
         cache.data = toByteArray(body)

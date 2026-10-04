@@ -3,10 +3,9 @@ package com.github.tvbox.osc.data
 import com.github.tvbox.osc.bean.VodInfo
 
 /**
- * 收藏(Room `vodCollect` 表)的访问接口。
+ * 收藏(Room `vodCollect` 表)的访问接口;阻塞式理由见 [HistoryRepository]。
  *
- * 跨订阅路由语义(`currentCid`)留在数据层:收藏按 cid 归属,列表全局显示、点击时按它路由回原订阅。
- * 方法一律阻塞式,理由见 [HistoryRepository]。
+ * `currentCid` 留在数据层:收藏按 cid 归属,列表全局显示、点击时按它路由回原订阅。
  */
 interface CollectRepository {
 
