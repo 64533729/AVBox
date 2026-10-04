@@ -184,7 +184,7 @@ class ListLoader(
     }
 
     //    homeVideoContent
-    fun getHomeRecList(sourceBean: SourceBean, ids: ArrayList<String>?, callback: HomeRecCallback) {
+    fun getHomeRecList(sourceBean: SourceBean, ids: ArrayList<String?>?, callback: HomeRecCallback) {
         val type = sourceBean.type
         if (type == 3) {
             val waitResponse = Runnable {
