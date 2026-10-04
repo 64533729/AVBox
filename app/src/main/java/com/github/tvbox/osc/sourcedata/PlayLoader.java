@@ -4,8 +4,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 
-import androidx.lifecycle.MutableLiveData;
-
 import com.github.catvod.crawler.Spider;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.bean.SourceBean;
@@ -37,14 +35,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class PlayLoader {
     private final Gson gson;
     private final ConcurrentHashMap<String, String> extendCache;
-    private final MutableLiveData<JSONObject> playResult;
-    private final MutableLiveData<JSONObject> preloadResult;
+    private final SourceChannel<JSONObject> playResult;
+    private final SourceChannel<JSONObject> preloadResult;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final AtomicInteger playRequestSeq = new AtomicInteger();
     private final AtomicInteger preloadRequestSeq = new AtomicInteger();
 
-    PlayLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, MutableLiveData<JSONObject> playResult,
-               MutableLiveData<JSONObject> preloadResult) {
+    PlayLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, SourceChannel<JSONObject> playResult,
+               SourceChannel<JSONObject> preloadResult) {
         this.gson = gson;
         this.extendCache = extendCache;
         this.playResult = playResult;
@@ -61,7 +59,7 @@ final class PlayLoader {
         getPlayInternal(preloadRequestSeq, preloadResult, "playPreload", sourceKey, playFlag, progressKey, url, subtitleKey);
     }
 
-    private void getPlayInternal(AtomicInteger seqHolder, MutableLiveData<JSONObject> resultChannel, String requestTag,
+    private void getPlayInternal(AtomicInteger seqHolder, SourceChannel<JSONObject> resultChannel, String requestTag,
                                  String sourceKey, String playFlag, String progressKey, String url, String subtitleKey) {
         final int requestSeq = seqHolder.incrementAndGet();
         // 取流准备(t4 拉 extend、爬虫调度)可能长时间阻塞:序号先在调用线程占住,
@@ -78,7 +76,7 @@ final class PlayLoader {
         getPlayPrepared(seqHolder, resultChannel, requestSeq, requestTag, sourceKey, playFlag, progressKey, url, subtitleKey);
     }
 
-    private void getPlayPrepared(AtomicInteger seqHolder, MutableLiveData<JSONObject> resultChannel, int requestSeq, String requestTag,
+    private void getPlayPrepared(AtomicInteger seqHolder, SourceChannel<JSONObject> resultChannel, int requestSeq, String requestTag,
                                  String sourceKey, String playFlag, String progressKey, String url, String subtitleKey) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         boolean pushFallback = PushUrlParser.isPushFallback(sourceKey, sourceBean);
@@ -108,7 +106,7 @@ final class PlayLoader {
     }
 
     /** type 3:爬虫 playerContent;返回空或缺 url 时回退成直连(见 shouldDirectPlay) */
-    private void playFromSpider(final AtomicInteger seqHolder, final MutableLiveData<JSONObject> resultChannel, final int requestSeq,
+    private void playFromSpider(final AtomicInteger seqHolder, final SourceChannel<JSONObject> resultChannel, final int requestSeq,
                                  final SourceBean sourceBean, final String requestUrl, final String url,
                                  final String progressKey, final String subtitleKey, final String playFlag,
                                  final PushUrlParser.PushUrl pushUrl) {
@@ -158,7 +156,7 @@ final class PlayLoader {
     }
 
     /** type 0/1:直接按地址起播或交给解析链(parse=0/1 由地址形态与站点 playerUrl 决定) */
-    private void playFromApi(final AtomicInteger seqHolder, final MutableLiveData<JSONObject> resultChannel, final int requestSeq,
+    private void playFromApi(final AtomicInteger seqHolder, final SourceChannel<JSONObject> resultChannel, final int requestSeq,
                              final SourceBean sourceBean, final String requestUrl, final String url,
                              final String progressKey, final String subtitleKey, final String playFlag,
                              final PushUrlParser.PushUrl pushUrl) {
@@ -188,7 +186,7 @@ final class PlayLoader {
     }
 
     /** type 4:带 extend 的取流接口,结果走 normalizePlayerResult 归一 */
-    private void playFromExtendedApi(final AtomicInteger seqHolder, final MutableLiveData<JSONObject> resultChannel, final int requestSeq, final String requestTag,
+    private void playFromExtendedApi(final AtomicInteger seqHolder, final SourceChannel<JSONObject> resultChannel, final int requestSeq, final String requestTag,
                                     final SourceBean sourceBean, final String requestUrl, final String url,
                                     final String progressKey, final String subtitleKey, final String playFlag,
                                     final PushUrlParser.PushUrl pushUrl) {
@@ -347,7 +345,7 @@ final class PlayLoader {
         return requestSeq != seqHolder.get();
     }
 
-    private void postPlayResult(AtomicInteger seqHolder, MutableLiveData<JSONObject> resultChannel, int requestSeq, JSONObject result) {
+    private void postPlayResult(AtomicInteger seqHolder, SourceChannel<JSONObject> resultChannel, int requestSeq, JSONObject result) {
         mainHandler.post(new Runnable() {
             @Override
             public void run() {

@@ -17,7 +17,6 @@ import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.sourcedata.SourceRuntimeState
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.github.tvbox.osc.sourcedata.observeAsFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,10 +108,10 @@ class HomeViewModel : ViewModel() {
 
     init {
         EventBus.getDefault().register(this)
-        scope.launch { sortViewModel.sortResult.observeAsFlow().collect { onSortResult(it) } }
-        scope.launch { recViewModel.sortResult.observeAsFlow().collect { onRecResult(it) } }
+        scope.launch { sortViewModel.sortResult.flow.collect { onSortResult(it) } }
+        scope.launch { recViewModel.sortResult.flow.collect { onRecResult(it) } }
         scope.launch {
-            actionViewModel.actionResult.observeAsFlow().collect { json ->
+            actionViewModel.actionResult.flow.collect { json ->
                 val msg = json?.optString("msg").orEmpty()
                 if (msg.isNotEmpty()) actionMessages.tryEmit(msg)
             }
@@ -137,7 +136,7 @@ class HomeViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        // 三个通道的收集器不用手工摘:onCleared 返回后框架才取消 viewModelScope,桥接器的 awaitClose 随之摘观察者
+        // 三个通道的收集器不用手工摘:onCleared 返回后框架才取消 viewModelScope,收集协程随之结束
         EventBus.getDefault().unregister(this)
         val staleLoaders = ArrayList(loaders.values)
         loaders.clear()
@@ -468,13 +467,12 @@ class HomeViewModel : ViewModel() {
             private set
 
         /**
-         * 收集作用域随本 loader 生命周期:release() 取消它即摘掉观察者(等价旧 removeObserver)。
+         * 收集作用域随本 loader 生命周期:release() 取消它即摘掉收集器(等价旧 removeObserver)。
          *
          * ⚠️ 两个坑都在这一行:①`CoroutineScope(viewModelScope.coroutineContext)` 会**复用** VM 的
          * SupervisorJob,`cancel()` 就会把整个 viewModelScope 一起杀掉(而 `loadHome()` 每次换源都
-         * release 旧 loader ⇒ 首页永久 loading);②context 里若没有 Dispatcher,`launch` 兜底用
-         * `Dispatchers.Default`,而 `observeForever` 有主线程断言 ⇒ 直接抛。故显式 `SupervisorJob(parent)`
-         * 造子 Job + `Dispatchers.Main.immediate`。
+         * release 旧 loader ⇒ 首页永久 loading);②显式 `SupervisorJob(parent)` 造子 Job;
+         * `Dispatchers.Main.immediate` 让回包仍在主线程处理(order 与旧 LiveData 观察者一致)。
          */
         private val observeScope = CoroutineScope(
             SupervisorJob(viewModelScope.coroutineContext[Job]) + Dispatchers.Main.immediate
@@ -482,7 +480,7 @@ class HomeViewModel : ViewModel() {
 
         init {
             observeScope.launch {
-                svm.listResult.observeAsFlow().collect { abs ->
+                svm.listResult.flow.collect { abs ->
                     val current = pending
                     pending = null
                     busy = false

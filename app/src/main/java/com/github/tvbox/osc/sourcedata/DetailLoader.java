@@ -3,8 +3,6 @@ package com.github.tvbox.osc.sourcedata;
 import android.os.Looper;
 import android.util.Base64;
 
-import androidx.lifecycle.MutableLiveData;
-
 import com.github.catvod.crawler.Spider;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.bean.AbsXml;
@@ -34,10 +32,10 @@ import java.util.concurrent.ConcurrentHashMap;
 final class DetailLoader {
     private final Gson gson;
     private final ConcurrentHashMap<String, String> extendCache;
-    private final MutableLiveData<AbsXml> detailResult;
+    private final SourceChannel<AbsXml> detailResult;
     private final SourceResultParser resultParser;
 
-    DetailLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, MutableLiveData<AbsXml> detailResult,
+    DetailLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, SourceChannel<AbsXml> detailResult,
                  SourceResultParser resultParser) {
         this.gson = gson;
         this.extendCache = extendCache;

@@ -6,7 +6,6 @@ import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.github.tvbox.osc.sourcedata.observeAsFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,7 +55,7 @@ class PartitionListVM : ViewModel() {
 
     init {
         scope.launch {
-            actionViewModel.actionResult.observeAsFlow().collect { json ->
+            actionViewModel.actionResult.flow.collect { json ->
                 val msg = json?.optString("msg").orEmpty()
                 if (msg.isNotEmpty()) actionMessages.tryEmit(msg)
                 refresh()
@@ -67,9 +66,9 @@ class PartitionListVM : ViewModel() {
     private class LoaderResult(val stale: Boolean, val absXml: AbsXml?)
 
     /**
-     * 收集作用域随 loader 生命周期:release() 取消它即摘掉观察者(等价旧 removeObserver)。
+     * 收集作用域随 loader 生命周期:release() 取消它即摘掉收集器(等价旧 removeObserver)。
      * ⚠️ 必须在下面 `loader` 之前初始化(匿名对象的 init 用它);`SupervisorJob(parent)` 是为了
-     * `cancel()` 只杀这个子 Job 而不带上 viewModelScope,`Main.immediate` 是因为 `observeForever` 有主线程断言。
+     * `cancel()` 只杀这个子 Job 而不带上 viewModelScope,`Main.immediate` 让回包仍在主线程处理。
      */
     private val loaderScope = CoroutineScope(
         SupervisorJob(scope.coroutineContext[Job]) + Dispatchers.Main.immediate
@@ -87,7 +86,7 @@ class PartitionListVM : ViewModel() {
 
         init {
             loaderScope.launch {
-                svm.listResult.observeAsFlow().collect { abs ->
+                svm.listResult.flow.collect { abs ->
                     val current = pending
                     pending = null
                     busy = false

@@ -3,7 +3,6 @@ package com.github.tvbox.osc.sourcedata;
 import android.os.Looper;
 
 import androidx.annotation.NonNull;
-import androidx.lifecycle.MutableLiveData;
 
 import com.github.catvod.crawler.Spider;
 import com.github.tvbox.osc.api.ApiConfig;
@@ -40,12 +39,12 @@ final class SortLoader {
     private final Gson gson;
     private final ConcurrentHashMap<String, String> extendCache;
     private final Map<String, AbsSortXml> sortCache;
-    private final MutableLiveData<AbsSortXml> sortResult;
+    private final SourceChannel<AbsSortXml> sortResult;
     private final ListLoader listLoader;
     private final SourceResultParser resultParser;
 
     SortLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, Map<String, AbsSortXml> sortCache,
-               MutableLiveData<AbsSortXml> sortResult, ListLoader listLoader, SourceResultParser resultParser) {
+               SourceChannel<AbsSortXml> sortResult, ListLoader listLoader, SourceResultParser resultParser) {
         this.gson = gson;
         this.extendCache = extendCache;
         this.sortCache = sortCache;

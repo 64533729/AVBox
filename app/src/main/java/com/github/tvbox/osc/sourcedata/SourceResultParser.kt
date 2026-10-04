@@ -2,8 +2,6 @@ package com.github.tvbox.osc.sourcedata
 
 import android.text.TextUtils
 
-import androidx.lifecycle.MutableLiveData
-
 import com.github.tvbox.osc.bean.AbsJson
 import com.github.tvbox.osc.bean.AbsSortJson
 import com.github.tvbox.osc.bean.AbsSortXml
@@ -31,8 +29,8 @@ import java.util.LinkedHashMap
  */
 class SourceResultParser(
     private val gson: Gson,
-    private val searchResult: MutableLiveData<AbsXml>,
-    private val detailResult: MutableLiveData<AbsXml>,
+    private val searchResult: SourceChannel<AbsXml?>,
+    private val detailResult: SourceChannel<AbsXml?>,
     private val pushDetailResolver: PushDetailResolver,
 ) {
 
@@ -56,7 +54,7 @@ class SourceResultParser(
         return filter
     }
 
-    fun sortJson(result: MutableLiveData<AbsSortXml>?, json: String?): AbsSortXml? {
+    fun sortJson(result: SourceChannel<AbsSortXml?>?, json: String?): AbsSortXml? {
         try {
             if (TextUtils.isEmpty(json)) {
                 return AbsSortJson().toAbsSortXml()
@@ -100,7 +98,7 @@ class SourceResultParser(
         }
     }
 
-    fun sortXml(result: MutableLiveData<AbsSortXml>?, xml: String?): AbsSortXml? {
+    fun sortXml(result: SourceChannel<AbsSortXml?>?, xml: String?): AbsSortXml? {
         try {
             val xstream = sortXStream.get()!!
             val data = xstream.fromXML(xml) as AbsSortXml
@@ -117,15 +115,15 @@ class SourceResultParser(
         }
     }
 
-    fun xml(result: MutableLiveData<AbsXml>?, xml: String?, sourceKey: String?): AbsXml? {
+    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?): AbsXml? {
         return xml(result, xml, sourceKey, "")
     }
 
-    fun xml(result: MutableLiveData<AbsXml>?, xml: String?, sourceKey: String?, searchToken: String?): AbsXml? {
+    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?): AbsXml? {
         return xml(result, xml, sourceKey, searchToken, null)
     }
 
-    fun xml(result: MutableLiveData<AbsXml>?, xml: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
+    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         var text: String? = xml
         try {
             val xstream = listXStream.get()!!
@@ -169,15 +167,15 @@ class SourceResultParser(
         }
     }
 
-    fun json(result: MutableLiveData<AbsXml>?, json: String?, sourceKey: String?): AbsXml? {
+    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?): AbsXml? {
         return json(result, json, sourceKey, "")
     }
 
-    fun json(result: MutableLiveData<AbsXml>?, json: String?, sourceKey: String?, searchToken: String?): AbsXml? {
+    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?): AbsXml? {
         return json(result, json, sourceKey, searchToken, null)
     }
 
-    fun json(result: MutableLiveData<AbsXml>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
+    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         try {
             // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
             if (json == null || json.trim { it <= ' ' }.isEmpty()) {
@@ -230,7 +228,7 @@ class SourceResultParser(
         }
     }
 
-    fun postEmptySearchResult(result: MutableLiveData<AbsXml>?, sourceKey: String?, searchToken: String?) {
+    fun postEmptySearchResult(result: SourceChannel<AbsXml?>?, sourceKey: String?, searchToken: String?) {
         val data = AbsXml()
         data.sourceKey = sourceKey
         data.searchToken = searchToken
@@ -249,7 +247,7 @@ class SourceResultParser(
         return data
     }
 
-    private fun postSearchResult(result: MutableLiveData<AbsXml>, data: AbsXml) {
+    private fun postSearchResult(result: SourceChannel<AbsXml?>, data: AbsXml) {
         result.postValue(data)
     }
 

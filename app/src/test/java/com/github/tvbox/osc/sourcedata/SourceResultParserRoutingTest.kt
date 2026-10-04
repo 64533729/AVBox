@@ -1,9 +1,12 @@
 package com.github.tvbox.osc.sourcedata
 
-import androidx.lifecycle.MutableLiveData
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.event.RefreshEvent
+import com.github.tvbox.osc.ui.activity.DetailResponseGuard
 import com.google.gson.Gson
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.junit.Assert.assertEquals
@@ -19,7 +22,7 @@ class SourceResultParserRoutingTest {
     private val gson = Gson()
 
     /** 记录投递而不落到 Android 主线程(单测里没有 Looper) */
-    private class RecordingChannel : MutableLiveData<AbsXml>() {
+    private class RecordingChannel : SourceChannel<AbsXml?>() {
         val posted = ArrayList<AbsXml?>()
         override fun postValue(value: AbsXml?) {
             posted.add(value)
@@ -39,7 +42,7 @@ class SourceResultParserRoutingTest {
     private val payload =
         """{"list":[{"vod_id":"1","vod_name":"测试片","vod_play_from":"线路甲","vod_play_url":"第1集${'$'}http://a.example/1.m3u8"}]}"""
 
-    private fun newParser(search: MutableLiveData<AbsXml>, detail: MutableLiveData<AbsXml>) =
+    private fun newParser(search: SourceChannel<AbsXml?>, detail: SourceChannel<AbsXml?>) =
         SourceResultParser(gson, search, detail, PushDetailResolver(gson, detail))
 
     @Test
@@ -81,5 +84,17 @@ class SourceResultParserRoutingTest {
         newParser(search, detail).json(list, payload, "src")
         assertEquals(1, list.posted.size)
         assertEquals("src", list.posted[0]!!.sourceKey)
+    }
+
+    /** M4a 第一验收:详情回包经新通道(Flow)投递后仍携带代次,迟到回包隔离不得弱化 */
+    @Test
+    fun detailTokenSurvivesFlowDelivery() = runBlocking {
+        val search = SourceChannel<AbsXml?>()
+        val detail = SourceChannel<AbsXml?>()
+        newParser(search, detail).json(detail, payload, "src", "", 42)
+        val data = withTimeout(1000) { detail.flow.first() }
+        assertEquals(42, data?.detailToken)
+        assertTrue("当前代次应被守卫采信", DetailResponseGuard.isCurrent(42, data?.detailToken))
+        assertTrue("上一代必须被守卫丢弃", !DetailResponseGuard.isCurrent(41, data?.detailToken))
     }
 }

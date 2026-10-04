@@ -4,8 +4,6 @@ import android.text.TextUtils;
 import android.os.Looper;
 import android.util.Base64;
 
-import androidx.lifecycle.MutableLiveData;
-
 import com.github.catvod.crawler.Spider;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.bean.AbsXml;
@@ -35,10 +33,10 @@ import java.util.concurrent.ConcurrentHashMap;
 final class ListLoader {
     private final Gson gson;
     private final ConcurrentHashMap<String, String> extendCache;
-    private final MutableLiveData<AbsXml> listResult;
+    private final SourceChannel<AbsXml> listResult;
     private final SourceResultParser resultParser;
 
-    ListLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, MutableLiveData<AbsXml> listResult,
+    ListLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, SourceChannel<AbsXml> listResult,
                SourceResultParser resultParser) {
         this.gson = gson;
         this.extendCache = extendCache;

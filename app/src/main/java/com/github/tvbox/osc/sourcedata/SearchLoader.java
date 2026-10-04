@@ -2,8 +2,6 @@ package com.github.tvbox.osc.sourcedata;
 
 import android.text.TextUtils;
 
-import androidx.lifecycle.MutableLiveData;
-
 import com.github.catvod.crawler.Spider;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.bean.AbsXml;
@@ -27,10 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
 final class SearchLoader {
     private final Gson gson;
     private final ConcurrentHashMap<String, String> extendCache;
-    private final MutableLiveData<AbsXml> searchResult;
+    private final SourceChannel<AbsXml> searchResult;
     private final SourceResultParser resultParser;
 
-    SearchLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, MutableLiveData<AbsXml> searchResult,
+    SearchLoader(Gson gson, ConcurrentHashMap<String, String> extendCache, SourceChannel<AbsXml> searchResult,
                  SourceResultParser resultParser) {
         this.gson = gson;
         this.extendCache = extendCache;
@@ -47,7 +45,7 @@ final class SearchLoader {
         getSearch(sourceKey, wd, searchToken, searchResult, "search");
     }
 
-    private void getSearch(String sourceKey, String wd, String searchToken, MutableLiveData<AbsXml> result, String requestTag) {
+    private void getSearch(String sourceKey, String wd, String searchToken, SourceChannel<AbsXml> result, String requestTag) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         if (sourceBean == null) {
             resultParser.postEmptySearchResult(result, sourceKey, searchToken);
@@ -67,7 +65,7 @@ final class SearchLoader {
 
 
     /** type 3:爬虫 searchContent;空结果也回一条空 AbsXml,保持与其它分支同形状 */
-    private void searchFromSpider(final SourceBean sourceBean, final String wd, final MutableLiveData<AbsXml> result, final String searchToken) {
+    private void searchFromSpider(final SourceBean sourceBean, final String wd, final SourceChannel<AbsXml> result, final String searchToken) {
         
         try {
             Spider sp = ApiConfig.get().getCSP(sourceBean);
@@ -85,7 +83,7 @@ final class SearchLoader {
     }
 
     /** type 0/1:站点搜索接口(type 0 走 XML) */
-    private void searchFromApi(final SourceBean sourceBean, final String wd, final MutableLiveData<AbsXml> result, final String searchToken, final String requestTag) {
+    private void searchFromApi(final SourceBean sourceBean, final String wd, final SourceChannel<AbsXml> result, final String searchToken, final String requestTag) {
         // 回调里要按 type 分流 xml/json,值语义与调用点一致(原为捕获上层局部量)
         final int type = sourceBean.getType();
         
@@ -124,7 +122,7 @@ final class SearchLoader {
     }
 
     /** type 4:带 extend 的搜索;extend 是阻塞拉取,故整段挪到准备线程池 */
-    private void searchFromExtendedApi(final SourceBean sourceBean, final String wd, final MutableLiveData<AbsXml> result, final String searchToken, final String requestTag) {
+    private void searchFromExtendedApi(final SourceBean sourceBean, final String wd, final SourceChannel<AbsXml> result, final String searchToken, final String requestTag) {
         
         final String searchWd = wd;
         SourceHelper.PREPARE_POOL.execute(new Runnable() {

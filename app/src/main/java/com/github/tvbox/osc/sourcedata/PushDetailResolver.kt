@@ -3,8 +3,6 @@ package com.github.tvbox.osc.sourcedata
 import android.text.TextUtils
 import android.util.Base64
 
-import androidx.lifecycle.MutableLiveData
-
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
@@ -32,7 +30,7 @@ import java.util.concurrent.TimeUnit
  *
  * 两者都会改写详情数据并把结果回投 detailResult,所以由详情/解析通道共用同一个实例。
  */
-class PushDetailResolver(private val gson: Gson, private val detailResult: MutableLiveData<AbsXml>) {
+class PushDetailResolver(private val gson: Gson, private val detailResult: SourceChannel<AbsXml?>) {
 
     fun checkPush(data: AbsXml): AbsXml {
         val videoList = data.movie?.videoList

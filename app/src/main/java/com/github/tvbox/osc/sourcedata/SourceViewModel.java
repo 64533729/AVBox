@@ -2,7 +2,6 @@ package com.github.tvbox.osc.sourcedata;
 
 import android.text.TextUtils;
 
-import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.github.catvod.crawler.Spider;
@@ -22,17 +21,20 @@ import org.json.JSONObject;
  * <p>门面自己只保留跨 Loader 共享的东西:7 个结果通道;homeContent/extend 缓存归
  * {@link SourceRuntimeState},换源清理因此仍有唯一出口(线程池仍在 {@link SourceHelper})。
  *
+ * <p>7 个通道已由裸 `MutableLiveData` 换成 {@link SourceChannel}:消费侧(Kotlin 页面 VM)收 Flow,
+ * 播放层(Java)在 M7 迁移前走通道的 LiveData 兼容面。
+ *
  * @author pj567
  */
 public class SourceViewModel extends ViewModel {
-    public MutableLiveData<AbsSortXml> sortResult;
-    public MutableLiveData<AbsXml> listResult;
-    public MutableLiveData<AbsXml> searchResult;
-    public MutableLiveData<AbsXml> detailResult;
-    public MutableLiveData<JSONObject> actionResult;
-    public MutableLiveData<JSONObject> playResult;
+    public SourceChannel<AbsSortXml> sortResult;
+    public SourceChannel<AbsXml> listResult;
+    public SourceChannel<AbsXml> searchResult;
+    public SourceChannel<AbsXml> detailResult;
+    public SourceChannel<JSONObject> actionResult;
+    public SourceChannel<JSONObject> playResult;
     /** 下一集预解析专用通道（预载方案,与 playResult 独立 seq 防串扰,规格 §5.2） */
-    public MutableLiveData<JSONObject> preloadResult;
+    public SourceChannel<JSONObject> preloadResult;
 
     private final Gson gson;
     private final PushDetailResolver pushDetailResolver;
@@ -44,13 +46,13 @@ public class SourceViewModel extends ViewModel {
     private final PlayLoader playLoader;
 
     public SourceViewModel() {
-        sortResult = new MutableLiveData<>();
-        listResult = new MutableLiveData<>();
-        searchResult = new MutableLiveData<>();
-        detailResult = new MutableLiveData<>();
-        actionResult = new MutableLiveData<>();
-        playResult = new MutableLiveData<>();
-        preloadResult = new MutableLiveData<>();
+        sortResult = new SourceChannel<>();
+        listResult = new SourceChannel<>();
+        searchResult = new SourceChannel<>();
+        detailResult = new SourceChannel<>();
+        actionResult = new SourceChannel<>();
+        playResult = new SourceChannel<>();
+        preloadResult = new SourceChannel<>();
         gson = new Gson();
         pushDetailResolver = new PushDetailResolver(gson, detailResult);
         resultParser = new SourceResultParser(gson, searchResult, detailResult, pushDetailResolver);

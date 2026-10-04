@@ -19,7 +19,6 @@ import com.github.tvbox.osc.util.HistoryWriter
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.SearchHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.github.tvbox.osc.sourcedata.observeAsFlow
 import com.lzy.okgo.OkGo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -139,7 +138,7 @@ class DetailViewModel : ViewModel() {
         EventBus.getDefault().register(this)
         // 单实例 + 代次(D2/V4):不再换 SourceViewModel 实例,迟到回包由回包自带的代次丢弃
         viewModelScope.launch {
-            sourceViewModel.detailResult.observeAsFlow().collect { data ->
+            sourceViewModel.detailResult.flow.collect { data ->
                 if (DetailResponseGuard.isCurrent(detailRequestToken, data?.detailToken)) onDetailResult(data)
             }
         }
@@ -978,7 +977,7 @@ class DetailViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        // 收集器不手工摘:onCleared 返回后框架才取消 viewModelScope,桥接器的 awaitClose 随之摘观察者
+        // 收集器不手工摘:onCleared 返回后框架才取消 viewModelScope,收集协程随之结束
         EventBus.getDefault().unregister(this)
         destroyEngine()
         super.onCleared()

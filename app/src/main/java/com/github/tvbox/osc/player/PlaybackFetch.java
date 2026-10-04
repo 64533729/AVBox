@@ -46,13 +46,13 @@ final class PlaybackFetch {
                 handlePlayResult(info);
             }
         };
-        sourceViewModel.playResult.observeForever(playResultObserver);
+        sourceViewModel.playResult.getLiveData().observeForever(playResultObserver);
     }
 
     /** 页面销毁时注销观察者(对应原 hostDestroy 的 removeObserver) */
     void release() {
         if (sourceViewModel != null && playResultObserver != null) {
-            sourceViewModel.playResult.removeObserver(playResultObserver);
+            sourceViewModel.playResult.getLiveData().removeObserver(playResultObserver);
             playResultObserver = null;
         }
     }

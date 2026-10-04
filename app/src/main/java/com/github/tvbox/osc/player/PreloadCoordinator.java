@@ -4,8 +4,8 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.lifecycle.LiveData;
 import androidx.lifecycle.Observer;
-import androidx.lifecycle.MutableLiveData;
 
 import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.util.DefaultConfig;
@@ -107,7 +107,7 @@ public final class PreloadCoordinator {
 
     public PreloadCoordinator(SourceViewModel sourceViewModel) {
         this.sourceViewModel = sourceViewModel;
-        MutableLiveData<JSONObject> channel = sourceViewModel.preloadResult;
+        LiveData<JSONObject> channel = sourceViewModel.preloadResult.getLiveData();
         if (channel != null) {
             channel.observeForever(preloadResultObserver);
             observing = true;
@@ -163,7 +163,7 @@ public final class PreloadCoordinator {
         activeSnapshot = null;
         clearCache();
         if (observing && sourceViewModel != null) {
-            sourceViewModel.preloadResult.removeObserver(preloadResultObserver);
+            sourceViewModel.preloadResult.getLiveData().removeObserver(preloadResultObserver);
             observing = false;
         }
         PreloadManagerHolder.release();
