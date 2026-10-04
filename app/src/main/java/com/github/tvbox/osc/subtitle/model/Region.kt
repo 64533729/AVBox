@@ -25,8 +25,6 @@
  *
  */
 
-package com.github.tvbox.osc.subtitle.model;
+package com.github.tvbox.osc.subtitle.model
 
-public class Region {
-
-}
+class Region

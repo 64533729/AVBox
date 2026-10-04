@@ -25,20 +25,21 @@
  *
  */
 
-package com.github.tvbox.osc.subtitle.model;
+package com.github.tvbox.osc.subtitle.exception
 
-import java.util.List;
+/**
+ * This class represents problems that may arise during the parsing of a subttile file.
+ *
+ * @author J. David
+ *
+ */
+class FatalParsingException(private val parsingError: String?) : Exception(parsingError) {
 
-public class Subtitle {
-	
-	public Style style;
-	public Region region;
-	
-	public Time start;
-	public Time end;
-	
-	public String content="";
-	public List<Subtitle> lines;
-	public boolean lyricCurrent;
+    override fun getLocalizedMessage(): String? {
+        return parsingError
+    }
 
+    companion object {
+        private const val serialVersionUID = 6798827566637277804L
+    }
 }

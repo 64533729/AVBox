@@ -23,48 +23,41 @@
  *              Buddha bless, there will never be bug!!!
  */
 
-package com.github.tvbox.osc.subtitle;
+package com.github.tvbox.osc.subtitle
 
-import androidx.annotation.Nullable;
-
-import com.github.tvbox.osc.subtitle.model.Subtitle;
-
-import java.util.List;
+import com.github.tvbox.osc.subtitle.model.Subtitle
 
 /**
  * @author AveryZhong.
  */
 
-public class SubtitleFinder {
-    private SubtitleFinder() {
-        throw new AssertionError("No instance for you");
-    }
+object SubtitleFinder {
 
-    @Nullable
-    public static Subtitle find(long position, List<Subtitle> subtitles) {
+    @JvmStatic
+    fun find(position: Long, subtitles: List<Subtitle>?): Subtitle? {
         if (subtitles == null || subtitles.isEmpty()) {
-            return null;
+            return null
         }
-        int start = 0;
-        int end = subtitles.size() - 1;
+        var start = 0
+        var end = subtitles.size - 1
         while (start <= end) {
-            int middle = (start + end) / 2;
-            Subtitle middleSubtitle = subtitles.get(middle);
-            if (position < middleSubtitle.start.mseconds) {
-                if (position > middleSubtitle.end.mseconds) {
-                    return middleSubtitle;
+            val middle = (start + end) / 2
+            val middleSubtitle = subtitles[middle]
+            if (position < middleSubtitle.start!!.mseconds) {
+                if (position > middleSubtitle.end!!.mseconds) {
+                    return middleSubtitle
                 }
-                end = middle - 1;
-            } else if (position > middleSubtitle.end.mseconds) {
-                if (position < middleSubtitle.start.mseconds) {
-                    return middleSubtitle;
+                end = middle - 1
+            } else if (position > middleSubtitle.end!!.mseconds) {
+                if (position < middleSubtitle.start!!.mseconds) {
+                    return middleSubtitle
                 }
-                start = middle + 1;
-            } else if (position >= middleSubtitle.start.mseconds
-                    && position <= middleSubtitle.end.mseconds) {
-                return middleSubtitle;
+                start = middle + 1
+            } else if (position >= middleSubtitle.start!!.mseconds &&
+                position <= middleSubtitle.end!!.mseconds) {
+                return middleSubtitle
             }
         }
-        return null;
+        return null
     }
 }

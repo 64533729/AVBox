@@ -23,33 +23,25 @@
  *              Buddha bless, there will never be bug!!!
  */
 
-package com.github.tvbox.osc.subtitle;
-
-import com.github.tvbox.osc.subtitle.model.Subtitle;
-import com.github.tvbox.osc.subtitle.runtime.AppTaskExecutor;
+package com.github.tvbox.osc.subtitle.runtime
 
 /**
  * @author AveryZhong.
  */
 
-public class UIRenderTask implements Runnable {
+abstract class TaskExecutor {
 
-    private Subtitle mSubtitle;
-    private SubtitleEngine.OnSubtitleChangeListener mOnSubtitleChangeListener;
+    abstract fun executeOnDeskIO(task: Runnable)
 
-    public UIRenderTask(final SubtitleEngine.OnSubtitleChangeListener l) {
-        mOnSubtitleChangeListener = l;
-    }
-
-    @Override
-    public void run() {
-        if (mOnSubtitleChangeListener != null) {
-            mOnSubtitleChangeListener.onSubtitleChanged(mSubtitle);
+    open fun executeOnMainThread(task: Runnable) {
+        if (isMainThread()) {
+            task.run()
+        } else {
+            postToMainThread(task)
         }
     }
 
-    public void execute(final Subtitle subtitle) {
-        mSubtitle = subtitle;
-        AppTaskExecutor.mainThread().execute(this);
-    }
+    abstract fun postToMainThread(task: Runnable)
+
+    abstract fun isMainThread(): Boolean
 }

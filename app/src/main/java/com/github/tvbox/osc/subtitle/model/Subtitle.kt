@@ -25,28 +25,28 @@
  *
  */
 
-package com.github.tvbox.osc.subtitle.exception;
+package com.github.tvbox.osc.subtitle.model
 
-/**
- * This class represents problems that may arise during the parsing of a subttile file.
- * 
- * @author J. David
- *
- */
-public class FatalParsingException extends Exception {
+class Subtitle {
 
-	private static final long serialVersionUID = 6798827566637277804L;
-	
-	private String parsingError;
-	
-	public FatalParsingException(String parsingError){
-		super(parsingError);
-		this.parsingError = parsingError;
-	}
-	
-	@Override
-	public String getLocalizedMessage(){
-		return parsingError;
-	}
-	
+    @JvmField
+    var style: Style? = null
+
+    @JvmField
+    var region: Region? = null
+
+    @JvmField
+    var start: Time? = null
+
+    @JvmField
+    var end: Time? = null
+
+    @JvmField
+    var content: String? = ""
+
+    @JvmField
+    var lines: MutableList<Subtitle>? = null
+
+    @JvmField
+    var lyricCurrent: Boolean = false
 }

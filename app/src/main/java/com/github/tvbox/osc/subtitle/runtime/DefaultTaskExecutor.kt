@@ -23,25 +23,38 @@
  *              Buddha bless, there will never be bug!!!
  */
 
-package com.github.tvbox.osc.subtitle.runtime;
+package com.github.tvbox.osc.subtitle.runtime
+
+import android.os.Handler
+import android.os.Looper
+
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * @author AveryZhong.
  */
 
-public abstract class TaskExecutor {
+class DefaultTaskExecutor : TaskExecutor() {
 
-    public abstract void executeOnDeskIO(Runnable task);
+    private var mMainHandler: Handler? = null
+    private val mLock = Any()
+    private val mDeskIO: ExecutorService = Executors.newFixedThreadPool(3)
 
-    public void executeOnMainThread(Runnable task) {
-        if (isMainThread()) {
-            task.run();
-        } else {
-            postToMainThread(task);
-        }
+    override fun executeOnDeskIO(task: Runnable) {
+        mDeskIO.execute(task)
     }
 
-    public abstract void postToMainThread(Runnable task);
+    override fun postToMainThread(task: Runnable) {
+        if (mMainHandler == null) {
+            synchronized(mLock) {
+                mMainHandler = Handler(Looper.getMainLooper())
+            }
+        }
+        mMainHandler!!.post(task)
+    }
 
-    public abstract boolean isMainThread();
+    override fun isMainThread(): Boolean {
+        return Thread.currentThread() === Looper.getMainLooper().thread
+    }
 }

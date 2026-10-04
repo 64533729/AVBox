@@ -23,43 +23,27 @@
  *              Buddha bless, there will never be bug!!!
  */
 
-package com.github.tvbox.osc.subtitle.runtime;
+package com.github.tvbox.osc.subtitle
 
-import android.os.Handler;
-import android.os.Looper;
-import androidx.annotation.Nullable;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.github.tvbox.osc.subtitle.model.Subtitle
+import com.github.tvbox.osc.subtitle.runtime.AppTaskExecutor
 
 /**
  * @author AveryZhong.
  */
 
-public class DefaultTaskExecutor extends TaskExecutor {
+class UIRenderTask(private val mOnSubtitleChangeListener: SubtitleEngine.OnSubtitleChangeListener?) : Runnable {
 
-    @Nullable
-    private Handler mMainHandler;
-    private final Object mLock = new Object();
-    private ExecutorService mDeskIO = Executors.newFixedThreadPool(3);
+    private var mSubtitle: Subtitle? = null
 
-    @Override
-    public void executeOnDeskIO(final Runnable task) {
-        mDeskIO.execute(task);
-    }
-
-    @Override
-    public void postToMainThread(final Runnable task) {
-        if (mMainHandler == null) {
-            synchronized (mLock) {
-                mMainHandler = new Handler(Looper.getMainLooper());
-            }
+    override fun run() {
+        if (mOnSubtitleChangeListener != null) {
+            mOnSubtitleChangeListener.onSubtitleChanged(mSubtitle)
         }
-        mMainHandler.post(task);
     }
 
-    @Override
-    public boolean isMainThread() {
-        return Thread.currentThread() == Looper.getMainLooper().getThread();
+    fun execute(subtitle: Subtitle?) {
+        mSubtitle = subtitle
+        AppTaskExecutor.mainThread().execute(this)
     }
 }
