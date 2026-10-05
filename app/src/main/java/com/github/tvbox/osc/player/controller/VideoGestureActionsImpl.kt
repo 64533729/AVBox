@@ -34,6 +34,14 @@ import com.github.tvbox.osc.util.PlayerUtils
  */
 internal class VideoGestureActionsImpl(private val host: ComposeVideoController) : VideoGestureActions {
 
+    /**
+     * 手势诊断日志开关。
+     *
+     * <p>默认**关**:一次拖动可达 **109 个事件/秒**(真机实测),每个事件写日志 = 3 次字符串分配
+     * + 一次日志写入系统调用,是单事件里最大的一笔开销。定位问题时临时置 true。
+     */
+    private val verboseGestureLog = false
+
     /** 手势提示的种类(用于"换模式时撤下另一套") */
     private enum class HintKind { NONE, SEEK, SLIDE }
 
@@ -94,6 +102,18 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     private var volumeBase: Int? = null
 
     /**
+     * 已下发过的亮度/音量。
+     *
+     * <p>拖动中每秒上百个事件,相邻事件算出的值经常**取整后相同**;重复下发只是白付
+     * 一次 WindowManager IPC / AudioService binder,故值没变就跳过写系统。
+     */
+    private var lastAppliedBrightness = Float.NaN
+    private var lastAppliedVolume = Int.MIN_VALUE
+
+    /** 音量上限:会话内取一次(它不会变),避免每个事件都 binder 一次 */
+    private var cachedStreamMax = 0
+
+    /**
      * 本次会话当前在展示哪一套提示。
      *
      * <p>seek 提示与亮/音量提示是**两个独立状态位**,各自 1 秒后自动隐藏。手势中途换模式时,
@@ -123,6 +143,9 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             if (it < 0f) 0.5f else it
         }
         volumeBase = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)
+        cachedStreamMax = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
+        lastAppliedBrightness = Float.NaN
+        lastAppliedVolume = Int.MIN_VALUE
         val view = host.playerView
         val paused = host.curPlayState == AppPlayerView.STATE_PAUSED
         return VideoGestureSession(
@@ -217,12 +240,17 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         var target = base + delta
         if (target < 0f) target = 0f
         if (target > 1f) target = 1f
-        attrs.screenBrightness = target
-        window.attributes = attrs
-        LOG.i(
-            "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
-                " base=" + base + " target=" + target,
-        )
+        if (target != lastAppliedBrightness) {
+            attrs.screenBrightness = target
+            window.attributes = attrs
+            lastAppliedBrightness = target
+        }
+        if (verboseGestureLog) {
+            LOG.i(
+                "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
+                    " base=" + base + " target=" + target,
+            )
+        }
         showSlideHintOnly()
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (target * 100).toInt()), brightness = true)
     }
@@ -232,7 +260,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val am = audioManager ?: return
         val height = host.height
         if (height <= 0) return
-        val streamMax = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val streamMax = cachedStreamMax
         if (streamMax <= 0) return
         // 基准同样是手势开始时的固定值(理由见 brightnessBase 注释)
         val base = volumeBase ?: return
@@ -241,11 +269,17 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         var index = base + delta
         if (index > streamMax) index = streamMax.toFloat()
         if (index < 0f) index = 0f
-        am.setStreamVolume(AudioManager.STREAM_MUSIC, index.toInt(), 0)
-        LOG.i(
-            "echo-slide: kind=volume dy=" + totalDeltaY + " h=" + height +
-                " base=" + base + " max=" + streamMax + " target=" + index,
-        )
+        val applied = index.toInt()
+        if (applied != lastAppliedVolume) {
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, applied, 0)
+            lastAppliedVolume = applied
+        }
+        if (verboseGestureLog) {
+            LOG.i(
+                "echo-slide: kind=volume dy=" + totalDeltaY + " h=" + height +
+                    " base=" + base + " max=" + streamMax + " target=" + index,
+            )
+        }
         showSlideHintOnly()
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (index / streamMax * 100).toInt()), brightness = false)
     }
