@@ -30,7 +30,7 @@ description: M0 立规产出——迁移流程与禁止项、Kotlin 静态/字�
 | `observeForever` 面 | 2 处 | `player/PlaybackFetch.java`、`player/PreloadCoordinator.java` |
 | DAO / Manager 直连面 | 75 命中 / 16 文件 | `AppDataManager.get()` / `RoomDataManger` / `CacheManager` |
 
-**行尾归一化说明**：仓库 `core.autocrlf=input`，索引里全部是 LF。工作区有 12 个既有 `.kt` 文件（`osc/util/` 下）落盘为 CRLF（`git ls-files --eol` = `i/lf w/crlf`），提交时会被归一化，**属既有状态、不顺手批量转换**；本次改动的文件一律保证落盘 LF。
+**行尾归一化说明**：仓库 `core.autocrlf=input`，索引里全部是 LF。工作区有一批既有 `.kt` 文件落盘为 CRLF（`git ls-files --eol` = `i/lf w/crlf`），提交时会被归一化，**属既有状态、不顺手批量转换**；本次改动的文件一律保证落盘 LF。**实测清单（2026-10-06，见 §7.16 登记项⑧）**：`ui/activity` 12 个、`ui/music` 4、`ui/components` 3、`ui/page` 2、`player/effect` 4、`player/ui` 1、`osc/util` 11（本行旧口径"12 个既有 `.kt`（`osc/util/` 下）"作废）。
 
 # 2. 每个切片的四步与卡口
 
@@ -542,6 +542,35 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 **复核轮（2026-10-06）**：M7c-5b（`PlaybackController`）、M7c-6a（`PlaybackEngine`）、M7c-6b（`PlaybackService` 迁移）各跑一轮独立只读子代理逐类对照 —— 5b：0 阻断 / 0 高 / 2 中（`vod()`、`vs.url` 的逐次重读被缓存，按规则 6 改回）/ 10 低（`@JvmStatic`、`@Throws` 缺失已补，可空性收紧 2 条不可达）；6a：0 阻断 / 0 高 / 1 中（规则 7，已改回）/ 3 低（`!!` 复刻 Java 隐式解引用、`?:` 死分支、ProgressManager 入参放宽）；6b：0 阻断 / 0 高 / 1 中（`updateSession` 的 `context` 收紧，已按规则 4 放宽为 `Context?`）+ 3 低（`stopSession` 同项、KDoc 链接写法、`onEngineReleased` KDoc 与"不 stopSelf"矛盾，均已修）。三轮均无"新引入的功能性偏差"。
 
 **未验证面（诚实标注）**：真机走查未做 —— 见计划档 M7c 未验证面（含本次收口引入的 3 条可观测差异）。
+
+# 7.16 M7d 实测登记（2026-10-06，播放栈自研替换：直播/音乐/DLNA/第三方出口读取面切换 5 片）
+
+**结论**：把「直播 / 音乐 / DLNA / 第三方出口」四链路的**状态读取面**从 doikki 基类 int（`VideoView.STATE_*`）切到新栈 `PlayState`，并接通音乐页外部播放器出口。新增读口 = `MyVideoView.playState`（读桥内状态机）+ `PlaybackViewBridge.playState()` + `PlayState.fromLegacy(int)`（仅作旧通知参数的适配，M7f 删）。**DLNA 零改动**（`dlna/**` 与 `CastSheet.kt` 对 doikki 与状态面 0 引用，仅回归核对）。提交：**`d68cd61`**（状态读口 + 调度层：`PlaybackController.isStartedPlayState/isPlaybackStarted/isIdleKernelReusable`、`PlaybackRetryDelegate`、`DanmuLoadController`、`MusicSessionDelegate`、`PlaybackEngine` 监听传参、`MyVideoView`/`PlayContainerViewBridge`/`HeadlessView` 三处读口实现 + `PlayStateTest` 3 例）；**`7e8a4e3`**（直播链：`LivePlayActivity`/`LivePlayViewModel`/`LiveScreens`/`LiveOverlayController` + `ComposeLiveController.LiveControlListener` 签名改 `PlayState`；`ExoMediaSourceHelper.HEADER_FORMAT` → `MediaSources.HEADER_FORMAT`；`PlayerUtils.safeTimeMs` → 新 `PlaybackTimes`，+3 例）；**`2e1cd36`**（音乐链 + 第三方出口 + 详情页：`MusicPlayerActivity` 状态监听/positionTick、`MusicPageBridge.playExternalPlayer` 接通、`DetailActivity.musicPlaybackDetected`）；**`b408675`**（收口：`MyVideoView.clearVideoFrame` 改走桥 `stopForFrameClear()`，不投状态机 —— 复刻旧"直调内核 stop 不改基类状态"）；**`d708461`**（复核修复：引擎建视图显式装桥工厂、点播桥 subtitle 空兜底、`PlayerHelper.runExternalPlayer` 六参自递归、`fromLegacy` 去 `@JvmStatic`、补枚举成员表断言）。每片 `:app:assembleDebug` 绿；`:app:testDebugUnitTest` 604 → 607 → 610 → **611 用例 / 0 失败 / 0 错误 / 0 跳过（79 suite）**；改动文件全 LF。
+
+**本切片现场核实出的规则（M7e–M7f 照查）**：
+
+1. **枚举 `when` 语句也要穷尽**：旧 int 的 `when` 作语句可不写 else，换 `PlayState` 枚举后 K2 强制穷尽 —— `MusicPlayerActivity` 状态监听补 `PlayState.IDLE, PlayState.START_ABORT -> {}`（等价旧 int 的"这两态不动作"）。
+2. **通知回调内读状态机与通知参数等价（前提必须成立）**：桥对每条命令/事件都是"先投状态机、后调 listener"，且基类 `setPlayState` 只在状态迁移时广播 ⇒ 回调内 `view.playState` == `fromLegacy(回调参数)`。`fromLegacy` 只用于"把旧通知参数转枚举比较"，**读值一律走 `playState`**。
+3. **直调内核命令会污染状态机**（M7b 登记⑥的收口）：`clearVideoFrame` 是"复用换集前的盖黑帧"、旧实现直调 `mMediaPlayer.stop()` 本就不改基类状态；桥 `stop()` 会投 IDLE ⇒ 专用 `ExoPlayer.stopForFrameClear()`（只停引擎）。凡新增"静默停内核"调用点必须走该口，否则 `isIdleKernelReusable`/`canReusePlayer` 会把仍有内容的内核误判成空闲。
+4. **`MyVideoView.playState` 依赖"内核必为桥"**：`as? ExoPlayer` 不成立时静默退 IDLE。`PlaybackEngine.createPlayerView` 必须显式 `setPlayerFactory(ExoMediaPlayerFactory.create())`（无页面起播不经 `PlayerHelper.updateCfg`，沿用 dooki 默认工厂会拿到旧内核 ⇒ 读取面全面失真）。
+5. **可空性放宽的配套兜底**：`PlaybackViewBridge.playExternalPlayer(subtitle?)` 放宽后，Java 桥直传非空 Kotlin 形参 = NPE 面（`PlayerHelper.runExternalPlayer(subtitle: String)`），补 `subtitle == null ? "" : subtitle`；新增实现（音乐页）用 `subtitle.orEmpty()`。**只放宽不收紧时，必须逐调用点核兜底**。
+6. **`@JvmStatic` 只给有 Java 调用点的 companion 成员**：`PlayState.fromLegacy` 三个调用点全在 Kotlin ⇒ 不加（§7.15-3 的反向口径）。
+7. **无 else 的枚举 `when` 会被新增成员静默走过**：单测补 `PlayState` 成员表断言（`enumMembersArePinned`）钉住顺序与数量。
+8. **`-1` 的两种语义要分清**：`fromLegacy(-1)` = ERROR（通知参数的负一）；读值口无 -1（无播放器/无内核 → `PlayState.IDLE`）。
+
+**复核轮（2026-10-06，2 个独立只读子代理 + 本机闭环）**：A = 状态机 vs doikki 基类逐调用点配对（14 个 `setPlayState` 调用点 × 桥投递点）+ 15 个场景逐条 + `fromLegacy`/`-1` 二义 + 漏改面；B = 改动面审查（语义等价/可空性/覆盖完整/新文件质量/规范/潜在回归/登记缺口）。**0 阻断 / 0 高**；中 3 + 低 5：① 引擎未显式装桥工厂（"内核非桥"时读取面降级为 IDLE，已修 `d708461`）；② 点播桥 subtitle 直传非空形参的 NPE 面（已修）；③ `PlayerHelper.runExternalPlayer` 六参重载自递归（**非本轮引入**、当前零调用点，已修）；低项处置：`fromLegacy` 去 `@JvmStatic`（已修）、补枚举成员表断言（已修）、`PlaybackTimes` KDoc 微调（已修）；其余保留登记（见下）。
+
+**登记项（M7e/M7f 接续）**：
+① `PlaybackViewBridge.currentPlayState()` 已是**零调用读口**（仍在用旧 int 的三处直接打在 `mVideoView`/`host.player()` 上：`PlayContainer.java:217/1159`、`TrackSelectorDelegate.java:86/97`）—— 保留至 M7e 删 `ui/player` 4 Java 时一并删接口成员与 `HeadlessView` override（删除前新增读取一律走 `playState()`）。
+② `PlayState.fromLegacy` 是**迁移期适配**（消费点 3 处：`PlaybackEngine` 监听、`MusicPlayerActivity` 监听、`ComposeLiveController` 转发），doikki 清零（M7f）后整体删除。
+③ **START_ABORT 语义缺口**：状态机 `onStartAborted` 无接线；旧侧 int 8 在本仓库恒不可达（`showNetWarning()` 闸门恒 false：`VideoViewConfig` 默认 `mPlayOnMobileNetwork=true` 且 app 内 0 处 `VideoViewManager` 配置）。**开闸前必须给状态机接 `onStartAborted`**，否则三处读点分歧：`isIdleKernelReusable`（机制 IDLE→复用 / 旧 8→不复用）、`LivePlayActivity.canReusePlayer`（机制 IDLE→不复用 / 旧 8→复用）、`DanmuLoadController.isVideoReady`（同为 false）。
+④ **PREPARED 在读取面不可观测**（桥首次 READY 同帧连发 `onPrepared`+`onRenderingStart`）⇒ 三个读点（`LiveOverlayController` 分辨率 OSD、`DanmuLoadController.isVideoReady`、`DetailActivity.musicPlaybackDetected`）实际由 PLAYING/BUFFERED 过闸；集合保留 PREPARED 无害，真机走查覆盖"出现时机"。
+⑤ **日志取证面 int → 枚举名**（`PlaybackRetryDelegate`/`MusicSessionDelegate`/`LivePlayActivity` 的 `state=$state`）—— 走查清单里按 `state=<int>` grep 的条目改枚举名；`PlaybackEngine` 的 `echo-player error` 仍为 int（未变）。
+⑥ `PlaybackEngine` 状态监听体内残余的 int 比较（`VideoView.STATE_ERROR/PLAYING/BUFFERING/BUFFERED`）与 `PlaybackPreload.onPlayerState(int)` 的 int 状态面**留 M7f**（随 doikki 清零/预载改写一并收口）。
+⑦ 音乐页外部播放器的**可观测差异**（修复）：M7d 前 `MusicPageBridge` 继承 `HeadlessView.playExternalPlayer = false`，pl≥10 的源在音乐页"调用外部播放器"必提示失败且不拉起外部 App；现真正拉起（`subtitle.orEmpty()` + `isPageAlive` 守卫）—— 入走查清单。
+⑧ **工作区 CRLF 存量清单**（`i/lf w/crlf`，提交自动归一化、非本轮引入；实测 2026-10-06）：`ui/activity` 12（LiveChannelNavigator/ThemeSettingsActivity/SearchViewModel/SearchScreens/SearchListScreens/ConfigManageActivity/SearchIdleScreens/SearchActivity/PreferenceSettingsActivity/LiveProxyLoader/PlaySettingsActivity/LiveEpgParser）、`ui/music` 4、`ui/components` 3、`ui/page` 2、`player/effect` 4、`player/ui` 1、`osc/util` 11 —— §1「行尾归一化说明」的旧口径（"12 个既有 `.kt`（`osc/util/` 下）"）作废，以本清单为准。
+
+**未验证面（诚实标注）**：真机走查未做 —— 本片把直播/音乐/详情页的状态读取面与音乐页外部播放器出口翻新，走查至少覆盖：直播（起播 loading/暂停图标/自动换源超时分支/切台复用判定/分辨率 OSD 时机）、音乐（缓冲转圈/播放暂停图标/播完续播/外部播放器拉起）、详情页自动进音乐页判定、DLNA 投屏回归（零改动，仅核对），以及登记项 ③④⑦ 三条可观测差异。
 
 # 8. 回滚
 

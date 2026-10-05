@@ -247,7 +247,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - `dlna` 依赖第三方 `org.fourthline.cling`（`proguard-rules.pro` 有 keep）：只迁源码，不改继承结构（cling 会回调这些类）。
 - **风险**：中（其中 `server`/`base`/`python` 为中-高）。验证 = 构建 + 单测 + 真机走查（启动、局域网服务地址/端口、DLNA 投屏扫描、广播接收、py 源加载）。
 
-## M7｜播放栈自研替换（A 路线；取代原「app 内 36 个 Java 语言迁移」）—— M7-0 ✅ / M7a ✅（2026-10-05）/ M7b ✅（2026-10-06）/ M7c ✅（2026-10-06，9 片已提交，进度见下）
+## M7｜播放栈自研替换（A 路线；取代原「app 内 36 个 Java 语言迁移」）—— M7-0 ✅ / M7a ✅（2026-10-05）/ M7b ✅（2026-10-06）/ M7c ✅（2026-10-06，9 片已提交，进度见下）/ M7d ✅（2026-10-06，5 片已提交，进度见下）
 
 > 2026-10-05 决策（D12 / §3.6）：不再迁移 app 内 `player/` 36 Java 与 `player` 模块 27 Java，改为**新写 app 侧 Kotlin 播放层 + 整体删除 doikki fork**。本节取代旧 M7 的迁移口径；旧 M10 的「27 个 Java 迁 Kotlin」全部作废。
 
@@ -283,7 +283,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - **M7a｜新内核适配层** ✅ 已执行（2026-10-05）：`PlayerEngine`（DataSource/Renderers/LoadControl/TrackSelector/缓存/HLS/效果装配）；可单测部分（URL/headers/数据源选择/策略函数）补单测；不接 UI。
   - **M7b｜渲染宿主 + 状态机** ✅ 已执行（2026-10-06，交付与实测见下）：双模式表面宿主、尺寸/画面比例/挖孔、信令补发、音频焦点、进度保存；先在点播详情页预览态切换并走查（走查待做）。
   - **M7c｜点播全链切换** ✅ **已执行（2026-10-06，9 片已提交；`player/` 只剩 `PreloadCoordinator`/`PreloadManagerHolder` 留 M7f；收口细节与可观测差异见本节交付记录）**：`PlaybackService`/`PlaybackController` 与 8 协作者、取流解析、预载、重试、内核复用、媒体会话、字幕/弹幕绑定面整体切新栈；`player/` 36 Java 在此片重写为 Kotlin（逐类对照走 `tokens` 卡口，判据只看「旧有新无」）。
-  - **M7d｜直播 / 音乐 / DLNA / 第三方出口**：`ui/activity/*` 触点（`LiveScreens`/`LiveOverlayController`/`LivePlayViewModel`/`DetailActivity`/`MusicPlayerActivity` 等）。
+  - **M7d｜直播 / 音乐 / DLNA / 第三方出口** ✅ **已执行（2026-10-06，5 片已提交）**：四链路的**状态读取面**从 doikki 基类 int 切到新栈 `PlayState`（新增 `MyVideoView.playState` 读桥内状态机 + `PlaybackViewBridge.playState()` + `PlayState.fromLegacy` 适配）；`ui/activity/*` 触点（`LiveScreens`/`LiveOverlayController`/`LivePlayViewModel`/`DetailActivity`/`MusicPlayerActivity`）+ 调度层读取点（`PlaybackController`/`PlaybackRetryDelegate`/`DanmuLoadController`/`MusicSessionDelegate`/`PlaybackEngine` 监听）全部切换；**音乐页外部播放器出口接通**（修复 `HeadlessView` 恒 false 的"调用必失败"）；**DLNA 零改动**（仅回归核对）。收口/修复：`clearVideoFrame` 走 `stopForFrameClear()`（不投状态机）、引擎显式装桥工厂、点播桥 subtitle 空兜底、`PlayerHelper` 六参自递归（存量缺陷）。提交 `d68cd61`（读口 + 调度层）/`7e8a4e3`（直播链）/`2e1cd36`（音乐链 + 出口 + 详情页）/`b408675`（收口）/`d708461`（复核修复）；单测 **604 → 611** 全绿（79 suite）、每片 `assembleDebug` 绿 + 全 LF；复核 2 轮独立只读子代理（**0 阻断 / 0 高**，中 3 全修、低项处置与保留登记见规范 §7.16）；规则、登记项与未验证面见 **`avbox-kotlin-migration-spec.md` §7.16**。
   - **M7e｜控制器与手势去 View 化**：`ComposeVideoController`/`ComposeLiveController`/`GestureController` 改纯 Compose；删 `ui/player` 4 Java（`PlayContainer`/`PlayContainerViewBridge`/`TrackSelectorDelegate` 等）。
   - **M7f｜收尾**：全库 `xyz.doikki` 引用清零（`player` 模块除外）；`PlayerHelper`/`OkGoHelper`/`LivePlayerManager`/`BaseActivity`/`App`/`PlaySettingsPage`/`PlayerUiState` 等剩余触点清理。另：`PreloadCoordinator`/`PreloadManagerHolder` 改写（**取流/预载栈已无 LiveData**，其订阅改由 `PlaybackPreload` 收集通道 `flow`；`PlaybackPreload` 的收集域与 V5b 的 `PlayerEngine` 收口同批处理）。
 - **前置（M7-0）**：① ✅ 已执行（2026-10-05）删 `api(libs.dkplayer.ui)`（死依赖，零代码改动）；② 播放服务化 P0–P5 + V5/V5b 真机走查先收口（否则无法区分「替换回归」与「存量待验证」）—— **仍待用户走查**。
