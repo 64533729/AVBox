@@ -108,6 +108,14 @@ class VideoGestureHandler(
     val longPressTimeoutMs: Long = 500L,
     val doubleTapTimeoutMs: Long = 300L,
     val doubleTapMinTimeMs: Long = 40L,
+    /**
+     * 竖滑**起判阈值**:纵向位移超过 `height * 该比例` 才真正开始改亮度/音量。
+     *
+     * <p>为什么需要:真机反馈"下拉通知栏/上滑退出应用也会触发亮度音量"。系统手势抢走触摸前
+     * 会先送来一串 MOVE,等在系统取消时,亮度/音量**已经被改过了**。加一道门槛后,系统手势
+     * 惯常的那点位移不足以越过它(真机 1080×2400 下约 288px);用户明确要调时很容易越过。
+     */
+    private val verticalCommitFraction: Float = 0.12f,
 ) {
 
     enum class Mode { UNDECIDED, SEEK, BRIGHTNESS, VOLUME, NONE }
@@ -194,6 +202,11 @@ class VideoGestureHandler(
         }
 
         if (mode == Mode.UNDECIDED) {
+            // 竖滑要越过起判阈值才算数(横滑仍按 slop 即响应,见 decideMode)
+            val verticalEnough = kotlin.math.abs(dy) > s.height * verticalCommitFraction
+            if (kotlin.math.abs(dy) > kotlin.math.abs(dx) && !verticalEnough) {
+                return false
+            }
             mode = decideMode(dx, dy, s)
         }
         return when (mode) {
@@ -366,6 +379,7 @@ fun Modifier.videoGestureLayer(
                 //    长按靠这个窗口计时(手指静止也能到点);抬手通常就落在窗口内,必须一并处理。
                 var firstUp = false
                 var sawMove = false
+                var lastMoveAt = 0L
                 val longPressWon = withTimeoutOrNull(handler.longPressTimeoutMs) {
                     while (true) {
                         val e = awaitPointerEvent(PointerEventPass.Final)
@@ -375,6 +389,7 @@ fun Modifier.videoGestureLayer(
                             return@withTimeoutOrNull false
                         }
                         sawMove = true
+                        lastMoveAt = System.currentTimeMillis()
                         if (!c.isConsumed) handler.onMove(c.position.x, c.position.y, 8f)
                         if (handler.hasMoved) return@withTimeoutOrNull false
                     }
@@ -393,6 +408,7 @@ fun Modifier.videoGestureLayer(
                         val c = e.changes.firstOrNull { it.id == down.id } ?: continue
                         if (!c.pressed) break
                         sawMove = true
+                        lastMoveAt = System.currentTimeMillis()
                         // 丢弃被子控件消费的位移
                         if (!c.isConsumed) {
                             if (handler.onMove(c.position.x, c.position.y, 8f)) c.consume()
@@ -400,11 +416,12 @@ fun Modifier.videoGestureLayer(
                     }
                 }
 
-                // 4. CANCEL 判定:抬手时**全程没有 MOVE**,说明不是用户正常结束手势
-                //    (正常抬手前系统一定会先发 MOVE 报位置)。
-                //    ⚠️ 但要排除长按:长按本来就是"手指不动",它自己的收尾会恢复倍速,
-                //    不能被误判成取消 —— 真机反馈过"长按倍速时手指一动就变成调音量"。
-                val cancelled = !sawMove && !handler.isLongPressing
+                // 4. CANCEL 判定:正常抬手会把手指的最终位置用 MOVE 报上来(与 UP 几乎同时),
+                //    而系统抢走手势(下拉通知栏、上滑退出、来电)会**先停掉 MOVE**,隔一小段才把指针置 up。
+                //    故判据 = "抬手前最近一次 MOVE 已经过去很久" 或 "全程没有 MOVE"。
+                //    ⚠️ 长按要排除:它本来就是静止的,收尾自己会恢复倍速。
+                val quietMs = System.currentTimeMillis() - lastMoveAt
+                val cancelled = !handler.isLongPressing && (!sawMove || quietMs > CANCEL_QUIET_MS)
 
                 val result = handler.endSession(cancelled, System.currentTimeMillis())
 
@@ -419,6 +436,12 @@ fun Modifier.videoGestureLayer(
             }
         }
 }
+
+/**
+ * 判定"系统抢走手势"的静默窗口(ms):正常抬手的 MOVE 与 UP 几乎同时到达;
+ * 系统中断则先断流一段时间。50ms 足以区分且不会把正常慢抬手误判成中断。
+ */
+private const val CANCEL_QUIET_MS = 50L
 
 /** 供接线层/宿主计算边缘带(基于手势区局部坐标,左上为原点) */
 internal fun isInEdgeBand(x: Float, y: Float, width: Int, height: Int, bandPx: Float): Boolean =

@@ -440,4 +440,44 @@ class VideoGestureHandlerTest {
         assertFalse(h.markSingleTapConfirmed())
         assertTrue(r.calls.none { it == "singleTap" })
     }
+
+    // ---------- 真机反馈 ④(2026-10-06):系统手势不得触发亮度/音量 ----------
+
+    /**
+     * 真机现象:下拉通知栏 / 上滑退出应用会触发亮度或音量。
+     *
+     * <p>系统手势抢走触摸前会先送来少量 MOVE,若竖滑"一动就生效",等在系统取消时数值已被改。
+     * 这里钉住:纵向位移未越过起判阈值(默认 height 的 12%)时**不得**产生任何亮度/音量动作。
+     */
+    @Test
+    fun smallVerticalMoveBelowCommitThresholdDoesNothing() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        // 12% of 600 = 72px;走 40px(系统手势的典型抖动量级)
+        assertFalse(h.onMove(300f, 340f, slop = 8f))
+        assertFalse(h.onMove(300f, 360f, slop = 8f))
+        assertTrue("未越阈值不该改亮度", r.calls.none { it.startsWith("brightness") })
+        assertTrue("未越阈值不该改音量", r.calls.none { it.startsWith("volume") })
+    }
+
+    /** 越过阈值后才真正开始调 */
+    @Test
+    fun verticalMoveBeyondCommitThresholdStartsAdjusting() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        assertTrue(h.onMove(300f, 450f, slop = 8f)) // 150px > 72px
+        assertTrue(r.calls.any { it.startsWith("brightness") })
+    }
+
+    /** 起判阈值只管竖滑:横滑仍按 slop 立即响应 */
+    @Test
+    fun horizontalMoveBelowCommitThresholdStillSeeks() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        assertTrue("横滑不该被竖滑阈值牵制", h.onMove(340f, 305f, slop = 8f))
+        assertTrue(r.calls.any { it.startsWith("seekPreview") })
+    }
 }
