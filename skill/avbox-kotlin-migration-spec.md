@@ -493,6 +493,36 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **未验证面（诚实标注）**：M7a 不接 UI ⇒ 真机走查无从执行，门 = `:app:assembleDebug` 构建 + 单测 + 逐类对照复核（release 侧 R8/keep 验证留待用户许可时补跑，见 §2 构建口径）；新栈的起播/渲染/效果/字幕/轨道全部行为留待 M7b/M7c 切换后随 `avbox-playback-service-spec.md` §4 清单走查。
 
+# 7.14 M7b 实测登记（2026-10-06，播放栈自研替换：内核桥切换 + 渲染宿主 + 状态机）
+
+**结论**：M7b 把 app 侧内核换成"桥 → `PlayerEngine`"、渲染视图换成 app 侧双模式宿主、新增新栈状态机与音频焦点组件，并做最小接线。`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **603 用例 / 0 失败 / 0 错误 / 0 跳过（77 suite）**（570 基线 + 33：`RenderMeasureTest` 13 / `PlaybackStateMachineTest` 10 / `AudioFocusActionsTest` 10）；改动文件全 LF。**切换口径 = "桥保留类名与对外方法面"**：`com.github.tvbox.osc.player.ExoPlayer` 由 Java 重写为 Kotlin（`extends AbstractPlayer` 直连 `PlayerEngine`，不再继承 doikki `ExoMediaPlayer`）⇒ 全部调用点（`MyVideoView`/`PlayContainer`/`TrackSelectorDelegate`/`ComposeVideoController`/`PlaybackRetryDelegate`/`MusicSessionDelegate`/`PictureEffects`/`PlayerHelper`）**零签名改动**，由 `:app:assembleDebug`（Java 侧匿名类、`instanceof`/强转）与单测兜底。
+
+**交付物（新文件 9 + 改动点 7；另 3 个单测文件）**：
+- 桥：`player/ExoPlayer.kt`（重写，删 `ExoPlayer.java`）——AbstractPlayer 全契约映射 + 回调映射 + app 扩展面 27 项 + 静态面（`ERROR_KIND_*` const / `setPreferSoftwareDecode`/`isPreferSoftwareDecode`）+ 嵌套 `OnCuesListener`（`@JvmSuppressWildcards` 保 Java 匿名实现）。
+- 状态机：`player/state/PlayState.kt`（`PlayState` 枚举 + `PlaybackStateMachine`，StateFlow 输出；迁移表与暂停记忆逐条对齐旧 `VideoView.STATE_*`；M7b 期间无读取方）。
+- 渲染宿主：`player/host/`（`RenderMeasure` / `TextureRenderHost` / `EngineSurfaceRenderView`（+Factory）/ `EngineTextureRenderView`（+Factory））。
+- 音频焦点：`player/host/PlayerAudioFocus.kt`（`AudioFocusTarget` + 纯逻辑 `AudioFocusActions` + Android 壳 `PlayerAudioFocus`；**M7b 未接线**，生效实现仍是旧 `VideoView.AudioFocusHelper`）。
+- 引擎侧增补（`engine/PlayerEngine.kt`）：`playbackStateListener` / `retryAsHlsListener` / `prepare()` 返回 `Boolean`。
+- 接线：`PlayerHelper.kt`（渲染工厂注入换新实现）、`MyVideoView.java`（`TextureRenderHost` 判定 ×2 + `switchRenderToTexture` 换新工厂）、`PlayContainerViewBridge.java` 与 `MusicPlayerActivity.kt`（纯音频强制 Texture 换新工厂）、`PlaybackEngine.java`（`createPlayerView` 按 `HawkConfig.PLAY_RENDER` 设初始渲染宿主）、`PictureEffects.kt`（`isPlaying()`/`isPictureEffectsActive()` 改函数语法）。
+
+**本切片现场核实出的规则（M7c–M7f 照查）**：
+1. **Kotlin 桥覆写 Java `AbstractPlayer` 时 `isPlaying/getCurrentPosition/getDuration/getBufferedPercentage/getTcpSpeed/getSpeed/setSpeed` 必须写函数**（写 `override val/var` 报 "overrides nothing"）；而**自有的 app 扩展成员按调用点语法选形态**：Kotlin 调用点用属性语法（`.selectedVideoFormat`/`.isTunnelingEnabled`）就必须声明 `val`（生成 `getXxx()`/`isXxx()`，Java 调用点不受影响）；`isPictureEffectsActive`/`isPictureHdrSource` 有调用点用函数语法 ⇒ 声明 `fun`，并把 `PictureEffects` 两处属性语法改函数。
+2. **`AbstractPlayer.getStartPosition()` 是 protected final + `setStartPosition` public** ⇒ 桥不覆写 setter（会被判成合成属性），改用**读合成属性** `startPosition`（与旧 `ExoMediaPlayer.prepareAsync` 的读取等价）。
+3. **`@JvmSuppressWildcards` 是 Kotlin 侧 `fun interface OnCuesListener { fun onCues(cues: List<Cue>) }` 让 Java 匿名类能覆写的必要条件**（否则生成 `List<? extends Cue>`，`PlayContainer.java` 的匿名实现不构成 override）。
+4. **宿主替换的兼容锚点**：`EngineTextureRenderViewFactory` 刻意 `extends TextureRenderViewFactory`（保住 `MyVideoView.factoryRenderType()`/`ensureRenderViewMatchesConfig()` 的 `instanceof` 判定）；新宿主的交面钩子改用 app 侧 `TextureRenderHost` 接口判定；`EngineSurfaceRenderView` 是 `SurfaceView` 子类（保住 `isSurfaceRenderActive()`）。
+5. **引擎无页面起播必须自带渲染宿主**（`PlaybackEngine.createPlayerView` 设初始工厂）：否则落到 dooki 默认 Texture 工厂 ⇒ 新宿主的输出缓冲尺寸/交面钩子静默失效（历史上开调色黑屏的根因面）。
+6. **`PlayerEngine.prepare(): Boolean`** 供桥复刻旧 doikki 的"无源不下发也不进等待 onPrepared"早退语义；`retryAsHlsListener` 在 HLS 源真正建好后触发；桥内 `pendingSpeed` 复刻旧 `mSpeedPlaybackParameters` 的"重建内核后回灌"。
+7. 旧 app `render/SurfaceRenderView.java` + `SurfaceRenderViewFactory.java` 已成**零引用死代码**（回退面 = git 历史 + M10 删除清单）；实际回退 = revert 本切片。
+
+**复核轮（2026-10-06，2 个独立只读子代理 + 本机闭环）**：A = 桥 vs 旧 `ExoPlayer`/`ExoMediaPlayer` 逐方法对照（24 个契约方法、回调映射、配置来源、扩展面 27 项、静态面、调用点扫描）；B = 渲染宿主/状态机/接线对照（测量算法逐分支、双宿主逐成员、工厂继承判定、钩子链、状态迁移表、接线副作用、旧类型残留）。**0 阻断 / 0 高**；修复 1 中 2 低：初始渲染工厂缺口（见规则 5）、`MATCH_PARENT`×旋转 spec 交换（对齐旧实现，补单测）、`prepareAsync` 早退 + `pendingSpeed` + `retryAsHlsListener` 后移。
+
+**登记项（M7b 引入但当前无外部影响 / M7c 必办）**：
+① 桥不再继承 `ExoMediaPlayer` ⇒ 丢继承面 `setPlaybackLooper`/`setTrackSelector`/`setRenderersFactory`/`setLoadControl` 与受保护字段（**全库零调用点**，构建实证）；② 配置读取时机：`BUFFER_TIMES`/`EXO_VIDEO_DYNAMIC_SCHEDULING` 由构造器改为 `initPlayer`（同实例内不会变化 ⇒ 现状等价）；③ `enableLog` 未下发（旧经 `VideoViewManager` 开关也从未生效，全库无调用）；④ 状态机 `onStartAborted` 无接线（`STATE_START_ABORT` 不可达）、`PREPARED` 不可观测（桥在同一 READY 分派里连发 `onPrepared`+`onRenderingStart`，StateFlow 合并）；⑤ 状态机**未承接副作用**（音频焦点/`setKeepScreenOn`/进度保存与清零）—— M7b 期间这些仍由旧 `VideoView` 承担，M7c 直读前必须落地（焦点组件已建待接线）；⑥ 桥 `stop()` 也投状态机 ⇒ `MyVideoView.clearVideoFrame` 的间接 stop 会让状态机瞬时翻 IDLE（M7b 无读取方，M7c 收口）；⑦ `TrackSelector` 不可注入、`setDataSource(AssetFileDescriptor)` 空实现为计划清单 ⑪⑫ 的承接（已在桥内落实）。
+
+**§7.13 待接线清单 ①–⑮ 状态更新**：① 渲染宿主 ✅（双模式 + 尺寸/比例/旋转 + 输出尺寸钩子；**挖孔仍由控制器层承接、音频焦点组件未接线**）；② 状态机 ✅（桥驱动，读取面待 M7c）；⑦ 旋转 `onInfo(10001)` ✅；⑧ `keepRenderViewOnReset=true` ✅；⑨ 4 处 `as ExoPlayer` 调用点**无需改写**（桥保留类名与类型面，该清单作废）；⑩ `AbstractPlayer` 桥 ✅；⑪（AFD 空实现）✅；⑫（TrackSelector 不可注入）✅。其余（③ 接线面、④ `PictureEffects` 参数类型、⑤ `OkGoHelper` 注入点、⑥ 缓存实现搬迁、⑬⑭⑮）仍待 M7c。
+
+**未验证面（诚实标注）**：真机走查未做 —— 按 `avbox-playback-service-spec.md` §4 清单从"详情页预览态"开始（起播/首帧/暂停记忆/旋转/双渲染模式/纯音频强制 Texture/输出分辨率与效果链/错误与 HLS 重试/自动软解/切集复用），再扩全屏/直播/音乐。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。
