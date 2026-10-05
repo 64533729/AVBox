@@ -371,7 +371,7 @@ class PlaybackRetryDelegate(private val host: Host) {
     fun handleSwitchLinePlayTimeout() {
         val st = host.attemptState()
         val view = host.view()
-        val state = view?.currentPlayState() ?: -1
+        val state = view?.playState()
         LOG.i("echo-switchLinePlay timeout state: $state, started: " + st.playbackStarted)
         if (host.isPlaybackStarted()) {
             host.cancelPlayTimeout()

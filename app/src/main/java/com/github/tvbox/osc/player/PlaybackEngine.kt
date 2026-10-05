@@ -9,6 +9,7 @@ import androidx.appcompat.view.ContextThemeWrapper
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.host.EngineSurfaceRenderViewFactory
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.usecase.PlayerSwitchUseCase
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
@@ -135,6 +136,8 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                 // 尤其 handlePlayStateForMusicSession 会去 updateSession,那会在没有引擎的情况下
                 // 建出一条空通知并持有 wake/wifi 锁,而释放路径已经跑完、没人再来放锁(2026-09-14 审查)
                 if (released) return
+                // 通知参数(旧 int)转新栈状态:音乐会话/已起播判定的消费面按 PlayState 收口(M7d)
+                val state = PlayState.fromLegacy(playState)
                 // 播放错误落一条盘:本机 ROM 吞 logcat,只有 App 文件日志能取证(白名单已含 echo-player)
                 if (playState == VideoView.STATE_ERROR) {
                     LOG.i(
@@ -169,13 +172,13 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                     // 缓冲让路 / 缓冲结束补一次评估(见原页面同名注释:dkplayer 的 STATE_PLAYING 只在首帧发一次)
                     controller.onPlayerStateForPreload(playState)
                 }
-                if (controller.webPlayUrl() != null && controller.isStartedPlayState(playState)) {
+                if (controller.webPlayUrl() != null && controller.isStartedPlayState(state)) {
                     controller.markPlaybackStarted()
                     if (!released && !videoView.isVideoFrameCleared()) {
                         activeView().hideTipOnUiThread()
                     }
                 }
-                if (controller.handlePlayStateForMusicSession(playState)) {
+                if (controller.handlePlayStateForMusicSession(state)) {
                     return
                 }
                 activeView().startDanmuIfReady()
@@ -647,6 +650,8 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         }
 
         override fun currentPlayState(): Int = if (released) -1 else videoView.currentPlayState
+
+        override fun playState(): PlayState = if (released) PlayState.IDLE else videoView.playState
 
         override fun currentPosition(): Long = if (released) 0 else videoView.currentPosition
 

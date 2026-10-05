@@ -30,6 +30,30 @@ enum class PlayState {
 
     /** 旧 `VideoView.STATE_START_ABORT`:移动网络提示中止起播;新栈由调度/UI 闸门决定,状态机只保留读取面 */
     START_ABORT,
+    ;
+
+    companion object {
+
+        /**
+         * 旧 doikki `VideoView.STATE_*` → 本枚举(M7d):只用于把旧状态通知的 int 参数转成枚举比较
+         * (监听回调参数、控制器转发),读值请走 `MyVideoView.playState`。
+         * 注意 -1 在旧通知语义下是 `STATE_ERROR`(无播放器的 -1 只出现在读值口,不会出现在通知里)。
+         */
+        @JvmStatic
+        fun fromLegacy(state: Int): PlayState = when (state) {
+            -1 -> ERROR
+            0 -> IDLE
+            1 -> PREPARING
+            2 -> PREPARED
+            3 -> PLAYING
+            4 -> PAUSED
+            5 -> COMPLETED
+            6 -> BUFFERING
+            7 -> BUFFERED
+            8 -> START_ABORT
+            else -> IDLE
+        }
+    }
 }
 
 /**

@@ -3,10 +3,10 @@ package com.github.tvbox.osc.player
 import android.text.TextUtils
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
 import org.json.JSONArray
 import org.json.JSONObject
-import xyz.doikki.videoplayer.player.VideoView
 import java.util.HashMap
 
 /**
@@ -28,7 +28,7 @@ class MusicSessionDelegate(private val host: Host) {
 
         fun quality(): JSONObject?
 
-        fun isStartedPlayState(state: Int): Boolean
+        fun isStartedPlayState(state: PlayState): Boolean
 
         fun retryAfterStartedError(): Boolean
 
@@ -101,13 +101,13 @@ class MusicSessionDelegate(private val host: Host) {
      *
      * @return true = 切换集期间本集已播完(仅保留会话,调用方应直接 return,不再走弹幕等后续逻辑)
      */
-    fun handlePlayStateForMusicSession(playState: Int): Boolean {
+    fun handlePlayStateForMusicSession(playState: PlayState): Boolean {
         val st = host.attemptState()
         if (st.switchingPlayback) {
-            if (playState == VideoView.STATE_PLAYBACK_COMPLETED) {
+            if (playState == PlayState.COMPLETED) {
                 LOG.i("echo-music keep session while resolving next episode")
                 return true
-            } else if (playState == VideoView.STATE_ERROR) {
+            } else if (playState == PlayState.ERROR) {
                 // 只解除"切换中"抑制:在此清 audioPlayback 会让后续既不能重试也不能重建会话
                 st.switchingPlayback = false
             } else if (host.isStartedPlayState(playState)) {
@@ -119,7 +119,7 @@ class MusicSessionDelegate(private val host: Host) {
             }
         }
         if (!st.switchingPlayback) {
-            if (playState == VideoView.STATE_PLAYBACK_COMPLETED) {
+            if (playState == PlayState.COMPLETED) {
                 // ⚠️ **不能在此直接 updateMusicSession()**。
                 // 引擎的状态监听器注册在页面之前(见 PlaybackEngine.createPlayerView 与
                 // MusicPlayerActivity.initView),所以 COMPLETED 到达时**本方法总是先跑**,
@@ -164,7 +164,7 @@ class MusicSessionDelegate(private val host: Host) {
         // 上就变成"每次播完都去 release 一个 onCreate 建好、与页面同生命周期的 MediaSessionCompat
         // 并把 owner 置空"(后续用法都有判空,不会崩,但媒体键会话被无谓拆掉),属本轮引入的行为变化。
         if (!PlaybackService.isSupported(view.context())) return
-        val state = view.currentPlayState()
+        val state = view.playState()
         if (host.isStartedPlayState(state)) {
             LOG.i("echo-music completion drop skipped: kernel already started, state=$state")
             return
@@ -180,7 +180,7 @@ class MusicSessionDelegate(private val host: Host) {
         }
         // 页面还活着且内核仍停在"播完"⇒ 这是真的没人接续(队列末尾 / 非音乐页的影视播完),照旧撤会话。
         // 这一步与原实现等价(原实现是在 COMPLETED 时同步走 updateMusicSession 的撤会话分支)。
-        if (state != VideoView.STATE_PLAYBACK_COMPLETED) {
+        if (state != PlayState.COMPLETED) {
             LOG.i("echo-music completion drop skipped: state moved on, state=$state")
             return
         }
@@ -273,7 +273,7 @@ class MusicSessionDelegate(private val host: Host) {
             st.audioPlayback = true
             if (java.lang.Boolean.TRUE == audioOnly) st.audioOnlyConfirmed = true
         }
-        val state = view.currentPlayState()
+        val state = view.playState()
         LOG.i(
             "echo-music session gate: state=" + state + " playing=" + view.isPlaying()
                 + " hasAudio=" + hasAudio + " audioOnly=" + audioOnly + " audioPlayback=" + st.audioPlayback
@@ -287,7 +287,7 @@ class MusicSessionDelegate(private val host: Host) {
             playArtwork = host.vod()!!.pic
             view.setArtwork(playArtwork!!)
         }
-        if ((state == VideoView.STATE_ERROR && st.audioOnlyConfirmed) && host.retryAfterStartedError()) {
+        if ((state == PlayState.ERROR && st.audioOnlyConfirmed) && host.retryAfterStartedError()) {
             // 已确认纯音频的会话遇可重试错误:同地址重播一次并**保留会话**(撤会话会连锁清 audioPlayback,
             // 而重建只认 STATE_PLAYING 事件 ⇒ 后台失败后点播放再也不出通知)。重试无路可走则照旧撤会话。
             // ⚠️ 判据不得放宽成 audioPlayback:影视也带音轨,会抢在详情页 errorWithRetry 之前
@@ -296,13 +296,13 @@ class MusicSessionDelegate(private val host: Host) {
             return
         }
         if (host.vod() == null || !st.audioPlayback
-            || state == VideoView.STATE_ERROR
-            || state == VideoView.STATE_PLAYBACK_COMPLETED
+            || state == PlayState.ERROR
+            || state == PlayState.COMPLETED
         ) {
             LOG.i(
                 "echo-music session drop: vod=" + (host.vod() != null) + " audioPlayback=" + st.audioPlayback
-                    + " state=" + state + " (ERROR=" + VideoView.STATE_ERROR
-                    + " COMPLETED=" + VideoView.STATE_PLAYBACK_COMPLETED + ")"
+                    + " state=" + state + " (ERROR=" + PlayState.ERROR
+                    + " COMPLETED=" + PlayState.COMPLETED + ")"
             )
             PlaybackService.stopSession(context, view.playbackHost())
             st.audioPlayback = false

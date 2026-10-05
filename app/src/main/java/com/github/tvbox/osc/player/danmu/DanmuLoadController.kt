@@ -5,13 +5,13 @@ import android.view.View
 import com.github.tvbox.osc.api.DanmakuApi
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.controller.PlayerControlApi
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.LOG
 import master.flame.danmaku.danmaku.model.BaseDanmaku
 import master.flame.danmaku.danmaku.model.IDisplayer
 import master.flame.danmaku.danmaku.model.android.DanmakuContext
 import master.flame.danmaku.ui.widget.DanmakuView
-import xyz.doikki.videoplayer.player.VideoView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -274,10 +274,10 @@ class DanmuLoadController(
 
     private fun isVideoReady(): Boolean {
         val view = videoView ?: return false
-        val state = view.currentPlayState
-        return state == VideoView.STATE_PREPARED
-            || state == VideoView.STATE_BUFFERED
-            || state == VideoView.STATE_PLAYING
+        val state = view.playState
+        return state == PlayState.PREPARED
+            || state == PlayState.BUFFERED
+            || state == PlayState.PLAYING
     }
 
     private fun releaseView() {

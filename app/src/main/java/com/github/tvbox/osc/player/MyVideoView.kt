@@ -12,6 +12,7 @@ import android.widget.ImageView
 import coil3.request.Disposable
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 import com.github.tvbox.osc.player.host.TextureRenderHost
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.ImgUtil
 import master.flame.danmaku.controller.DrawHandler
 import master.flame.danmaku.danmaku.model.BaseDanmaku
@@ -83,8 +84,15 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     val mediaPlayer: AbstractPlayer?
         get() = mMediaPlayer
 
+    /**
+     * 新栈播放状态(M7d):读桥内状态机,承接旧 `currentPlayState`(doikki int)的读取面。
+     * 内核不存在/未建时为 [PlayState.IDLE](旧读口的 -1 "无播放器"与"未在播"同判)。
+     */
+    val playState: PlayState
+        get() = (mMediaPlayer as? ExoPlayer)?.stateMachine?.currentState ?: PlayState.IDLE
+
     /** 内核存在且停在错误态:复用判定用它兜底 —— 复用一个坏内核没有意义,必须强制重建(无内核时为 false) */
-    fun isKernelErrored(): Boolean = mMediaPlayer != null && currentPlayState == STATE_ERROR
+    fun isKernelErrored(): Boolean = mMediaPlayer != null && playState == PlayState.ERROR
 
     fun requireKernelRebuild() {
         mKernelRebuildRequired = true

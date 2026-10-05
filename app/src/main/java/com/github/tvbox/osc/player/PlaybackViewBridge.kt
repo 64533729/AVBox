@@ -2,6 +2,7 @@ package com.github.tvbox.osc.player
 
 import android.content.Context
 import android.webkit.WebView
+import com.github.tvbox.osc.player.state.PlayState
 import org.json.JSONObject
 import java.util.HashMap
 import xyz.doikki.videoplayer.player.AbstractPlayer
@@ -52,6 +53,9 @@ interface PlaybackViewBridge {
 
     /** 当前播放状态(dkplayer VideoView.STATE_*;无播放器时 -1) */
     fun currentPlayState(): Int
+
+    /** 当前播放状态(新栈 [PlayState] 语义;无播放器/无内核时 [PlayState.IDLE]) */
+    fun playState(): PlayState
 
     /** 当前播放位置(毫秒;无播放器时 0) */
     fun currentPosition(): Long

@@ -22,13 +22,13 @@ import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.PlaybackProgress
 import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.thunder.Jianpian
 import com.github.tvbox.osc.util.thunder.Thunder
 import org.greenrobot.eventbus.EventBus
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
-import xyz.doikki.videoplayer.player.VideoView
 import java.net.URLEncoder
 import java.util.HashMap
 import java.util.Locale
@@ -481,8 +481,8 @@ class PlaybackController {
         return st.playTimeoutBasePosition
     }
 
-    fun isStartedPlayState(state: Int): Boolean {
-        return state == VideoView.STATE_PREPARED || state == VideoView.STATE_BUFFERED || state == VideoView.STATE_PLAYING
+    fun isStartedPlayState(state: PlayState): Boolean {
+        return state == PlayState.PREPARED || state == PlayState.BUFFERED || state == PlayState.PLAYING
     }
 
     fun markPlaybackStarted() {
@@ -493,7 +493,7 @@ class PlaybackController {
     fun isPlaybackStarted(): Boolean {
         if (st.playbackStarted) return true
         val bridge = view ?: return false
-        return isStartedPlayState(bridge.currentPlayState()) || hasPlaybackProgress(bridge.currentPosition()) || bridge.isPlaying()
+        return isStartedPlayState(bridge.playState()) || hasPlaybackProgress(bridge.currentPosition()) || bridge.isPlaying()
     }
 
     private fun hasPlaybackProgress(progress: Long): Boolean {
@@ -864,7 +864,7 @@ class PlaybackController {
      */
     private fun isIdleKernelReusable(kernelPresent: Boolean): Boolean {
         if (!kernelPresent) return false
-        return view!!.currentPlayState() == VideoView.STATE_IDLE
+        return view!!.playState() == PlayState.IDLE
     }
 
     /**
@@ -1079,7 +1079,7 @@ class PlaybackController {
 
         override fun quality(): JSONObject? = qualityResult
 
-        override fun isStartedPlayState(state: Int): Boolean = this@PlaybackController.isStartedPlayState(state)
+        override fun isStartedPlayState(state: PlayState): Boolean = this@PlaybackController.isStartedPlayState(state)
 
         override fun retryAfterStartedError(): Boolean = this@PlaybackController.retryAfterStartedError()
 
@@ -1148,7 +1148,7 @@ class PlaybackController {
         return music.isConfirmedAudioOnly()
     }
 
-    fun handlePlayStateForMusicSession(playState: Int): Boolean {
+    fun handlePlayStateForMusicSession(playState: PlayState): Boolean {
         return music.handlePlayStateForMusicSession(playState)
     }
 

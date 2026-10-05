@@ -11,6 +11,7 @@ import com.github.tvbox.osc.player.MyVideoView;
 import com.github.tvbox.osc.player.PreloadCoordinator;
 import com.github.tvbox.osc.player.PlaybackHostApi;
 import com.github.tvbox.osc.player.PlaybackViewBridge;
+import com.github.tvbox.osc.player.state.PlayState;
 import com.github.tvbox.osc.util.PermissionHelper;
 import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.PlayerHelper;
@@ -55,6 +56,11 @@ final class PlayContainerViewBridge implements PlaybackViewBridge {
     @Override
     public int currentPlayState() {
         return container.mVideoView == null ? -1 : container.mVideoView.getCurrentPlayState();
+    }
+
+    @Override
+    public PlayState playState() {
+        return container.mVideoView == null ? PlayState.IDLE : container.mVideoView.getPlayState();
     }
 
     @Override
