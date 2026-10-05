@@ -131,9 +131,10 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
 
     override fun applyPlayerConfigToView(forceKernel: Int) {
         val view = container.mVideoView ?: return
-        // Java 侧是平台类型直传(`playerCfg()` 在 Kotlin 声明为 `JSONObject?`):无配置时下发空对象,
-        // 与 MusicPlayerActivity 的同类实现同一兜底口径(updateCfg 内部按缺键回落到全局设置)
-        PlayerHelper.updateCfg(view, container.scheduler.playerCfg() ?: JSONObject())
+        // Java 侧是平台类型直传(`playerCfg()` 在 Kotlin 声明为 `JSONObject?`、`updateCfg` 第二参非空):
+        // 这里用 !! 复刻"无配置时由 callee 抛 NPE"的既有行为,**不要**补 `?: JSONObject()`
+        // —— 那会从"中断本段下发"变成"按默认值重配视图",属行为变更而非迁移
+        PlayerHelper.updateCfg(view, container.scheduler.playerCfg()!!)
     }
 
     override fun useTextureRenderForAudio() {

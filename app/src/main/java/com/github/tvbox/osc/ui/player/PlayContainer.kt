@@ -497,7 +497,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             try {
                 var name = queryDisplayName(activity, uri)
                 if (name == null || !name.contains(".")) name = "local_subtitle.srt"
-                name = name.replace("[\\\\/:*?\"<>|]", "_")
+                name = name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
                 val dst = File(activity.cacheDir, "subtitle_" + System.currentTimeMillis() + "_" + name)
                 activity.contentResolver.openInputStream(uri).use { input ->
                     java.io.FileOutputStream(dst).use { out ->

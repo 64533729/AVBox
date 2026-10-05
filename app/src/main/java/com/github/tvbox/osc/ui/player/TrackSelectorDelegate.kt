@@ -43,7 +43,9 @@ class TrackSelectorDelegate(private val host: Host) {
 
     fun selectAudioTrack() {
         val view = host.player() ?: return
-        val mediaPlayer: KernelPlayer = view.mediaPlayer ?: return
+        // ⚠️ 不要在这里 `?: return`:Java 在无内核时 instanceof 判假 ⇒ trackInfo==null ⇒ **弹提示**;
+        // 提前返回会把提示整段跳过(无内核时点按钮从"有提示"退化成"静默无反应")
+        val mediaPlayer: KernelPlayer? = view.mediaPlayer
         val context = host.context()
         val trackInfo = (mediaPlayer as? ExoPlayer)?.getTrackInfo()
         if (trackInfo == null) {
@@ -103,7 +105,9 @@ class TrackSelectorDelegate(private val host: Host) {
 
     fun selectVideoTrack() {
         val view = host.player() ?: return
-        val mediaPlayer: KernelPlayer = view.mediaPlayer ?: return
+        // ⚠️ 不要在这里 `?: return`:Java 在无内核时 instanceof 判假 ⇒ trackInfo==null ⇒ **弹提示**;
+        // 提前返回会把提示整段跳过(无内核时点按钮从"有提示"退化成"静默无反应")
+        val mediaPlayer: KernelPlayer? = view.mediaPlayer
         val context = host.context()
         val trackInfo = (mediaPlayer as? ExoPlayer)?.getTrackInfo()
         if (trackInfo == null || trackInfo.getVideo().isEmpty()) {
