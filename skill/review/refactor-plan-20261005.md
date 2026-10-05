@@ -276,7 +276,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   4. 外设与出口：媒体通知/媒体会话、弹幕（DanmakuFlameMaster 时间轴）、字幕两路（内置/外挂）与延迟、DLNA 与第三方播放器（MX/VLC/Kodi/Reex）出口。
 - **切片（每片独立可构建、可单测、可回滚、可走查；M7a–M7f 期间新旧双栈并存，doikki 是回退面）**：
   - **M7a｜新内核适配层** ✅ 已执行（2026-10-05）：`PlayerEngine`（DataSource/Renderers/LoadControl/TrackSelector/缓存/HLS/效果装配）；可单测部分（URL/headers/数据源选择/策略函数）补单测；不接 UI。
-  - **M7b｜渲染宿主 + 状态机**：双模式表面宿主、尺寸/画面比例/挖孔、信令补发、音频焦点、进度保存；先在点播详情页预览态切换并走查。
+  - **M7b｜渲染宿主 + 状态机** ✅ 已执行（2026-10-06，交付与实测见下）：双模式表面宿主、尺寸/画面比例/挖孔、信令补发、音频焦点、进度保存；先在点播详情页预览态切换并走查（走查待做）。
   - **M7c｜点播全链切换**：`PlaybackService`/`PlaybackController` 与 8 协作者、取流解析、预载、重试、内核复用、媒体会话、字幕/弹幕绑定面整体切新栈；`player/` 36 Java 在此片重写为 Kotlin（逐类对照走 `tokens` 卡口，判据只看「旧有新无」）。
   - **M7d｜直播 / 音乐 / DLNA / 第三方出口**：`ui/activity/*` 触点（`LiveScreens`/`LiveOverlayController`/`LivePlayViewModel`/`DetailActivity`/`MusicPlayerActivity` 等）。
   - **M7e｜控制器与手势去 View 化**：`ComposeVideoController`/`ComposeLiveController`/`GestureController` 改纯 Compose；删 `ui/player` 4 Java（`PlayContainer`/`PlayContainerViewBridge`/`TrackSelectorDelegate` 等）。
