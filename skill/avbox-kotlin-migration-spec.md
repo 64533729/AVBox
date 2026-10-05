@@ -622,6 +622,8 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律，**整片回退**：`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除，仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置** = 先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（其判定语义经复核确认与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
+**② 的阻塞条件（2026-10-06 实测确认）**：本仓库**不具备离线验证 Compose 指针语义的手段** —— `app/build.gradle.kts:89-90` 只有 `testOptions { unitTests.isReturnDefaultValues = true }` + `testImplementation(libs.junit)`（JUnit4）；`gradle/libs.versions.toml` 无 `robolectric`/`ui-test-*`；`app/src` 无 `androidTest` 源集。两轮独立复核对已实现的手势层结论一致（"两个阻断项都在接线层、16 例单测 0 覆盖"），而接线层语义只能由 `androidTest` 或真机证明 ⇒ 在补上验证手段前，该项的每次实现尝试都无法被判为可交付。**解锁路径**：① 引入 `androidx.compose.ui:ui-test-junit4` + `robolectric` 并补 12 条接线层用例（清单见上）；② 真机手势走查；③ 明确接受保留 View 层 `GestureDetector` 并从 objective 摘除本项。
+
 **未完成项（2 项，诚实标注）**：
 
 **① `GestureController` 仍是 `GestureDetector` + View `onTouchEvent`**（未改 Compose `pointerInput`）。本片已尝试并**主动回退**（详见上一节「该项已尝试并主动回退」）。
