@@ -611,7 +611,18 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **复核轮（2026-10-06，独立只读子代理逐方法对照 fork 原文）**：**2 阻断 / 2 高 / 1 中 / 5 低，已全部处置**。① 阻断 = `playerActivity()` 解析方向反了（进播放页 NPE，见规则 11）—— 已修；② 阻断 = 进度定时器 0 延迟自旋（见规则 12）—— 已修（照抄 `postDelayed` + 秒边界 + 不在播停表）；③ 高 = 旋转 / 返回键 / OSD 三处同样依赖 `playerActivity()` —— 随 ① 修；④ 高 = `onDetachedFromWindow` 未复位计时标志（重挂后进度永久冻结）—— 已修；⑤ 中 = 完播不清锁定态 —— 已修（见规则 13）；⑥ 低 = `PlayerUiState.showing` 成无写入死字段、`resume()` 删掉 Surface 未就绪的等待分支（改由渲染宿主 `surfaceCreated` 交面，属有意差异）、`playOnMobileNetwork` 注释默认值写反（已按规则 14 改写）、`MediaSources` 单例 KDoc 声称"懒读 client"而代码是"注入优先"（当前无缺陷：`OkGoHelper` 每次 `reloadDns()` 都重注入）、`setMute`/`isFullScreen`/`onBackPressed`/`getCurrentPlayerState` 保留空壳入口（app 侧零调用点）—— 均登记不作返工。**子代理另核出打包耦合**：`:player` 模块还携带 app 唯一来源的原生库（`player/src/main/jniLibs/arm64-v8a/libp2p.so` / `libxl_stat.so` / `libxl_thunder_sdk.so`，app 侧无 `jniLibs`，`P2PClass` 用 `System.loadLibrary("p2p")`）⇒ **M10 删模块前必须先把 jniLibs 迁到 `app/src/main/jniLibs`**，否则 `P2PClass` 类初始化即 `UnsatisfiedLinkError`。复核同时确认了本片自称的两条：(a) `app/src` 的 `xyz.doikki` 命中**全在 KDoc**；(b) 无任何 app 代码 `extends`/`implements`/`new` doikki 类（fork 仅因 `app/build.gradle.kts:137 implementation(project(":player"))` 被打包）。
 
-**未完成项（1 项，诚实标注）**：**`GestureController` 仍是 `GestureDetector` + View `onTouchEvent`**，未改 Compose `pointerInput`。这是唯一"手感即规格"的面（单击显隐必须等双击窗口 300ms、双击播放暂停、长按倍速与滑动互斥、四边 40dp 边缘带、预览态只放行单击/双击、锁屏只放行点按唤钮、横滑 seek 与竖滑亮度音量按半屏分侧）。移植草稿（手写 `awaitEachGesture` 状态机）经复核判定阈值/时序无法离线等价（`detectTapGestures` 的 onTap 不保证双击窗口语义），且无真机手势走查条件 ⇒ 按"迁移步禁夹带高风险改写"纪律**主动回退草稿**，留待与真机手势走查同批。该文件已去 doikki（只依赖 `AppPlayerView` 常量与 `PlayerUtils`），不阻塞 M10 拆除。
+**未完成项（1 项，诚实标注）**：**`GestureController` 仍是 `GestureDetector` + View `onTouchEvent`**，未改 Compose `pointerInput`。
+
+**该项已尝试并主动回退（2026-10-06，第二轮独立复核，提交 `09de9d6`）**：本片把手势判定抽成纯状态机 `player/ui/VideoGestureHandler`（+16 例单测全绿，覆盖边缘带/未启用/非播放态/锁屏标记/预览态/横竖择优/半屏分侧/「禁用手势控制」只拦竖滑/长按与滑动互斥/点按与双击窗口/取消不提交），并写了 Compose 指针接线（`Modifier.videoGestureLayer`）。**接线层经独立复核判定「不予交付」：阻断 2 / 高 3 / 中 3 / 低 4，且两个阻断项都是接线层问题、单测 0 覆盖（假信心）**：
+
+- **阻断 ①**：接线层**从不检查 `isConsumed`**（全文件无该判断），因此子控件（中央播放键、底栏按钮、进度条）在 Main pass 消费后，本层仍在 Final pass 同一事件上再处理一次 —— 点播放键会连带 `toggleControls()` 把控制条收掉；拖进度条会在子控件 seek 之后**再 seek 一次并覆盖落点**。旧实现之所以正确，是因为 View 分发下"子 View 消费后父容器收不到"，而 Compose 的消费只影响同 pass 的后续处理者、**不会**阻止父节点看到该事件。（复核给出了框架级证据：Main pass 先子后自身、Final pass 先自身后子，故 Final 里 `isConsumed` 已是子控件结果 —— 能看到却没用。）
+- **阻断 ②**：单击超时等待（`withTimeoutOrNull { awaitPointerEvent(...) }`）会**把双击的第二下 DOWN 取走**并不进 `beginSession`，随后 `awaitEachGesture` 在其 block 结束时 `awaitAllPointersUp()` 把第二下剩余事件排空 ⇒ `isDoubleTap` 永假、**双击播放/暂停在生产路径不可达**，且"取到第二下"时反而不派发单击（双击彻底无反应）。
+- 高 ③ 亮度/音量基准只在"史上第一次"取（旧实现每次 `onDown` 重取）⇒ 第二次滑动会跳变；若首次音量手势时系统音量为 0，此后音量恒被钳到 0。
+- 高 ④ `ACTION_CANCEL` 被当成正常抬手（框架会把 CANCEL 合成为同 id 的 `changedToUp` 并三 pass 全发）⇒ 横滑中下拉通知栏/来电会**提交**这次 seek（旧实现回原位），`onSeekCancel` 成死代码。
+- 高 ⑤ 长按：暂停态也提速（旧实现显式排除 `STATE_PAUSED`）；改为事件驱动后手指完全静止可能永不触发；`maxDistance` 滞后一拍。
+- 中 ⑥ 屏幕几何（边缘带/半屏分侧）在 `pointerInput` 块外求值、键只有稳定的 `handler` ⇒ 旋转后不重算；中 ⑦ 边缘判定用**局部坐标**比屏幕尺寸（旧口径是 `rawX/rawY`）⇒ 预览态点预览窗顶部会误判为上边缘；中 ⑧ 锁屏短路从"一切判定之前吞事件"退成"各动作自查"⇒ 锁屏时四边 40dp 内、非播放态、长按都唤不出锁屏钮，且唤出要等双击窗口。
+
+**为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律与"宁可晚做不可带病上线"，**整片回退**（`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除），仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置**：先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按上面的 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（本轮已验证其判定语义与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
 **未验证面（诚实标注）**：真机走查未做 —— 走查重点见计划档 M7e 未验证面（控制器状态回灌与图标一致性、1Hz 进度刷新、音频焦点、Surface↔Texture 热切与纯音频强制 Texture、边播缓存/预载读盘命中、点播↔直播内核复用与控制器挂摘、手势手感回归）。
 
