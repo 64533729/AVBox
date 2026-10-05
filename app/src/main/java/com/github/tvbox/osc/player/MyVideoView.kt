@@ -218,7 +218,9 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     fun isPortraitVideo(): Boolean = VideoOrientation.isPortrait(mVideoSize[0], mVideoSize[1])
 
     fun clearVideoFrame() {
-        mMediaPlayer?.stop()
+        // 直调内核停播放(不进桥的"停止"命令):旧实现同样不改基类状态,状态机不得被这次动作翻成 IDLE
+        val player = mMediaPlayer
+        if (player is ExoPlayer) player.stopForFrameClear() else player?.stop()
         showFrameCover()
     }
 

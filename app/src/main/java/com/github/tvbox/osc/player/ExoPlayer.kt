@@ -127,6 +127,15 @@ class ExoPlayer(context: Context) : AbstractPlayer() {
         stateMachine.onStopRequested()
     }
 
+    /**
+     * 静默停内核([MyVideoView.clearVideoFrame] 直调):只停内核、不改状态机 ——
+     * 旧实现直调 `mMediaPlayer.stop()` 时基类状态本来就不变(盖黑帧是"复用换集"的前置动作,不是一次播放停止);
+     * 投状态机(→IDLE)会让 `isIdleKernelReusable` 等读取点把仍有内容的内核误判成空闲(M7d 收口 M7b 登记⑥)。
+     */
+    fun stopForFrameClear() {
+        engine?.stop()
+    }
+
     override fun reset() {
         awaitingPrepared = false
         engine?.reset()
