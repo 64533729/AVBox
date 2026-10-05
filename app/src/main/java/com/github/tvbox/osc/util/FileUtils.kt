@@ -363,7 +363,7 @@ object FileUtils {
         return String.format(Locale.US, "%.2fGB", bytes / 1024.0 / 1024 / 1024)
     }
 
-    /** Exo 边播缓存目录名:与 ExoMediaSourceHelper 的共享 SimpleCache 目录保持一致 */
+    /** Exo 边播缓存目录名:与 `PlayerCache` 的共享 SimpleCache 目录保持一致(三处同源) */
     private const val EXO_CACHE_DIR_NAME = "exo-video-cache"
 
     /** 「清除缓存」写下的待清理标记:由 {@link #purgeExoCacheIfPending()} 在下次启动早期执行 */
@@ -411,7 +411,7 @@ object FileUtils {
 
     /**
      * 「清除缓存」遗留的 Exo 视频缓存清理(2026-09-13):在 App 启动早期调用,
-     * **必须早于 ExoMediaSourceHelper.getSharedCache 的首次创建**(SimpleCache 尚未持有目录/索引时删除才安全)。
+     * **必须早于 `PlayerCache.getSharedCache` 的首次创建**(SimpleCache 尚未持有目录/索引时删除才安全)。
      * 无待清理标记时仅一次文件存在性检查,零开销;有标记时删除 exo-video-cache 目录(含索引),
      * 内容清空才清除标记,否则保留标记待下次启动重试(删除中途进程被杀也保留标记,下次继续)。
      * 目录删除为耗时 IO,须在后台线程调用。

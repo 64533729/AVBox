@@ -34,7 +34,7 @@ import okhttp3.OkHttp
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
 
-import xyz.doikki.videoplayer.exo.ExoMediaSourceHelper
+import com.github.tvbox.osc.player.engine.MediaSources
 
 
 object OkGoHelper {
@@ -110,7 +110,7 @@ object OkGoHelper {
         builder.dns(CustomDns())
         ItvClient = builder.build()
 
-        ExoMediaSourceHelper.getInstance(AppContextHolder.context()!!).setOkClient(ItvClient)
+        MediaSources.getInstance(AppContextHolder.context()!!).setOkClient(ItvClient)
     }
 
     // DNS 解析在 OkHttp 线程读,init/reloadDns 在主线程写

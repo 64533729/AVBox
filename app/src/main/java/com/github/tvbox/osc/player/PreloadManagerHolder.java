@@ -22,7 +22,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import xyz.doikki.videoplayer.exo.ExoMediaSourceHelper;
+import com.github.tvbox.osc.player.engine.MediaSources;
+import com.github.tvbox.osc.player.engine.PlayerCache;
 
 public final class PreloadManagerHolder {
     private static final String TAG = "PreloadManager";
@@ -99,7 +100,7 @@ public final class PreloadManagerHolder {
             sPreloadHeaders = headers == null ? Collections.<String, String>emptyMap() : new HashMap<>(headers);
             sPreloadTargets.put(url, headersSignature(headers));
             // 预缓存路径必须显式带内容类型(DownloadHelper 只按 uri/mimeType 推断),见 buildPreloadMediaItem
-            MediaItem item = ExoMediaSourceHelper.buildPreloadMediaItem(url, headers);
+            MediaItem item = MediaSources.buildPreloadMediaItem(url, headers);
             sRegistry.put(key, item);
             manager.add(item, 0); // rankingData 仅用于多项排序,本项目恒只预载 1 项
             // 注意:BasePreloadManager.add() 不触发重新排序,必须手动 invalidate 才会真正开始预载
@@ -208,7 +209,7 @@ public final class PreloadManagerHolder {
                     .setMediaSourceFactory(new PreloadMediaSourceFactory(appContext))
                     // cached 状态走 PreCacheHelper 磁盘预缓存:必须注入 Cache,否则 build 时 preCacheHelperFactory
                     // 为 null,开始预缓存即抛 —— 数据不再进 SampleQueue,故不再需要 32MB 内存水位(LoadControl)
-                    .setCache(ExoMediaSourceHelper.getSharedCache(appContext))
+                    .setCache(PlayerCache.getSharedCache(appContext))
                     // 预缓存下载只认 builder 级 DataSource.Factory(不读 MediaItem.extras),站点 headers 靠它桥接
                     .setDataSourceFactory(new PreloadDataSourceFactory(appContext))
                     // 预载线程须与播放器 playback looper 同一(PreloadMediaSource 硬校验,见 preloadLooper)
@@ -282,14 +283,14 @@ public final class PreloadManagerHolder {
 
         @Override
         public DataSource createDataSource() {
-            return ExoMediaSourceHelper.getInstance(appContext)
+            return MediaSources.getInstance(appContext)
                     .createDataSourceFactory(sPreloadHeaders)
                     .createDataSource();
         }
     }
 
     /**
-     * 预载侧 MediaSource 工厂:与播放侧同源——直接复用 ExoMediaSourceHelper.getMediaSource,
+     * 预载侧 MediaSource 工厂:与播放侧同源——直接复用 MediaSources.getMediaSource,
      * headers 从 MediaItem 的 requestMetadata.extras 取回（buildMediaItem 写入）。
      */
     private static final class PreloadMediaSourceFactory implements MediaSource.Factory {
@@ -304,9 +305,9 @@ public final class PreloadManagerHolder {
             String uri = mediaItem.localConfiguration != null
                     ? mediaItem.localConfiguration.uri.toString()
                     : mediaItem.mediaId;
-            Map<String, String> headers = ExoMediaSourceHelper.getHeadersFrom(mediaItem);
+            Map<String, String> headers = MediaSources.getHeadersFrom(mediaItem);
             // cached 状态不往 SampleQueue 灌数据,该源只是 holder 的壳(onMediaSourceUpdated 会替换成新源)
-            return ExoMediaSourceHelper.getInstance(appContext).getMediaSource(uri, headers, true);
+            return MediaSources.getInstance(appContext).getMediaSource(uri, headers, true);
         }
 
         @Override

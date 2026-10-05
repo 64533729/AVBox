@@ -22,7 +22,7 @@ import com.whl.quickjs.android.QuickJSLoader
 
 import me.jessyan.autosize.AutoSizeConfig
 import me.jessyan.autosize.unit.Subunits
-import xyz.doikki.videoplayer.exo.ExoMediaSourceHelper
+import com.github.tvbox.osc.player.engine.PlayerCache
 
 /**
  * @author pj567
@@ -62,7 +62,7 @@ class App : Application() {
             .setSupportSP(false)
             .setSupportSubunits(Subunits.MM)
         // 共享缓存容量(第二期扩展):设置项 → player 模块(须在首次 getSharedCache 前注入,改动重启 App 生效)
-        ExoMediaSourceHelper.setSharedCacheSizeBytes(
+        PlayerCache.setSharedCacheSizeBytes(
             Math.max(128, KV.get(HawkConfig.EXO_CACHE_SIZE_MB, HawkConfig.EXO_CACHE_SIZE_MB_DEFAULT)) * 1024L * 1024L
         )
         QuickJSLoader.init()

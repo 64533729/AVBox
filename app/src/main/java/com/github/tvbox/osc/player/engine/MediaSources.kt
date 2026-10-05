@@ -169,6 +169,26 @@ class MediaSources(
             val INSTANCE: OkHttpClient = OkHttpClient.Builder().build()
         }
 
+        /** 进程级实例(预载侧与播放侧共用同一 client 注入面;M7e 起取代 doikki `ExoMediaSourceHelper.getInstance`) */
+        @Volatile
+        private var instance: MediaSources? = null
+
+        /**
+         * 取进程级实例:client 走懒读 `OkGoHelper.getItvClient()`(不能构造期快照 —— `reloadDns()` 会重建 client),
+         * 缓存走进程级共享 [PlayerCache.getSharedCache]。
+         */
+        @JvmStatic
+        fun getInstance(context: Context): MediaSources {
+            val existing = instance
+            if (existing != null) return existing
+            synchronized(MediaSources::class.java) {
+                instance?.let { return it }
+                val created = MediaSources(context.applicationContext)
+                instance = created
+                return created
+            }
+        }
+
         /**
          * 统一的 MediaItem 构建入口:headers 写入 requestMetadata.extras,播放与预载共用同一 header 语义。
          */
