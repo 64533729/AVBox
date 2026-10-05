@@ -794,7 +794,7 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     override fun getWebPlayUrlIfNeeded(webPlayUrl: String?): String {
-        return webParseUseCase.getWebPlayUrlIfNeeded(webPlayUrl)
+        return webParseUseCase.getWebPlayUrlIfNeeded(webPlayUrl) ?: ""
     }
 
     // ============================================================

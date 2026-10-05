@@ -865,9 +865,9 @@ class PlayerEngine(
                         if (type == C.TRACK_TYPE_AUDIO) str(R.string.player_menu_audio_track)
                         else if (type == C.TRACK_TYPE_VIDEO) str(R.string.player_menu_video_track)
                         else str(R.string.player_menu_subtitle),
-                        if (type == C.TRACK_TYPE_AUDIO) data.audio.size + 1
-                        else if (type == C.TRACK_TYPE_VIDEO) data.video.size + 1
-                        else data.subtitle.size + 1,
+                        if (type == C.TRACK_TYPE_AUDIO) data.getAudio().size + 1
+                        else if (type == C.TRACK_TYPE_VIDEO) data.getVideo().size + 1
+                        else data.getSubtitle().size + 1,
                         language,
                         detail,
                     )
@@ -1063,7 +1063,7 @@ class PlayerEngine(
 
     /** 当前没有选中任何内置字幕轨时补一次默认选轨(外挂字幕落地失败回落、或媒体未标 DEFAULT 轨时全靠它) */
     fun ensureSubtitleTrackSelected() {
-        val subtitles = getTrackInfo().subtitle
+        val subtitles = getTrackInfo().getSubtitle()
         if (subtitles.isEmpty()) return
         for (subtitle in subtitles) {
             if (subtitle.selected) return
@@ -1073,7 +1073,7 @@ class PlayerEngine(
 
     /** 默认内置字幕:国语优先,否则第一条 */
     private fun selectDefaultSubtitlePick() {
-        val subtitles = getTrackInfo().subtitle
+        val subtitles = getTrackInfo().getSubtitle()
         // 轨道还没映射出来时不封口:onTracksChanged 会再来一次(封了就再也选不上)
         if (subtitles.isEmpty()) return
         defaultSubtitleTrackSelected = true
