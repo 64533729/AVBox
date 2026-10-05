@@ -523,6 +523,26 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **未验证面（诚实标注）**：真机走查未做 —— 按 `avbox-playback-service-spec.md` §4 清单从"详情页预览态"开始（起播/首帧/暂停记忆/旋转/双渲染模式/纯音频强制 Texture/输出分辨率与效果链/错误与 HLS 重试/自动软解/切集复用），再扩全屏/直播/音乐。
 
+# 7.15 M7c 实测登记（2026-10-06，播放栈自研替换：点播全链切换 9 片）
+
+**结论**：`player/` 包 36 Java → 只剩 2 个（`PreloadCoordinator`/`PreloadManagerHolder` 留 M7f）；app 内 `com.github.tvbox.osc.player` **82 Kotlin / 2 Java（18091 / 657 行）**，`app/src/main/java` 由 M6b 的 **64 Java / 289 Kotlin** 降到 **30 Java / 338 Kotlin**。两阶段执行：语言迁移 8 片（逻辑零改动）→ 栈收口 1 片（`observeForever` → `flow`）。每片 `:app:assembleDebug` 绿、前 8 片 `:app:testDebugUnitTest` **603 用例 / 0 失败 / 0 错误 / 0 跳过**（与 M7b 基线持平）、收口片 **604**（净 +1）；改动文件全 LF；`tokens` 卡口抽查（「旧有新无」逐条归入已知盲区）。提交清单、复核账目与未验证面见 `skill/review/refactor-plan-20261005.md` §M7 的 M7c 交付行。
+
+**本切片现场核实出的规则（M7d–M7f 照查）**：
+
+1. **Kotlin 的 `or`/`and` 是中缀函数，折行必须把运算符留在行末**：`A or` ⏎ `B or` ⏎ `C` 会被解析成两条语句并报 `Unresolved reference 'or'`（`PlaybackService` 组合 `PlaybackStateCompat.ACTION_*` 踩到）。
+2. **Service 子类里"继承来的 Java 静态常量"要写全限定**：`Service.START_NOT_STICKY`、`Context.NOTIFICATION_SERVICE`/`POWER_SERVICE`/`WIFI_SERVICE`（与规则 §7.13-2 同源）。
+3. **Java 静态面迁 `companion object` + `@JvmStatic` 时必须回查 Java 调用点**：`PlaybackService` 9 个入口逐一比对 `PlayContainer.java` 后落 `@JvmStatic`；`onEngineReleased` 由包私有放宽为 public；私有 static 助手（`setLiveFlag`/`prewarmEnabled`/`startHost`/`releaseEngine`）留 companion private（Kotlin 侧调用不受影响）。
+4. **可空性放宽必须按"调用点实参"定，只放宽不收紧**：`PlaybackService.updateSession(title/subtitle/artwork)` → `String?`（来源含 `host.vod()!!.pic`）；`ProgressManager.saveProgress/getSavedProgress(url)` → `String?`（dooki 传 `mUrl`，release 路径会置 null，收紧即新增崩溃）；`PlaybackController.getCastUrl` 返回 `String?`（`CastVideo(url: String)` 调用点补 `?: url`）；`PlaybackController.initParse(playUrl, url)`、`MusicSessionDelegate.Host.playUrl(headers)`、`PlaybackViewBridge.playM3u8(headers, gen)`/`playExternalPlayer(subtitle, headers)`/`newSniffWebView()`/`buildPreloadSnapshot()` 同则。
+5. **`tokens` 的 getter 属性化盲区**：`getMessage`→`message`、`getClass`→`javaClass`、`getSimpleName`→`simpleName`、`getPackageName`→`packageName`、`getSessionToken`→`sessionToken`、`getApplicationContext`→`applicationContext`、`getAction`→`action`、`Image_androidKt.toBitmap`→`toBitmap`（扩展函数）都计入「旧有新无」，不算违规；`NonNull`/`Nullable`/`SuppressLint` 等注解 import 消失同理。
+6. **"Java 逐次重读不得缓存" 适用于数据读取点（不只是桥）**：`PlaybackController.play()/goPlayUrl()` 里 `vod()`、`vs.url` 的多次重读必须逐次复刻旧形态（`vod()!!.x`），**不能**收敛成入口处的局部 val —— 桥回调（`view.stopOtherPlayers()`/`releasePlayer()`/`clearVideoFrame()`）与 `Thunder.play`/`preload.consumeResult` 之间都可能重新进入会话边界。反之旧 Java 自己缓存成局部量的（`PlaybackRetryDelegate.trySoftDecodeFallback`/`tryNextLine`）照缓存。
+7. **字段初始化必须早于 `init {}` 块**：Kotlin 属性初始化器与 `init` 按文本顺序执行，而 Java 的字段初始化器一律早于构造器体 —— 把 `idleRelease` 这类"构造期就可能被方法用到"的字段写在 `init` 之后，构造期会读到 null（`PlaybackEngine` 复核轮的中项）。
+8. **Flow 收口的 Scope 与派发写法（本片定型）**：收集域 = 拥有者对象自身（`private var collectJob = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch { flow.collect { … } }`，`release`/`destroy` 里 `cancel`）；主线程派发靠 `Dispatchers.Main.immediate`（`tryEmit` 在发射线程恢复收集者）。**"观察者已注册"这类语义要显式复刻**（`deliver` 用 `collectJob?.isActive` 守卫）。UI 侧对通道的订阅用 `lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED)` + 通道 `replay = 1`，等价旧 `observe(lifecycleOwner)` 的 STARTED 期订阅与回放。
+9. **`SourceChannel` 现只有 `flow` + `postValue`/`setValue`**（均 `tryEmit`）：新增消费方不要再引 LiveData；`SourceChannelTest` 锁住三条语义（粘性回放 / null 合法载荷 / 活跃收集者不合并 + 溢出丢最旧 + 跨线程投递）。与 LiveData 的差异（不合并）是**有意行为**，写进走查清单。
+
+**复核轮（2026-10-06）**：M7c-5b（`PlaybackController`）与 M7c-6a（`PlaybackEngine`）各跑一轮独立只读子代理逐类对照 —— 5b：0 阻断 / 0 高（复核后按规则 6 改回 2 处缓存）/ 1 中（`vs.url` 重读）/ 10 低（可空性收紧 2 条不可达、注解漏迁、`@JvmStatic` 缺失等，已修 `@JvmStatic` 与 `@Throws`）；6a：0 阻断 / 0 高 / 1 中（规则 7，已改回）/ 3 低（`!!` 复刻 Java 隐式解引用、`?:` 死分支、ProgressManager 入参放宽）。两轮均无"新引入的功能性偏差"。
+
+**未验证面（诚实标注）**：真机走查未做 —— 见计划档 M7c 未验证面（含本次收口引入的 3 条可观测差异）。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。
