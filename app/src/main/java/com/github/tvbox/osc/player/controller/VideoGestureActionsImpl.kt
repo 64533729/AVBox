@@ -61,6 +61,18 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     /** 本次手势的横滑目标(-1 = 无) */
     private var seekTargetMs = -1
 
+    /**
+     * 手势开始时的亮度基准。
+     *
+     * <p>⚠️ **必须固定**,不能每次 MOVE 都读当前值:接线层送来的 `totalDeltaY` 是**从按下点累计**的,
+     * 若基准取"当前值",同一个位移会被每一个 MOVE 反复叠加 —— 真机实测:185px 的滑动、
+     * 13 次 MOVE,把亮度从 0.80 直接推到 0(即"轻轻一划就到底/跟闪光弹一样")。
+     */
+    private var brightnessBase: Float? = null
+
+    /** 手势开始时的音量基准(同样必须固定,理由同上) */
+    private var volumeBase: Int? = null
+
     private val audioManager: AudioManager? by lazy {
         host.context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     }
@@ -73,6 +85,11 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
      */
     fun beginSession(width: Int, height: Int, screenWidth: Int, downY: Float): VideoGestureSession {
         seekTargetMs = -1
+        // 基准在手势开始时取一次,整场手势复用(见字段注释)
+        brightnessBase = host.playerActivity()?.window?.attributes?.screenBrightness?.let {
+            if (it < 0f) 0.5f else it
+        }
+        volumeBase = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)
         val view = host.playerView
         val paused = host.curPlayState == AppPlayerView.STATE_PAUSED
         return VideoGestureSession(
@@ -159,15 +176,15 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val attrs = window.attributes
         val height = host.height
         if (height <= 0) return
-        val base = if (attrs.screenBrightness < 0f) 0.5f else attrs.screenBrightness
-        // 下降 = 变暗、上升 = 变亮;按 verticalRangePerScreen 定标
+        val base = brightnessBase ?: return
+        // 下降 = 变暗、上升 = 变亮;按 verticalRangePerScreen 定标。
+        // base 是**手势开始时的固定值**,totalDeltaY 是从按下点累计的位移 ⇒ 两者相加才正确。
         val delta = -totalDeltaY / (height * verticalRangePerScreen)
         var target = base + delta
         if (target < 0f) target = 0f
         if (target > 1f) target = 1f
         attrs.screenBrightness = target
         window.attributes = attrs
-        // 诊断:亮度这条最容易"感觉不对却算不出",把参与量都记下来
         LOG.i(
             "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
                 " base=" + base + " target=" + target,
@@ -182,7 +199,8 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         if (height <= 0) return
         val streamMax = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         if (streamMax <= 0) return
-        val base = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        // 基准同样是手势开始时的固定值(理由见 brightnessBase 注释)
+        val base = volumeBase ?: return
         // 与亮度同一把尺子:全量程(0..max)对应 verticalRangePerScreen 个屏高
         val delta = -totalDeltaY / (height * verticalRangePerScreen) * streamMax
         var index = base + delta
