@@ -27,8 +27,9 @@ import java.util.TreeMap
  * content type 推断(TVBox-Format 头 > 文件名)、headers 规范化与 MediaItem 携带、
  * 磁盘缓存数据源(headers 后缀 key 防跨线路串缓存)、预载目标专用源(media3 默认 key)。
  *
- * @param appContext application 上下文
- * @param client 注入的 OkHttpClient(DoH/hosts/代理/SSL 都在 client 上);null = 用类持有式兜底单例
+ * @param context 任意上下文(构造即归一为 application)
+ * @param client 注入的 OkHttpClient(DoH/hosts/代理/SSL 都在 client 上);
+ *   null = 回落 `OkGoHelper.getItvClient()`(旧栈全局注入的同一 client),仍未就绪再用类持有式兜底单例
  * @param cache 显式覆盖磁盘缓存;null = 用进程级共享缓存 [PlayerCache.getSharedCache]
  */
 class MediaSources(

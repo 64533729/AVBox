@@ -7,6 +7,7 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.ExoMediaPlayerFactory
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.MyVideoView
+import com.github.tvbox.osc.player.engine.SourcePolicy
 import com.github.tvbox.osc.player.render.SurfaceRenderViewFactory
 import com.github.tvbox.osc.player.thirdparty.Kodi
 import com.github.tvbox.osc.player.thirdparty.MXPlayer
@@ -93,12 +94,9 @@ object PlayerHelper {
         return ("软解码" == exoDecode) == preferSoftwareDecode // i18n: keep
     }
 
+    /** 委派新内核层策略(真值源唯一;本方法保留为旧调用点兼容入口,见 SourcePolicy.isLocalProxyUrl) */
     @JvmStatic
-    fun isLocalProxyUrl(url: String?): Boolean {
-        if (url == null) return false
-        return url.startsWith("http://127.0.0.1") || url.startsWith("https://127.0.0.1")
-                || url.startsWith("http://localhost") || url.startsWith("https://localhost")
-    }
+    fun isLocalProxyUrl(url: String?): Boolean = SourcePolicy.isLocalProxyUrl(url)
 
     @JvmStatic
     fun extractPlayHeaders(playResult: JSONObject?): HashMap<String, String>? {

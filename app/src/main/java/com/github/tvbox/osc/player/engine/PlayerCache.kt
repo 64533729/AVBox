@@ -16,11 +16,6 @@ import xyz.doikki.videoplayer.exo.ExoMediaSourceHelper
  */
 object PlayerCache {
 
-    const val DEFAULT_CACHE_SIZE_BYTES = 512L * 1024 * 1024
-
-    /** 共享缓存目录名(与 FileUtils 的清缓存逻辑同源) */
-    const val CACHE_DIR_NAME = "exo-video-cache"
-
     @JvmStatic
     fun getSharedCache(context: Context): Cache = ExoMediaSourceHelper.getSharedCache(context)
 

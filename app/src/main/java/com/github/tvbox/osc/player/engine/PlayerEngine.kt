@@ -47,6 +47,7 @@ import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.TrackMemory
 import okhttp3.OkHttpClient
 import java.util.ArrayList
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -127,7 +128,10 @@ class PlayerEngine(
     /** 本片记忆键(见 TrackMemory);内核重建即新实例,故由调用方在起播前推入 */
     private var contentKey = ""
 
+    @Volatile
     private var startPositionMs = 0L
+
+    @Volatile
     private var startPositionApplied = false
 
     // ==================== 效果/渲染状态 ====================
@@ -178,6 +182,8 @@ class PlayerEngine(
     @Volatile
     private var playbackStarted = false
     private val renderedFrameCount = AtomicLong()
+
+    @Volatile
     private var frameRateWindowStartMs = 0L
 
     @Volatile
@@ -701,7 +707,7 @@ class PlayerEngine(
 
     /** 选中的视频轨尺寸(effects 打开时内核不再上报尺寸,从这里补报) */
     private fun reportVideoSizeFromTracks(tracks: Tracks) {
-        if (!videoEffectsOpen || tracks == null) return
+        if (!videoEffectsOpen) return
         for (group in tracks.groups) {
             if (group.type != C.TRACK_TYPE_VIDEO || !group.isSelected) continue
             for (i in 0 until group.length) {
@@ -1105,7 +1111,7 @@ class PlayerEngine(
 
     private fun isBitmapSubtitle(format: Format?): Boolean {
         val mimeType = format?.sampleMimeType ?: return false
-        val lower = mimeType.lowercase()
+        val lower = mimeType.lowercase(Locale.getDefault())
         return lower.contains("pgs") || lower.contains("dvb") || lower.contains("vobsub")
     }
 
@@ -1148,7 +1154,7 @@ class PlayerEngine(
 
     private fun matchLanguage(text: String?): String {
         if (text == null) return ""
-        val value = text.lowercase()
+        val value = text.lowercase(Locale.getDefault())
         LANG_MAP[value]?.let { return it }
         if (value.contains("yue") || value.contains("cantonese") || value.contains("粤") || value.contains("广东")) {
             return "粤语"
@@ -1187,12 +1193,12 @@ class PlayerEngine(
 
         var codec = ""
         if (!fmt.codecs.isNullOrEmpty()) {
-            codec = fmt.codecs!!.uppercase()
+            codec = fmt.codecs!!.uppercase(Locale.getDefault())
         }
         val mime = fmt.sampleMimeType
         if (mime != null && mime.contains("/")) {
             if (codec.isEmpty()) {
-                codec = mime.substring(mime.indexOf('/') + 1).uppercase()
+                codec = mime.substring(mime.indexOf('/') + 1).uppercase(Locale.getDefault())
             }
         }
         val builder = StringBuilder()
@@ -1211,9 +1217,9 @@ class PlayerEngine(
         val codecs = fmt.codecs
         val mime = fmt.sampleMimeType
         if (!codecs.isNullOrEmpty()) {
-            appendPart(builder, codecs.uppercase())
+            appendPart(builder, codecs.uppercase(Locale.getDefault()))
         } else if (mime != null && mime.contains("/")) {
-            appendPart(builder, mime.substring(mime.indexOf('/') + 1).uppercase())
+            appendPart(builder, mime.substring(mime.indexOf('/') + 1).uppercase(Locale.getDefault()))
         }
         return builder.toString()
     }

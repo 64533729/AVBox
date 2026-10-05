@@ -33,6 +33,14 @@ class PlayerEngineErrorTest {
         assertEquals(PlayerEngine.ERROR_KIND_UNKNOWN, PlayerEngine.classifyError(null))
     }
 
+    /** 错误分类数值是跨层契约(重试阶梯按 1/2 比较),钉死常量值本身 */
+    @Test
+    fun errorKindValues_areContract() {
+        assertEquals(0, PlayerEngine.ERROR_KIND_UNKNOWN)
+        assertEquals(1, PlayerEngine.ERROR_KIND_NETWORK)
+        assertEquals(2, PlayerEngine.ERROR_KIND_DECODE)
+    }
+
     // ==================== isParsingError(HLS 重试触发条件) ====================
 
     @Test
