@@ -539,7 +539,7 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 8. **Flow 收口的 Scope 与派发写法（本片定型）**：收集域 = 拥有者对象自身（`private var collectJob = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch { flow.collect { … } }`，`release`/`destroy` 里 `cancel`）；主线程派发靠 `Dispatchers.Main.immediate`（`tryEmit` 在发射线程恢复收集者）。**"观察者已注册"这类语义要显式复刻**（`deliver` 用 `collectJob?.isActive` 守卫）。UI 侧对通道的订阅用 `lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED)` + 通道 `replay = 1`，等价旧 `observe(lifecycleOwner)` 的 STARTED 期订阅与回放。
 9. **`SourceChannel` 现只有 `flow` + `postValue`/`setValue`**（均 `tryEmit`）：新增消费方不要再引 LiveData；`SourceChannelTest` 锁住三条语义（粘性回放 / null 合法载荷 / 活跃收集者不合并 + 溢出丢最旧 + 跨线程投递）。与 LiveData 的差异（不合并）是**有意行为**，写进走查清单。
 
-**复核轮（2026-10-06）**：M7c-5b（`PlaybackController`）与 M7c-6a（`PlaybackEngine`）各跑一轮独立只读子代理逐类对照 —— 5b：0 阻断 / 0 高（复核后按规则 6 改回 2 处缓存）/ 1 中（`vs.url` 重读）/ 10 低（可空性收紧 2 条不可达、注解漏迁、`@JvmStatic` 缺失等，已修 `@JvmStatic` 与 `@Throws`）；6a：0 阻断 / 0 高 / 1 中（规则 7，已改回）/ 3 低（`!!` 复刻 Java 隐式解引用、`?:` 死分支、ProgressManager 入参放宽）。两轮均无"新引入的功能性偏差"。
+**复核轮（2026-10-06）**：M7c-5b（`PlaybackController`）、M7c-6a（`PlaybackEngine`）、M7c-6b（`PlaybackService` 迁移）各跑一轮独立只读子代理逐类对照 —— 5b：0 阻断 / 0 高 / 2 中（`vod()`、`vs.url` 的逐次重读被缓存，按规则 6 改回）/ 10 低（`@JvmStatic`、`@Throws` 缺失已补，可空性收紧 2 条不可达）；6a：0 阻断 / 0 高 / 1 中（规则 7，已改回）/ 3 低（`!!` 复刻 Java 隐式解引用、`?:` 死分支、ProgressManager 入参放宽）；6b：0 阻断 / 0 高 / 1 中（`updateSession` 的 `context` 收紧，已按规则 4 放宽为 `Context?`）+ 3 低（`stopSession` 同项、KDoc 链接写法、`onEngineReleased` KDoc 与"不 stopSelf"矛盾，均已修）。三轮均无"新引入的功能性偏差"。
 
 **未验证面（诚实标注）**：真机走查未做 —— 见计划档 M7c 未验证面（含本次收口引入的 3 条可观测差异）。
 
