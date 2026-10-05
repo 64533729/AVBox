@@ -134,8 +134,9 @@ object PlayerUtils {
         return context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
 
-    /** dp → px(等价旧 `TypedValue.applyDimension` + 截断取整) */
-    private fun dp2px(context: Context, dpValue: Float): Int {
+    /** dp → px(等价旧 `TypedValue.applyDimension` + 截断取整);手势边缘带与宿主布局共用 */
+    @JvmStatic
+    fun dp2px(context: Context, dpValue: Float): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dpValue,
