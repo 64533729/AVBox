@@ -44,6 +44,7 @@ import com.github.tvbox.osc.player.state.PlayerUiState
 import com.github.tvbox.osc.player.state.VideoSizeGate
 import com.github.tvbox.osc.player.state.SelectDialogState
 import com.github.tvbox.osc.player.ui.PlayerOverlay
+import com.github.tvbox.osc.player.ui.VideoGestureHandler
 import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
 import com.github.tvbox.osc.player.usecase.PlayerSwitchUseCase
 import com.github.tvbox.osc.player.usecase.WebParseUseCase
@@ -113,6 +114,49 @@ class ComposeVideoController @JvmOverloads constructor(
         activityCache ?: PlayerUtils.scanForActivity(context)?.also { activityCache = it }
             ?: videoView?.hostActivity()
 
+    // ---- 手势层对接(videoGestureLayer / VideoGestureActionsImpl) ----
+
+    internal fun gestureCanChangePosition(): Boolean = canChangePosition
+
+    internal fun gestureEnableInNormal(): Boolean = enableInNormal
+
+    internal fun gestureEnabled(): Boolean = gestureSwitch
+
+    internal fun playerState(): Int = curPlayState
+
+    /** 当前倍速(长按前记录用) */
+    internal fun currentSpeed(): Float = playerView?.speed ?: 1f
+
+    /**
+     * 进入"手势拖动 seek"态:与底部进度条拖动同口径 —— 置 `dragging` 让进度定时器丢弃这一拍,
+     * 并停表;[exitGestureSeek] 复位并重新起表。
+     */
+    internal fun enterGestureSeek() {
+        if (!state.dragging) {
+            state.dragging = true
+            if (!state.controlsVisible) applyShowBottom()
+            stopProgress()
+        }
+    }
+
+    internal fun exitGestureSeek() {
+        state.dragging = false
+        startProgress()
+        keepControlsAlive()
+    }
+
+    /** 手势 seek 落盘(与拖动 seek 的 onSeekFinished 同口径) */
+    internal fun saveGestureProgress(targetMs: Int) {
+        savePlaybackProgress(notifyHistory = true, seekTargetMs = targetMs)
+    }
+
+    /** 竖滑提示(亮度/音量共用文案位) */
+    internal fun showSlideHint(text: String, brightness: Boolean) {
+        state.slideHintText = text
+        state.slideHintBrightness = brightness
+        state.slideHintVisible = true
+    }
+
     /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
     fun togglePlayFromGesture() {
         videoView?.togglePlay()
@@ -136,7 +180,16 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     /** 手势委托:在 init 块里建(不再有父类构造期的虚调用 initView) */
-    internal lateinit var gestures: GestureController
+    /** 手势副作用落实(init 里建,避免构造期虚调用) */
+    private lateinit var gestureActions: VideoGestureActionsImpl
+
+    /** 手势判定状态机(指针事件由覆盖层的 videoGestureLayer 喂入) */
+    internal lateinit var gestureHandler: VideoGestureHandler
+
+    /** 三个手势开关(旧 setCanChangePosition/setEnableInNormal/setGestureEnabled) */
+    private var canChangePosition = true
+    private var enableInNormal = false
+    private var gestureSwitch = true
 
     // —— 原生字幕视图（PlayContainer 直接操作，保留 View 引用） ——
     private lateinit var mSubtitleView: SimpleSubtitleView
@@ -210,8 +263,8 @@ class ComposeVideoController @JvmOverloads constructor(
     init {
         state = PlayerUiState()
 
-        gestures = GestureController(this)
-        gestures.attach()
+        gestureActions = VideoGestureActionsImpl(this)
+        gestureHandler = VideoGestureHandler(gestureActions)
 
         initNativeSubtitleViews()
         initComposeLayer()
@@ -265,7 +318,12 @@ class ComposeVideoController @JvmOverloads constructor(
             setContent {
                 // 视频覆盖层挂在纯黑播放页:状态栏图标外观仍由宿主 Activity 断言,主题不接管
                 AVBoxTheme(manageStatusBarIcons = false) {
-                    PlayerOverlay(state, this@ComposeVideoController)
+                    PlayerOverlay(
+                        state = state,
+                        actions = this@ComposeVideoController,
+                        gestureHandler = gestureHandler,
+                        gestureSession = { w, h, sw -> gestureActions.beginSession(w, h, sw) },
+                    )
                 }
             }
         }
@@ -337,7 +395,6 @@ class ComposeVideoController @JvmOverloads constructor(
     /** 播放器状态变化(旧 `setPlayerState`):全屏/小屏搬运已随去 doikki 删除 ⇒ 只会收到普通态 */
     override fun setPlayerState(playerState: Int) {
         state.playerState = playerState
-        gestures.onPlayerState(playerState)
     }
 
     /** 内核上报尺寸（换内容必然先回落 0）：角标当帧刷新，不等轮询 */
@@ -445,11 +502,6 @@ class ComposeVideoController @JvmOverloads constructor(
                 curPlayState != AppPlayerView.STATE_PREPARED &&
                 curPlayState != AppPlayerView.STATE_START_ABORT &&
                 curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        gestures.onTouchEvent(event)
-        return super.onTouchEvent(event)
     }
 
     // ============================================================
@@ -802,15 +854,15 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     override fun setCanChangePosition(canChangePosition: Boolean) {
-        gestures.setCanChangePosition(canChangePosition)
+        this.canChangePosition = canChangePosition
     }
 
     override fun setEnableInNormal(enableInNormal: Boolean) {
-        gestures.setEnableInNormal(enableInNormal)
+        this.enableInNormal = enableInNormal
     }
 
     override fun setGestureEnabled(gestureEnabled: Boolean) {
-        gestures.setGestureEnabled(gestureEnabled)
+        this.gestureSwitch = gestureEnabled
     }
 
     /** 旧暂停浮层根已并入 Compose 层,View 版无需隐藏 */

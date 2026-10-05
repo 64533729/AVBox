@@ -66,7 +66,7 @@ object PlayerUtils {
      * <p>等价旧实现:用 `rawX/rawY` 与"含导航栏的屏幕宽高"比对 —— 全屏时 `widthPixels` 不含导航栏,
      * 必须补上导航栏高度才能覆盖到真实屏幕右/下边。
      *
-     * <p>调用点:`GestureController`、`ComposeLiveController`。
+     * <p>调用点:`VideoGestureActionsImpl`(点播手势)、`ComposeLiveController`(直播手势)。
      */
     @JvmStatic
     fun isEdge(context: Context, e: MotionEvent): Boolean {

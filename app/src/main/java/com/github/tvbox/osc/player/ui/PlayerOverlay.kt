@@ -11,6 +11,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,7 +37,6 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,8 +65,29 @@ import kotlinx.coroutines.delay
 fun PlayerOverlay(
     state: PlayerUiState,
     actions: PlayerActions,
+    /** 手势判定状态机(由 ComposeVideoController 持有) */
+    gestureHandler: VideoGestureHandler,
+    /** 每次 DOWN 现算的手势会话快照:入参为手势区宽高与屏幕宽度 */
+    gestureSession: (width: Int, height: Int, screenWidth: Int) -> VideoGestureSession,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // 屏幕宽度(半屏分侧用)必须在组合期读出:pointerInput 的 lambda 里不能有 @Composable 调用
+    val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            // 视频手势层:替代旧的 doikki GestureDetector + View onTouchEvent。
+            // 只认领子控件(控制条按钮/进度条)未消费的触摸 —— 见 videoGestureLayer 的说明。
+            .videoGestureLayer(gestureHandler) { size ->
+                val sizeW = size.width
+                val sizeH = size.height
+                if (sizeW <= 0 || sizeH <= 0) {
+                    null
+                } else {
+                    // 屏幕宽度用于半屏分侧(含导航栏),与旧实现同口径
+                    gestureSession(sizeW, sizeH, screenWidthPx)
+                }
+            },
+    ) {
         // 图标盒只有一处算,胶囊与右侧竖排共用 ⇒ 两处图标必然等大(竖屏全屏下胶囊会被钳小)
         val iconBox = playerIconBox(maxWidth - playerEdgePadding() * 2)
         PlayerTipLayer(state)
