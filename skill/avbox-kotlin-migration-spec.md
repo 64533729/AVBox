@@ -622,6 +622,13 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律，**整片回退**：`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除，仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置** = 先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（其判定语义经复核确认与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
+**② 的验证栈已铺好（2026-10-06,提交 `756c098`）**：按用户指示先补测试依赖,现已落地并可跑:
+- **依赖**:`gradle/libs.versions.toml` 新增 `robolectric = "4.17"`、`androidxTestExtJunit = "1.3.0"` 与 alias `robolectric` / `androidx-test-ext-junit` / `androidx-test-core` / `androidx-compose-ui-test-junit4` / `androidx-compose-ui-test-manifest`;`app/build.gradle.kts` 的 `testImplementation` 新增这 5 项(Compose 两项走 `platform(libs.androidx.compose.bom)`,解析为 **1.13.0-alpha01**)。
+- **构建开关**:`testOptions.unitTests.isIncludeAndroidResources = true`(**关键**:不开的话 Robolectric 看不到合并清单/资源)。
+- **三个非显然的坑(全部已解,勿回退)**:① 真实 `App` 在 `attachBaseContext` 里 `KV.init → MMKV.initialize → System.loadLibrary("mmkv")`,JVM 里必然 `UnsatisfiedLinkError`,测试根本进不到测试体 ⇒ 用测试源集的极简 `com.github.tvbox.osc.testing.TestApplication` 顶掉;② 宿主 Activity 不能用 `ui-test-manifest` 提供的 `androidx.activity.ComponentActivity`(它不在应用运行期 dex 里,`ActivityScenario` 实例化失败)⇒ 用测试源集自己的 `ComposeTestActivity`;③ 用 `createAndroidComposeRule<T>()` 显式指定宿主。
+- **能力探针 `ComposeGestureHarnessTest`(3 例)**:`performClick` 能落到 Compose 节点;低层 `down/up` 能进 `pointerInput`;以及**最关键的**——父层在 `PointerEventPass.Final` 能观察到子控件已消费(`isConsumed=true`)。第三例正是第一轮复核断言"缺失"的那个前提。
+- **当前状态**:探针暂时 `@Ignore`,唯一原因是本工程 **`applicationId`(com.github.avbox.osc) ≠ `namespace`(com.github.tvbox.osc)**,导致测试源集 Activity 的名字在"清单合并"(绝对名)与"Robolectric 规范化"(相对 applicationId 的 `.ui.ComposeTestActivity`)两侧对不上,`Unable to resolve activity for Intent`。**属 AGP 9 清单接线问题,与手势逻辑无关** —— 同一份代码在 `mergeDebugUnitTestManifest` 尚未重跑的那次构建里 3 例全 PASS。解锁方向(均不需改手势代码):① 把宿主 Activity 放进主源集(或主清单声明一个调试用 Activity)使两侧名字天然一致;② 改走 `androidTest`;③ 查清 AGP 9 下该场景的清单来源。全套件 **614 用例 / 0 失败 / 3 跳过**。
+
 **② 的阻塞条件（2026-10-06 实测确认）**：本仓库**不具备离线验证 Compose 指针语义的手段** —— `app/build.gradle.kts:89-90` 只有 `testOptions { unitTests.isReturnDefaultValues = true }` + `testImplementation(libs.junit)`（JUnit4）；`gradle/libs.versions.toml` 无 `robolectric`/`ui-test-*`；`app/src` 无 `androidTest` 源集。两轮独立复核对已实现的手势层结论一致（"两个阻断项都在接线层、16 例单测 0 覆盖"），而接线层语义只能由 `androidTest` 或真机证明 ⇒ 在补上验证手段前，该项的每次实现尝试都无法被判为可交付。**解锁路径**：① 引入 `androidx.compose.ui:ui-test-junit4` + `robolectric` 并补 12 条接线层用例（清单见上）；② 真机手势走查；③ 明确接受保留 View 层 `GestureDetector` 并从 objective 摘除本项。
 
 **未完成项（2 项，诚实标注）**：
