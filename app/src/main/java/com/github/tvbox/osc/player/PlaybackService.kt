@@ -37,7 +37,7 @@ import java.lang.ref.WeakReference
  * 播放宿主服务(P2 播放服务化 + P3 通知/媒体会话并入,`skill/avbox-playback-service-spec.md` §2.1/§3)。
  *
  * **职责**:
- * 1. **托管播放引擎** [PlaybackEngine](P2):播放器实例的生命周期长于页面 ——
+ * 1. **托管播放引擎**(P2)[PlaybackEngine]:播放器实例的生命周期长于页面 ——
  *    页面进出只做挂摘,不再重建 ExoPlayer/RenderView;任务被移除/服务销毁时释放。
  * 2. **前台服务 + 媒体通知 + 媒体会话**(P3 起职责在本服务,原独立音乐服务的壳已在 P5 删除):
  *    有音频轨就维护会话(影视/音乐一视同仁),通知栏可播放/暂停/上一集/下一集/拖动;播放期间持
@@ -641,7 +641,7 @@ class PlaybackService : Service() {
         /** 维护会话与通知(有音频轨就调用;影视/音乐一视同仁,见 PlaybackController.updateMusicSession) */
         @JvmStatic
         fun updateSession(
-            context: Context,
+            context: Context?,
             host: PlaybackHostApi,
             title: String?,
             subtitle: String?,
@@ -655,7 +655,9 @@ class PlaybackService : Service() {
             // 加上无人释放的 wake/wifi 锁(释放路径已跑完)。这种调用一律丢弃。
             if (engine == null) return
             owner = WeakReference(host)
-            val intent = Intent(context, PlaybackService::class.java).setAction(ACTION_UPDATE)
+            // null context 已在 isSupported 处早退(与旧平台类型语义一致)
+            val ctx = context ?: return
+            val intent = Intent(ctx, PlaybackService::class.java).setAction(ACTION_UPDATE)
             intent.putExtra(EXTRA_TITLE, title)
             intent.putExtra(EXTRA_SUBTITLE, subtitle)
             intent.putExtra(EXTRA_ARTWORK, artwork)
@@ -679,7 +681,7 @@ class PlaybackService : Service() {
                 )
                 pendingStart = true
                 stopWhenStarted = false
-                startHost(context.applicationContext, intent)
+                startHost(ctx.applicationContext, intent)
             }
         }
 
@@ -701,7 +703,7 @@ class PlaybackService : Service() {
 
         /** 结束会话:撤通知 + 释放锁与会话资源(**不释放引擎**:播放器仍要跨页面复用) */
         @JvmStatic
-        fun stopSession(context: Context, host: PlaybackHostApi?) {
+        fun stopSession(context: Context?, host: PlaybackHostApi?) {
             val current = owner?.get()
             if (host != null && current != null && current !== host) return
             // 归属守卫:owner 是弱引用,页面被回收后 current 为 null ⇒ 守卫会放行任何调用者,留痕以便定位
@@ -731,7 +733,7 @@ class PlaybackService : Service() {
          *
          * 与 [releaseEngine] 的区别:那条路径是服务主动释放(任务移除/服务销毁),静态引用已先清空;
          * 这条是引擎自下而上释放,服务必须把静态引用清掉,否则 `engine()` 会把一个已 released 的引擎继续发给新页面。
-         * 引擎没了,服务也没有继续常驻的理由 —— 一并停掉(下次 `engine()` 会重新建引擎并拉起服务)。
+         * 引擎没了就撤会话,但**不 stopSelf**(见方法内注释:服务为托管引擎而常驻,引擎可重建)。
          */
         @JvmStatic
         fun onEngineReleased(released: PlaybackEngine) {
