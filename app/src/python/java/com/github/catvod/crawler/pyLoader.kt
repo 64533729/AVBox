@@ -1,0 +1,99 @@
+package com.github.catvod.crawler
+
+import android.os.Build
+import android.util.Log
+
+import com.github.catvod.crawler.python.IPyLoader
+import com.github.tvbox.osc.base.App
+import com.github.tvbox.osc.util.LOG
+import com.undcover.freedom.pyramid.PythonLoader
+import com.undcover.freedom.pyramid.PythonSpider
+
+import java.util.concurrent.ConcurrentHashMap
+
+class pyLoader : IPyLoader {
+    private var pythonLoader: PythonLoader? = null
+    private val spiders: ConcurrentHashMap<String, Spider> = ConcurrentHashMap()
+    private var lastConfig: String? = null // 记录上次的配置
+
+    @Synchronized
+    override fun clear() {
+        spiders.clear()
+        pythonLoader?.clear()
+        lastConfig = null
+        recentPyKey = null
+    }
+
+    override fun setConfig(jsonStr: String?) {
+        if (!isPythonSupported()) {
+            Log.w("PyLoader", "python32 is disabled on Android 16+ 32-bit process.")
+            return
+        }
+        if (jsonStr != null && jsonStr != lastConfig) {
+            Log.i("PyLoader", "echo-setConfig 初始化json ")
+            getPythonLoader().setConfig(jsonStr)
+            lastConfig = jsonStr
+        }
+    }
+
+    private var recentPyKey: String? = null
+
+    override fun setRecentPyKey(key: String?) {
+        recentPyKey = key
+    }
+
+    @Synchronized
+    override fun getSpider(key: String, cls: String?, ext: String?): Spider {
+        if (!isPythonSupported()) {
+            Log.w("PyLoader", "python32 is disabled on Android 16+ 32-bit process.")
+            return SpiderNull()
+        }
+        if (spiders.containsKey(key)) {
+            Log.i("PyLoader", "echo-getSpider spider缓存: $key")
+            return spiders.getValue(key)
+        }
+        try {
+            Log.i("PyLoader", "echo-getSpider url: $cls")
+            val sp = getPythonLoader().getSpider(key, cls, ext)
+            if (sp is SpiderNull) return sp
+            spiders[key] = sp
+            Log.i("PyLoader", "echo-getSpider 加载spider: $key")
+            return sp
+        } catch (th: Throwable) {
+            LOG.e("pyLoader", th)
+        }
+        return SpiderNull()
+    }
+
+    override fun proxyInvoke(params: Map<String, String>?): Array<Any?>? {
+        return proxyInvoke(params, recentPyKey)
+    }
+
+    override fun proxyInvoke(params: Map<String, String>?, key: String?): Array<Any?>? {
+        if (!isPythonSupported()) return null
+        if (key == null || key.isEmpty()) return null
+        LOG.i("echo-recentPyKey$key")
+        try {
+            val spider = spiders[key]
+            if (spider !is PythonSpider) return null
+            return spider.proxyLocal(params)
+        } catch (th: Throwable) {
+            LOG.i("echo-proxyInvoke_Throwable:---" + th.message)
+            LOG.e("pyLoader", th)
+        }
+        return null
+    }
+
+    private fun getPythonLoader(): PythonLoader {
+        if (pythonLoader == null) {
+            pythonLoader = PythonLoader.getInstance().setApplication(App.getInstance()!!)
+        }
+        return pythonLoader!!
+    }
+
+    private fun isPythonSupported(): Boolean {
+        if (Build.VERSION.SDK_INT < 36) return true
+        if (Build.VERSION.SDK_INT < 23) return true
+        return android.os.Process.is64Bit()
+    }
+}
