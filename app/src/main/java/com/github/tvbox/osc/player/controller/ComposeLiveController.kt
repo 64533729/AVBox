@@ -7,6 +7,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.Window
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.GestureHelper
 import xyz.doikki.videoplayer.controller.BaseVideoController
 import xyz.doikki.videoplayer.player.VideoView
@@ -45,7 +46,7 @@ class ComposeLiveController(
         fun onLongPress()
 
         /** 播放状态变化(驱动自动换源状态机) */
-        fun onPlayStateChanged(playState: Int)
+        fun onPlayStateChanged(playState: PlayState)
 
         /** 左右快滑:direction -1=左滑(上一频道) / 1=右滑(下一频道) */
         fun onHorizontalFling(direction: Int)
@@ -83,7 +84,7 @@ class ComposeLiveController(
     override fun onPlayStateChanged(playState: Int) {
         super.onPlayStateChanged(playState)
         curPlayState = playState
-        listener?.onPlayStateChanged(playState)
+        listener?.onPlayStateChanged(PlayState.fromLegacy(playState))
     }
 
     // ============================================================

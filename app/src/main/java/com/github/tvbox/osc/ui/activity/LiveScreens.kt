@@ -72,6 +72,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.LiveChannelGroup
 import com.github.tvbox.osc.bean.LiveChannelItem
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.ui.components.AVBoxAlertDialog
 import com.github.tvbox.osc.ui.components.AVBoxBottomSheet
 import com.github.tvbox.osc.ui.components.LoadStateBox
@@ -84,7 +85,6 @@ import com.github.tvbox.osc.ui.components.SettingsGroup
 import com.github.tvbox.osc.ui.components.SettingsOptionRow
 import com.github.tvbox.osc.ui.components.SettingsSwitchRow
 import com.github.tvbox.osc.ui.theme.cardContainer
-import xyz.doikki.videoplayer.player.VideoView
 import java.util.ArrayList
 import java.util.Date
 import kotlin.math.max
@@ -223,7 +223,7 @@ private fun PlayerArea(activity: LivePlayActivity, modifier: Modifier) {
             }
         }
         if (!activity.snapshotVisible &&
-            (activity.playState == VideoView.STATE_PREPARING || activity.playState == VideoView.STATE_BUFFERING)
+            (activity.playState == PlayState.PREPARING || activity.playState == PlayState.BUFFERING)
         ) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center).size(40.dp), color = Color.White)
         }
@@ -325,7 +325,7 @@ private fun TimeshiftBar(activity: LivePlayActivity, modifier: Modifier) {
     ) {
         IconButton(onClick = { activity.onTimeshiftTogglePlay() }) {
             Icon(
-                imageVector = if (activity.playState == VideoView.STATE_PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                imageVector = if (activity.playState == PlayState.PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
                 contentDescription = stringResource(R.string.player_play_pause),
                 tint = Color.White,
             )

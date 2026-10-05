@@ -30,7 +30,10 @@ import com.github.tvbox.osc.player.KernelDecision
 import com.github.tvbox.osc.player.KernelReusePolicy
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.PlaybackService
+import com.github.tvbox.osc.player.PlaybackTimes
 import com.github.tvbox.osc.player.controller.ComposeLiveController
+import com.github.tvbox.osc.player.engine.MediaSources
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.ui.components.LocalSheetDismiss
 import com.github.tvbox.osc.ui.components.SheetHostScaffold
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
@@ -41,9 +44,6 @@ import com.github.tvbox.osc.util.LOG
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.github.tvbox.osc.util.KV
-import xyz.doikki.videoplayer.exo.ExoMediaSourceHelper
-import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.util.PlayerUtils
 import java.text.SimpleDateFormat
 import java.util.ArrayList
 import java.util.Date
@@ -309,7 +309,7 @@ class LivePlayActivity : BaseActivity() {
             }
         }
 
-        override fun onPlayStateChanged(playState: Int) {
+        override fun onPlayStateChanged(playState: PlayState) {
             this@LivePlayActivity.playState = playState
             handleAutoSourceSwitch(playState)
         }
@@ -323,19 +323,19 @@ class LivePlayActivity : BaseActivity() {
         }
     }
 
-    private fun handleAutoSourceSwitch(state: Int) {
+    private fun handleAutoSourceSwitch(state: PlayState) {
         mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun)
         when (state) {
-            VideoView.STATE_IDLE, VideoView.STATE_PAUSED -> {}
-            VideoView.STATE_PREPARED, VideoView.STATE_BUFFERED, VideoView.STATE_PLAYING -> {
+            PlayState.IDLE, PlayState.PAUSED -> {}
+            PlayState.PREPARED, PlayState.BUFFERED, PlayState.PLAYING -> {
                 overlay.onPlaybackStarted()
                 currentLiveChangeSourceTimes = 0
             }
-            VideoView.STATE_ERROR, VideoView.STATE_PLAYBACK_COMPLETED -> {
+            PlayState.ERROR, PlayState.COMPLETED -> {
                 overlay.hideSwitchChannelSnapshot()
                 mHandler.postDelayed(mConnectTimeoutChangeSourceRun, CONNECT_TIMEOUT_SWITCH_DELAY)
             }
-            VideoView.STATE_PREPARING, VideoView.STATE_BUFFERING -> {
+            PlayState.PREPARING, PlayState.BUFFERING -> {
                 mHandler.postDelayed(
                     mConnectTimeoutChangeSourceRun,
                     (KV.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 1) + 1) * 5000L,
@@ -448,7 +448,7 @@ class LivePlayActivity : BaseActivity() {
 
     private fun canReusePlayer(previousLivePlayerType: Int): Boolean {
         val videoView = mVideoView ?: return false
-        return videoView.currentPlayState != VideoView.STATE_IDLE &&
+        return videoView.playState != PlayState.IDLE &&
                 previousLivePlayerType == livePlayerManager.livePlayerType
     }
 
@@ -882,7 +882,7 @@ class LivePlayActivity : BaseActivity() {
         liveWebHeader()?.let { header.putAll(it) }
         item.headers?.let { header.putAll(it) }
         if (item.channelFormat.orEmpty().isNotEmpty()) {
-            header[ExoMediaSourceHelper.HEADER_FORMAT] = item.channelFormat.orEmpty()
+            header[MediaSources.HEADER_FORMAT] = item.channelFormat.orEmpty()
         }
         return if (header.isEmpty()) null else header
     }
@@ -956,8 +956,8 @@ class LivePlayActivity : BaseActivity() {
         videoView.setUrl(playUrl, liveChannelHeader())
         videoView.start()
         shiyiTimeC = LiveEpgParser.getCatchupDurationSeconds(epg)
-        tsDuration = PlayerUtils.safeTimeMs(shiyiTimeC.toLong() * 1000)
-        tsPosition = PlayerUtils.safeTimeMs(videoView.currentPosition)
+        tsDuration = PlaybackTimes.safeTimeMs(shiyiTimeC.toLong() * 1000)
+        tsPosition = PlaybackTimes.safeTimeMs(videoView.currentPosition)
         overlay.startTimeshiftTicker()
         isBackState = true
         overlayVisible = true

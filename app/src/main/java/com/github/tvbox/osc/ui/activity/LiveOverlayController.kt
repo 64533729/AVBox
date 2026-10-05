@@ -3,12 +3,12 @@ package com.github.tvbox.osc.ui.activity
 import android.graphics.Bitmap
 import android.os.Handler
 import com.github.tvbox.osc.R
+import com.github.tvbox.osc.player.PlaybackTimes
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
-import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.util.PlayerUtils
 import java.text.SimpleDateFormat
 import java.util.ArrayList
 import java.util.Calendar
@@ -89,9 +89,9 @@ internal class LiveOverlayController(
 
     private val updateResolutionInfoRun = Runnable {
         val videoView = activity.mVideoView ?: return@Runnable
-        if (videoView.currentPlayState != VideoView.STATE_PREPARED &&
-            videoView.currentPlayState != VideoView.STATE_BUFFERED &&
-            videoView.currentPlayState != VideoView.STATE_PLAYING
+        if (videoView.playState != PlayState.PREPARED &&
+            videoView.playState != PlayState.BUFFERED &&
+            videoView.playState != PlayState.PLAYING
         ) {
             retryOrHideResolutionInfo()
             return@Runnable
@@ -147,7 +147,7 @@ internal class LiveOverlayController(
         override fun run() {
             val videoView = activity.mVideoView ?: return
             if (!activity.isSHIYI) return
-            activity.tsPosition = PlayerUtils.safeTimeMs(videoView.currentPosition)
+            activity.tsPosition = PlaybackTimes.safeTimeMs(videoView.currentPosition)
             handler.postDelayed(this, 1000)
         }
     }

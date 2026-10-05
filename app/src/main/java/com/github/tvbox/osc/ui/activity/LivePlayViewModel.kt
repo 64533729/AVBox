@@ -11,13 +11,13 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.LiveChannelItem
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.BootGuard
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LanguageManager
 import com.google.gson.JsonArray
-import xyz.doikki.videoplayer.player.VideoView
 import java.util.ArrayList
 
 /** 直播页三态:加载中 / 空 / 就绪 */
@@ -84,7 +84,7 @@ internal class LivePlayViewModel : ViewModel() {
     // ---------- 界面状态 ----------
 
     var pageState by mutableStateOf(PageState.LOADING)
-    var playState by mutableStateOf(VideoView.STATE_IDLE)
+    var playState by mutableStateOf(PlayState.IDLE)
     var snapshotVisible by mutableStateOf(false)
     var snapshotBitmap by mutableStateOf<Bitmap?>(null)
     var fullScreen by mutableStateOf(false)
