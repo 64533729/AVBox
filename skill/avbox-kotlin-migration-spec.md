@@ -622,6 +622,12 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律，**整片回退**：`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除，仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置** = 先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（其判定语义经复核确认与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
+**② 已落地实现 + 接线层用例（2026-10-06,提交 `2fba430`）**：在验证栈跑通后重建了手势层,并**用测试钉住两轮复核的阻断项**:
+- **实现**:`player/ui/VideoGestureLayer.kt` = 纯状态机 `VideoGestureHandler`(判定,20 例单测)+ `Modifier.videoGestureLayer`(指针接线)。两条硬约束:① `awaitFirstDown(requireUnconsumed = true)` —— 子控件消费的触摸从不认领(阻断项 B1 正解);② 等第二下时**不消费**取到的 DOWN,交给下一轮 `awaitEachGesture` 重新起会话(双击可达)。
+- **写测试时抓到 3 个真 bug(全部已修)**:① `endSession` 先把 `mode` 复位再读,导致**横滑永远不提交/不取消** seek(状态机用例当场抓到);② **首下抬手几乎总落在长按竞速窗口内**(测试里 down/up 同帧),旧写法之后会再等一个永不到来的 up ⇒ `endSession` 永不执行、**点击全部无反应**;③ 单击确认只在两条收尾路径之一可达 ⇒ 点击静默结束。为此把 `endSession` 返回值从 `Boolean` 改为显式 `EndResult{TAP_PENDING, DOUBLE_TAP, NONE}`。
+- **覆盖**:状态机 20 例(单击恰好一次/双击抑制单击/超窗非双击/长按含暂停与 CANCEL 恢复/横滑提交与取消/右左半屏亮度音量/总开关只拦竖滑/预览态/锁屏/边缘带/未越 slop)+ **接线层 3 例**(子控件消费不被处理、空白区单击仍派发、横滑预览并提交)。全套件 **614 → 638 用例 / 0 失败**。
+- **1 例受限(@Ignore)**:双击的**接线层**用例 —— Robolectric 虚拟时钟无法稳定表达"两次注入之间"的双击窗口时序(不推进时钟则第二下落在窗口外;推进时钟会被 300ms 超时先打断;换 `withTimeout` 则单击路径不可靠)。**双击的判定逻辑本身已由状态机用例覆盖**,缺的是指针层到达时序 ⇒ 属真机走查项。
+
 **② 的验证栈已铺好（2026-10-06,提交 `756c098`）**：按用户指示先补测试依赖,现已落地并可跑:
 - **依赖**:`gradle/libs.versions.toml` 新增 `robolectric = "4.17"`、`androidxTestExtJunit = "1.3.0"` 与 alias `robolectric` / `androidx-test-ext-junit` / `androidx-test-core` / `androidx-compose-ui-test-junit4` / `androidx-compose-ui-test-manifest`;`app/build.gradle.kts` 的 `testImplementation` 新增这 5 项(Compose 两项走 `platform(libs.androidx.compose.bom)`,解析为 **1.13.0-alpha01**)。
 - **构建开关**:`testOptions.unitTests.isIncludeAndroidResources = true`(**关键**:不开的话 Robolectric 看不到合并清单/资源)。
