@@ -126,10 +126,10 @@ class VideoGestureHandler(
      * ② 横滑 —— "手指不小心滑动一下都会触发调节视频进度"。横滑原先只受 8px 的 slop 约束,
      *    而竖滑已有本门槛,两者**不对称**;现在统一到同一距离。
      *
-     * <p>取 `height` 的 12%(与方向无关,故横竖是同一段像素距离):真机手势区高 1260px 时约 **151px**。
+     * <p>取 `height` 的 10%(与方向无关,故横竖是同一段像素距离):真机手势区高 1260px 时约 **126px**。
      * 明确要拖时很容易越过,而无意的手抖远达不到。要更灵敏/更钝改这一个数即可。
      */
-    private val commitFraction: Float = 0.12f,
+    private val commitFraction: Float = 0.10f,
 ) {
 
     enum class Mode { UNDECIDED, SEEK, BRIGHTNESS, VOLUME, NONE }
