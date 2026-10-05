@@ -6,8 +6,8 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper
 import androidx.media3.exoplayer.video.VideoFrameReleaseControl
-import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.PlayerCodecStats
+import com.github.tvbox.osc.player.engine.CodecPreferences
 import com.github.tvbox.osc.util.LOG
 
 /**
@@ -48,6 +48,6 @@ class ReplayableCacheVideoRenderer(
     ) {
         super.onCodecInitialized(name, configuration, initializedTimestampMs, initializationDurationMs)
         PlayerCodecStats.videoDecoderName = name
-        LOG.i("echo-exo-codec-init: name=$name preferSoft=${ExoPlayer.isPreferSoftwareDecode()}")
+        LOG.i("echo-exo-codec-init: name=$name preferSoft=${CodecPreferences.isPreferSoftwareDecode()}")
     }
 }

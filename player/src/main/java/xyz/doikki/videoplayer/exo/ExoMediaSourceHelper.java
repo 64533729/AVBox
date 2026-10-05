@@ -341,6 +341,9 @@ public final class ExoMediaSourceHelper {
      * ①预载侧(PreloadMediaSource 的数据源)与播放侧(CacheDataSource)共用同一实例——
      *   预载下载的数据落盘后被播放侧直接读盘命中,SimpleCache 同一目录也不允许多实例;
      * ②容量 LRU 512MB(沿用历史值),目录 externalCacheDir/exo-video-cache(沿用历史路径)。
+     *
+     * <p>⚠️ app 侧新内核层 {@code osc.player.engine.PlayerCache} 只是本实现的委派入口
+     * (模块依赖方向 app -> player,反向引用不成立);M10 拆除本模块时把实现整体搬进 PlayerCache。
      */
     public static Cache getSharedCache(Context context) {
         if (sSharedCache == null) {

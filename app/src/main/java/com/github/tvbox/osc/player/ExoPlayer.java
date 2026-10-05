@@ -92,24 +92,23 @@ public class ExoPlayer extends ExoMediaPlayer {
         this.contentKey = key == null ? "" : key;
     }
 
-    private static volatile boolean preferSoftwareDecode = false;
-
-    /** 下发 EXO 解码方式:true = 软解(系统软件解码器优先) */
+    /** 下发 EXO 解码方式:true = 软解(系统软件解码器优先)。真值源已收口到新内核层 CodecPreferences(双栈同一偏好)。 */
     public static void setPreferSoftwareDecode(boolean prefer) {
-        preferSoftwareDecode = prefer;
+        com.github.tvbox.osc.player.engine.CodecPreferences.setPreferSoftwareDecode(prefer);
     }
 
     /** 当前已下发的 EXO 解码方式(供 PlayerHelper 判断"这次起的解码方式变了没") */
     public static boolean isPreferSoftwareDecode() {
-        return preferSoftwareDecode;
+        return com.github.tvbox.osc.player.engine.CodecPreferences.isPreferSoftwareDecode();
     }
 
     private static final MediaCodecSelector EXO_VIDEO_CODEC_SELECTOR =
             (mimeType, requiresSecureDecoder, requiresTunnelingDecoder) -> {
+                boolean preferSoft = com.github.tvbox.osc.player.engine.CodecPreferences.isPreferSoftwareDecode();
                 List<MediaCodecInfo> infos =
-                        (preferSoftwareDecode ? MediaCodecSelector.PREFER_SOFTWARE : MediaCodecSelector.DEFAULT)
+                        (preferSoft ? MediaCodecSelector.PREFER_SOFTWARE : MediaCodecSelector.DEFAULT)
                                 .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
-                LOG.i("echo-exo-selector: mime=" + mimeType + " preferSoft=" + preferSoftwareDecode
+                LOG.i("echo-exo-selector: mime=" + mimeType + " preferSoft=" + preferSoft
                         + " count=" + infos.size() + " first=" + (infos.isEmpty() ? "none" : infos.get(0).name));
                 return infos;
             };
@@ -1044,7 +1043,7 @@ public class ExoPlayer extends ExoMediaPlayer {
                 out.set(i, new ReplayableCacheVideoRenderer(builder, lateThresholdToDropDecoderInputUs));
                 LOG.i("echo-exo-video-renderer: replayable cache on, usesExoSelector="
                         + (mediaCodecSelector == EXO_VIDEO_CODEC_SELECTOR)
-                        + " preferSoft=" + preferSoftwareDecode);
+                        + " preferSoft=" + com.github.tvbox.osc.player.engine.CodecPreferences.isPreferSoftwareDecode());
                 return;
             }
             // 未换成功:保持上游默认渲染器,暂停态重绘随之失效(redrawReady 会挡掉),不影响播放
