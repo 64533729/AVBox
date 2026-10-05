@@ -110,7 +110,7 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
         DLNACastManager.get().setDeviceListener(object : DLNACastManager.DeviceListener {
             override fun onDeviceChanged() {
                 mainHandler.post {
-                    for (device in DLNACastManager.get().devices) addDevice(device)
+                    for (device in DLNACastManager.get().getDevices()) addDevice(device)
                 }
             }
         })
@@ -129,7 +129,7 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
         if (device.type == CastDevice.TYPE_TVBOX) {
             try {
                 val headers = sheet.video.headers
-                val url = if (headers == null || headers.isEmpty()) sheet.video.url
+                val url = if (headers.isEmpty()) sheet.video.url
                 else sheet.video.url + "@Headers=" +
                         java.net.URLEncoder.encode(org.json.JSONObject(headers).toString(), "UTF-8") + "@"
                 val params = HashMap<String, String>()
@@ -151,7 +151,7 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
                         mainHandler.post {
                             if (ok) {
                                 // 投屏成功 = 用户显式选中该设备 → 以它为准记住地址(覆盖扫描时的兜底值)
-                                RemoteTVBox.setAvalible(device.id)
+                                RemoteTVBox.setAvalible(device.id!!)
                                 PlayerHelper.invalidatePlayersExistInfo()
                                 Toast.makeText(context, context.getString(R.string.toast_cast_success), Toast.LENGTH_SHORT).show()
                                 sheet.onCastSuccess()
