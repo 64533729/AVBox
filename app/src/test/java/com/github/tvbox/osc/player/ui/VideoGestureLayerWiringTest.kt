@@ -91,7 +91,12 @@ class VideoGestureLayerWiringTest {
                 Modifier
                     .fillMaxSize()
                     .testTag("overlay")
-                    .videoGestureLayer(handler, alwaysClaim()),
+                    .videoGestureLayer(
+                        handler = handler,
+                        sessionProvider = alwaysClaim(),
+                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
+                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                    ),
             ) {
                 // 模拟控制条上的按钮:它自己消费点击
                 Box(
@@ -127,7 +132,12 @@ class VideoGestureLayerWiringTest {
                 Modifier
                     .fillMaxSize()
                     .testTag("overlay")
-                    .videoGestureLayer(handler, alwaysClaim()),
+                    .videoGestureLayer(
+                        handler = handler,
+                        sessionProvider = alwaysClaim(),
+                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
+                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                    ),
             ) {
                 Box(
                     Modifier
@@ -155,15 +165,15 @@ class VideoGestureLayerWiringTest {
      * <p>旧草稿把第二下 DOWN 取走后直接 return,又被 `awaitEachGesture` 的收尾排空,
      * 导致 `isDoubleTap` 永为假、双击在生产路径完全不可达。
      */
-    // ⚠️ 暂 @Ignore:这是一个**harness 时序**限制,不是产品缺陷。
-    // 接线层的双击链路("等第二下 → 不消费 → 交给下一轮 awaitEachGesture → 状态机按 lastTapTime 判双击")
-    // 依赖"第一下抬手后挂起等待期间第二下到达";在 Robolectric 的虚拟时钟下两次注入之间
-    // 无法稳定表达这一时序(实测:不推进时钟则第二下落在等待窗口之外;推进 clock 又会被
-    // 300ms 超时先打断;改用 withTimeout 则单击路径不可靠)。
-    // **双击的判定逻辑本身已由 VideoGestureHandlerTest.doubleTapTogglesPlayAndSuppressesSingleTap
-    // 与 secondTapOutsideWindowIsNotDoubleTap 覆盖**;这里缺的是指针层的到达时序验证,
-    // 属真机走查项(本片已与用户约定做真机手势走查)。
-    @Ignore("Robolectric 虚拟时钟下无法稳定表达两次注入之间的双击窗口时序;双击判定逻辑已由状态机用例覆盖")
+    // ⚠️ @Ignore 的原因已更新(2026-10-06 真机反馈双击失效后):
+    // 旧接线层在抬手后**阻塞等待**第二下(awaitPointerEvent),而这一轮 awaitEachGesture 结束时的
+    // 收尾会把第二下吃掉 ⇒ 第二下永远到不了状态机、双击判不出来。现改为"抬手即返回,
+    // 单击由宿主定时器补发",第二下作为**新的一轮 DOWN** 正常进入 beginSession,状态机据
+    // lastTapTime 判定双击 —— 这条链路无法在本 harness 里表达:虚拟时钟下连"第一下单击完成"
+    // 都观察不到(实测 lastTapTime 始终为 -1),因此这里改为依赖:
+    //   · 状态机侧 VideoGestureHandlerTest.doubleTapTogglesPlayAndSuppressesSingleTap(双击判定)
+    //   · 真机走查(用户已执行)
+    @Ignore("Robolectric 虚拟时钟下无法稳定表达两次注入的双击时序;判定逻辑由状态机用例覆盖,时序由真机走查覆盖")
     @Test
     fun doubleTapReachesTheLayerAndSuppressesSingleTap() {
         val r = Recorder()
@@ -173,7 +183,12 @@ class VideoGestureLayerWiringTest {
                 Modifier
                     .fillMaxSize()
                     .testTag("overlay")
-                    .videoGestureLayer(handler, alwaysClaim()),
+                    .videoGestureLayer(
+                        handler = handler,
+                        sessionProvider = alwaysClaim(),
+                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
+                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                    ),
             )
         }
         val c = androidx.compose.ui.geometry.Offset(400f, 300f)
@@ -184,6 +199,11 @@ class VideoGestureLayerWiringTest {
             down(c)
             up()
         }
+        rule.onNodeWithTag("overlay").performTouchInput {
+            down(c)
+            up()
+        }
+        rule.waitForIdle()
         rule.onNodeWithTag("overlay").performTouchInput {
             down(c)
             up()
@@ -205,7 +225,12 @@ class VideoGestureLayerWiringTest {
                 Modifier
                     .fillMaxSize()
                     .testTag("overlay")
-                    .videoGestureLayer(handler, alwaysClaim()),
+                    .videoGestureLayer(
+                        handler = handler,
+                        sessionProvider = alwaysClaim(),
+                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
+                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                    ),
             )
         }
         rule.onNodeWithTag("overlay").performTouchInput {

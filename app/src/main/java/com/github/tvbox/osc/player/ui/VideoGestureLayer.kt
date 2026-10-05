@@ -312,6 +312,8 @@ class VideoGestureHandler(
 fun Modifier.videoGestureLayer(
     handler: VideoGestureHandler,
     sessionProvider: (IntSize) -> VideoGestureSession?,
+    /** 双击窗口内没等到第二下 ⇒ 这是一次单击(由宿主决定怎么显隐控制条) */
+    onTapConfirmed: () -> Unit = { handler.markSingleTapConfirmed() },
 ): Modifier = composed {
     var size = IntSize.Zero
     this
@@ -327,10 +329,10 @@ fun Modifier.videoGestureLayer(
                     return@awaitEachGesture
                 }
 
-                // 2. "首下抬手"与"长按到点"赛跑。
-                //    ⚠️ 抬手常常就落在超时窗口内(测试里 down/up 同帧),必须在此一并处理;
-                //    否则外层会再等一个永远不来的 up,endSession 永不执行 —— 实测会导致点击全无反应。
+                // 2. "抬手"与"长按到点"赛跑。
+                //    长按靠这个窗口计时(手指静止也能到点);抬手通常就落在窗口内,必须一并处理。
                 var firstUp = false
+                var sawMove = false
                 val longPressWon = withTimeoutOrNull(handler.longPressTimeoutMs) {
                     while (true) {
                         val e = awaitPointerEvent(PointerEventPass.Final)
@@ -339,6 +341,7 @@ fun Modifier.videoGestureLayer(
                             firstUp = true
                             return@withTimeoutOrNull false
                         }
+                        sawMove = true
                         if (!c.isConsumed) handler.onMove(c.position.x, c.position.y, 8f)
                         if (handler.hasMoved) return@withTimeoutOrNull false
                     }
@@ -356,6 +359,7 @@ fun Modifier.videoGestureLayer(
                         val e = awaitPointerEvent(PointerEventPass.Final)
                         val c = e.changes.firstOrNull { it.id == down.id } ?: continue
                         if (!c.pressed) break
+                        sawMove = true
                         // 丢弃被子控件消费的位移
                         if (!c.isConsumed) {
                             if (handler.onMove(c.position.x, c.position.y, 8f)) c.consume()
@@ -363,18 +367,21 @@ fun Modifier.videoGestureLayer(
                     }
                 }
 
-                val result = handler.endSession(cancelled = false, System.currentTimeMillis())
+                // 4. CANCEL 判定:下拉通知栏/来电等系统中断时,Compose 会直接把我们还在按的指针
+                //    置为 up,**全程没有 MOVE** —— 这正是与"正常抬手"的区别。
+                //    旧实现(CANCEL ⇒ 不提交 seek)靠的就是这个;丢了它就会把中断当成正常抬手,
+                //    于是横滑到一半下拉通知栏会被判成正常结束(实测:还会转去调音量)。
+                val cancelled = !sawMove
 
-                // 4. 等第二下:超时才确认单击;等到的 DOWN **不消费**,由下一轮 awaitEachGesture
-                //    重新 beginSession,状态机据 lastTapTime 判双击 —— 这是"双击可达"的关键
-                //    (旧草稿把第二下取走又排空,双击永假)。
+                val result = handler.endSession(cancelled, System.currentTimeMillis())
+
+                // 5. 单击确认:**不在这里阻塞等第二下**。
+                //    若在此 awaitPointerEvent 等第二下,那一轮 awaitEachGesture 结束时的收尾会把
+                //    第二下吃掉,双击永远判不出来(实测:双击播放/暂停失效)。
+                //    改成"先返回 + 让状态机在下一个 DOWN 上按 lastTapTime 判双击":
+                //    单击由 [onTapConfirmed] 在宿主侧用定时器补发。
                 if (result == VideoGestureHandler.EndResult.TAP_PENDING) {
-                    val deadline = handler.lastTapTime + handler.doubleTapTimeoutMs
-                    val wait = (deadline - System.currentTimeMillis()).coerceAtLeast(1L)
-                    val second = withTimeoutOrNull(wait) {
-                        awaitPointerEvent(PointerEventPass.Initial)
-                    }
-                    if (second == null) handler.markSingleTapConfirmed()
+                    onTapConfirmed()
                 }
             }
         }

@@ -157,6 +157,27 @@ class ComposeVideoController @JvmOverloads constructor(
         state.slideHintVisible = true
     }
 
+    /**
+     * 单击确认定时器。
+     *
+     * <p>为什么要有它:接线层**不能**在抬手后阻塞等第二下 —— 那一轮 `awaitEachGesture` 的收尾会
+     * 把第二下吃掉,双击就永远判不出来(真机实测:双击播放/暂停失效)。所以接线层抬手即返回,
+     * 由这里在双击窗口之后再补发单击。
+     */
+    private val tapConfirmRunnable = Runnable { confirmGestureTap() }
+
+    /** 接线层在"待定单击"时调用:双击窗口过后若仍未被判为双击,就派发单击 */
+    internal fun onGestureTapConfirmed() {
+        uiHandler.removeCallbacks(tapConfirmRunnable)
+        uiHandler.postDelayed(tapConfirmRunnable, gestureHandler.doubleTapTimeoutMs)
+    }
+
+    /** 若第二下已把它变成双击(基准被清),这里就不能再补一次单击 */
+    private fun confirmGestureTap() {
+        if (gestureHandler.withinDoubleTapWindow(System.currentTimeMillis())) return
+        gestureActions.dispatchSingleTap()
+    }
+
     /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
     fun togglePlayFromGesture() {
         videoView?.togglePlay()
@@ -323,6 +344,7 @@ class ComposeVideoController @JvmOverloads constructor(
                         actions = this@ComposeVideoController,
                         gestureHandler = gestureHandler,
                         gestureSession = { w, h, sw -> gestureActions.beginSession(w, h, sw) },
+                        onTapConfirmed = { onGestureTapConfirmed() },
                     )
                 }
             }
@@ -344,6 +366,7 @@ class ComposeVideoController @JvmOverloads constructor(
         uiHandler.removeCallbacks(lockHideRunnable)
         uiHandler.removeCallbacks(keySeekCommitRunnable)
         uiHandler.removeCallbacks(speedRetryRunnable)
+        uiHandler.removeCallbacks(tapConfirmRunnable)
     }
 
     // ============================================================

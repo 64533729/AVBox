@@ -290,4 +290,44 @@ class VideoGestureHandlerTest {
         h.markSingleTapConfirmed()
         assertEquals(listOf("singleTap"), r.calls)
     }
+
+    // ---------- 真机反馈回归(2026-10-06) ----------
+
+    /**
+     * 真机反馈 ③:横滑到一半下拉通知栏,旧接线层会把系统中断当成正常抬手 ⇒ 提交 seek 或转去调音量。
+     * 状态机侧必须:被标为 cancelled 的横滑**只取消、不提交**。
+     */
+    @Test
+    fun systemInterruptedSeekOnlyCancels() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.onMove(500f, 300f, slop = 8f)
+        h.endSession(cancelled = true, nowMs = 1200L)
+        assertEquals(listOf("seekPreview:200.0", "seekCancel"), r.calls)
+        assertTrue("中断绝不能提交 seek", r.calls.none { it == "seekCommit" })
+        assertTrue("中断绝不能转成竖滑", r.calls.none { it.startsWith("volume") || it.startsWith("brightness") })
+    }
+
+    /** 长按态被系统中断:倍速必须恢复,且不该被当成点击 */
+    @Test
+    fun systemInterruptDuringLongPressRestoresSpeedOnly() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.maybeLongPress()
+        h.endSession(cancelled = true, nowMs = 1500L)
+        assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
+    }
+
+    /** 单击在双击窗口内不应被确认(宿主定时器据此判"是否已被双击消化") */
+    @Test
+    fun pendingTapIsStillInsideDoubleTapWindowShortlyAfter() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.endSession(cancelled = false, nowMs = 1000L)
+        assertTrue("刚抬手时仍在窗口内(不能立刻发单击)", h.withinDoubleTapWindow(1100L))
+        assertFalse("超过窗口后不再是双击候选", h.withinDoubleTapWindow(1400L))
+    }
 }

@@ -21,7 +21,7 @@ import com.github.tvbox.osc.util.PlayerUtils
  *
  * <p>移植口径对齐旧 `GestureController` 的同名回调(逐条):
  * 单击=等双击窗口后显隐(锁屏时改唤锁屏钮);双击=播放暂停;长按=倍速(暂停态/预览态/锁屏不触发);
- * 横滑=按满屏宽 240000ms 缩放并 `seekTo`;竖滑左半屏亮度、右半屏音量。
+ * 横滑=按满屏宽 `slideFullWidthMs` 缩放并 `seekTo`;竖滑左半屏亮度、右半屏音量。
  *
  * <p>**与旧实现的两处刻意差异**:
  * ① 亮度/音量基准改为**每个手势会话现取**(旧实现只在 `onDown` 取,同一会话内取一次;
@@ -31,8 +31,21 @@ import com.github.tvbox.osc.util.PlayerUtils
  */
 internal class VideoGestureActionsImpl(private val host: ComposeVideoController) : VideoGestureActions {
 
-    /** 横滑满屏宽对应的时长(照抄旧 `GestureController.SLIDE_POSITION_FULL_WIDTH_MS`) */
-    private val slideFullWidthMs = 240000f
+    /**
+     * 横滑满屏宽对应的时长。
+     *
+     * <p>旧实现是 240000(4 分钟/屏);真机反馈"太灵敏"⇒ 收敛为 **120000(2 分钟/屏)**,
+     * 同样的手指位移只走一半时长,更容易停在想要的点上。常量集中在此便于再调。
+     */
+    private val slideFullWidthMs = 120000f
+
+    /**
+     * 竖滑灵敏度:满屏高对应多少倍范围。
+     *
+     * <p>旧实现是 `deltaY * 2 / height`(半屏就走完 0..100%);真机反馈"太灵敏"⇒ 改为 **0.9**:
+     * 需要接近整屏高度才走完整个范围,微调更好停。
+     */
+    private val verticalSensitivity = 0.9f
 
     /** 本次手势的横滑目标(-1 = 无) */
     private var seekTargetMs = -1
@@ -68,6 +81,9 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         )
     }
 
+    /** 供控制器在双击窗口过后补发单击(接线层抬手即返回,不再阻塞等第二下) */
+    fun dispatchSingleTap() = onSingleTap()
+
     override fun onSingleTap() {
         // 锁屏:只唤出锁屏钮(旧 onTouch 在锁屏时吞掉全部事件并只在 UP 时 showLockView)
         if (host.isLocked) {
@@ -87,10 +103,14 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         // 实时读设置:改完立即生效(旧实现同样每次长按现读)
         val boost = KV.get(HawkConfig.LONG_PRESS_SPEED, HawkConfig.LONG_PRESS_SPEED_DEFAULT).toFloat()
         host.setSpeedFromGesture(boost)
+        // ⚠️ 必须同时点亮提示:只改速度不设这两个状态,真机上会"能提速但看不到倍速提示"(实测)
+        host.state.speedBoostValue = boost
+        host.state.speedBoostVisible = true
     }
 
     override fun onLongPressEnd() {
         host.setSpeedFromGesture(host.speedOld)
+        host.state.speedBoostVisible = false
     }
 
     override fun onSeekPreview(totalDeltaX: Float) {
@@ -133,7 +153,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val height = host.height
         if (height <= 0) return
         val base = if (attrs.screenBrightness < 0f) 0.5f else attrs.screenBrightness
-        var target = base - totalDeltaY * 2 / height
+        var target = base - totalDeltaY * verticalSensitivity / height
         if (target < 0f) target = 0f
         if (target > 1f) target = 1f
         attrs.screenBrightness = target
@@ -149,7 +169,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val streamMax = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         if (streamMax <= 0) return
         val base = am.getStreamVolume(AudioManager.STREAM_MUSIC)
-        var index = base - totalDeltaY * 2 / height * streamMax
+        var index = base - totalDeltaY * verticalSensitivity / height * streamMax
         if (index > streamMax) index = streamMax.toFloat()
         if (index < 0f) index = 0f
         am.setStreamVolume(AudioManager.STREAM_MUSIC, index.toInt(), 0)

@@ -69,6 +69,8 @@ fun PlayerOverlay(
     gestureHandler: VideoGestureHandler,
     /** 每次 DOWN 现算的手势会话快照:入参为手势区宽高与屏幕宽度 */
     gestureSession: (width: Int, height: Int, screenWidth: Int) -> VideoGestureSession,
+    /** 双击窗口内没等到第二下 ⇒ 派发单击(由控制器用定时器补发,接线层不阻塞) */
+    onTapConfirmed: () -> Unit,
 ) {
     // 屏幕宽度(半屏分侧用)必须在组合期读出:pointerInput 的 lambda 里不能有 @Composable 调用
     val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
@@ -77,16 +79,20 @@ fun PlayerOverlay(
             .fillMaxSize()
             // 视频手势层:替代旧的 doikki GestureDetector + View onTouchEvent。
             // 只认领子控件(控制条按钮/进度条)未消费的触摸 —— 见 videoGestureLayer 的说明。
-            .videoGestureLayer(gestureHandler) { size ->
-                val sizeW = size.width
-                val sizeH = size.height
-                if (sizeW <= 0 || sizeH <= 0) {
-                    null
-                } else {
-                    // 屏幕宽度用于半屏分侧(含导航栏),与旧实现同口径
-                    gestureSession(sizeW, sizeH, screenWidthPx)
-                }
-            },
+            .videoGestureLayer(
+                handler = gestureHandler,
+                sessionProvider = { size ->
+                    val sizeW = size.width
+                    val sizeH = size.height
+                    if (sizeW <= 0 || sizeH <= 0) {
+                        null
+                    } else {
+                        // 屏幕宽度用于半屏分侧(含导航栏),与旧实现同口径
+                        gestureSession(sizeW, sizeH, screenWidthPx)
+                    }
+                },
+                onTapConfirmed = onTapConfirmed,
+            ),
     ) {
         // 图标盒只有一处算,胶囊与右侧竖排共用 ⇒ 两处图标必然等大(竖屏全屏下胶囊会被钳小)
         val iconBox = playerIconBox(maxWidth - playerEdgePadding() * 2)
