@@ -238,7 +238,8 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
         cover.visibility = VISIBLE
         // 遮罩是追加的,会把控制器(顶栏/手势层/字幕/直播控制层)一起盖住;控制器属 UI 层必须压在最上。
         // 用 bringToFront 而不是按 index 插:addDisplay() 永远把渲染视图插到 index 0,index 方案在
-        // "渲染视图尚未创建"时会算错位(此时容器里可能只有控制器)
+        // "渲染视图尚未创建"时会算错位(此时容器里可能只有控制器)。
+        // 无控制器(服务侧无人挂载 / 已 detach)时无事可抬,遮罩照常置 VISIBLE —— 它在当前窗口里本就不显示。
         bringControllerToFront()
     }
 
