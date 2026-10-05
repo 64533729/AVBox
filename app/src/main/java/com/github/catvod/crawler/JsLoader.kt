@@ -140,7 +140,7 @@ class JsLoader {
             val urls = RegexUtils.getPattern(";md5;").split(jar)
             val jarUrl = urls[0]
             val jarKey = MD5.string2MD5(jarUrl)!!
-            val jarMd5 = if (urls.size > 1) urls[1].trim() else ""
+            val jarMd5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
             classLoader = loadJarInternal(jarUrl, jarMd5, jarKey)
         }
         // BugReview #19:sp 声明放 try 外,init 抛异常时 JsSpider 已创建 QuickJSContext +

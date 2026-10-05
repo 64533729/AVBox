@@ -152,12 +152,12 @@ class JarLoader {
             val texts = RegexUtils.getPattern(";md5;").split(source)
             if (texts.size > 1) {
                 source = texts[0]
-                md5 = texts[1].trim()
+                md5 = texts[1].trim { it <= ' ' }
             }
             aliases[jarKey(source)] = key
             if (md5.startsWith("http")) {
                 val value = OkHttp.string(md5, null)
-                md5 = value?.trim() ?: ""
+                md5 = value?.trim { it <= ' ' } ?: ""
             }
             val file = fileForJar(source)
             if (!TextUtils.isEmpty(md5) && exists(file) && MD5.getFileMd5(file).equals(md5, ignoreCase = true)) {

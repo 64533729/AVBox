@@ -18,7 +18,7 @@ class OkDns : Dns {
         for (host in hosts) {
             if (host == null) continue
             val splits = RegexUtils.getPattern("=").split(host, 2)
-            if (splits.size == 2) this.hosts[splits[0].trim()] = splits[1].trim()
+            if (splits.size == 2) this.hosts[splits[0].trim { it <= ' ' }] = splits[1].trim { it <= ' ' }
         }
     }
 

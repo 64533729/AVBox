@@ -28,7 +28,7 @@ class Json {
         @JvmStatic
         fun safeString(obj: JsonObject, key: String): String {
             try {
-                return obj.getAsJsonPrimitive(key).asString.trim()
+                return obj.getAsJsonPrimitive(key).asString.trim { it <= ' ' }
             } catch (e: Exception) {
                 return ""
             }

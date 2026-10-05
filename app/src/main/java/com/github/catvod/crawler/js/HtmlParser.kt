@@ -311,7 +311,7 @@ class HtmlParser {
             val new_vod_list = ArrayList<String>()
             for (i in 0 until ret.size) {
                 val it = ret[i].outerHtml()
-                new_vod_list.add(parseDomForUrl(it, list_text, "").trim() + '$' + parseDomForUrl(it, list_url, add_url))
+                new_vod_list.add(parseDomForUrl(it, list_text, "").trim { it <= ' ' } + '$' + parseDomForUrl(it, list_url, add_url))
             }
             return new_vod_list
         }
