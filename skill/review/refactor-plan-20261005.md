@@ -1,6 +1,6 @@
 ---
 name: AVBox Java→Kotlin 迁移与 Repository 层建立 Spec
-status: 立项·待拍板（本 spec 推翻 20260928 §5 与 20261001 D2 的「不重写 Java→Kotlin / 不引入 Repository 层」两条旧决策；2026-10-05 追加决策：`com/github/catvod` 与 `player` 模块**同样迁 Kotlin**，由「不动」改为「契约守恒迁移」，见 D8 / §7.1 / M9 / M10）；**M0 已执行完毕（2026-10-05，交付与实测见 §5 M0）**；**M1 已执行完毕（2026-10-05，交付与实测见 §5 M1）**；**M2 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M2）**；**M3 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M3；实测规则见 `avbox-kotlin-migration-spec.md` §7.5）**；**M4a 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M4a；实测见规范 §7.6）**；**M4b 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M4b；实测见规范 §7.7）**；**M5 已执行完毕（2026-10-05，交付、偏差、审查轮与未验证面见 §5 M5；实测见规范 §7.8）**；**M6 已执行完毕（2026-10-05：`subtitle/` 22 个类 → 提交 `dabd7ff`；`util/` 45 个类 → 提交 `aada31b`；追加 2 个 `SubtitleViewModel`/`AppDataManager` 已迁完，交付、偏差与未验证面见 §5 M6 与规范 §7.11）**；**M6b 已执行完毕（2026-10-05：`base`/`server`/`dlna`/`event`/`receiver` + `com.p2p` + `app/src/python/java` 共 23 个类 → 提交 `4e448d5`/`89a7c3d`/`cbbd7d4`/`ce231af`/`3d3cc4e`/`7fddf70`（+ 11 个调用点适配，另 1 笔审查轮修复），交付、偏差、审查轮与未验证面见 §5 M6b 与规范 §7.12）**
+status: 立项·待拍板（本 spec 推翻 20260928 §5 与 20261001 D2 的「不重写 Java→Kotlin / 不引入 Repository 层」两条旧决策；2026-10-05 追加决策：`com/github/catvod` **同样迁 Kotlin**，由「不动」改为「契约守恒迁移」（D8 / §7.1 / M9）；`player` 模块随后改由 **A 路线（D12）整体替换删除**、不再迁移）；**M0 已执行完毕（2026-10-05，交付与实测见 §5 M0）**；**M1 已执行完毕（2026-10-05，交付与实测见 §5 M1）**；**M2 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M2）**；**M3 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M3；实测规则见 `avbox-kotlin-migration-spec.md` §7.5）**；**M4a 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M4a；实测见规范 §7.6）**；**M4b 已执行完毕（2026-10-05，交付、偏差与未验证面见 §5 M4b；实测见规范 §7.7）**；**M5 已执行完毕（2026-10-05，交付、偏差、审查轮与未验证面见 §5 M5；实测见规范 §7.8）**；**M6 已执行完毕（2026-10-05：`subtitle/` 22 个类 → 提交 `dabd7ff`；`util/` 45 个类 → 提交 `aada31b`；追加 2 个 `SubtitleViewModel`/`AppDataManager` 已迁完，交付、偏差与未验证面见 §5 M6 与规范 §7.11）**；**M6b 已执行完毕（2026-10-05：`base`/`server`/`dlna`/`event`/`receiver` + `com.p2p` + `app/src/python/java` 共 23 个类 → 提交 `4e448d5`/`89a7c3d`/`cbbd7d4`/`ce231af`/`3d3cc4e`/`7fddf70`（+ 11 个调用点适配，另 1 笔审查轮修复），交付、偏差、审查轮与未验证面见 §5 M6b 与规范 §7.12）**；**2026-10-05 追加决策 A 路线（D12）：播放栈自研替换** —— M7 由「app 内 `player/` 36 个 Java 语言迁移」改为**新 Kotlin 播放层重写**，`player` 模块（doikki fork，27 Java / 5313 行）不再迁 Kotlin、改为**整体删除**（M10 改为拆除里程碑），`dkplayer-ui` 死依赖一并删除；`catvod`（M9）不受影响，仍为契约守恒迁移；**M7-0 与 M7a 已执行完毕（2026-10-05：删 `dkplayer-ui` 死依赖；新内核适配层 `com.github.tvbox.osc.player.engine` 9 个 Kotlin 文件 + 4 个单测落地，569 用例 / 双变体绿，交付与实测见 §5 M7 与规范 §7.13）**
 source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程中逐步建立 Repository 层」
 ---
 
@@ -9,8 +9,9 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - 两条改造正交（语言迁移 × 分层重构）**合并成一条「垂直切片」路径**推进（strangler fig 绞杀者模式），不先铺满 Kotlin 再重构，也不先建 Java Repository 再迁移。
 - 每个切片四步：**① 用 Kotlin 定义 Repository 接口 + 薄委托实现（原样调现有 Java）→ ② 消费方（ViewModel）改依赖 Repository → ③ 背后的 Java 实现迁成 Kotlin（藏接口后，消费方无感）→ ④ 收尾删旧入口**。每步可构建、可单测、可独立回滚。
 - 依赖方向自底向上：**纯函数叶子 / bean 模型 → Room 域 Repository → 内容/网络域 Repository → 配置门面 → 播放层**；风险由低到高。
-- **全量范围（2026-10-05 追加）**：`player` 模块 27 个 Java（现仅 `xyz.doikki.videoplayer` fork；`tv.danmaku.ijk` 已由 `0814a85` 移除）与 `com/github/catvod` 24 个 Java（`Spider` 基类 + 网络栈）**一并迁 Kotlin**，排 M9/M10（最后）。这两块属**字节码契约层**，迁移口径 = 源码零 Java 且**产物签名逐成员不变**（规则 §7.1，分级 D8）。
-- **不可动的不是文件而是签名**：`ApiConfig.get()` / `AppDataManager.get()` / `Spider.*` / Gson 反射的 bean 字段，以及动态 jar 与 `dkplayer-ui` 触及的每个类名、字段名、方法描述符。
+- **全量范围（2026-10-05 追加）**：`com/github/catvod` 24 个 Java（`Spider` 基类 + 网络栈）**迁 Kotlin**（M9，契约守恒）；`player` 模块 27 个 Java（仅 `xyz.doikki.videoplayer` fork；`tv.danmaku.ijk` 已由 `0814a85` 移除）**改为整体替换删除**（D12 / M7 / M10，不迁）。`catvod` 属**字节码契约层**，迁移口径 = 源码零 Java 且**产物签名逐成员不变**（规则 §7.1，分级 D8）。
+- **播放栈自研替换（2026-10-05 追加，D12 / A 路线）**：本栈只剩 media3 一个内核，doikki fork 的「多内核抽象」已无对象 —— 与其迁一份 2017 年风格的 Kotlin 化 fork，改为**自写 app 侧 Kotlin 播放层 + 整体删除 fork**。终态：无 `xyz.doikki.videoplayer`（源码/依赖/keep 规则全无）、无 `AbstractPlayer`/`PlayerFactory` 泛型链、无 View 控制器层（`BaseVideoController`/`ControlWrapper` 等）、无 FrameLayout 播放容器；Compose 直持 media3 `ExoPlayer`。承接面 = doikki 实测 1213 行 media3 适配（移植）+ ~3940 行 View/状态机骨架（重写，逐类行为对照）；app 内 `player/` 36 Java + `ui/player/` 4 Java 在同一切片内重写。**本决策是「迁移≠重构」的明示授权例外（仅限播放栈），并覆盖 D8 中 `player` 模块部分**。
+- **不可动的不是文件而是签名**：`ApiConfig.get()` / `AppDataManager.get()` / `Spider.*` / Gson 反射的 bean 字段，以及动态 jar 触及的每个类名、字段名、方法描述符（原 `dkplayer-ui` 一例随 A 路线删除）。
 - 每步独立 commit（全英文小写 + scope）、每步跑 `:app:assembleDebug` + `:app:testDebugUnitTest`。
 
 # 1. 与既有 spec 的关系（先读，避免重复立项）
@@ -20,8 +21,8 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 | `refactor-plan-20260928.md` §5 | **旧决策「不重写 Java→Kotlin」「不把 UI 数据访问改成引入 Repository 层的大改（只在各页 ViewModel 内收敛）」被本 spec 正式推翻**。理由：用户 2026-10-05 明确要求做这两件事。其阶段 4 曾评估过 `SourceRepository` 外迁（26 行 / 需降级 `sourceBeanList`/`mHomeSource`）判「收益比不成立」，本 spec 的 M5 以「Repository 层整体建立」的新口径重评，不再按「单类外迁省行数」算账。 |
 | `refactor-plan-20261001.md` D2 | **旧决策「按语言分域 + 单桥接器（Java 侧继续 LiveData，不重写 Java→Kotlin）」被本 spec 推翻**。`sourcedata` 包未来整体迁 Kotlin 的翻案条件（D2 原文「包未来整体迁 Kotlin 时一并转 StateFlow」）**现已满足**。~~桥接器 `LiveDataFlow.kt` 的 `observeAsFlow()` 仍保留~~ → **M4a 已把「Java 实现只能出 LiveData」这层收口进 `sourcedata/SourceChannel`（通道自带 Flow 面），`LiveDataFlow.kt` 因零调用点已删除**。 |
 | `refactor-plan-20261001.md` D1 | 曾因「违反『不引入 Repository 层』表述直觉」弃用 `repository` 包名。本 spec 下 Repository 层成为既定方向，包名重议见 D2。 |
-| `refactor-plan-20261001.md` V1–V5 | **已全部落地（待真机走查）**。本 spec 在其终态结构之上做语言迁移与数据层收敛，不回退任何 V1–V5 结构语义。V5 的「播放层观察用 `observeForever`」登记例外在 M7 播放层迁移时一并重新评估。 |
-| `refactor-plan-20260928.md` §5/§7 与本文档旧版 §6 | **旧决策「不动 `player` 模块 / `com/github/catvod`」被 2026-10-05 追加决策推翻**：两者同样是迁移目标（M9/M10），但属**契约守恒迁移**，不是普通搬迁 —— 规则见 §7.1，分级见 D8/D9。20260928 §7「类/包重命名前必须全库检索 jar 契约」继续有效并升级为「禁改名」。 |
+| `refactor-plan-20261001.md` V1–V5 | **已全部落地（待真机走查）**。本 spec 在其终态结构之上做语言迁移与数据层收敛，不回退任何 V1–V5 结构语义。V5 的「播放层观察用 `observeForever`」登记例外在 M7 播放栈替换时一并重新评估。 |
+| `refactor-plan-20260928.md` §5/§7 与本文档旧版 §6 | **旧决策「不动 `player` 模块 / `com/github/catvod`」被 2026-10-05 追加决策推翻**：`com/github/catvod` 仍为**契约守恒迁移**（M9；规则 §7.1、分级 D8/D9），不是普通搬迁；`player` 模块随后被 **A 路线（D12）改为整体替换 + 删除**（M7/M10），不再迁移。20260928 §7「类/包重命名前必须全库检索 jar 契约」继续有效并升级为「禁改名」。 |
 | `avbox-code-review-spec.md` | 严重度锚点、硬阈值（文件 >500 行 / 方法 >100 行 / 重复 ≥3 次）、注释红线继续引用。 |
 
 # 2. 现状基线（2026-10-05 实测）
@@ -41,10 +42,11 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 | **`com/p2p/P2PClass.java`** | **1 Java** | JNI 包装类（`System.loadLibrary("p2p")` + 26 个 `private final native` 方法 + 静态 `port` 字段），被 `osc/util/thunder/Jianpian.java`、`osc/base/App.java` 引用。**M0 新发现：原 M 计划未覆盖**，归 M6b → **M6b 已迁 Kotlin**（native 名/描述符 26/26 与 Java 逐字一致） |
 | **`app/src/test`** | 12 Java / 53 Kotlin | **不在迁移范围**（§3.1 口径 = 自有 `main` 源码；测试基础设施不迁） |
 | `com/github/tvbox/osc` 主包 | **57 Java / 271 Kotlin**（M6 追加批次后实测；M0 起点 179 / 146） | 剩余 57 = `player`36 + `ui/player`4 + `dlna`7 + `server`4 + `base`2 + `event`2 + `receiver`2（归属见附录 A 盘点行；`util` 45 个已于 M6 util 批次迁完，`sourcedata`/`data` 最后 2 个已于 M6 追加批次迁完） |
-| 其中 `ui/` 层 | 91 kt / 4 java | UI 几乎全 Kotlin；剩 4 个 Java 全在 `ui/player/`（M7 对象） |
+| 其中 `ui/` 层 | 91 kt / 4 java | UI 几乎全 Kotlin；剩 4 个 Java 全在 `ui/player/`（**M7 重写对象**：随播放栈替换删除/重写，非迁移） |
 | 其中数据/网络/解析层 | **0 java / 147 kt**（M6 追加批次后逐包实测，**Java 已清零**） | `bean`(0 j / 21 kt，M1)、`data`(0 j / 13 kt，M2 + M6 追加 `AppDataManager`)、`api`(0 j / 8 kt，M5)、`sourcedata`(0 j / **13** kt，M4b + M6 追加 `SubtitleViewModel`)、`subtitle`(0 j / 22 kt，M6 subtitle 批次)、**`util`(0 j / 70 kt，M6 util 批次已迁完；M3 迁 4 个、M5 迁 `DanmakuApi`)** |
 | `com/github/catvod` | **24 Java / 0 Kotlin** | 爬虫契约（`crawler/Spider` 为 `open class`，jar 子类继承）+ 网络栈（`net/OkHttp`）；**M9 对象** |
-| `player` 模块 | **27 Java / 0 Kotlin** | 仅 `xyz.doikki.videoplayer` fork（ijk 已由 `0814a85` 移除）；**M10 对象** |
+| `player` 模块 | **27 Java / 0 Kotlin / 5313 行** | 仅 `xyz.doikki.videoplayer` fork（ijk 已由 `0814a85` 移除）；**A 路线（D12）下不再迁移：M7 建替代栈、M10 整体删除** |
+| 播放栈替换面（实测，2026-10-05） | app 侧 `xyz.doikki` 引用 **61 处 / 37 文件（15 个类）**；`dkplayer-ui:3.3.7` 为零引用死依赖（其 `StandardVideoController` 的父类已被 ijk 清理删除，本就不可加载） | 引用面清单由 `Search xyz\.doikki\.videoplayer` 生成；M7 完成后此面清零（唯一例外 = `player` 模块自身，M10 删除，故不计入） |
 | 未被任何里程碑覆盖的 osc 包 | **17 Java** | `base`(2)/`server`(4)/`dlna`(7)/`event`(2)/`receiver`(2) → 补 M6b |
 | Repository 层 | **0 处** | 全库搜 `Repository` 零命中 |
 | `ApiConfig.get()` 门面 | **104 处 / 37 文件**（M0 复测值，以此行替换旧版 110/31 与 106/37） | 全局单例门面（配置 + 源注册表） |
@@ -61,11 +63,14 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 
 # 3. 目标终态（验收清单）
 
-1. **语言**：`app/src/main/java` 与 `app/src/python/java`（Chaquopy sourceSet，M0 补入）下**自有源码全部迁 Kotlin** —— `com/github/tvbox/osc` 主包（179）+ `player` 模块（27）+ `com/github/catvod`（24）+ `app/src/python/java`（5：`crawler/pyLoader` 与 `com/undcover.freedom.pyramid.*`）+ `com/p2p/P2PClass`（1）Java 存量清零。`sourcedata`/`api`/`data`/`bean`/`subtitle`/`util` 之外，`osc.player`/`base`/`server`/`dlna`/`event`/`receiver` 一并覆盖（见 M6b/M7）。终态口径 = **仓库自有源码零 Java**（`app/src/test` 的 12 个 Java 测试不在范围），依赖产物（media3/cling/room/chaquopy 等）不计。
+1. **语言**：`app/src/main/java` 与 `app/src/python/java`（Chaquopy sourceSet，M0 补入）下**自有源码全部迁 Kotlin** —— `com/github/tvbox/osc` 主包（179）+ `player` 模块（27，**A 路线下整体删除、不迁**，见 D12/M7/M10）+ `com/github/catvod`（24）+ `app/src/python/java`（5：`crawler/pyLoader` 与 `com/undcover.freedom.pyramid.*`）+ `com/p2p/P2PClass`（1）Java 存量清零。`sourcedata`/`api`/`data`/`bean`/`subtitle`/`util` 之外，`osc.player`/`base`/`server`/`dlna`/`event`/`receiver` 一并覆盖（见 M6b/M7）。终态口径 = **仓库自有源码零 Java**（`app/src/test` 的 12 个 Java 测试不在范围），依赖产物（media3/cling/room/chaquopy 等）不计。
 2. **分层**：UI/业务层只依赖 **Kotlin Repository 接口**，不再直接碰具体数据源（Room DAO / OkGo / Gson）。`ApiConfig.get()`（配置 + 源注册表）的收敛**不在 M1–M11 内**（M5 只做语言迁移），属配置域 Repository 单独立项 —— 口径二选一已由 **M5 拍板**（见 §5 M5「顺序 3 的拍板」：配置域收敛不在 M1–M11 内，`sourcedata` 的包名不动）。
-3. **双范式收口**：页面 VM 与 Repository 全 `Flow`/`suspend`；`LiveData` 只在 `sourcedata` 内部短期保留。**M4a 后**：页面 VM 已直接收 `SourceChannel.flow`，`observeAsFlow` 桥因零调用点已删除；`LiveData` 只剩通道的兼容面（播放层 `observeForever`），随 M7 播放层迁移一并消失。**M4b 后**：`sourcedata` 的取数侧（5 个 Loader + 门面 + 运行期状态）已无 Java 类型，兼容面按上文仍留给 M7。**M6 subtitle 批次后**：`subtitle/` 包 Java 清零；`sourcedata`/`data` 各剩 1 个（`SubtitleViewModel`/`AppDataManager`）—— 已并入 M6 追加对象。**M6 追加批次后**：这两个也已迁完 ⇒ **`bean`/`data`/`api`/`sourcedata`/`subtitle`/`util` 六包 Java 全部清零**；`LiveData` 只剩 `sourcedata/SourceChannel` 的兼容面与 `SubtitleViewModel.searchResult` 两处，随 M7 播放层迁移一并收口。
-4. **产物签名稳定**：契约层（`catvod` / `player` 模块，以及被动态 jar 引用的 osc 静态面）迁移后**字节码描述符逐成员不变** —— `@JvmStatic`/`@JvmField`/`@JvmOverloads` 只是手段，判据是 `javap -p -s` 输出等价。被覆盖的成员必须保留可覆盖性：Kotlin 类与方法默认 `final`，直接机械转换会让 jar/AAR 子类在类加载期抛 `VerifyError: overrides final method`（规则 §7.1）。
+3. **双范式收口**：页面 VM 与 Repository 全 `Flow`/`suspend`；`LiveData` 只在 `sourcedata` 内部短期保留。**M4a 后**：页面 VM 已直接收 `SourceChannel.flow`，`observeAsFlow` 桥因零调用点已删除；`LiveData` 只剩通道的兼容面（播放层 `observeForever`），随 M7 播放栈替换一并消失。**M4b 后**：`sourcedata` 的取数侧（5 个 Loader + 门面 + 运行期状态）已无 Java 类型，兼容面按上文仍留给 M7。**M6 subtitle 批次后**：`subtitle/` 包 Java 清零；`sourcedata`/`data` 各剩 1 个（`SubtitleViewModel`/`AppDataManager`）—— 已并入 M6 追加对象。**M6 追加批次后**：这两个也已迁完 ⇒ **`bean`/`data`/`api`/`sourcedata`/`subtitle`/`util` 六包 Java 全部清零**；`LiveData` 只剩 `sourcedata/SourceChannel` 的兼容面与 `SubtitleViewModel.searchResult` 两处，随 M7 播放栈替换一并收口。
+4. **产物签名稳定**：契约层（`catvod`，以及被动态 jar 引用的 osc 静态面；**`player` 模块已随 D12 退出契约层、改为整体删除**）迁移后**字节码描述符逐成员不变** —— `@JvmStatic`/`@JvmField`/`@JvmOverloads` 只是手段，判据是 `javap -p -s` 输出等价。被覆盖的成员必须保留可覆盖性：Kotlin 类与方法默认 `final`，直接机械转换会让 jar/AAR 子类在类加载期抛 `VerifyError: overrides final method`（规则 §7.1）。
 5. **等价**：迁移不改逻辑，逐切片过归一化多重集比对 + 构建 + 单测；真机走查判据逐阶段列明。
+6. **播放栈（2026-10-05 追加，A 路线 / D12）**：终态 = 无 `xyz.doikki.videoplayer`（源码、Gradle 依赖、keep 规则、APK 类全无）、无 `AbstractPlayer`/`PlayerFactory` 泛型链、无 View 控制器层（`BaseVideoController`/`ControlWrapper`/`IControlComponent`/`IGestureComponent`/`IVideoController`/`OrientationHelper`）、无 FrameLayout 播放容器；app 侧播放层为纯 Kotlin、内核类型直接是 `androidx.media3.exoplayer.ExoPlayer`，**Compose 直持该 Player 实例**（状态直读、API 直调，不再经 `ControlWrapper`）。
+   **所有权边界（不变项）**：播放器实例仍由 `PlaybackService`/`PlaybackController` 持有并下发（「Compose 直持」= 直用同一实例，不是把所有权搬进 Composable）—— 退后台播放、媒体通知、预载、DLNA、内核复用（`KernelReusePolicy`）语义不因此改变。
+   **替换 ≠ 重做产品逻辑**：服务化架构（P0–P5）、状态与进度口径、效果链（调色/超分）、字幕/弹幕、直播与音乐链路均为**承接**对象，逐类对照，不许丢行为（清单见 M7 节）。
 
 # 4. 设计决策（D 系；2026-10-05）
 
@@ -78,10 +83,11 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 | D5 | Repository 输出范式 | 统一 `Flow`（`StateFlow`/`Flow`），不引入第三范式。Java 实现短期经 `observeAsFlow` 桥，迁移后原生 `Flow`。 | 定案 |
 | D6 | 线程模型 | Repository 内部统一 coroutine `Dispatcher`；**不改变**既有线程语义（`SPIDER_POOL`/`PREPARE_POOL` 共享池、QuickJS 线程亲和、`allowMainThreadQueries` 主线程查库、进度写 `vod-progress-writer`）。迁移 = 语义等价，不借机改并发。 | 定案 |
 | D7 | 是否引入 DI | **否**（继承 20260928 §6 决策）。Repository 用构造器注入 + `AppGraph`（Kotlin `object`）装配；翻案判据不变。 | 定案 |
-| D8 | 契约层（`catvod` + `player` 模块）怎么迁 | **只换语言，产物签名逐成员守恒**（规则见 §7.1）：`open class` + 被覆盖成员 `open`；Java `static` → `companion object` + `@JvmStatic`，Java `static` 字段 → `@JvmField`；`public`/`protected` 实例字段 → `@JvmField`（含 `protected var`）；自定义 View 保留三构造器（`@JvmOverloads`）；**禁** `internal`（会加 `$module` 后缀改签名）、**禁** `data class`/`object`/接口化改写、**禁**包名类名变更、**禁**默认参数替代重载。卡口 = `javap -p -s` 逐类描述符比对 + debug/release 双构建 + 真实 jar 回归。 | 已拍板（2026-10-05） |
+| D8 | 契约层（`catvod`；~~`player` 模块~~ 后随 D12 改为整体替换删除）怎么迁 | **只换语言，产物签名逐成员守恒**（规则见 §7.1）：`open class` + 被覆盖成员 `open`；Java `static` → `companion object` + `@JvmStatic`，Java `static` 字段 → `@JvmField`；`public`/`protected` 实例字段 → `@JvmField`（含 `protected var`）；自定义 View 保留三构造器（`@JvmOverloads`）；**禁** `internal`（会加 `$module` 后缀改签名）、**禁** `data class`/`object`/接口化改写、**禁**包名类名变更、**禁**默认参数替代重载。卡口 = `javap -p -s` 逐类描述符比对 + debug/release 双构建 + 真实 jar 回归。 | 已拍板（2026-10-05） |
 | D9 | 契约面分级 | **Tier A**（预编译二进制按名字访问宿主：动态 spider jar / JS / py、第三方 AAR）= 字节级不可动，永远保持同名同描述符；**Tier B**（宿主内部的冻结包互引，如 `catvod → osc.util` 的 104+ 处静态调用）= 允许机械更新调用点，但同一改动内必须成对完成。分级清单由 `Select-String 'import com\.github\.tvbox\.osc\.'` 从 `catvod` 生成，登记进附录 C。 | 待拍板 |
 | D10 | Repository 输出形态 | **二分**：一次性查询（`RoomDataManger.getAllVodRecord` 这类同步取 List）= `suspend fun`；持续观察（Room 响应式查询、KV 变更）= `Flow`。D5 的「不引入第三范式」仍成立。**同一条硬约束**：Repository 内出现 `withContext(`/`flowOn(` 即驳回（除 M0 白名单）—— 会改 D6 的线程语义与 `awaitWrites` 读序。 | 待拍板 |
 | D11 | Repository 依赖边界 | 构造参数只接**窄接口**（Room DAO 接口、网络 API 接口），装配只走 `AppGraph`；**禁止**在 Repository 实现里直取 `AppDataManager.get()`/`ApiConfig.get()` 静态入口。理由：项目只有 JUnit、无 Mockito/Robolectric，直取静态入口 = 无法构造替身 = M2/M4 的「构建 + 单测」验收落不了地。 | 待拍板 |
+| D12 | 只剩 media3 一个内核后，播放栈怎么收 | **A 路线：自研替换，整体删除 doikki fork**（2026-10-05 拍板）。终态见 §3.6：无 fork、无 `AbstractPlayer`/`PlayerFactory` 泛型链、无 View 控制器层、无 FrameLayout 容器；Compose 直持 `ExoPlayer`。承接面 = doikki 实测 1213 行 media3 适配（`ExoMediaPlayer`/`ExoMediaSourceHelper`/`OkHttpDataSource`/`HlsErrorHandlingPolicy`，移植）+ ~3940 行 View/状态机骨架（重写，逐类行为对照）；app 内 `player/` 36 Java + `ui/player/` 4 Java 在同一切片内重写为 Kotlin。**覆盖 D8 中 `player` 模块部分**（`catvod`/M9 仍按 D8 契约守恒迁移）；是 §7 规则 5「迁移≠重构」的**明示授权例外（仅限播放栈）**，附带两条纪律：① 替换步仍禁夹带无关逻辑改动；② doikki 源码在 M10 拆除前**保留在库**，作为移植/行为对照与回退面。 | 已拍板（2026-10-05） |
 
 # 5. 渐进式计划（M 系）
 
@@ -100,7 +106,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - `skill/scripts/verify-migration.ps1` —— 等价性卡口脚本，六个子命令（`multiset` / `tokens` / `methods` / `javap` / `lf` / `tierb`），有差异即退出码 1。**已做正/反向自测**：同文件对照通过（`javap` 25 个 catvod 类 / 27 个 doikki 类逐类一致）；篡改基线或与不相干文件对照时四项卡口（`multiset`/`tokens`/`methods`/`javap`）均报出差异且退出码 = 1（`lf` 用 CRLF 样件验过）。自测暴露并已修两处缺陷：`multiset` 新增行曾漏判失败、`methods` 曾把调用点（`for`/`Log.e(`）当成员名。
   - **无业务代码改动**。
 - **M0 顺带发现（已并入本文档口径）**：① `app/src/python/java`（5 个 Java，Chaquopy sourceSet）与 `com/p2p/P2PClass.java`（1 个 Java）此前不在任何里程碑、也不在终态判据内 —— 已补入 §2 / §3.1 / M6b / M11；② §2 的 `ApiConfig.get()` 实测为 **104 处 / 37 文件**（原 106/37）；③ Tier B 的 `catvod → osc.*` 逆向引用实测 **11 个符号**。
-- **契约层基线快照的时点**：M1–M8 不动 `catvod`/`player` 模块，但 M9/M10 需要「迁移前」一侧可比 —— 在**动手改源码之前**用 `javap -Snapshot` 各导一次基线，debug 与 release 各一份（release 需先 `:app:assembleRelease` 并显式传 `-ClassPath`）。
+- **契约层基线快照的时点**：M1–M8 不动 `catvod`/`player` 模块；M9 需要「迁移前」一侧可比 —— 在**动手改源码之前**用 `javap -Snapshot` 导一次基线，debug 与 release 各一份（release 需先 `:app:assembleRelease` 并显式传 `-ClassPath`）。`player` 模块已随 D12 改为整体删除，无基线需求（其源码仅作 M7 移植参照）。
 
 ## M1｜bean 模型 data class 化（风险低，练手）—— ✅ 已执行（2026-10-05）
 
@@ -181,7 +187,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - **拆成两个独立子里程碑，不与 Java→Kotlin 混做**：
   - **M4a｜LiveData→Flow 收口**（✅ 已执行 2026-10-05，见上）：Loader 输出面改 `SourceChannel`（Flow 主面）；`SourceViewModel` 的 7 个通道收敛到该机制；页面 VM 直接收 `flow`。**等价性判据 = 迟到回包绝不串进新内容**（沿用 V4 的 `detailToken` 代次守卫，未弱化；补了 1 例"代次经通道投递后仍被守卫采信/丢弃"的回归）。
   - **M4b｜Java→Kotlin 迁移**（✅ 已执行 2026-10-05，见上）：Loader/`SourceViewModel`/`SourceRuntimeState` 迁 Kotlin。「通道内换成原生 `Flow`」已由 M4a 落地（通道的 Flow 主面）；「去掉 LiveData 兼容面」按本计划括注归 M7 —— M4b 保留 `postValue`/`setValue` 生产面，播放层 2 处 `observeForever` 才继续收到取流结果。
-- **注意**：`SourceViewModel` 被播放层 `PlaybackController`/`PreloadCoordinator` 以 `observeForever` 引用（V5 登记例外），M4a 先保 LiveData 兼容面，M7 播放层迁移时一并收口。
+- **注意**：`SourceViewModel` 被播放层 `PlaybackController`/`PreloadCoordinator` 以 `observeForever` 引用（V5 登记例外），M4a 先保 LiveData 兼容面，M7 播放栈替换时一并收口。
 - **风险**：高。验证 = 构建 + 单测（重点：token 失配丢弃 / 三通道不串扰 / 缓存 access-order 语义）+ 真机走查（换源/详情/取流/慢源/直播代理源加载，判据沿用 V3/V4）。
 - **Commit**：M4a 每通道一笔；M4b 每类一笔。
 
@@ -206,13 +212,13 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - **进度：subtitle 批次 ✅ 已执行并提交 `dabd7ff`；util 批次 ✅ 已执行并提交 `aada31b`（计划此处原记"尚未 commit"，2026-10-05 盘点时已落到 `aada31b`，以此行为准）；M6 追加 2 个 ✅ 已迁完（2026-10-05）。**
 - **subtitle 批次交付与实测（2026-10-05）**：`subtitle/` 22 个 Java 全量迁 Kotlin，1 笔 commit `dabd7ff`（`refactor(subtitle): migrate subtitle package to kotlin`）；覆盖 `model/`(5)/`exception/`(1)/`runtime/`(3)/`format/`(6：`TimedTextFileFormat`+`FormatSRT`/`ASS`/`SCC`/`STL`/`TTML`)/根 6 个（`SubtitleEngine`/`SubtitleFinder`/`SubtitleLoadSuccessResult`/`UIRenderTask`/`SubtitleLoader`/`DefaultSubtitleEngine`）/`widget/SimpleSubtitleView`。`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **536 用例 / 0 失败 / 0 错误 / 0 跳过**（与 M4b/M5 基线持平 —— 纯语言迁移未新增用例，另 `--rerun-tasks` 真跑一次确认）；`lf` 卡口 22/22；`tokens` 卡口抽查 5 个代表文件（缺失项全落在 §7.3 已知盲区）。4 个 `format/` 大文件（SCC 1105 / STL 626 / ASS 608 / TTML 538 行）由只读子代理并行转换，本机复核 + 构建 + 卡口验证。
 - **与计划的偏差 / 登记项（全部登记在规范 §7.9）**：① `TimedTextFileFormat` 实测是**接口**（计划文字未说明），`toFile` 返回 `Object` ⇒ Kotlin `Any?`，四个 `Format*.toFile` 因 `if (!tto.built) return null` 必须可空，连带 `TimedTextObject.toSRT/toASS/toSTL/toSCC/toTTML` 放宽为可空（全库零调用点）；② `SubtitleLoader`/`SubtitleFinder`/`AppTaskExecutor` 由「私有构造器 + 全静态成员」落成 `object` + `@JvmStatic`（沿用 M3 `RegexUtils` 先例；`SubtitleLoader` 的实例重载 `loadSubtitle(String)` 保留为实例方法），登记新增 `INSTANCE` 与丢失的不可达抛异常构造器；③ `SimpleSubtitleView` 保留三个显式构造器（背景描边 `TextView` 必须逐个镜像 Java 的三种构造形态 —— 合并会改变描边层默认样式，属观感变化）；④ `SubtitleEngine` 的平台类型入参统一放宽为可空；⑤ `TimedTextObject.cleanUnusedStyles` 引入局部 `val`（语义等价）。
-- **本批次不需要 `javap` 卡口**：`subtitle` 包不在 D9 Tier A/B 清单内（`catvod` 零引用），§8 的「公开签名/契约里程碑」清单（M1/M2/M5/M6b/M7/M9/M10）也不含 M6；外部引用面仅 `player/controller/{ComposeVideoController.kt, PlayerControlApi.java}` 两处，由构建覆盖。
+- **本批次不需要 `javap` 卡口**：`subtitle` 包不在 D9 Tier A/B 清单内（`catvod` 零引用），§8 的「公开签名/契约里程碑」清单（现为 M1/M2/M5/M6b/M9）也不含 M6；外部引用面仅 `player/controller/{ComposeVideoController.kt, PlayerControlApi.java}` 两处，由构建覆盖。
 - **审查轮（2026-10-05，结论 = 可收尾）**：4 个只读子代理独立逐方法逐语句对账（A = model/exception/runtime/根小类 13 个、B = `SubtitleLoader`+`DefaultSubtitleEngine`+`SimpleSubtitleView`、C = `TimedTextFileFormat`+`FormatSRT`+`FormatSCC`、D = `FormatASS`+`FormatTTML`+`FormatSTL`），**均判语义等价，0 条 阻断/高/中**；本机复跑 `lf` 22/22、`methods` 20/22（2 处为匿名类变 lambda 的误报）、`tokens` 22/22（缺失项全为已知盲区 + 两类脚本自身噪音）、`prune_imports` 22/22 为 0、`--rerun-tasks` 全量构建 + 单测（**536/0/0/0**）。报告落盘 `skill/review/review-20261005-m6-subtitle.md`（含附录 A 度量：文件 >500 行 4 个、方法 >100 行 12 个、同文件重复模板 1 组，**全部「既有」**）。剩余条目 = 2 处不可达差异 + 2 处口味差异 + 6 处既有缺陷/死分支，均登记不改。
 - **util 批次交付与实测（2026-10-05，已提交 `aada31b`）**：`util/` 45 个 Java 全量迁 Kotlin（**8348 行**），原 `.java` 全删、`util` 包 Java 清零（`app/src/main/java` 由 129 j / 224 kt → **84 j / 269 kt**）。覆盖 `LOG`/`KV`/`FileUtils`/`OkGoHelper`（**D9 Tier B 4 个**）+ `AppContextHolder`/`AppManager`/`SSLSocketFactoryCompat`（Tier B 另 2 个）+ `M3u8`/`Proxy`/`PlayerHelper`/`RemoteTVBox`/`Thunder`/`TxtSubscribe`/`SuperParse`/`JsonParallel`/`BootGuard`/`DefaultConfig`/`VideoParseRuler`/`ImgUtil`/`TrackMemory`/`HistoryHelper`/`SearchHelper`/`SubtitleFilePicker`/`HawkConfig` 等，以及子包 `kv`/`kvcodec`/`net`/`live`/`parser`/`thunder`/`SSL`。`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **536 用例 / 0 失败 / 0 错误 / 0 跳过（70 suite）**（与 M5/M6-subtitle 基线持平，纯语言迁移无新增用例），**12 个 util 相关既有测试文件一行未改**；`methods` 卡口 **45/45 全部命中**、`lf` 45/45、`prune_imports` 清 4 个未使用 import、`tokens` 45/45（缺失项全为已知盲区）。**本批次免 `javap` 卡口**（`util` 不在 D9 Tier A 清单；Tier B 的 6 个符号已由 `catvod`/`python` 侧 Java 调用点的编译覆盖）。
 - **util 批次与计划的偏差 / 登记项（全部登记在规范 §7.10）**：① **修掉 1 条阻断级新回归** —— `KV.get(key, defaultValue)` 首版写成 `fun <T : Any> …`，`as T` 被编译器插入 `Intrinsics.checkNotNull`，使 `KV.get(key, null)`（Java 原文 `RemoteTVBox.getAvalible()` 就这么写）由「返回 null」变成抛 NPE，打断「单击播放器按钮 / 打开播放器参数面板 / 打开投屏面板 / 投屏播放」四条常用路径；**正解 = 去掉 `T : Any` 上界**（`fun <T> get(key, defaultValue: T?): T`），`javap` 实证不再插空检查且 JVM 描述符与 Java 逐字相同；② 非 util 调用点适配 **4 处**（`api/ApiConfig.kt` 的 `FindResult` 返回 `String?` + 局部 `out`、`api/ConfigLoader.kt:393` 补 `!!`、`bean/ParseBean.kt:18` 补 `!!`、`util/SubtitleHelper.kt` 形参放宽 `Activity?`）；③ 中 1 条：`PlayerHelper.getPlayerExist`/`runExternalPlayer` 的 `java.lang.Boolean` → 原生 `boolean`（描述符变化，0 调用方受影响）；④ 低 7 条 + 口味 2 条 + 既有 2 条（逐条见规范 §7.10 与审查报告）；⑤ `PlayerHelper.runExternalPlayer(6 参)` 的**无限递归既有缺陷原样保留**。
 - **util 批次审查轮（2026-10-05，结论 = 修 1 条阻断后可收尾）**：5 个只读子代理独立逐方法逐语句对账（分工：Tier B+kv 栈 8 个 / `FileUtils`+`OkGoHelper`+`M3u8` / `Proxy`+thunder+live+parser 7 个 / 播放·图片·网络·配置 12 个 / 叶子小类+net·SSL 15 个），**除已修的阻断项外 0 条高 / 0 条中**；本机复跑 `lf` 45/45 + `methods` 45/45 + `tokens` 45/45 + `prune_imports` + 定向陷阱面扫描（`.trim()`/`replaceAll`/`charAt`/`toLowerCase`/`equalsIgnoreCase`/`keySet()`/`instanceof`/`new String(`/`getBytes()` 全 0；`TextUtils.isEmpty` 计数逐文件与 Java 完全一致）+ `javap -p -c` 双变体实证。报告落盘 `skill/review/review-20261005-m6-util.md`。
 - **⚠️ M6 追加对象（2026-10-05 进度盘点时补入，原 M6「对象」行漏登记）**：`app/src/main/java` 下还有 **2 个自有 Java 没有被任何 M 覆盖**，终态（§3.1「自有源码零 Java」）要求清零，故并入 M6 收尾：
-  - `sourcedata/SubtitleViewModel.java`（**317 行**，`extends ViewModel`，含 assrt 搜索 / zip 展开 / 分页 / 字幕下载）—— **M4a 审查轮已登记「`SubtitleViewModel` 自己的 `MutableLiveData` 属 M6 范围未动」**，但从未写进 M6 的「对象」行，本批次（subtitle 22 个）也未含它 ⇒ 属**计划登记缺口**，不是新发现。消费方是 `player/ui/SubtitleSheets.kt`（Kotlin，`viewModel()` + `searchResult` 观察）。迁移口径：与 M4b 同（纯语言迁移，`MutableLiveData` 保留到 M7 播放层收口；**不要**在本步顺带通道化）。
+  - `sourcedata/SubtitleViewModel.java`（**317 行**，`extends ViewModel`，含 assrt 搜索 / zip 展开 / 分页 / 字幕下载）—— **M4a 审查轮已登记「`SubtitleViewModel` 自己的 `MutableLiveData` 属 M6 范围未动」**，但从未写进 M6 的「对象」行，本批次（subtitle 22 个）也未含它 ⇒ 属**计划登记缺口**，不是新发现。消费方是 `player/ui/SubtitleSheets.kt`（Kotlin，`viewModel()` + `searchResult` 观察）。迁移口径：与 M4b 同（纯语言迁移，`MutableLiveData` 保留到 M7 播放栈收口；**不要**在本步顺带通道化）。
   - `data/AppDataManager.java`（**92 行**，DB 生命周期基础设施 `init`/`get`/`backup`/`restore`）—— M2 偏差⑤ 明确「保留 Java 不迁」，但**未指派后续里程碑**；全库 7 处 `AppDataManager.` 引用（含 `AppGraph` 的 3 个 provider 闭包与 `base/App`）。迁移口径：`object` + `@JvmStatic`（保住 `AppDataManager.get()` 静态形态，同 Tier B 手法），`backup`/`restore` 里 close+重建 DB 实例的时序逐行保留。
   - **两个都不需要 `javap` 卡口**（非 D9 Tier A/B 契约面；`AppDataManager.get()` 的调用点全在仓库内、由构建覆盖）。
 - **追加批次交付与实测（2026-10-05，M6 收尾）**：2 个 Java 全量迁 Kotlin、原 `.java` 全删 ⇒ **`data/` 与 `sourcedata/` 两个包 Java 双双清零**，`app/src/main/java` 由 **84 j / 269 kt → 82 j / 271 kt**（本批次 -2 j / +2 kt）。`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **536 用例 / 0 失败 / 0 错误 / 0 跳过（70 suite）**（与 M5/M6-subtitle/M6-util 基线持平，纯语言迁移无新增用例）；`methods` 卡口 **2/2 全部命中**（`AppDataManager` 5 个成员、`SubtitleViewModel` 18 个成员）、`lf` 卡口 2/2、`tokens` 2/2（缺失项逐条判定，见规范 §7.11）；`prune_imports` 无需处理（新增文件无未使用 import）。**全部 4 处调用点一行未改**（`base/App.java:66` `AppDataManager.init()`、`data/AppGraph.kt` 3 处 `AppDataManager.get()`、`player/ui/SubtitleSheets.kt` 的 4 处 VM 调用、`ui/player/PlayContainer.java:929` 的 `pickEpisodeSubtitle`）。
@@ -241,19 +247,45 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - `dlna` 依赖第三方 `org.fourthline.cling`（`proguard-rules.pro` 有 keep）：只迁源码，不改继承结构（cling 会回调这些类）。
 - **风险**：中（其中 `server`/`base`/`python` 为中-高）。验证 = 构建 + 单测 + 真机走查（启动、局域网服务地址/端口、DLNA 投屏扫描、广播接收、py 源加载）。
 
-## M7｜播放层（app 内 `player/` 的 36 个 Java）最后做
+## M7｜播放栈自研替换（A 路线；取代原「app 内 36 个 Java 语言迁移」）—— M7-0 ✅ / M7a ✅ 已执行（2026-10-05）
 
-- 对象：`com/github/tvbox/osc/player/` 的 36 个 Java（`PlaybackController` + V5/V5b 拆出的 8 个协作者、`PlayUrlResolver`、`state`/`usecase`/`render`/`thirdparty` 等）。**不含** `player` 模块（`xyz.doikki.videoplayer`）—— 后者是 M10。
-- 前置：播放服务化 P0–P5 + V5/V5b 真机走查稳定后再动。
-- 收口 V5 的「`observeForever` 播放层例外」（`PlaybackController`/`PreloadCoordinator`）到 Flow/协程。
-- **风险**：最高。验证 = 构建 + 单测（播放层无单测豁免，靠归一化比对）+ 真机走查按 `avbox-playback-service-spec.md` §4 全清单 1–14。
+> 2026-10-05 决策（D12 / §3.6）：不再迁移 app 内 `player/` 36 Java 与 `player` 模块 27 Java，改为**新写 app 侧 Kotlin 播放层 + 整体删除 doikki fork**。本节取代旧 M7 的迁移口径；旧 M10 的「27 个 Java 迁 Kotlin」全部作废。
+
+- **M7-0 交付（2026-10-05）**：删除 `player/build.gradle.kts` 的 `api(libs.dkplayer.ui)`（M0 已核实为零 `xyz.doikki.videocontroller` 类引用的死依赖；`gradle/libs.versions.toml` 的 `dkplayerUi`/`dkplayer-ui` 两项按 M10 清单留待整体拆除）。
+- **M7a 交付与实测（2026-10-05，全部未提交待走查口径同其它里程碑）**：新建 **`com.github.tvbox.osc.player.engine`** 包 9 个 Kotlin 文件 = 移植 4 件（`OkHttpDataSource`/`HlsErrorHandlingPolicy`/`MediaSources`/`PlayerCache`）+ 装配 2 件（`EngineRenderersFactory`/`PlayerEngine`）+ 策略 3 件（`SourcePolicy`/`CodecPreferences`/`NetworkSpeed`），另 4 个单测文件（新增 33 例）。`:app:assembleDebug` + `:app:assembleRelease` 绿（R8 通过）；`:app:testDebugUnitTest` **569 用例 / 0 失败 / 0 错误 / 0 跳过（74 suite）**（536 基线 + 33）；全部新文件 LF。**不接 UI、不接调用方**（双栈并存，doikki 仍是回退面）—— M7a 的门 = 双变体构建 + 单测 + 独立子代理逐类对照复核（对照旧 `ExoMediaSourceHelper`/`OkHttpDataSource`/`HlsErrorHandlingPolicy`/`ExoMediaPlayer`/app `ExoPlayer.java`）。
+- **共享状态收口 2 处（双栈并存期的必要动作）**：① 旧 `osc.player.ExoPlayer` 的 `setPreferSoftwareDecode/isPreferSoftwareDecode` 改读写 `engine.CodecPreferences`（软解偏好唯一真值源，`ReplayableCacheVideoRenderer` 日志同源）；② app 侧 `engine.PlayerCache` 反向委派旧 `ExoMediaSourceHelper` 的共享缓存（**模块依赖方向 app→player，player 不能引用 app**）；M10 拆除时把实现整体搬进 `PlayerCache`（唯一改动点）。
+- **复核轮（2026-10-05，独立子代理逐类对照）**：**1 阻断 + 1 高（同根因）+ 6 中低，全部已修** —— 阻断 = `val x = f().also { … }` 的 init 顺序使 `applyPlaybackParameters`/`disableFrameRateMatching`/`applyFrameRateTracking` 在 `internalPlayer == null` 上空转（隧道/AAC 偏好/帧率匹配静默失效），改为"先赋值再下发"；中 = `setDisplay` 漏掉旧覆写的输出分辨率自动补发、`reset()` 后缺 `setOptions()` 语义、`bufferTimes` 默认值应对齐 `HawkConfig.BUFFER_TIMES_DEFAULT=3`、`MediaSources` 未归一 applicationContext、client 未注入时漏回落 `OkGoHelper` 共享 client、`subtitleDelayUs` 缺 `@Volatile`、`getTcpSpeed()`（OSD 网速）无承接（已补 `NetworkSpeed`）；登记 2 条（单测所需的 private→public 扩大、`usesExoSelector` 日志恒真）。**实测规则与待接线清单见规范 §7.13**。
+- **M7a 未验证面（诚实标注）**：不接 UI ⇒ 真机走查无从执行；起播/渲染/效果/字幕/轨道全部行为留待 M7b/M7c 切换后随 `avbox-playback-service-spec.md` §4 清单走查。
+
+- 对象：`com/github/tvbox/osc/player/` 36 Java（重写）+ `ui/player/` 4 Java（重写/删除）+ `player` 模块 27 Java（删除，见 M10）。
+- **目标形态（终态）**：
+  - 唯一内核类型 = `androidx.media3.exoplayer.ExoPlayer`，直接出现在 app 层类型面；删除 `AbstractPlayer`/`PlayerFactory`/`ExoMediaPlayerFactory` 泛型链。
+  - 无 FrameLayout 播放容器：渲染面由「表面宿主」承担（`SurfaceView` / `TextureView` 双模式，沿用设置项 renderType 与画面比例/挖孔/尺寸语义），Compose 在其上叠覆盖层与弹幕。
+  - 无 View 控制器层：`BaseVideoController`/`ControlWrapper`/`IControlComponent`/`IGestureComponent`/`IVideoController`/`OrientationHelper` 不再存在；控制器 = 纯 Compose（现 `player/ui/*` 12 kt 复用），手势 = Compose 手势实现（语义沿用：单击显隐 / 双击暂停 / 左亮度右音量 / 横滑 seek / 长按 2x / 四边 40dp 不触发 / 预览态横滑）。
+  - 状态：新栈自有 `PlayState`（`StateFlow`）承接原 `VideoView.STATE_*` 读取面（`PlaybackViewBridge.currentPlayState()` 等）；不保留 doikki 常量名。
+  - **所有权不变**：播放器实例仍由 `PlaybackService`/`PlaybackController` 持有与下发，Compose 直持的是同一实例（§3.6 边界）。
+- **必须承接的行为（逐项对照，不许丢）**：
+  1. media3 适配 1213 行：`OkHttpDataSource`（DoH/hosts + headers）、磁盘缓存数据源、`HlsErrorHandlingPolicy`、track selector、硬/软解选择 + 自动软解回退；
+  2. 渲染与效果：裸 Surface 的 `Renderer.MSG_SET_VIDEO_OUTPUT_RESOLUTION` 信令（顺序 = 交面之后立即补发）、双渲染模式、调色/超分效果链（`media3-effect`）与 `RedrawPolicy`；
+  3. 播放语义：内核复用判定（`KernelReusePolicy` 四起播点）、自动重试阶梯与换线、RTMP 直播 `live=1` 后缀与缓存跳过、进度写 `vod-progress-writer`/读 `awaitWrites`、`observeForever` 两处（`PlaybackFetch`/`PreloadCoordinator`）收口为 Flow；
+  4. 外设与出口：媒体通知/媒体会话、弹幕（DanmakuFlameMaster 时间轴）、字幕两路（内置/外挂）与延迟、DLNA 与第三方播放器（MX/VLC/Kodi/Reex）出口。
+- **切片（每片独立可构建、可单测、可回滚、可走查；M7a–M7f 期间新旧双栈并存，doikki 是回退面）**：
+  - **M7a｜新内核适配层** ✅ 已执行（2026-10-05）：`PlayerEngine`（DataSource/Renderers/LoadControl/TrackSelector/缓存/HLS/效果装配）；可单测部分（URL/headers/数据源选择/策略函数）补单测；不接 UI。
+  - **M7b｜渲染宿主 + 状态机**：双模式表面宿主、尺寸/画面比例/挖孔、信令补发、音频焦点、进度保存；先在点播详情页预览态切换并走查。
+  - **M7c｜点播全链切换**：`PlaybackService`/`PlaybackController` 与 8 协作者、取流解析、预载、重试、内核复用、媒体会话、字幕/弹幕绑定面整体切新栈；`player/` 36 Java 在此片重写为 Kotlin（逐类对照走 `tokens` 卡口，判据只看「旧有新无」）。
+  - **M7d｜直播 / 音乐 / DLNA / 第三方出口**：`ui/activity/*` 触点（`LiveScreens`/`LiveOverlayController`/`LivePlayViewModel`/`DetailActivity`/`MusicPlayerActivity` 等）。
+  - **M7e｜控制器与手势去 View 化**：`ComposeVideoController`/`ComposeLiveController`/`GestureController` 改纯 Compose；删 `ui/player` 4 Java（`PlayContainer`/`PlayContainerViewBridge`/`TrackSelectorDelegate` 等）。
+  - **M7f｜收尾**：全库 `xyz.doikki` 引用清零（`player` 模块除外）；`PlayerHelper`/`OkGoHelper`/`LivePlayerManager`/`BaseActivity`/`App`/`PlaySettingsPage`/`PlayerUiState` 等剩余触点清理。
+- **前置（M7-0）**：① ✅ 已执行（2026-10-05）删 `api(libs.dkplayer.ui)`（死依赖，零代码改动）；② 播放服务化 P0–P5 + V5/V5b 真机走查先收口（否则无法区分「替换回归」与「存量待验证」）—— **仍待用户走查**。
+- **验证**：构建（debug + release 双变体 —— release 才暴露 R8 对 `media3-effect` 反射查找的 keep 覆盖）+ 单测（不低于 536 基线，新增按切片补）+ 逐项行为对照 + 真机走查（`avbox-playback-service-spec.md` §4 全清单 1–14 逐项重跑，另加本节「必须承接」四条清单）。
+- **风险**：最高（本项目回归成本最大区域）。**回滚**：doikki 源码与依赖在 M10 拆除前始终在库，任一切片可退回旧路径。
 
 ## M8｜`osc` 主包收尾（不含契约层）
 
 - 全库检索确认 `com/github/tvbox/osc` 主包 Java 清零（含 M6b 的 17 个与 M7 的 36 个）。
 - 复查行尾 LF、UI 层零新增注释、i18n 卡口、包级环（旧 spec 阶段 6 收尾的 17 组是否因迁移新增）。
 - 清理引用已推翻决策的 KDoc（例：~~`sourcedata/LiveDataFlow.kt` 仍写着「D2 分域：不重写 Java→Kotlin」~~ —— M4a 已连文件一并删除；`sourcedata` 属数据层、可改注释）。
-- 契约层（`player` 模块、`catvod`）此时仍为 Java —— 全库零 Java 由 M11 判定。
+- 契约层：`catvod` 此时仍为 Java（`player` 模块随 M10 整体拆除，见其节）—— 全库零 Java 由 M11 判定。
 
 ## M9｜`com/github/catvod` 契约包迁 Kotlin（24 个 Java；Tier A 为主）
 
@@ -268,26 +300,31 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - **验证**：`javap -p -s` 24/24 同类描述符比对 + debug **与** release 双构建 + 真机走查（jar 源 / js 源 / py 源各一，含 danmaku、WebDAV 备份还原）。
 - **风险**：高 —— 漏一处 `@JvmStatic`/`@JvmField`/`open` 的表现是「启动正常、点开该类源即崩」，且只在加载该 jar 时暴露。
 
-## M10｜`player` 模块迁 Kotlin（27 个 Java；`xyz.doikki.videoplayer`）
+## M10｜旧播放骨架拆除（doikki `player` 模块 + `dkplayer-ui` + 残留）—— 未开始
 
-- **前置（必须先拍板）**：`api(libs.dkplayer.ui)` 的去留。实测 `dkplayer-ui-3.3.7.aar` 的 `StandardVideoController extends xyz.doikki.videoplayer.controller.GestureVideoController`，而该类已由 `07b5109`（2026-09-14）随 ijk 清理删除；`app/src` 零引用 `videocontroller`，但那 17 个类仍被打进 debug APK（`classes11/30.dex`）—— 属**打包但不加载的坏依赖**。建议删除该依赖（连带 AAR 的 layout/资源），使本模块的契约面收敛为「仓库内调用点」。
-- 对象：`xyz.doikki.videoplayer.*` 全部 27 个（`player/*`、`controller/*`、`exo/*`、`render/*`、`util/*`）。
-- 契约面（仓库内 51 处 import，可机械更新）：`osc/player/*`、`ui/player/*`、`ui/activity/{DetailActivity,LivePlayActivity,MusicPlayerActivity,LiveScreens,LiveOverlayController,LivePlayViewModel}`、`util/{PlayerHelper,OkGoHelper}`、`subtitle/*`、`bean/LivePlayerManager`、`base/{App,BaseActivity}`、`app/src/test/.../PlayerUiStateVisibilityTest.kt`。
-- **专有硬约束**：§7.1 全量之外重点两条 ——
-  - `protected` 字段必须 `@JvmField protected var`（`VideoView.mVideoController`、`BaseVideoController.mControlWrapper`），否则 `MyVideoView.java`/`ComposeVideoController.kt` 的字段访问编译失败。**注意这与 M9 的差异：这里的破坏在编译期就暴露**（同一次构建），M9 的破坏要等 jar 加载。
-  - 自定义 View 保留 `(Context)`/`(Context, AttributeSet)`/`(Context, AttributeSet, Int)` 三构造器（`@JvmOverloads`）；`res/values/attrs.xml` 的 attr 名与读法不动（已核：无 XML 直接引用 `xyz.doikki.*` 类名）。
-- **验证**：`javap -p -s` 比对 + debug/release 双构建 + 真机走查（点播起播/切集/全屏旋转/手势/清晰度/字幕/直播/音乐通知/DLNA 投屏）。
+> 2026-10-05 决策（D12）：本里程碑不再做「27 个 Java 迁 Kotlin」（该口径作废），改为**拆除**。**不依赖 M8/M9**：建议 M7 全切片走查通过后立即执行（越早清零越好）；若为保留回退面而延后，最迟不晚于 M8/M9 之后、M11 之前。
+
+- 前置：M7a–M7f 完成且真机走查无回归（双栈并存期结束）。
+- 拆除清单：
+  - `settings.gradle.kts` 的 `:player` include 与 `app/build.gradle.kts` 的 `implementation(project(":player"))`；
+  - `player/` 整个模块目录（27 Java / 5313 行 + `res/` + `jniLibs` + `proguard-rules.pro`）；
+  - `gradle/libs.versions.toml` 的 `dkplayerUi = "3.3.7"` 版本项与 `dkplayer-ui` 库项（`api(libs.dkplayer.ui)` 已在 M7-0 删除）；
+  - `app/proguard-rules.pro` 中 `xyz.doikki` 相关 keep 规则（`com.github.tvbox.osc.**`/`com.github.catvod.**` 的 keep 不动）。
+- 断言：`Search xyz\.doikki` 在 `app/src`、`settings.gradle.kts`、`*.toml`、`*.pro` 零命中；APK `classes*.dex` 无 `xyz/doikki` 类、无 dkplayer-ui 资源（`unzip -l` 抽查）。
+- **验证**：`:app:assembleDebug` + `:app:assembleRelease` + `:app:testDebugUnitTest` 绿；真机冒烟（点播起播/切集/全屏旋转/手势/清晰度/字幕/弹幕/直播/音乐通知/DLNA 投屏）。
+- **风险**：低（纯删除；错漏表现为编译期错误或运行时 `NoClassDefFoundError`，冒烟即可覆盖）。
 
 ## M11｜终审：全库自有源码零 Java
 
-- 全库检索确认自有源码 Java 清零：`app/src/main/java`（`com.github.tvbox.osc` 主包 + `com.github.catvod` + `com.p2p`）**与 `app/src/python/java`**（M0 补入）+ `player` 模块 `player/src/main/java`。`app/src/test` 的 12 个 Java 测试不在范围内。
-- 按 `avbox-code-review-spec.md` 收敛终止线跑一轮，确认无「本次迁移引入」的 阻断/高/中；`javap -p -s` 契约清单（附录 C）复跑一遍。
+- 全库检索确认自有源码 Java 清零：`app/src/main/java`（`com.github.tvbox.osc` 主包 + `com.github.catvod` + `com.p2p`）**与 `app/src/python/java`**（M0 补入）；`player` 模块判据 = **目录与 Gradle include 均不存在**（随 M10 整体删除，非「Java 清零」）。`app/src/test` 的 12 个 Java 测试不在范围内。
+- 按 `avbox-code-review-spec.md` 收敛终止线跑一轮，确认无「本次迁移引入」的 阻断/高/中；`javap -p -s` 契约清单（附录 C，M9/catvod）复跑一遍（`player` 模块无契约对象）。
 - 确认 §6 口径：依赖产物中的 Java 类不计入。
 
 # 6. 明确不做
 
-- ~~不动 `player` 模块 27 个 Java~~ / ~~不动 `com/github/catvod` 契约包~~ **均已作废（2026-10-05）**：两者纳入迁移范围，见 D8 + §7.1 + M9/M10。
-- **不换包名、不换类名**：`xyz.doikki.videoplayer.*` 与 `com.github.catvod.*` 都被按 FQCN 访问（`JarLoader` 里的字符串、AAR 的父类引用），改名 = 运行时崩。
+- ~~不动 `player` 模块 27 个 Java~~ / ~~不动 `com/github/catvod` 契约包~~ **均已作废（2026-10-05）**：`catvod` 纳入**契约守恒迁移**（D8 + §7.1 + M9）；`player` 模块随后被 **A 路线（D12）改为整体替换 + 删除**（M7/M10），不再迁 Kotlin。
+- **不保留** doikki 骨架的任何形态（含「留着不用」）：M10 后 `xyz.doikki.*` 的源码、Gradle 依赖、keep 规则与 APK 类全清零；不再新增任何 `xyz.doikki` 依赖。
+- **不换包名、不换类名**：`com.github.catvod.*` 被按 FQCN 访问（`JarLoader` 里的字符串、jar 子类继承），改名 = 运行时崩；~~`xyz.doikki.videoplayer.*`~~ 随 A 路线整体删除，不再受此约束（替换后的新栈包名/类名不属契约面，不受 D8 约束）。
 - 不换 `catvod` 的网络栈实现；不改「宿主向动态 jar 提供 gson/okhttp/zxing」的供给关系。
 - 不引入 DI 容器（继承 D7）。
 - 不在语言迁移里顺带做结构重构（上帝类拆分、包重命名、线程模型改动一律单独立项）。
@@ -296,7 +333,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 
 # 7. 硬约束（违反即驳回）
 
-1. **产物签名不变**：`com.github.catvod.crawler.Spider`、`ApiConfig.get()`、`AppDataManager.get()`、Gson 反射的 bean 字段，以及动态 jar / 第三方 AAR 触及的一切类名与描述符都是外部契约。判据不是「用了 `@JvmStatic`」，而是 `javap -p -s` 输出等价（无法等价必须登记理由）。详见 §7.1。
+1. **产物签名不变**：`com.github.catvod.crawler.Spider`、`ApiConfig.get()`、`AppDataManager.get()`、Gson 反射的 bean 字段，以及动态 jar 触及的一切类名与描述符都是外部契约。判据不是「用了 `@JvmStatic`」，而是 `javap -p -s` 输出等价（无法等价必须登记理由）。详见 §7.1。**适用范围修订（2026-10-05）**：`player` 模块已随 D12 改为整体替换删除，**不再有签名守恒要求**；本条只适用于 `catvod`（M9）与宿主被冻结包反引用的静态面（D9 Tier B）。
 2. **Gson×Kotlin**：data class 无参构造/默认值/`@SerializedName`/null 安全逐字段比对；不改字段名、不改序列化契约；拿旧 Java bean 的 json 快照做反序列化回归。
 3. **并发语义不变**：`SPIDER_POOL`/`PREPARE_POOL` 共享池（不得变成每请求新建）、QuickJS 线程亲和（超时不能 cancel）、`allowMainThreadQueries` 主线程查库、进度写 `vod-progress-writer`、`synchronized (sortCache)` access-order 加锁语义。
 4. **迟到回包隔离不可弱化**（M4a 第一验收）：换片/fallback/重试三路径的旧回包必须丢弃，`detailToken` 代次守卫沿用 V4 语义。
@@ -304,13 +341,14 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 6. **行尾 LF**（工具会写 CRLF，改完跑全量核查脚本）；**UI 层不写注释**；Kotlin 零值属性不生成 `putfield`（`initView` 虚调用时序教训，凡 `initView()` 内使用的协作对象 `lateinit` + 在 `initView` 内建）。
 7. **每切片即验**：不攒到最后跑；`BUILD SUCCESSFUL` + 用例计数为准。
 
-# 7.1 契约层迁移规则（`catvod` + `player` 模块）
+# 7.1 契约层迁移规则（`catvod`；~~`player` 模块~~ 已随 D12 改为整体替换删除，本节对其不再适用）
 
 > 目标 = **源码 Kotlin 化、产物签名不动**。这一节的每条都对应一个「机械转换必踩」的产物差异，逐类核对，违反即驳回。
+> **2026-10-05 修订**：下表继续适用于 `catvod`（M9）与 D9 Tier B 静态面；`player` 模块部分作废（M10 整体删除，无守恒对象，其源码仅作 M7 的移植参照）。
 
 | # | 规则 | 为什么（对应的产物差异） |
 | --- | --- | --- |
-| a | **类保持 `open class`**，禁止 `object`/`data class`/`interface` 化 | Kotlin 类与方法默认 `final`；jar/AAR 子类继承或覆盖 → 类加载期 `VerifyError: overrides final method`（`Spider` 被子类 jar 继承、`BaseVideoController` 被 `dkplayer-ui` 继承） |
+| a | **类保持 `open class`**，禁止 `object`/`data class`/`interface` 化 | Kotlin 类与方法默认 `final`；jar/AAR 子类继承或覆盖 → 类加载期 `VerifyError: overrides final method`（`Spider` 被子类 jar 继承；原 `BaseVideoController` 被 `dkplayer-ui` 继承一例随 D12 作废） |
 | b | Java 的非 `final` 方法一律 `open`（含 `protected` 钩子：`initView`/`getLayoutId`/`onLockStateChanged`/`onVisibilityChanged`/`onPlayerStateChanged`/`onPlayStateChanged`） | 同 a |
 | c | Java `static` 方法 → `companion object` + `@JvmStatic`；Java `static` 字段 → `companion object` + `@JvmField` | 默认产物是 `X.INSTANCE.m()` / 静态 getter，jar 按 `X.m()` / `X.f` 访问 → `NoSuchMethodError`/`NoSuchFieldError` |
 | d | **禁止**用顶层函数 / extension / `object` 单例替代静态类 | 会生成 `XxxKt.m()` 或 `X.INSTANCE.m()` |
@@ -321,7 +359,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 | i | 包名、类名、方法名、字段名一字不改（`xyz.doikki.videoplayer.*`、`com.github.catvod.*`，含 `JarLoader` 里的 FQCN 字符串与 `JsLoader` 的 `com.github.catvod.js.Function`/`Method`） | 名字本身就是契约 |
 | j | 校验方式：`javap -p -s` **逐类**比对描述符（迁移前后各取一次，Java 产物在 `app/build/intermediates/javac/**`、Kotlin 产物在 `app/build/tmp/kotlin-classes/**`），并 **debug 与 release 各跑一次** | `-keep com.github.tvbox.osc.**`/`com.github.catvod.**` 只保证不混淆，不保证迁移没改签名；release 才暴露 keep 规则覆盖不足 |
 
-- **先决条件**：契约层迁移开始前，先把「镜像」拿到手（真实 spider jar 2–3 个；`player` 模块则为删除 `dkplayer-ui` 死依赖，见 M10 前置），否则 `javap` 只有一侧可比。
+- **先决条件**：契约层迁移开始前，先把「镜像」拿到手（真实第三方 spider jar 2–3 个，M9 用），否则 `javap` 只有一侧可比。`player` 模块已改为整体删除（D12），无此项。
 
 # 8. 验证与回滚
 
@@ -330,10 +368,11 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - 纯搬迁步（同语言移动/改名/原样搬）→ `-Action multiset`（`git show HEAD:旧文件` 逐行去空白多重集，**新旧任一侧有增删都算违规**）+ `-Action methods`（只认声明形态的方法级存在性检查）。
   - Java→Kotlin 迁移步 → `-Action tokens`（标识符/字符串/数字字面量多重集，**判据只看「旧有新无」**；「新有旧无」为参考项。已知盲区：与关键字同名的标识符两侧都被剔除，靠编译/`methods`/`javap` 兜）。
   - 语义转换步（M4a）→ 先补单测锁行为再改实现（V2/V4 教训：真值表先行、检查判据前早退分支、检查自建 CoroutineScope 的 Dispatcher 与 cancel 打到谁）。
-- **护栏 ② 迁移 ≠ 重构**：迁移步只做语言等价转换 —— 禁改逻辑、禁改命名、禁收紧可见性（`private`→`public` 必须登记理由）。要改逻辑/结构单独立项；`git diff` 里出现与本步无关的行为改动即驳回。
-- **字节码卡口**：用 `javap -p -s`（描述符视角，不是 `-c` 指令流）逐类比对 —— 脚本 `-Action javap -Snapshot/-Baseline` 已封装取产物与逐类比对（Java 产物在 `app/build/intermediates/javac/**`、Kotlin 产物在 `app/build/tmp/kotlin-classes/**`，两处都要取）；**快照前必须重跑对应变体构建**（产物目录会残留已删源码的陈旧 `.class`：2026-10-05 实测 release 目录里还有 3 个已删类的 `ProtectedInitJar*`；脚本对同名类跨目录会告警）；涉及公开签名/契约的里程碑（M1/M2/M5/M6b/M7/M9/M10）必须在 **debug 与 release 各跑一次**（release 才暴露 keep 规则覆盖不足；`-keep class com.github.tvbox.osc.**`/`com.github.catvod.**` 只保证不混淆）。V5 教训：`initView` 的指令序也要看，必要时 `-c` 补验。
+- **护栏 ② 迁移 ≠ 重构**：迁移步只做语言等价转换 —— 禁改逻辑、禁改命名、禁收紧可见性（`private`→`public` 必须登记理由）。要改逻辑/结构单独立项；`git diff` 里出现与本步无关的行为改动即驳回。**唯一新增例外：播放栈替换（M7 / D12）**——授权结构改写，但仍须逐类对照行为、禁夹带无关逻辑改动。
+- **字节码卡口**：用 `javap -p -s`（描述符视角，不是 `-c` 指令流）逐类比对 —— 脚本 `-Action javap -Snapshot/-Baseline` 已封装取产物与逐类比对（Java 产物在 `app/build/intermediates/javac/**`、Kotlin 产物在 `app/build/tmp/kotlin-classes/**`，两处都要取）；**快照前必须重跑对应变体构建**（产物目录会残留已删源码的陈旧 `.class`：2026-10-05 实测 release 目录里还有 3 个已删类的 `ProtectedInitJar*`；脚本对同名类跨目录会告警）；涉及公开签名/契约的里程碑（M1/M2/M5/M6b/M9）必须在 **debug 与 release 各跑一次**（release 才暴露 keep 规则覆盖不足；`-keep class com.github.tvbox.osc.**`/`com.github.catvod.**` 只保证不混淆）；**M7（A 路线）已无签名守恒对象，但同样必须 debug + release 双构建** —— R8 决定 `media3-effect` 反射查找与效果链是否可用。V5 教训：`initView` 的指令序也要看，必要时 `-c` 补验。
 - **D9 Tier B 清单（M0 实测 11 个符号）**：`osc.server.{ControlManager,RemoteServer}`、`osc.util.{AppContextHolder,FileUtils,KV,LanguageManager,LOG,MD5,OkGoHelper,StringUtils}`、`osc.util.SSL.SSLSocketFactoryCompat`；这些宿主静态面被 `catvod` 反向引用，改动须调用点成对完成（`-Action tierb` 可重新生成）。
-- **契约层专项**：M9/M10 的判定见 §7.1 与附录 C；M9 另需真实第三方 jar 回归（jar 源/js 源/py 源各一）。
+- **契约层专项**：仅 M9（`catvod`）的判定见 §7.1 与附录 C；M9 另需真实第三方 jar 回归（jar 源/js 源/py 源各一）。`player` 模块已无契约判定（D12：整体删除）。
+- **播放栈替换专项（M7 / D12）**：验收三层 = ① 构建（debug + release）；② 单测（不低于 536 基线，新增按切片补）；③ 真机走查（`avbox-playback-service-spec.md` §4 全清单 1–14 + M7 节「必须承接」四条清单）。逐类重写的移植对照走 `tokens` 卡口（判据只看「旧有新无」），新写类以单测 + 行为清单兜底；doikki 源码在 M10 前保留 ⇒ 双栈并存、任一切片可回退。
 - 每切片一 commit，可独立回滚；不推远程除非明确许可。
 
 # 9. 优先级与排期
@@ -348,20 +387,20 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 | M5 | ApiConfig 门面（✅ 已执行 2026-10-05） | 高 | M4 |
 | M6 | subtitle/util 剩余 Java（**subtitle 22 个 ✅ `dabd7ff`；util 45 个 ✅ `aada31b`；追加 2 个 ✅ 已迁完 —— 全部 2026-10-05 完成**） | 中 | M4 |
 | M6b | base/server/dlna/event/receiver（17）+ `com.p2p` + `python sourceSet`（**23 个 ✅ 已执行 2026-10-05，6 笔 commit + 1 笔审查轮修复**） | 中-高 | M6 |
-| M7 | 播放层（app 内 player/） | 最高 | 播放真机走查稳定后 |
+| M7 | **播放栈自研替换（A 路线/D12）：建替代栈 + app 内 `player/` 36 与 `ui/player/` 4 重写**（**M7-0 ✅ 删 `dkplayer-ui`；M7a ✅ 新内核适配层已执行 2026-10-05**） | 最高 | 播放真机走查稳定后；M7-0 删 `dkplayer-ui` |
 | M8 | `osc` 主包收尾（不含契约层） | — | M1–M7 |
 | M9 | `com/github/catvod`（24，Tier A） | 高 | M8 + 真实 jar 备好 |
-| M10 | `player` 模块（27，`xyz.doikki`） | 高 | M8 + `dkplayer-ui` 去留拍板 |
+| M10 | **旧骨架拆除：`player` 模块（27）+ `dkplayer-ui` + `xyz.doikki` 残留清零** | 低 | M7 全切片 + 走查稳定（D12 已拍板删除；不依赖 M8/M9） |
 | M11 | 终审：全库自有源码零 Java | — | 全部 |
 
-- 建议节奏：M0→M1+M2+M3（一轮，练手+建立卡口）→ M4（独立一轮，最高语义风险）→ M5/M6/M6b → 播放层走查稳定后 M7 → M8 → **M9/M10（契约层，独立一轮）** → M11。
-- **注意**：M1/M2/M3 相互独立可并行推进；M4 严格串行在 M2/M3 之后（依赖 Repository 与叶子迁完）；M7 严格最后（app 内）；**M9/M10 在 M8 之后，且必须单独一轮、逐个类比对** —— 这一轮的失败模式是「启动正常、点开某类源/某个播放路径才崩」，混在其它改动里无法归因。
-- **M9 与 M10 的破坏暴露面不同**：M10 的调用点全在仓库内、**同一构建**，破坏在编译期暴露（如 `protected` 字段退化成 getter）；M9 的调用点是**预编译二进制**，破坏只在运行时加载该 jar 时暴露 —— 所以 M9 的 `javap` 卡口与真实 jar 回归缺一不可。
+- 建议节奏：M0→M1+M2+M3（一轮，练手+建立卡口）→ M4（独立一轮，最高语义风险）→ M5/M6/M6b → 播放走查稳定后 **M7（A 路线替换，独立一轮）** → M8 → **M9（契约层，独立一轮）** → M10（拆除；可提前到 M7 走查通过后）→ M11。
+- **注意**：M1/M2/M3 相互独立可并行推进；M4 严格串行在 M2/M3 之后（依赖 Repository 与叶子迁完）；M7 必须等播放真机走查收口后再动；**M9 在 M8 之后，且必须单独一轮、逐个类比对** —— 其失败模式是「启动正常、点开某类源才崩」，混在其它改动里无法归因；**M10 是纯拆除**，可与 M8/M9 并行或提前（推荐 M7 走查通过后尽早做，以结束双栈并存期）。
+- **M7 与 M9 的破坏暴露面不同**：M7 的调用点全在仓库内、**同一构建**，破坏在编译期与走查期暴露（且 doikki 源码在 M10 前保留 = 回退面）；M9 的调用点是**预编译二进制**，破坏只在运行时加载该 jar 时暴露 —— 所以 M9 的 `javap` 卡口与真实 jar 回归缺一不可。
 
 # 附录 A. 度量口径（可复现）
 
-- 语言构成（口径 = **仓库自有源码**，排除 `示例文件/`、`build/`、测试）：`Get-ChildItem app\src\main\java -Recurse -Include *.java,*.kt -File | Group-Object Extension | Select Name,Count`；契约层另计 `Get-ChildItem player\src -Recurse -Include *.java,*.kt -File`、`...\com\github\catvod` 与 **`app\src\python\java`（M0 补入的 Chaquopy sourceSet）**。终态判据 = 这四处 Java 计数均为 0（依赖产物不计）。**实测轨迹**：M0 = 204 / 146（main）、27 / 0（player）、5（python sourceSet）；M1 后 183/167；M2 后 174/179；M3 后 166/187；M4b 后 159/194；M5 后 151/202；M6 subtitle 批次后 = 129 / 224（main）；**M6 util 批次后 = 84 / 269（main）**；**M6 追加批次后 = 82 / 271（main）**；**M6b 后 = 64 / 289（main）**、27（player）、24（catvod）、**0（python sourceSet，已清零）**、**0（`com/p2p`，已随 M6b 迁完）**。
-- **`app/src/main/java` 剩余 64 个 Java 的归属（2026-10-05 M6b 后盘点，逐包核对）**：`player` 36（含 `player/`24 + `thirdparty`4 + `usecase`3 + `render`2 + `danmu`2 + `controller`1 → M7）+ `ui/player` 4（M7）+ `catvod` 24（M9）= 64 ✓ 无遗漏、无重叠（`dlna`7/`server`4/`event`2/`receiver`2/`base`2 + `com/p2p` 1 已随 M6b 迁完；`app/src/python/java` 5 个也已随 M6b 迁完）。
+- 语言构成（口径 = **仓库自有源码**，排除 `示例文件/`、`build/`、测试）：`Get-ChildItem app\src\main\java -Recurse -Include *.java,*.kt -File | Group-Object Extension | Select Name,Count`；契约层另计 `Get-ChildItem player\src -Recurse -Include *.java,*.kt -File`、`...\com\github\catvod` 与 **`app\src\python\java`（M0 补入的 Chaquopy sourceSet）**。终态判据 = 这四处 Java 计数均为 0（依赖产物不计）。**实测轨迹**：M0 = 204 / 146（main）、27 / 0（player）、5（python sourceSet）；M1 后 183/167；M2 后 174/179；M3 后 166/187；M4b 后 159/194；M5 后 151/202；M6 subtitle 批次后 = 129 / 224（main）；**M6 util 批次后 = 84 / 269（main）**；**M6 追加批次后 = 82 / 271（main）**；**M6b 后 = 64 / 289（main）**、27（player）、24（catvod）、**0（python sourceSet，已清零）**、**0（`com/p2p`，已随 M6b 迁完）**。**播放栈替换口径（D12，2026-10-05）**：`player` 模块 27 与 `ui/player` 4 **退出迁移对象** —— 前者随 M10 删除（判据 = `player/` 目录与 Gradle include 均不存在，而非「Java 计数为 0」）、后者随 M7 重写；另加一条终态断言 = `app/src`（`player` 模块自身除外）无 `xyz.doikki` 引用。
+- **`app/src/main/java` 剩余 64 个 Java 的归属（2026-10-05 M6b 后盘点，逐包核对）**：`player` 36（含 `player/`24 + `thirdparty`4 + `usecase`3 + `render`2 + `danmu`2 + `controller`1 → **M7 重写，非迁移**）+ `ui/player` 4（**M7 重写，非迁移**）+ `catvod` 24（M9）= 64 ✓ 无遗漏、无重叠（`dlna`7/`server`4/`event`2/`receiver`2/`base`2 + `com/p2p` 1 已随 M6b 迁完；`app/src/python/java` 5 个也已随 M6b 迁完）。
 - 行数：`Get-ChildItem -Recurse -Include *.java,*.kt -File app\src\main | ForEach-Object { [pscustomobject]@{ Lines=[IO.File]::ReadAllLines($_.FullName).Count; Rel=$_.FullName } } | Sort-Object Lines -Descending`
 - `ApiConfig.get()` 门面依赖面：`Select-String 'ApiConfig\.get\(\)'` 全库。
 - `observeForever` 面：`Select-String '\.observeForever\('` 全库（M4a/M7 收口追踪）。
@@ -369,7 +408,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 
 # 附录 B. 关键代码坐标（执行时直接定位）
 
-- 源取数门面与 Loader（**M4b 后全为 Kotlin**）：`sourcedata/SourceViewModel.kt`（门面，7 通道）、`sourcedata/SourceChannel.kt`（通道：Flow 主面 + LiveData 兼容面）、`sourcedata/{SortLoader,ListLoader,DetailLoader,SearchLoader,PlayLoader}.kt`、`sourcedata/SourceHelper.kt`（`SPIDER_POOL`/`PREPARE_POOL`/`siteGet`）、`sourcedata/SourceRuntimeState.kt`（`sortCache`/`extendCache`）。~~`sourcedata/LiveDataFlow.kt`（`observeAsFlow` 桥）~~ 已于 M4a 删除。**`sourcedata/SubtitleViewModel.kt` 已随 M6 追加批次迁 Kotlin**（317 行 Java → Kotlin；`MutableLiveData` 保留到 M7 播放层收口）。
+- 源取数门面与 Loader（**M4b 后全为 Kotlin**）：`sourcedata/SourceViewModel.kt`（门面，7 通道）、`sourcedata/SourceChannel.kt`（通道：Flow 主面 + LiveData 兼容面）、`sourcedata/{SortLoader,ListLoader,DetailLoader,SearchLoader,PlayLoader}.kt`、`sourcedata/SourceHelper.kt`（`SPIDER_POOL`/`PREPARE_POOL`/`siteGet`）、`sourcedata/SourceRuntimeState.kt`（`sortCache`/`extendCache`）。~~`sourcedata/LiveDataFlow.kt`（`observeAsFlow` 桥）~~ 已于 M4a 删除。**`sourcedata/SubtitleViewModel.kt` 已随 M6 追加批次迁 Kotlin**（317 行 Java → Kotlin；`MutableLiveData` 保留到 M7 播放栈收口）。
 - Room 域（**M6 追加批次后全为 Kotlin**）：`data/AppDataManager.kt`（`object` + `@JvmStatic`，`init`/`get`/backup/restore）、`data/AppDataBase.kt`、`data/{VodRecordDao,VodCollectDao,CacheDao}.kt`、`data/{HistoryRepository,CollectRepository,CacheRepository}.kt` + `Room*Repository`（`RoomDataManger`/`CacheManager` 两个 Java 门面已于 M2 删除）、`data/AppGraph.kt`（装配点）。
 - 配置门面（**M5 后全为 Kotlin**）：`api/ApiConfig.kt`（**实测 1054 行**，计划旧值 1089 作废）、`api/{ConfigParser,ConfigLoader,ConfigApplier,SpiderLoader,WarmQueue,ProxyEntry,DanmakuApi}.kt`。
 - 模型（**M1 后全为 Kotlin**）：`bean/` 21 个 `.kt`（`AbsJson`/`AbsXml`/`AbsSortXml`/`Movie`/`MovieSort`/`SourceBean`/`VodInfo` 等）。
@@ -377,15 +416,15 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - 半 Repository 工具（**M6 util 批次后全为 Kotlin**）：`util/{HistoryHelper,TrackMemory}.kt`、`util/{HistoryMerge,HistoryWriter,WatchProgressStore,PlaybackProgress}.kt`。
 - `util` 包（**M6 util 批次后全为 Kotlin，45 个 `.kt` + 原有 25 个 = 70 个**）：根 32 个（`LOG`/`KV`/`FileUtils`/`OkGoHelper`/`M3u8`/`Proxy`/`PlayerHelper`/`RemoteTVBox`/`BootGuard`/`DefaultConfig`/`VideoParseRuler`/`ImgUtil`/`TrackMemory`/`HistoryHelper`/`SearchHelper`/`SubtitleFilePicker`/`SubtitleHelper`/`AppContextHolder`/`AppManager`/`AES`/`AdBlocker`/`CoilBridge`/`DanmuHelper`/`EpgUtil`/`FastClickCheckUtil`/`GestureHelper`/`HawkConfig`/`LocalIPAddress`/`PermissionHelper`/`ScreenUtils`/`UA`/`UnicodeReader`）+ 子包 `kv/{KVCodec,KVKeySpec}`、`kvcodec/{KVDecoder,KVLog}`、`live/TxtSubscribe`、`net/{OkProxySelector,ProxyAuthenticator}`、`parser/{Utils,JsonParallel,SuperParse}`、`thunder/{Thunder,Jianpian}`、`SSL/SSLSocketFactoryCompat`。
 - M0 补入对象（原附录未登记）：`com/p2p/P2PClass.java`（JNI 包装，归 M6b）；`app/src/python/java/` 的 5 个 Java —— `com/github/catvod/crawler/pyLoader.java`（被 `osc/api/SpiderLoader.java` 编译期 import）、`com/undcover/freedom/pyramid/{PyLog,PythonLoader,PythonSpider,PyToast}.java`（`PythonSpider extends Spider`）；该目录由 `app/build.gradle.kts` 的 `sourceSets.getByName("main") { java.directories += "src/python/java" }` 挂进 main。
-- 播放层（app 内）：`player/PlaybackController.java` + V5/V5b 拆出的 8 个协作者（`PlaybackTimeouts`/`PlaybackPreload`/`PlaybackFetch`/`MusicSessionDelegate`/`PlaybackConfigDelegate`/`PlaybackRetryDelegate` 等）、`player/usecase/`、`ui/player/TrackSelectorDelegate.java`。
-- `player` 模块（M10 对象，27 个 Java）：`player/src/main/java/xyz/doikki/videoplayer/{player,controller,exo,render,util}/*`；关联二进制 = `xyz.doikki.android.dkplayer:dkplayer-ui:3.3.7`（**已失效的死依赖，待删**，见 M10 前置）；native = `player/src/main/jniLibs/arm64-v8a/*.so`。
+- 播放层（app 内，**M7 重写对象**：逐类对照移植，类型面从 `AbstractPlayer`/`VideoView` 换成 media3 `ExoPlayer`）：`player/PlaybackController.java` + V5/V5b 拆出的 8 个协作者（`PlaybackTimeouts`/`PlaybackPreload`/`PlaybackFetch`/`MusicSessionDelegate`/`PlaybackConfigDelegate`/`PlaybackRetryDelegate` 等）、`player/usecase/`、`ui/player/TrackSelectorDelegate.java`。
+- `player` 模块（**A 路线下为删除对象**；27 个 Java / 5313 行）：`player/src/main/java/xyz/doikki/videoplayer/{player,controller,exo,render,util}/*`；关联二进制 = `xyz.doikki.android.dkplayer:dkplayer-ui:3.3.7`（**死依赖，M7-0 删除**）；native = `player/src/main/jniLibs/arm64-v8a/*.so`（已空）。**M7 的移植参照**：1213 行 media3 适配（`exo/{ExoMediaPlayer,ExoMediaSourceHelper,OkHttpDataSource,HlsErrorHandlingPolicy}`）→ 原样承接；~3940 行骨架（`player/VideoView` 1308、`controller/BaseVideoController` 685、`controller/ControlWrapper` 275、`player/AbstractPlayer` 212、`render/TextureRenderView` 180 等）→ 行为对照后重写。
 - `catvod` 契约包（M9 对象，24 个 Java）：`com/github/catvod/crawler/Spider`（`open class` + `empty`/`siteKey`/`mContext`）、`crawler/SpiderApi`、`crawler/JarLoader`（FQCN 字符串契约）、`crawler/JsLoader`、`net/OkHttp`、`Proxy`。
 - 宿主被冻结包反引用的静态面（D9 Tier B）：`osc.util.{LOG,MD5,FileUtils,StringUtils,KV,OkGoHelper,LanguageManager}`、`osc.util.AppContextHolder`、`osc.server.{ControlManager,RemoteServer}`（清单由 `Select-String 'import com\.github\.tvbox\.osc\.'` 在 `catvod` 下生成）。**M3/M5/M6-util 后 `MD5`/`StringUtils`/`LanguageManager`/`LOG`/`FileUtils`/`KV`/`OkGoHelper`/`AppContextHolder` 已全为 Kotlin**，静态调用形态由 `object` + `@JvmStatic`/`@JvmField` 保住（`javap` 实证）；剩余 `osc.server.{ControlManager,RemoteServer}` 属 M6b。**另注：`AppManager.getInstance()` 被 `catvod/crawler/SpiderApi.java:63` 以 FQCN 静态调用（脚本按 `import` 生成清单时会漏掉它）—— 已随 M6 util 批次迁完并保住静态形态。**
 
-# 附录 C. 契约清单（M9/M10 的 `javap -p -s` 比对对象）
+# 附录 C. 契约清单（M9 的 `javap -p -s` 比对对象；~~M10/`player` 模块~~ 已随 D12 作废）
 
 > 用法：迁移前从**当前 Java 产物**导出一次基线，迁移后逐类比对；任一类出现新增/消失/描述符变化即驳回。
 
 - **M9（catvod，24 个）**：重点类 = `crawler/Spider`（构造器/`init`/`initApi`/`homeContent`/`homeVideoContent`/`categoryContent`/`detailContent`/`searchContent`/`playerContent`/`destroy`/`action` + 字段 `empty`/`siteKey`/`mContext`）、`crawler/SpiderApi`（全部 public 方法）、`Proxy.set(int)`、`crawler/SpiderDebug`、`net/OkHttp`。
-- **M10（player 模块，27 个）**：重点类 = `player/VideoView`（字段 `mVideoController`；`setVideoController`/`getVideoController`）、`controller/BaseVideoController`（字段 `mControlWrapper`；`protected` 钩子 `initView`/`getLayoutId`/`onLockStateChanged`/`onVisibilityChanged`/`onPlayerStateChanged`/`onPlayStateChanged`）、`controller/{IControlComponent,IGestureComponent,IVideoController,MediaPlayerControl}`（接口方法集）、`player/{AbstractPlayer,VideoViewManager,VideoViewConfig}`、`exo/*`、`render/*`、`util/PlayerUtils`（Java 静态方法被 Kotlin 以 `import ...PlayerUtils.stringForTime` 形式使用）。
-- **M6b / M7 连带项**：`osc.base.App`（`getInstance()` 静态形态、`attachBaseContext`）、`osc.server.ControlManager`/`RemoteServer`（被 catvod 引用）—— **M6b 已完成**（`javap` 双变体零公开成员消失、Tier B 11 符号未变、JNI 26/26 保住；见规范 §7.12）；M7 项待做。
+- ~~**M10（player 模块，27 个）**~~ **已作废（D12，2026-10-05）**：模块整体删除、不迁移，无 `javap` 守恒对象；其源码（`player/VideoView` 1308 行、`controller/BaseVideoController` 685 行、`exo/*`、`render/*` 等）仅作 M7 的移植/行为对照参照。
+- **M6b / M7 连带项**：`osc.base.App`（`getInstance()` 静态形态、`attachBaseContext`）、`osc.server.ControlManager`/`RemoteServer`（被 catvod 引用）—— **M6b 已完成**（`javap` 双变体零公开成员消失、Tier B 11 符号未变、JNI 26/26 保住；见规范 §7.12）；**原「M7 项」随 D12 退出契约清单**（播放栈整体替换，无签名守恒对象；但新栈仍须保住 `App.getInstance()`/Tier B 这些**宿主静态面**的既有形态，那不是播放栈的一部分）。

@@ -468,6 +468,27 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **未验证面（诚实标注）**：真机走查未做 —— 启动、局域网服务地址/端口与五条路由、DLNA 投屏、广播接收、P2P 原生库、py 源加载（详见审查报告 §6）。
 
+# 7.13 M7a 实测登记（2026-10-05，播放栈自研替换：M7-0 + 新内核适配层 `osc.player.engine`）
+
+**结论**：M7-0 删 `player/build.gradle.kts` 的 `api(libs.dkplayer.ui)`（死依赖，全库源码零 `xyz.doikki.videocontroller` 类引用；toml 项留 M10 删）；M7a 新建 **`com.github.tvbox.osc.player.engine`** 包 9 个 Kotlin 文件 = 移植 4 件（`OkHttpDataSource`/`HlsErrorHandlingPolicy`/`MediaSources`/共享缓存委派 `PlayerCache`）+ 装配 2 件（`EngineRenderersFactory`/`PlayerEngine`）+ 策略 3 件（`SourcePolicy`/`CodecPreferences`/`NetworkSpeed`），另 4 个单测文件。`:app:assembleDebug` + `:app:assembleRelease` 绿；`:app:testDebugUnitTest` **569 用例 / 0 失败 / 0 错误 / 0 跳过（74 suite）**（536 基线 + 33 新增）。**M7a 不接 UI/不接调用方（双栈并存，doikki 仍是回退面）**，新旧共享状态收口 2 处：旧 `ExoPlayer.setPreferSoftwareDecode/isPreferSoftwareDecode` 改读写 `CodecPreferences`（选择器同源）、app 侧 `PlayerCache` 反向委派旧 `ExoMediaSourceHelper`（模块依赖方向 app→player）。独立子代理逐类对照复核（18 条结论）：**1 阻断 + 1 高（同根因）+ 6 中低全部已修**，2 条登记（私改公为单测、`usesExoSelector` 日志恒真）。
+
+**本切片现场核实出的规则（M7b–M7f 照查）**：
+
+1. **Kotlin override Java 方法的参数必须声明为非空**（平台类型不许写 `?`）：`DefaultRenderersFactory.buildVideoRenderers/buildTextRenderers` 的 `Handler`/`VideoRendererEventListener`/`TextOutput`/`Looper` 写可空会直接报 `NOTHING_TO_OVERRIDE`；插桩风险已核实为零 —— media3 内部传 `new Handler(looper)` 与 `componentListener`，恒非空。
+2. **Kotlin 不能直接访问"继承来的 Java 静态常量"**：`MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY` 必须写 `DefaultRenderersFactory.XXX`。
+3. **`val x = f().also { … 读 x … }` 陷阱（本轮抓到阻断级真缺陷）**：`also` 块先于赋值执行 ⇒ 块内 `internalPlayer` 仍是 null，`applyPlaybackParameters()`/`disableFrameRateMatching()`/`applyFrameRateTracking()` 三处全部空转（隧道/AAC 偏好/帧率匹配静默失效）。**正解 = 先 `val exo = createPlayer(); internalPlayer = exo;` 再逐项下发**（旧 doikki `super.initPlayer()` 先建实例的顺序）。
+4. **`C.LENGTH_UNSET` 是 Int**：Kotlin 里与 `Long` 比较/赋值要显式 `.toLong()`（`dataSpec.length != C.LENGTH_UNSET.toLong()`），Java 的隐式提升不再成立。
+5. **`InvocationHandler.invoke` 的 `args` 是 `Array<out Any>?`**（不可写）：要改元素需 `@Suppress("UNCHECKED_CAST") (args as Array<Any>).clone()`；`method.invoke(renderer)` 与 `method.invoke(renderer, *invokeArgs)` 必须分两支（Kotlin 不能把 null 数组展开成"无参调用"）。
+6. **JVM 单测（`isReturnDefaultValues`）里 `Uri`/`Bundle`/`TextUtils` 全是桩**：依赖 `Uri.parse` 的路径判定（`/live.php`、`/live/`）、`TextUtils.isEmpty` 的空键过滤、Bundle 序列化（`buildMediaItem`/`getHeadersFrom`）**都不可 JVM 测**；`PlaybackException(message, cause, code, Bundle())`（4 参）可构造（3 参构造走 `Bundle.EMPTY` 桩 null 会被内部 `checkNotNull` 拒绝）；`LoadErrorInfo` 链上要 `DataSpec`/`Uri` ⇒ HLS 策略的重试延迟/fallback 分支同样不可 JVM 测（只测 `isChunkError` 与重试次数）。
+7. **跨模块依赖方向**：`player` 模块不能引用 app 的类（`com.github.tvbox.osc.*`）。共享缓存的实现只能留在 `ExoMediaSourceHelper`，app 侧 `PlayerCache` 做反向委派；**M10 拆除 player 模块时把实现整体搬进 `PlayerCache`（唯一改动点）**。
+8. **`setDisplay` 的自动补发是承重行为**：旧 `ExoPlayer.setDisplay` 在 `super.setDisplay` 后按 `holder.getSurfaceFrame()` 补发 `MSG_SET_VIDEO_OUTPUT_RESOLUTION`（SurfaceView 路径唯一补发点，漏发 = 效果管线黑屏）；新层必须照做，且 `reset()` 会把 `playWhenReady` 停到 false —— 复用内核起播须补 `setOptions()`（旧链路 `reset → setOptions → prepare`）。
+9. **配置默认值要对齐"旧缺键口径"而非 media3 默认**：`bufferTimes` 缺省 = `HawkConfig.BUFFER_TIMES_DEFAULT`（3），不是 1（写 1 会让 M7c 漏传时缓冲缩到 1/3）。
+10. **新层遗漏项已补**：`getTcpSpeed()`（旧 `PlayerUtils.getNetSpeed`，OSD 网速）→ `NetworkSpeed`（TrafficStats 差值法，脱离 doikki 依赖）；`MediaSources` 构造即归一 `applicationContext`（旧单例的防泄漏语义）；client 未注入时回落 `OkGoHelper.getItvClient()`（旧栈全局注入，避免静默走裸 client 丢 DoH/hosts/代理/SSL）。
+
+**M7a 未承接 / M7b–M7f 待接线清单（登记，防丢）**：① 渲染宿主（Surface/Texture 双模式、`setVideoSurface`/`setDisplay` 调用、尺寸/比例/挖孔、音频焦点、进度保存）；② 状态机与事件面（`onPrepared`/`RENDERING_START`/`BUFFERING_*`/completion/error、`videoSizeListener` 与 `ErrorListener` 是现成钩子）；③ 接线面 = `PlayerEngineConfig` 全字段 + `setDataSource(..., isLive = KV<PLAYER_IS_LIVE>)` + `setContentKey`/`setUseDiskCache`/`setStartPosition`（旧 `MyVideoView` 注入路径）；④ `PictureEffects` 接线（`onPrepare`/`onPlayerReleased`，参数类型待在 M7c 改为新引擎类型；`PictureEffects` 现仍面向旧 `ExoPlayer`）；⑤ `OkGoHelper.initExoOkHttpClient` 的 `setOkClient` 注入点（M7c/M7f 改指向 `MediaSources`）；⑥ `FileUtils` 清缓存目录名与共享缓存实现搬迁（M10）。
+
+**未验证面（诚实标注）**：M7a 不接 UI ⇒ 真机走查无从执行，门 = 双变体构建 + 569 单测 + 逐类对照复核；新栈的起播/渲染/效果/字幕/轨道全部行为留待 M7b/M7c 切换后随 `avbox-playback-service-spec.md` §4 清单走查。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。
