@@ -37,15 +37,20 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     /** 手势提示的种类(用于"换模式时撤下另一套") */
     private enum class HintKind { NONE, SEEK, SLIDE }
 
-    /** 切到 seek 提示:若屏上还是亮/音量提示,先撤下 */
+    /**
+     * 切到 seek 提示:撤下亮/音量提示。
+     *
+     * <p>判据用**屏上真实状态**(而非"最近展示过什么"):状态位是 1 秒后自动隐藏的,
+     * 期间又可能开始了新的手势会话,"最近展示过"会与实际不符。
+     */
     private fun showSeekHintOnly() {
-        if (shownHint == HintKind.SLIDE) host.hideSlideHint()
+        if (host.state.slideHintVisible) host.hideSlideHint()
         shownHint = HintKind.SEEK
     }
 
-    /** 切到亮/音量提示:若屏上还是 seek 提示,先撤下 */
+    /** 切到亮/音量提示:撤下 seek 提示(判据同上,以屏上真实状态为准) */
     private fun showSlideHintOnly() {
-        if (shownHint == HintKind.SEEK) host.hideSeekHint()
+        if (host.state.seekHintVisible) host.hideSeekHint()
         shownHint = HintKind.SLIDE
     }
 
@@ -109,7 +114,10 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
      */
     fun beginSession(width: Int, height: Int, screenWidth: Int, downY: Float): VideoGestureSession {
         seekTargetMs = -1
-        shownHint = HintKind.NONE
+        // ⚠️ 这里**不能**复位 shownHint:一次连续手势常被拆成多个会话(接线层每轮
+        // awaitEachGesture 都会重新 beginSession,真机日志可见 SEEK/BRIGHTNESS 交替出现)。
+        // 若按会话复位,"撤下另一套提示"就会以为屏上什么都没有而跳过 —— 于是两套提示并排显示。
+        // 提示状态是**跨会话**的,只在撤下时改变。
         // 基准在手势开始时取一次,整场手势复用(见字段注释)
         brightnessBase = host.playerActivity()?.window?.attributes?.screenBrightness?.let {
             if (it < 0f) 0.5f else it
