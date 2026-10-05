@@ -96,8 +96,9 @@ object PlayerUtils {
         }
     }
 
-    /** 屏幕高度(px);口径同 [getScreenWidth] */
-    private fun getScreenHeight(context: Context, isIncludeNav: Boolean): Int {
+    /** 屏幕高度(px);口径同 [getScreenWidth](手势层的边缘带判定要用) */
+    @JvmStatic
+    fun getScreenHeight(context: Context, isIncludeNav: Boolean): Int {
         return if (isIncludeNav) {
             context.resources.displayMetrics.heightPixels + getNavigationBarHeight(context)
         } else {
