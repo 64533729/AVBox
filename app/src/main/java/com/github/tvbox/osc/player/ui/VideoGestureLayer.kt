@@ -174,6 +174,13 @@ class VideoGestureHandler(
      */
     fun onMove(x: Float, y: Float, slop: Float): Boolean {
         val s = session ?: return false
+        // ⚠️ 长按(倍速)期间**任何**位移都不再进入滑动分支:
+        // 真机反馈"长按时手指轻微移动就会调进度/音量"。倍速是一次独占会话,
+        // 直到抬手为止都不该被滑动改写。
+        if (longPressed) {
+            lastX = x
+            return false
+        }
         lastX = x
         val dx = x - downX
         val dy = y - downY
@@ -393,11 +400,11 @@ fun Modifier.videoGestureLayer(
                     }
                 }
 
-                // 4. CANCEL 判定:下拉通知栏/来电等系统中断时,Compose 会直接把我们还在按的指针
-                //    置为 up,**全程没有 MOVE** —— 这正是与"正常抬手"的区别。
-                //    旧实现(CANCEL ⇒ 不提交 seek)靠的就是这个;丢了它就会把中断当成正常抬手,
-                //    于是横滑到一半下拉通知栏会被判成正常结束(实测:还会转去调音量)。
-                val cancelled = !sawMove
+                // 4. CANCEL 判定:抬手时**全程没有 MOVE**,说明不是用户正常结束手势
+                //    (正常抬手前系统一定会先发 MOVE 报位置)。
+                //    ⚠️ 但要排除长按:长按本来就是"手指不动",它自己的收尾会恢复倍速,
+                //    不能被误判成取消 —— 真机反馈过"长按倍速时手指一动就变成调音量"。
+                val cancelled = !sawMove && !handler.isLongPressing
 
                 val result = handler.endSession(cancelled, System.currentTimeMillis())
 

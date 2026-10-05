@@ -24,9 +24,11 @@ import com.github.tvbox.osc.util.PlayerUtils
  * 横滑=按满屏宽 `slideFullWidthMs` 缩放并 `seekTo`;竖滑左半屏亮度、右半屏音量。
  *
  * <p>**与旧实现的两处刻意差异**:
- * ① 亮度/音量基准改为**每个手势会话现取**(旧实现只在 `onDown` 取,同一会话内取一次;
+ * ① 横滑**只出提示文字,不驱动底部进度条**(照旧 `GestureController`;曾误设 `dragging` +
+ *    `seekPreviewPositionMs`,真机上表现为进度条白球缩放并整条左移);
+ * ② 亮度/音量基准改为**每个手势会话现取**(旧实现只在 `onDown` 取,同一会话内取一次;
  *   这里 [beginSession] 每次 DOWN 都会重取,语义与旧实现一致而不再跨会话串味);
- * ② 长按倍速的恢复**不依赖 ACTION_UP**:接线层在长按计时结束时就会调 [onLongPressEnd],
+ * ③ 长按倍速的恢复**不依赖 ACTION_UP**:接线层在长按计时结束时就会调 [onLongPressEnd],
  *    避免 CANCEL 时倍速停在 3.0x。
  */
 internal class VideoGestureActionsImpl(private val host: ComposeVideoController) : VideoGestureActions {
@@ -115,8 +117,6 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val width = host.width
         if (width <= 0) return
         val view = host.playerView ?: return
-        // 与拖动 seek 同口径进入"拖拽态":进度定时器据此丢弃这一拍
-        host.enterGestureSeek()
         val duration = PlayerUtils.safeTimeMs(view.duration)
         val current = PlayerUtils.safeTimeMs(view.currentPosition)
         // 右滑(deltaX > 0)= 前进;满屏宽对应 slideFullWidthMs
@@ -130,7 +130,6 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     override fun onSeekCommit() {
         val target = seekTargetMs
         seekTargetMs = -1
-        host.exitGestureSeek()
         if (target < 0) return
         host.seekToFromGesture(target.toLong())
         // 显式落盘:暂停态等不到下一跳,播放态也不该等到下一跳才更新历史页
@@ -139,7 +138,6 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
 
     override fun onSeekCancel() {
         seekTargetMs = -1
-        host.exitGestureSeek()
     }
 
     override fun onBrightnessSlide(totalDeltaY: Float) {

@@ -389,4 +389,55 @@ class VideoGestureHandlerTest {
         assertFalse("确认必须是空操作", h.markSingleTapConfirmed())
         assertEquals(listOf("singleTap"), r.calls)
     }
+
+    // ---------- 真机反馈 ③(2026-10-06):长按倍速期间位移不得改成滑动 ----------
+
+    /**
+     * 真机现象:长按画面倍速时,手指只要有轻微移动就会变成调进度或调音量。
+     *
+     * <p>正确逻辑:长按是一次**独占**会话 —— 直到抬手为止,任何位移都不该进入 seek/亮度/音量。
+     */
+    @Test
+    fun longPressOwnsTheSessionUntilRelease() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        assertTrue(h.maybeLongPress())
+        // 长按成立后的各种位移方向:都不该产生任何滑动动作
+        assertFalse("横移不该 seek", h.onMove(600f, 300f, slop = 8f))
+        assertFalse("竖移不该调亮度", h.onMove(300f, 500f, slop = 8f))
+        assertFalse("右半屏竖移不该调音量", h.onMove(800f, 500f, slop = 8f))
+        assertEquals("长按期间根本不该选出滑动模式", VideoGestureHandler.Mode.UNDECIDED, h.currentMode)
+        h.endSession(cancelled = false, nowMs = 1500L)
+        assertEquals(
+            "整个会话只应有倍速开始/恢复,不得夹带滑动动作",
+            listOf("longPressStart", "longPressEnd"),
+            r.calls,
+        )
+    }
+
+    /** 长按 + 位移后抬手:倍速必须恢复(不能因为位移被当成滑动而丢掉恢复) */
+    @Test
+    fun longPressStillRestoresAfterMovement() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.maybeLongPress()
+        h.onMove(700f, 400f, slop = 8f)
+        h.endSession(cancelled = false, nowMs = 1500L)
+        assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
+    }
+
+    /** 长按恢复后再抬手:不应被判成单击(不会多显隐一次控制条) */
+    @Test
+    fun longPressDoesNotBecomeATap() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.maybeLongPress()
+        h.endSession(cancelled = false, nowMs = 1500L)
+        assertFalse("长按不该留下待定单击", h.tapPending)
+        assertFalse(h.markSingleTapConfirmed())
+        assertTrue(r.calls.none { it == "singleTap" })
+    }
 }
