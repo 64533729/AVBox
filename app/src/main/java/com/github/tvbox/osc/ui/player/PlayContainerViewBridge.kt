@@ -69,7 +69,7 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
     override fun playbackHost(): PlaybackHostApi = container
 
     override fun requestNotificationPermission() {
-        val host = container.pageHost
+        val host = container.mPageHost
         val activity = container.mActivity
         if (host != null) {
             host.requestNotificationPermission()
@@ -125,7 +125,7 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
     }
 
     override fun onNewPlayStarted() {
-        container.exitingPreview = false
+        container.mExitingPreview = false
         container.mController?.onNewPlayStarted()
     }
 
@@ -275,6 +275,8 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         container.mController?.setPlayerConfig(cfg)
     }
 
-    override fun onLinesExhausted(): Boolean =
-        container.pageHost != null && container.pageHost.onPlaybackLinesExhausted()
+    override fun onLinesExhausted(): Boolean {
+        val host = container.mPageHost ?: return false
+        return host.onPlaybackLinesExhausted()
+    }
 }

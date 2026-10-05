@@ -36,11 +36,13 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
             )
     }
 
-    override fun toggleDanmu(): Boolean =
-        container.danmuLoadController != null && container.danmuLoadController.toggle()
+    override fun toggleDanmu(): Boolean {
+        val danmu = container.danmuLoadController ?: return false
+        return danmu.toggle()
+    }
 
     override fun showEpisodes() {
-        container.pageHost?.showEpisodeSheet()
+        container.mPageHost?.showEpisodeSheet()
     }
 
     override fun searchDanmuUi(longClick: Boolean) {
