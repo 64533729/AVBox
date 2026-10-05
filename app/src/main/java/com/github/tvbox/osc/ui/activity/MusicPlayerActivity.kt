@@ -51,7 +51,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.render.TextureRenderViewFactory
+import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 
 private const val POSITION_TICK_MS = 400L
 
@@ -570,7 +570,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         }
 
         override fun useTextureRenderForAudio() {
-            activity.player.setRenderViewFactory(TextureRenderViewFactory.create())
+            activity.player.setRenderViewFactory(EngineTextureRenderViewFactory.create())
         }
     }
 }

@@ -12,6 +12,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.view.ContextThemeWrapper;
 
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.player.host.EngineSurfaceRenderViewFactory;
+import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory;
 import com.github.tvbox.osc.player.usecase.PlayerSwitchUseCase;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.KV;
@@ -139,6 +141,11 @@ public final class PlaybackEngine implements PlaybackHostApi {
     private MyVideoView createPlayerView() {
         Context ctx = new ContextThemeWrapper(appContext, R.style.AppTheme_NoActionBar);
         MyVideoView view = new MyVideoView(ctx);
+        // M7b:无页面桥(HeadlessView)不会注入播放器配置,而引擎仍可能起播 —— 这里按全局设置给初始渲染宿主,
+        // 否则会落到 dooki 默认 Texture 工厂(新宿主的交面/输出尺寸钩子挂不上)。有页面时 PlayerHelper.updateCfg 覆盖本值。
+        view.setRenderViewFactory(KV.get(HawkConfig.PLAY_RENDER, 1) == 1
+                ? EngineSurfaceRenderViewFactory.create()
+                : EngineTextureRenderViewFactory.create());
         view.setExoDiskCacheEnabled(true);
         view.setProgressManager(progressManager);
         view.addOnStateChangeListener(new VideoView.SimpleOnStateChangeListener() {

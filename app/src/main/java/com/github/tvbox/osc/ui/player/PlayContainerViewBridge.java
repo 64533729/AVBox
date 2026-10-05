@@ -17,7 +17,7 @@ import com.github.tvbox.osc.util.PlayerHelper;
 import org.json.JSONObject;
 import java.util.HashMap;
 import xyz.doikki.videoplayer.player.AbstractPlayer;
-import xyz.doikki.videoplayer.render.TextureRenderViewFactory;
+import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory;
 
 final class PlayContainerViewBridge implements PlaybackViewBridge {
 
@@ -173,7 +173,7 @@ final class PlayContainerViewBridge implements PlaybackViewBridge {
 
     @Override
     public void useTextureRenderForAudio() {
-        if (container.mVideoView != null) container.mVideoView.setRenderViewFactory(TextureRenderViewFactory.create());
+        if (container.mVideoView != null) container.mVideoView.setRenderViewFactory(EngineTextureRenderViewFactory.create());
     }
 
     @Override

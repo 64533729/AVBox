@@ -11,6 +11,8 @@ import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory;
+import com.github.tvbox.osc.player.host.TextureRenderHost;
 import com.github.tvbox.osc.util.ImgUtil;
 
 import master.flame.danmaku.controller.DrawHandler;
@@ -19,7 +21,6 @@ import master.flame.danmaku.danmaku.model.DanmakuTimer;
 import master.flame.danmaku.ui.widget.DanmakuView;
 import xyz.doikki.videoplayer.player.AbstractPlayer;
 import xyz.doikki.videoplayer.player.VideoView;
-import xyz.doikki.videoplayer.render.TextureRenderView;
 import xyz.doikki.videoplayer.render.TextureRenderViewFactory;
 
 public class MyVideoView extends VideoView implements DrawHandler.Callback {
@@ -122,7 +123,7 @@ public class MyVideoView extends VideoView implements DrawHandler.Callback {
     }
 
     public void switchRenderToTexture() {
-        setRenderViewFactory(TextureRenderViewFactory.create());
+        setRenderViewFactory(EngineTextureRenderViewFactory.create());
         addDisplay();
     }
 
@@ -140,8 +141,8 @@ public class MyVideoView extends VideoView implements DrawHandler.Callback {
     @Override
     protected void addDisplay() {
         super.addDisplay();
-        if (mRenderView instanceof TextureRenderView) {
-            ((TextureRenderView) mRenderView).setOnSurfaceReadyListener(this::pushRenderOutputResolution);
+        if (mRenderView instanceof TextureRenderHost) {
+            ((TextureRenderHost) mRenderView).setOnSurfaceReadyListener(this::pushRenderOutputResolution);
         }
     }
 
@@ -165,8 +166,8 @@ public class MyVideoView extends VideoView implements DrawHandler.Callback {
         int width = mVideoSize[0];
         int height = mVideoSize[1];
         if (width <= 0 || height <= 0) return;
-        if (mRenderView instanceof TextureRenderView) {
-            ((TextureRenderView) mRenderView).setOutputSize(width, height);
+        if (mRenderView instanceof TextureRenderHost) {
+            ((TextureRenderHost) mRenderView).setOutputSize(width, height);
         }
         ((ExoPlayer) mMediaPlayer).notifyVideoOutputResolution(width, height);
     }

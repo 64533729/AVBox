@@ -161,6 +161,12 @@ class PlayerEngine(
     /** 视频尺寸变化(含 effects 打开时的 tracks 补报路径);unappliedRotationDegrees 无值时 0 */
     var videoSizeListener: VideoSizeListener? = null
 
+    /** 播放状态变化(media3 `Player.STATE_*`);桥与新状态机都从这里取事件(M7b) */
+    var playbackStateListener: ((Int) -> Unit)? = null
+
+    /** 解析类错误已改 HLS 源原地重试(旧 `ExoMediaPlayer.retryAsHls` 的回调点):桥据此重挂"等待 onPrepared"语义 */
+    var retryAsHlsListener: (() -> Unit)? = null
+
     /** 内核错误(内部已尝试的处理 —— 如 HLS 重试 —— 失败后才回调) */
     fun interface ErrorListener {
         fun onPlayerError(error: PlaybackException, kind: Int)
@@ -209,6 +215,7 @@ class PlayerEngine(
             if (playbackState == Player.STATE_READY) {
                 defaultSubtitleTrackSelectionClosed = true
             }
+            playbackStateListener?.invoke(playbackState)
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -375,14 +382,15 @@ class PlayerEngine(
     val isStartPositionApplied: Boolean
         get() = startPositionApplied
 
-    /** 准备开始播放(异步):媒体源就绪后在这里下发,并应用速度与起始位置 */
-    fun prepare() {
-        val exo = internalPlayer ?: return
-        val source = mediaSource ?: return
+    /** 准备开始播放(异步):媒体源就绪后在这里下发,并应用速度与起始位置。返回是否真的下发了(无内核/无源 = false) */
+    fun prepare(): Boolean {
+        val exo = internalPlayer ?: return false
+        val source = mediaSource ?: return false
         speedPlaybackParameters?.let { exo.setPlaybackParameters(it) }
         exo.setMediaSource(source, startPositionMs)
         startPositionApplied = true
         exo.prepare()
+        return true
     }
 
     fun start() {
@@ -765,8 +773,10 @@ class PlayerEngine(
         }
         retriedAsHls = true
         LOG.i("echo-Exo retry as HLS: $path")
-        mediaSource = mediaSources.getHlsMediaSource(path, copyHeaders(currentHeaders))
-        exo.setMediaSource(mediaSource ?: return false, startPositionMs)
+        val hlsSource = mediaSources.getHlsMediaSource(path, copyHeaders(currentHeaders)) ?: return false
+        mediaSource = hlsSource
+        retryAsHlsListener?.invoke()
+        exo.setMediaSource(hlsSource, startPositionMs)
         startPositionApplied = true
         exo.prepare()
         exo.playWhenReady = true

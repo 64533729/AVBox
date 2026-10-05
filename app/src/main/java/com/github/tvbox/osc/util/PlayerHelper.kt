@@ -8,7 +8,8 @@ import com.github.tvbox.osc.player.ExoMediaPlayerFactory
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.engine.SourcePolicy
-import com.github.tvbox.osc.player.render.SurfaceRenderViewFactory
+import com.github.tvbox.osc.player.host.EngineSurfaceRenderViewFactory
+import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 import com.github.tvbox.osc.player.thirdparty.Kodi
 import com.github.tvbox.osc.player.thirdparty.MXPlayer
 import com.github.tvbox.osc.player.thirdparty.ReexPlayer
@@ -23,7 +24,6 @@ import java.text.DecimalFormat
 
 import xyz.doikki.videoplayer.player.VideoView
 import xyz.doikki.videoplayer.render.RenderViewFactory
-import xyz.doikki.videoplayer.render.TextureRenderViewFactory
 
 object PlayerHelper {
     @JvmStatic
@@ -52,8 +52,8 @@ object PlayerHelper {
         val playerFactory = ExoMediaPlayerFactory.create()
         var renderViewFactory: RenderViewFactory? = null
         when (renderType) {
-            1 -> renderViewFactory = SurfaceRenderViewFactory.create()
-            else -> renderViewFactory = TextureRenderViewFactory.create()
+            1 -> renderViewFactory = EngineSurfaceRenderViewFactory.create()
+            else -> renderViewFactory = EngineTextureRenderViewFactory.create()
         }
         if (videoView != null) {
             @Suppress("UNCHECKED_CAST")
