@@ -751,6 +751,87 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 **复核轮（2026-10-06，独立只读子代理逐方法对照 Java 原文）**：**阻断 0 / 高 1 / 中 2 / 低 1，全部处置**。① 高 = 上述 `replaceAll→replace` 回归（已修）；② 中 = `TrackSelectorDelegate` 在无内核时 `?: return` 提前返回、**跳过了 Java 会弹的"无音轨/无视频轨"提示**（已修：保留 `val mediaPlayer: KernelPlayer?` 并让 `trackInfo == null` 分支照旧弹提示）；③ 中 = `applyPlayerConfigToView` 自创 `?: JSONObject()` 回落（Java 是让 callee 抛 NPE）⇒ 属行为变更而非迁移（已改回 `!!`）；④ 低 = 上述 `lateinit` 语义（登记）。复核另确认：无丢语句（调用名与 `receiver.member` 多重集一一对应）、字段初始化顺序与 Java"全部初始化器 → 构造体"等价（Kotlin 侧无任何属性声明晚于 `init{}`）、3 处带早退的 Unit-lambda 取反全部正确、`MyWebView` 内部类与 `@Subscribe refresh` 逐句一致、25 处 override 签名无宽窄变化、线程用法（`post`/`postDelayed`/`runOnUiThread`/`Thread{}`）全保留。**另报告 9 条 Java 既有缺陷（未修，仅登记）**：`videoDuration` 死字段、`playNext(isProgress)` 忽略参数、`onServiceStopped()` 留下 stale `scheduler` 与未摘的 tip listener、`reviveEngineIfReleased()` 早退不复位、`hideExoInternalSubtitle()` 把**活的** `exoCues` 列表交给 `setCues()` 且随后在其他线程继续改它、`buildPreloadSnapshot()` 把可空分量拼成字面 `"null"` 写进 key、`showCastDialog()` 对 `webPlayUrl()` 的 TOCTOU、`openSubtitleSearchSheet()` 未判 `vod()`、`onLocalSubtitlePicked()` 未判 `openInputStream()`。
 **未验证面（诚实标注）**：真机走查未做 —— 走查重点见计划档 M7e 未验证面（控制器状态回灌与图标一致性、1Hz 进度刷新、音频焦点、Surface↔Texture 热切与纯音频强制 Texture、边播缓存/预载读盘命中、点播↔直播内核复用与控制器挂摘、手势手感回归）。
 
+# 7.20 M9 实测登记（2026-10-06，`com/github/catvod` 24 个契约类）
+
+**结论**：24 个 Java 全量迁 Kotlin（3 笔迁移提交 `5bb03e8`/`6922608`/`e9e56b4` + 1 笔复核轮修复 `04718c6`），`com/github/catvod` **0 Java / 24 Kotlin**。`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **655 用例 / 0 失败 / 0 错误 / 1 跳过（82 suite）**（与 M7/M8 基线持平 —— 纯语言迁移无新增用例）；**`javap -p -s` 公开面逐成员比对：旧有新无 = 0**（零公开成员消失/改名/描述符变化）；**Tier A 实证：用设备上两个真实第三方 jar 反汇编出的 21 个成员引用逐项核对，21/21 命中且描述符逐字一致**。
+
+## 实测方法（本次新增的两道闸门，后续契约类里程碑照用）
+
+1. **公开面过滤版基线**：`javap -p -s` 全量快照里只保留 `public`/`protected` 成员（含类头），落成 `skill/review/javap-m9-catvod-debug-public-{baseline,current}.txt`。契约判据 = 「名字 + 描述符 + 可见性」，`private`/包私有/synthetic 成员不属契约。
+2. **归一化比对**：比对前把两侧的 `static`/`final`/`synchronized` 修饰符抹掉（Kotlin 产物必然差异，见下表），再要求**旧有新无 = 0**。
+3. **Tier A 实证（最强的一道）**：真 jar 不是拿来"跑一下看崩不崩"，而是**反汇编出它实际引用的宿主成员与描述符**，再逐条到新字节码里找：
+   ```
+   dexdump -d <jar 解出的 classes.dex> | grep -oE "Lcom/github/catvod/(net|crawler|js)/[A-Za-z0-9_$]+;\.[^ ]*"
+   ```
+   两个 jar 合计引用宿主 21 个成员（`Spider` 14 / `SpiderApi` 5 / `SpiderDebug` 2），**全部命中**。
+4. **真 jar 从哪来**：`adb exec-out run-as com.github.avbox.osc`（只读）从 `files/csp/<md5>.jar` 取设备上正在用的两个 jar，落盘到 `日志/spider-jars/`（`日志/` 已 gitignore）。
+
+## 设备上两个 jar 的实测形态（Tier A 面的来源）
+
+| jar | 体量 | 关键内容 |
+| --- | --- | --- |
+| `0db00b04…`（1.86 MB / 3772 类） | 全功能爬虫 jar | 109 个 `com.github.catvod.spider.*`（含 `PanAli/PanQuark/PanUC/PanTianyi/PanXunlei/QuarkPan/UCPan` 等网盘源）、`spider.Init`、`spider.Proxy`、`js.Function`、`parser.{JsonBasic,JsonParallel,JsonSequence,MixDemo,MixWeb}`、`spider.Danmu` |
+| `b8f0b528…`（1.0 MB / 139 类） | wexguard 加固的网盘/媒体 jar | `spider.Init`、`spider.Proxy`、**`WebDAVGuard`、`AListGuard`、`SambaGuard`、`Emby*`**、`DexNative` + `assets/{wexguard_v7.so,wexguard_v8.so,wexshinidie.guard}` |
+
+- **jar 对宿主的继承关系实测只有一条**：`Superclass: Lcom/github/catvod/crawler/Spider;`（两 jar 共 111 个 spider 类全部如此），**没有任何 jar 类实现宿主接口、也没有别的宿主父类** ⇒ 全仓只有 `Spider` 必须保持非 final。
+- **jar 引用的 `Spider` 成员（14 项）**：`<init>()V`、`init(Context)V`、`init(Context,String)V`、`initApi(SpiderApi)V`、`safeDns()Lokhttp3/Dns;`（静态）、`homeContent(Z)String`、`homeVideoContent()String`、`categoryContent(String,String,Z,HashMap)String`、`detailContent(List)String`、`searchContent(String,Z)String`、`searchContent(String,Z,String)String`、`playerContent(String,String,List)String`、`action(String)String`、`destroy()V`。
+- **jar 引用的 `SpiderApi`（5 项）**：`getAddress(Z)String`、`getPort()String`、`log(String)V`、`multiReq(JsonArray)String`、`webParse(String,String)String`。
+- **jar 引用的 `SpiderDebug`（2 项）**：`log(String)V`、`log(Throwable)V`。
+- **⚠️ 设备上两个 jar 都没有 `com.github.catvod.spider.Danmaku`**（只有 `spider.Danmu`，那是数据类不是 UI 钩子）⇒ 计划要求的「带 danmaku 的 jar」**当前不具备**，`JarLoader.hasDanmuSearchUi()`/`searchDanmuUi()` 这条反射链**无法用现有 jar 回归**（见未验证面）。
+
+## 登记的产物差异（debug 侧；全部为 Kotlin 必然产物或已证明等价的改写）
+
+| # | 差异 | 数量 | 判定 |
+| --- | --- | --- | --- |
+| 1 | 类/方法多 `final`；`static` 方法变 `static final` | 全部类 | Kotlin 必然产物。**唯一必须非 final 的 `Spider` 实测为 `public class`**（无 ACC_FINAL），14 个可覆盖方法实测无 `final` |
+| 2 | 每个带 companion 的类多出 `Companion` 静态字段、`$stable`、`access$*` 合成桥、`DefaultConstructorMarker` 合成构造器 | 新增 83 项 | Kotlin 必然产物（M6b 同口径） |
+| 3 | `OkHttp` 4 个 `static synchronized`（`dns`/`client`/`reset`/`resetClient`）的 ACC_SYNCHRONIZED 改为方法体内 `synchronized(OkHttp::class.java)` 块 | 4 | **等价**：Java 的 `static synchronized` 锁的就是 Class 对象，锁对象与覆盖范围完全一致（Kotlin 无法表达 `static synchronized`） |
+| 4 | `Connect.withTimeout`、`Connect.client` 由包私有放宽为 `public` | 2 | 包私有→public 属放宽（规则 g 允许）；`withTimeout` 另被 `ConnectTimeoutTest` 单测直接调用 |
+| 5 | `OkDns` 多出 `newCall(Dns$Request)` 桥 | 1 | Kotlin 实现带默认方法的 Java 接口时的必然产物 |
+| 6 | `Trans$Loader`（私有 holder 类）消失；`Async`/`FunCall`/`Trans` 的私有成员迁入 `Companion` | — | 私有、非契约（M6b 规则 8 同口径） |
+| 7 | Java 里**恒真**的 `response.body() != null` 判空被删（`OkHttp.string` ×3、`JarLoader.download`、`JsLoader.loadJarInternal`） | 5 | okhttp 5 的 `body` 是非空属性，Java 那句本就恒真 |
+| 8 | `JarLoader.getServerPort` 里对 `ControlManager.getAddress` 返回值的判空被删 | 1 | 该方法已是 Kotlin 非空返回，判空恒真 |
+| 9 | `SpiderApi.getScreenOrientation` 里 `AppManager.currentActivity()` 的判空**保留** | 1 | 恒假告警（Java 那句本就恒假）；保留以贴近原文 |
+
+## 本里程碑现场核实出的规则（M10/M11 与后续契约类照查）
+
+1. **`protected` 可以放在 `companion object` 里**（实测编译通过且产物为 `protected static`）：`Spider.mContext` 用 `@JvmField protected var mContext: Context? = null` 逐形态保住了 Java 的 `protected static Context mContext` —— 计划 §7.1 规则 e 的关键一条，jar 子类可直接读写该字段。
+2. **`javap -p -s` 的成员行含泛型实参**（`java.util.HashMap<java.lang.String, java.lang.String>`），而 `descriptor:` 行是擦除形态 ⇒ **契约比对必须认 `descriptor` 行**，用成员行做字符串等值比较会误报。
+3. **Kotlin 里不能 `import java.util.List/HashMap/Map`**：导入后 `java.util.List` 与 `kotlin.collections.List` 在编译器眼里是**两个类型**，`ArrayList<String>()` 赋给 `List<String>` 报 `Return type mismatch`，且**会连带让子类 override 的参数类型不匹配**。契约类只写 Kotlin 的 `List`/`HashMap`/`Map`（JVM 描述符本来就是 `java.util.*`）。
+4. **Kotlin 的 ASI 会把「行尾带 `//` 注释的字符串拼接」拆断**：`"a" // 注释` 换行 `+ "b"` 在 Java 合法，在 Kotlin 被解析成「语句结束 + 一元 `+`」⇒ `Unresolved reference 'unaryPlus'`。拼接的 `+` 必须放行尾，注释另起一行。
+5. **`String(bytes, charsetName)` 在 Kotlin 没有对应构造器**（只有 `String(ByteArray, Charset)`）⇒ 用 `Charset.forName(name)` 等价替代（未知字符集时异常类型从 `UnsupportedEncodingException` 变 `UnsupportedCharsetException`，同为 `catch (Exception)` 兜底，登记为口味差异）。
+6. **okhttp 5 的弃用是「错误级」而非告警级**：`Headers.of(map)` / `Call.dispatcher()` / `MediaType.get` / `RequestBody.create` 在 Kotlin 里**直接编译失败**（`DEPRECATION_ERROR`），必须换成 `toHeaders()` / `.dispatcher` / `toMediaTypeOrNull()` / `toRequestBody()`；而 Java 的 `@Deprecated`（`URLEncoder.encode(String)`、`Class.newInstance()`）只是告警，可原样保留。
+7. **`String.trim()` 必须逐处对齐**：Java 只裁 `<= ' '`，Kotlin 的 `trim()` 按 Unicode 空白裁（含 U+00A0/U+3000）⇒ 统一写 `trim { it <= ' ' }`。**本里程碑在 6 处踩到**（两个 jar md5 字段、HTML 列表文本、JSON header 值、DNS host 拆分），由复核轮抓出并修复（`04718c6`）。
+8. **`Objects.requireNonNull(x)` 在 Kotlin 里推不出非空**（`T` 会被推成 `String?`）⇒ 直接写 `x!!`（NPE 语义一致）。
+9. **`Any?.toString()` 对 null 返回 `"null"` 而 Java 的 `o.toString()` 抛 NPE** ⇒ 需要 NPE 的点必须写 `o!!.toString()`（`JsSpider.getStream` 是实例）。
+10. **`CharSequence.trim()` 的谓词形式是 Java `String.trim()` 的唯一等价写法**（`trim { it <= ' ' }`）；`StringUtils.trim` 是项目自定义的（额外裁 U+3000），**不能**拿来替代 Java 的 `trim()`。
+11. **可空性判据（本里程碑口径）**：Java body **能容忍 null** 的入参（显式判空、字符串拼接、`isEmpty` 守卫、或本地 catch 吞掉 NPE）一律迁 `T?`；Java body **必然解引用且异常会逃出方法**的入参可迁非空（边界 NPE 与原抛点等价）；Java 的解引用**在本地 try 内被吞掉**的，写 `T?` + `!!` 放回 try 内。**实现方与接口/基类的可空性必须同批改**：`Spider` 的 `init/categoryContent/searchContent/playerContent` 改成 `T?` 时，`JsSpider`/`PythonSpider` 的 override 必须同步（Kotlin 的 override 参数类型要精确一致）。
+12. **接口参数可空性要跟着唯一实现走**：`IPyLoader.getSpider(key: String, …)` 的 `key` 定非空（实现 `pyLoader.kt` 的 `key` 本就在 M6b 定成非空），代价是 `SpiderLoader` 的 5 个调用点补 `!!`（Java 版在 `ConcurrentHashMap.containsKey(null)` 处同样 NPE，等价）。
+13. **Tier A 的"真实回归"应该用反汇编枚举引用面，而不是只跑一遍**：`dexdump -d` 反汇编 jar 后 `grep` 出 `Lcom/github/catvod/...;->成员` 即得**必须存在的成员清单**，可逐条到新字节码验证 —— 比"点开源看崩不崩"覆盖更全、可复现。
+14. **契约层迁移的"由内向外"顺序有效**：先 `crawler/js/*`（无 jar 直连），再 `SpiderDebug/SpiderNull/IPyLoader/OkDns`，再 `Spider/SpiderApi`，最后 `JarLoader/JsLoader/OkHttp/Proxy`；每步都构建 + 单测 + `javap`，`Spider` 那一步单独核对 Tier A 清单。
+
+## 审查轮（2026-10-06，两个独立只读子代理逐方法对账）
+
+- **A（契约与加载器：`Spider`/`SpiderApi`/`JarLoader`/`JsLoader`）**：**阻断 0 / 高 0 / 中 0**；2 条低 + 1 条口味 —— `JarLoader`/`JsLoader` 的 md5 `trim()` 未对齐（**已修**）；`Spider` 三个非空入参（`pg`/`id`/`action`）的 `checkNotNullParameter`，调用点全传非空且 jar 覆盖后不执行基类体 ⇒ 不可达；`proxyInvoke` 的 `!!` NPE 点位差异。
+- **B（JS 桥与网络栈：`JsSpider`/`Global`/`Connect`/`HtmlParser`/`Trans`/`Json`/`Req`/`Res`/`Crypto`/`Async`/`FunCall`/`local`/`OkHttp`/`Proxy`）**：**阻断 0**；1 条高 + 1 条中（都是 `trim()` 语义 —— `HtmlParser.parseDomForList` 的列表文本、`Json.safeString` 的 header 值，**已修**）+ 2 条低 + 1 条口味。B 另逐点确证等价：split 全走 `RegexUtils.getPattern(x).split(y)`、字符集/locale 全对齐、`replaceAll(regex,"$1")` ≡ `Regex.replace(...,"\$1")`、反射 vararg 全 `*args`、okhttp 5 替换的 null 边界与抛点一致。
+- **收敛结论**：修完 `trim()` 后复跑构建 + 单测 + `javap`（655/0/0/1、旧有新无 = 0）；剩余发现全部属**低（不可达或仅异常类型/点位）**或**口味** ⇒ 达到计划的收敛终止线。逐条见 `skill/review/review-20261006-m9.md`。
+
+## Tier B 变化（D9）
+
+实测 **13 个符号**（M0 记 11）：
+- 新增 `osc.util.AppManager` —— Java 版 `SpiderApi` 用**内联 FQCN** `com.github.tvbox.osc.util.AppManager.getInstance()` 调用，脚本按 `import` 生成清单时**漏掉了它**（计划附录 B 已登记此盲区）；迁 Kotlin 后变成正规 import，清单因此补齐。
+- 新增 `osc.util.RegexUtils` —— 真新增：为保住 Java `String.split(regex)` 的"丢尾部空串"语义而引入（M6b 规则 15 的同一做法）。
+- 其余 11 个符号未变，静态调用形态由 `object` + `@JvmStatic` 保住（`javap` 实证）。
+
+## 未验证面（诚实标注）
+
+1. **真机走查未做**（本轮只做只读抓取，未安装、未启动界面）：需在设备上验证 `jar 源 / js 源 / py 源` 各开一次，含搜索、分类、详情、播放、直播、DLNA、代理（`/proxy`）。
+2. **`assembleRelease` 未跑**（需用户明确许可）：契约层的 release 侧 `javap`（R8/keep 覆盖）**只做了 debug 侧**。计划 §7.1 规则 j 要求 debug + release 各一次 ⇒ 这一半**空缺**。
+3. **danmaku 反射链无 jar 可验**：设备上两个 jar 都没有 `com.github.catvod.spider.Danmaku`，`JarLoader.hasDanmuSearchUi()`/`searchDanmuUi()` 只能在拿到带弹幕的 jar 后再验。
+4. **wexguard 加固 jar 的 native 解密路径**（`assets/wexguard_*.so` + `DexNative`）未在真机验证。
+5. **`spider.Danmu`（数据类）与 `PanWebShare*` 等网盘源的真实调用**未验（需真实站点与账号）。
+6. **`OkHttp.reset()/resetClient()` 的 Class 锁在 release 混淆下**未验（debug 侧已确证锁对象一致）。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。

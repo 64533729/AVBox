@@ -1,0 +1,462 @@
+## com.github.catvod.crawler.JarLoader
+private boolean exists(java.io.File); | descriptor: (Ljava/io/File;)Z
+private boolean load(java.lang.String, java.io.File); | descriptor: (Ljava/lang/String;Ljava/io/File;)Z
+private dalvik.system.DexClassLoader requireRecentLoader(); | descriptor: ()Ldalvik/system/DexClassLoader;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, com.github.catvod.crawler.Spider> spiders; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, dalvik.system.DexClassLoader> loaders; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.Object> locks; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.reflect.Method> danmuClickMethods; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.reflect.Method> danmuLongClickMethods; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.reflect.Method> proxyMethods; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.String> aliases; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.String> siteJarKeys; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private int getServerPort(); | descriptor: ()I
+private java.io.File copyAsset(java.lang.String, java.io.File); | descriptor: (Ljava/lang/String;Ljava/io/File;)Ljava/io/File;
+private java.io.File create(java.io.File) throws java.lang.Exception; | descriptor: (Ljava/io/File;)Ljava/io/File;
+private java.io.File download(java.lang.String, java.io.File); | descriptor: (Ljava/lang/String;Ljava/io/File;)Ljava/io/File;
+private java.io.File fileForJar(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/io/File;
+private java.io.File jarDir(); | descriptor: ()Ljava/io/File;
+private java.io.File local(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/io/File;
+private java.lang.Class<?> loadParserClass(java.lang.String) throws java.lang.ClassNotFoundException; | descriptor: (Ljava/lang/String;)Ljava/lang/Class;
+private java.lang.Object lock(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+private java.lang.Object[] proxyInvoke(java.lang.reflect.Method, java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/reflect/Method;Ljava/util/Map;)[Ljava/lang/Object;
+private java.lang.String clanToAddress(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+private java.lang.String className(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+private java.lang.String jarKey(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+private java.lang.String realKey(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+private static final java.lang.String MAIN_KEY; | descriptor: Ljava/lang/String;
+private static final java.lang.String TAG; | descriptor: Ljava/lang/String;
+private static java.lang.Object lambda$getSpider$0(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+private void close(java.io.Closeable); | descriptor: (Ljava/io/Closeable;)V
+private void injectProxyPort(dalvik.system.DexClassLoader); | descriptor: (Ldalvik/system/DexClassLoader;)V
+private void invokeDanmaku(java.lang.String, dalvik.system.DexClassLoader); | descriptor: (Ljava/lang/String;Ldalvik/system/DexClassLoader;)V
+private void invokeInit(dalvik.system.DexClassLoader); | descriptor: (Ldalvik/system/DexClassLoader;)V
+private void invokeProxy(java.lang.String, dalvik.system.DexClassLoader); | descriptor: (Ljava/lang/String;Ldalvik/system/DexClassLoader;)V
+private volatile java.lang.String recent; | descriptor: Ljava/lang/String;
+public boolean hasDanmuSearchUi(); | descriptor: ()Z
+public boolean load(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public class com.github.catvod.crawler.JarLoader {
+public com.github.catvod.crawler.JarLoader(); | descriptor: ()V
+public com.github.catvod.crawler.Spider getSpider(java.lang.String, java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/catvod/crawler/Spider;
+public dalvik.system.DexClassLoader dex(java.lang.String); | descriptor: (Ljava/lang/String;)Ldalvik/system/DexClassLoader;
+public java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public org.json.JSONObject jsonExt(java.lang.String, java.util.LinkedHashMap<java.lang.String, java.lang.String>, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/util/LinkedHashMap;Ljava/lang/String;)Lorg/json/JSONObject;
+public org.json.JSONObject jsonExtMix(java.lang.String, java.lang.String, java.lang.String, java.util.LinkedHashMap<java.lang.String, java.util.HashMap<java.lang.String, java.lang.String>>, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/LinkedHashMap;Ljava/lang/String;)Lorg/json/JSONObject;
+public void clear(); | descriptor: ()V
+public void loadLiveJar(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public void parseJar(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)V
+public void searchDanmuUi(java.lang.String, java.lang.String, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;Z)V
+public void setRecentJarKey(java.lang.String); | descriptor: (Ljava/lang/String;)V
+## com.github.catvod.crawler.js.Async
+private com.github.catvod.crawler.js.Async(); | descriptor: ()V
+private com.github.catvod.crawler.js.Async$Result call(com.whl.quickjs.wrapper.JSObject, java.lang.String, java.lang.Object[]); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;[Ljava/lang/Object;)Lcom/github/catvod/crawler/js/Async$Result;
+private com.github.catvod.crawler.js.Async$Result empty(); | descriptor: ()Lcom/github/catvod/crawler/js/Async$Result;
+private final com.github.catvod.crawler.js.Async$Result future; | descriptor: Lcom/github/catvod/crawler/js/Async$Result;
+private final com.whl.quickjs.wrapper.JSCallFunction error; | descriptor: Lcom/whl/quickjs/wrapper/JSCallFunction;
+private final com.whl.quickjs.wrapper.JSCallFunction success; | descriptor: Lcom/whl/quickjs/wrapper/JSCallFunction;
+private void consume(com.whl.quickjs.wrapper.JSFunction, com.whl.quickjs.wrapper.JSCallFunction); | descriptor: (Lcom/whl/quickjs/wrapper/JSFunction;Lcom/whl/quickjs/wrapper/JSCallFunction;)V
+private void then(com.whl.quickjs.wrapper.JSObject); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;)V
+public class com.github.catvod.crawler.js.Async {
+public static com.github.catvod.crawler.js.Async$Result run(com.whl.quickjs.wrapper.JSObject, java.lang.String, java.lang.Object[]); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;[Ljava/lang/Object;)Lcom/github/catvod/crawler/js/Async$Result;
+## com.github.catvod.crawler.js.Connect
+private static okhttp3.Request getRequest(java.lang.String, com.github.catvod.crawler.js.Req, okhttp3.Headers, java.lang.Object); | descriptor: (Ljava/lang/String;Lcom/github/catvod/crawler/js/Req;Lokhttp3/Headers;Ljava/lang/Object;)Lokhttp3/Request;
+private static okhttp3.RequestBody getFormBody(com.github.catvod.crawler.js.Req); | descriptor: (Lcom/github/catvod/crawler/js/Req;)Lokhttp3/RequestBody;
+private static okhttp3.RequestBody getFormDataBody(com.github.catvod.crawler.js.Req); | descriptor: (Lcom/github/catvod/crawler/js/Req;)Lokhttp3/RequestBody;
+private static okhttp3.RequestBody getJsonBody(com.github.catvod.crawler.js.Req); | descriptor: (Lcom/github/catvod/crawler/js/Req;)Lokhttp3/RequestBody;
+private static okhttp3.RequestBody getPostBody(com.github.catvod.crawler.js.Req, java.lang.String); | descriptor: (Lcom/github/catvod/crawler/js/Req;Ljava/lang/String;)Lokhttp3/RequestBody;
+private static void cancelDefaultClient(java.lang.Object); | descriptor: (Ljava/lang/Object;)V
+private static void setHeader(com.whl.quickjs.wrapper.QuickJSContext, okhttp3.Response, com.whl.quickjs.wrapper.JSObject); | descriptor: (Lcom/whl/quickjs/wrapper/QuickJSContext;Lokhttp3/Response;Lcom/whl/quickjs/wrapper/JSObject;)V
+public class com.github.catvod.crawler.js.Connect {
+public com.github.catvod.crawler.js.Connect(); | descriptor: ()V
+public static com.whl.quickjs.wrapper.JSObject error(com.whl.quickjs.wrapper.QuickJSContext); | descriptor: (Lcom/whl/quickjs/wrapper/QuickJSContext;)Lcom/whl/quickjs/wrapper/JSObject;
+public static com.whl.quickjs.wrapper.JSObject success(com.whl.quickjs.wrapper.QuickJSContext, com.github.catvod.crawler.js.Req, okhttp3.Response); | descriptor: (Lcom/whl/quickjs/wrapper/QuickJSContext;Lcom/github/catvod/crawler/js/Req;Lokhttp3/Response;)Lcom/whl/quickjs/wrapper/JSObject;
+public static okhttp3.Call to(java.lang.String, com.github.catvod.crawler.js.Req, java.lang.Object); | descriptor: (Ljava/lang/String;Lcom/github/catvod/crawler/js/Req;Ljava/lang/Object;)Lokhttp3/Call;
+public static okhttp3.Call to(java.lang.String, com.github.catvod.crawler.js.Req); | descriptor: (Ljava/lang/String;Lcom/github/catvod/crawler/js/Req;)Lokhttp3/Call;
+public static void cancelByTag(java.lang.Object); | descriptor: (Ljava/lang/Object;)V
+static okhttp3.OkHttpClient client; | descriptor: Lokhttp3/OkHttpClient;
+static okhttp3.OkHttpClient withTimeout(com.github.catvod.crawler.js.Req, okhttp3.OkHttpClient); | descriptor: (Lcom/github/catvod/crawler/js/Req;Lokhttp3/OkHttpClient;)Lokhttp3/OkHttpClient;
+## com.github.catvod.crawler.js.Crypto
+private static byte[] concatArrays(byte[], byte[]); | descriptor: ([B[B)[B
+private static int getModulusLength(java.security.Key); | descriptor: (Ljava/security/Key;)I
+private static java.security.Key generateKey(boolean, java.lang.String) throws java.lang.Exception; | descriptor: (ZLjava/lang/String;)Ljava/security/Key;
+public class com.github.catvod.crawler.js.Crypto {
+public com.github.catvod.crawler.js.Crypto(); | descriptor: ()V
+public static java.lang.String aes(java.lang.String, boolean, java.lang.String, boolean, java.lang.String, java.lang.String, boolean); | descriptor: (Ljava/lang/String;ZLjava/lang/String;ZLjava/lang/String;Ljava/lang/String;Z)Ljava/lang/String;
+public static java.lang.String rsa(boolean, boolean, java.lang.String, boolean, java.lang.String, boolean); | descriptor: (ZZLjava/lang/String;ZLjava/lang/String;Z)Ljava/lang/String;
+## com.github.catvod.crawler.js.FunCall
+private com.github.catvod.crawler.js.FunCall(com.whl.quickjs.wrapper.JSObject, java.lang.String, java.lang.Object...); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;[Ljava/lang/Object;)V
+private final com.whl.quickjs.wrapper.JSCallFunction jsCallFunction; | descriptor: Lcom/whl/quickjs/wrapper/JSCallFunction;
+private final com.whl.quickjs.wrapper.JSObject jsObject; | descriptor: Lcom/whl/quickjs/wrapper/JSObject;
+private final java.lang.Object[] args; | descriptor: [Ljava/lang/Object;
+private final java.lang.String name; | descriptor: Ljava/lang/String;
+private java.lang.Object result; | descriptor: Ljava/lang/Object;
+public class com.github.catvod.crawler.js.FunCall implements java.util.concurrent.Callable<java.lang.Object> {
+public java.lang.Object call() throws java.lang.Exception; | descriptor: ()Ljava/lang/Object;
+public static com.github.catvod.crawler.js.FunCall call(com.whl.quickjs.wrapper.JSObject, java.lang.String, java.lang.Object...); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;[Ljava/lang/Object;)Lcom/github/catvod/crawler/js/FunCall;
+## com.github.catvod.crawler.js.Global
+private com.whl.quickjs.wrapper.JSObject req(java.lang.String, com.whl.quickjs.wrapper.JSObject); | descriptor: (Ljava/lang/String;Lcom/whl/quickjs/wrapper/JSObject;)Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.QuickJSContext runtime; | descriptor: Lcom/whl/quickjs/wrapper/QuickJSContext;
+private final java.lang.String httpTag; | descriptor: Ljava/lang/String;
+private final java.util.Timer timer; | descriptor: Ljava/util/Timer;
+private okhttp3.Callback getCallback(com.whl.quickjs.wrapper.JSFunction, com.github.catvod.crawler.js.Req); | descriptor: (Lcom/whl/quickjs/wrapper/JSFunction;Lcom/github/catvod/crawler/js/Req;)Lokhttp3/Callback;
+public class com.github.catvod.crawler.js.Global {
+public com.github.catvod.crawler.js.Global(java.util.concurrent.ExecutorService, java.lang.String); | descriptor: (Ljava/util/concurrent/ExecutorService;Ljava/lang/String;)V
+public com.github.catvod.crawler.js.Global(java.util.concurrent.ExecutorService); | descriptor: (Ljava/util/concurrent/ExecutorService;)V
+public com.whl.quickjs.wrapper.JSArray pdfa(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Lcom/whl/quickjs/wrapper/JSArray;
+public com.whl.quickjs.wrapper.JSArray pdfla(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/whl/quickjs/wrapper/JSArray;
+public com.whl.quickjs.wrapper.JSObject _http(java.lang.String, com.whl.quickjs.wrapper.JSObject); | descriptor: (Ljava/lang/String;Lcom/whl/quickjs/wrapper/JSObject;)Lcom/whl/quickjs/wrapper/JSObject;
+public java.lang.String aesX(java.lang.String, boolean, java.lang.String, boolean, java.lang.String, java.lang.String, boolean); | descriptor: (Ljava/lang/String;ZLjava/lang/String;ZLjava/lang/String;Ljava/lang/String;Z)Ljava/lang/String;
+public java.lang.String getHttpTag(); | descriptor: ()Ljava/lang/String;
+public java.lang.String getProxy(boolean); | descriptor: (Z)Ljava/lang/String;
+public java.lang.String joinUrl(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String js2Proxy(java.lang.Boolean, java.lang.Integer, java.lang.String, java.lang.String, com.whl.quickjs.wrapper.JSObject); | descriptor: (Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Lcom/whl/quickjs/wrapper/JSObject;)Ljava/lang/String;
+public java.lang.String pd(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String pdfh(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String rsaDecrypt(java.lang.String, java.lang.String, com.whl.quickjs.wrapper.JSObject); | descriptor: (Ljava/lang/String;Ljava/lang/String;Lcom/whl/quickjs/wrapper/JSObject;)Ljava/lang/String;
+public java.lang.String rsaDecrypt(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String rsaEncrypt(java.lang.String, java.lang.String, com.whl.quickjs.wrapper.JSObject); | descriptor: (Ljava/lang/String;Ljava/lang/String;Lcom/whl/quickjs/wrapper/JSObject;)Ljava/lang/String;
+public java.lang.String rsaEncrypt(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String rsaX(java.lang.String, boolean, boolean, java.lang.String, boolean, java.lang.String, boolean); | descriptor: (Ljava/lang/String;ZZLjava/lang/String;ZLjava/lang/String;Z)Ljava/lang/String;
+public java.lang.String s2t(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String t2s(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.util.concurrent.ExecutorService executor; | descriptor: Ljava/util/concurrent/ExecutorService;
+public void destroy(); | descriptor: ()V
+public void setJSContext(com.whl.quickjs.wrapper.QuickJSContext); | descriptor: (Lcom/whl/quickjs/wrapper/QuickJSContext;)V
+public void setTimeout(com.whl.quickjs.wrapper.JSFunction, java.lang.Integer); | descriptor: (Lcom/whl/quickjs/wrapper/JSFunction;Ljava/lang/Integer;)V
+## com.github.catvod.crawler.js.HtmlParser
+private static com.github.catvod.crawler.js.HtmlParser$Painfo getParseInfo(java.lang.String); | descriptor: (Ljava/lang/String;)Lcom/github/catvod/crawler/js/HtmlParser$Painfo;
+private static final java.util.regex.Pattern NOADD_INDEX; | descriptor: Ljava/util/regex/Pattern;
+private static final java.util.regex.Pattern p; | descriptor: Ljava/util/regex/Pattern;
+private static final java.util.regex.Pattern SPECIAL_URL; | descriptor: Ljava/util/regex/Pattern;
+private static final java.util.regex.Pattern URLJOIN_ATTR; | descriptor: Ljava/util/regex/Pattern;
+private static java.lang.String parseHikerToJq(java.lang.String, boolean); | descriptor: (Ljava/lang/String;Z)Ljava/lang/String;
+private static java.lang.String pdfa_html; | descriptor: Ljava/lang/String;
+private static java.lang.String pdfh_html; | descriptor: Ljava/lang/String;
+private static org.jsoup.nodes.Document pdfa_doc; | descriptor: Lorg/jsoup/nodes/Document;
+private static org.jsoup.nodes.Document pdfh_doc; | descriptor: Lorg/jsoup/nodes/Document;
+private static org.jsoup.select.Elements parseOneRule(org.jsoup.nodes.Document, java.lang.String, org.jsoup.select.Elements); | descriptor: (Lorg/jsoup/nodes/Document;Ljava/lang/String;Lorg/jsoup/select/Elements;)Lorg/jsoup/select/Elements;
+public class com.github.catvod.crawler.js.HtmlParser {
+public com.github.catvod.crawler.js.HtmlParser(); | descriptor: ()V
+public static boolean isIndex(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public static boolean isUrl(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public static java.lang.String joinUrl(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public static java.lang.String parseDomForUrl(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public static java.util.List<java.lang.String> parseDomForArray(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+public static java.util.List<java.lang.String> parseDomForList(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+static {}; | descriptor: ()V
+## com.github.catvod.crawler.js.Json
+public class com.github.catvod.crawler.js.Json {
+public com.github.catvod.crawler.js.Json(); | descriptor: ()V
+public static boolean invalid(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public static boolean valid(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public static com.google.gson.JsonObject safeObject(com.google.gson.JsonElement); | descriptor: (Lcom/google/gson/JsonElement;)Lcom/google/gson/JsonObject;
+public static java.lang.String safeString(com.google.gson.JsonObject, java.lang.String); | descriptor: (Lcom/google/gson/JsonObject;Ljava/lang/String;)Ljava/lang/String;
+public static java.util.List<com.google.gson.JsonElement> safeListElement(com.google.gson.JsonObject, java.lang.String); | descriptor: (Lcom/google/gson/JsonObject;Ljava/lang/String;)Ljava/util/List;
+public static java.util.List<java.lang.String> safeListString(com.google.gson.JsonObject, java.lang.String); | descriptor: (Lcom/google/gson/JsonObject;Ljava/lang/String;)Ljava/util/List;
+public static java.util.Map<java.lang.String, java.lang.String> toMap(com.google.gson.JsonElement); | descriptor: (Lcom/google/gson/JsonElement;)Ljava/util/Map;
+## com.github.catvod.crawler.js.JsSpider
+private <T> java.util.concurrent.Future<T> submit(java.util.concurrent.Callable<T>); | descriptor: (Ljava/util/concurrent/Callable;)Ljava/util/concurrent/Future;
+private <T> T submitAndWait(java.util.concurrent.Callable<T>); | descriptor: (Ljava/util/concurrent/Callable;)Ljava/lang/Object;
+private boolean cat; | descriptor: Z
+private boolean isInvalidModuleContent(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+private boolean isQuickJsMethod(java.lang.reflect.Method); | descriptor: (Ljava/lang/reflect/Method;)Z
+private byte[] compileEmptyModule(java.lang.String); | descriptor: (Ljava/lang/String;)[B
+private byte[] compileModule(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)[B
+private byte[] emptyModuleBytecode; | descriptor: [B
+private com.github.catvod.crawler.js.Async$Result lambda$call$0(java.lang.String, java.lang.Object[]) throws java.lang.Exception; | descriptor: (Ljava/lang/String;[Ljava/lang/Object;)Lcom/github/catvod/crawler/js/Async$Result;
+private com.github.catvod.crawler.js.Global global; | descriptor: Lcom/github/catvod/crawler/js/Global;
+private com.whl.quickjs.wrapper.JSArray createArray(); | descriptor: ()Lcom/whl/quickjs/wrapper/JSArray;
+private com.whl.quickjs.wrapper.JSArray lambda$playerContent$3(java.util.List) throws java.lang.Exception; | descriptor: (Ljava/util/List;)Lcom/whl/quickjs/wrapper/JSArray;
+private com.whl.quickjs.wrapper.JSArray lambda$proxy2$7(java.lang.String) throws java.lang.Exception; | descriptor: (Ljava/lang/String;)Lcom/whl/quickjs/wrapper/JSArray;
+private com.whl.quickjs.wrapper.JSObject cfg(java.lang.String); | descriptor: (Ljava/lang/String;)Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.JSObject createObject(); | descriptor: ()Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.JSObject jsObject; | descriptor: Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.JSObject lambda$categoryContent$2(java.util.HashMap) throws java.lang.Exception; | descriptor: (Ljava/util/HashMap;)Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.JSObject lambda$init$1(java.lang.String) throws java.lang.Exception; | descriptor: (Ljava/lang/String;)Lcom/whl/quickjs/wrapper/JSObject;
+private com.whl.quickjs.wrapper.QuickJSContext ctx; | descriptor: Lcom/whl/quickjs/wrapper/QuickJSContext;
+private final java.lang.Class<?> dex; | descriptor: Ljava/lang/Class;
+private final java.lang.String api; | descriptor: Ljava/lang/String;
+private final java.lang.String key; | descriptor: Ljava/lang/String;
+private final java.util.concurrent.atomic.AtomicBoolean destroyed; | descriptor: Ljava/util/concurrent/atomic/AtomicBoolean;
+private final java.util.concurrent.ExecutorService executor; | descriptor: Ljava/util/concurrent/ExecutorService;
+private java.io.ByteArrayInputStream getStream(java.lang.Object); | descriptor: (Ljava/lang/Object;)Ljava/io/ByteArrayInputStream;
+private java.lang.Object call(java.lang.String, java.lang.Object...); | descriptor: (Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;
+private java.lang.Object get(com.whl.quickjs.wrapper.JSObject, java.lang.String); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;)Ljava/lang/Object;
+private java.lang.Object lambda$initializeJS$6() throws java.lang.Exception; | descriptor: ()Ljava/lang/Object;
+private java.lang.Object lambda$proxy2$8(java.lang.String) throws java.lang.Exception; | descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+private java.lang.Object[] lambda$proxyLocal$4(java.util.Map) throws java.lang.Exception; | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+private java.lang.Object[] proxy1(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+private java.lang.Object[] proxy2(java.util.Map<java.lang.String, java.lang.String>) throws java.lang.Exception; | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+private java.lang.String getContent(); | descriptor: ()Ljava/lang/String;
+private java.lang.String methodName(java.lang.reflect.Method); | descriptor: (Ljava/lang/reflect/Method;)Ljava/lang/String;
+private java.util.Map<java.lang.String, java.lang.String> getHeader(java.lang.Object); | descriptor: (Ljava/lang/Object;)Ljava/util/Map;
+private org.json.JSONArray toJsonArray(com.whl.quickjs.wrapper.JSArray); | descriptor: (Lcom/whl/quickjs/wrapper/JSArray;)Lorg/json/JSONArray;
+private static byte[] bytecode(byte[]); | descriptor: ([B)[B
+private static final byte BYTECODE_VERSION; | descriptor: B
+private static final java.lang.String EMPTY_MODULE_CODE; | descriptor: Ljava/lang/String;
+private static final java.lang.String SPIDER_STRING_CODE; | descriptor: Ljava/lang/String;
+private static final long CALL_TIMEOUT_MS; | descriptor: J
+private void bind(com.whl.quickjs.wrapper.JSObject, java.lang.Object); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/Object;)V
+private void createCtx(); | descriptor: ()V
+private void createDex(); | descriptor: ()V
+private void initializeJS() throws java.lang.Exception; | descriptor: ()V
+private void invoke(com.whl.quickjs.wrapper.JSObject, java.lang.reflect.Method, java.lang.Object); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/reflect/Method;Ljava/lang/Object;)V
+private void invoke(java.lang.Class<?>, com.whl.quickjs.wrapper.JSObject, java.lang.Object); | descriptor: (Ljava/lang/Class;Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/Object;)V
+private void invokeMultiple(java.lang.Class<?>, com.whl.quickjs.wrapper.JSObject) throws java.lang.Throwable; | descriptor: (Ljava/lang/Class;Lcom/whl/quickjs/wrapper/JSObject;)V
+private void invokeSingle(java.lang.Class<?>, com.whl.quickjs.wrapper.JSObject) throws java.lang.Throwable; | descriptor: (Ljava/lang/Class;Lcom/whl/quickjs/wrapper/JSObject;)V
+private void lambda$destroy$5(); | descriptor: ()V
+private void preloadTemplate(); | descriptor: ()V
+private void set(com.whl.quickjs.wrapper.JSObject, java.lang.String, java.lang.Object); | descriptor: (Lcom/whl/quickjs/wrapper/JSObject;Ljava/lang/String;Ljava/lang/Object;)V
+private void submit(java.lang.Runnable); | descriptor: (Ljava/lang/Runnable;)V
+public boolean isVideoFormat(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public boolean manualVideoCheck(); | descriptor: ()Z
+public class com.github.catvod.crawler.js.JsSpider extends com.github.catvod.crawler.Spider {
+public com.github.catvod.crawler.js.JsSpider(java.lang.String, java.lang.String, java.lang.Class<?>) throws java.lang.Exception; | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Class;)V
+public java.lang.Object[] proxyLocal(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public java.lang.String action(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String categoryContent(java.lang.String, java.lang.String, boolean, java.util.HashMap<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/lang/String;ZLjava/util/HashMap;)Ljava/lang/String;
+public java.lang.String detailContent(java.util.List<java.lang.String>); | descriptor: (Ljava/util/List;)Ljava/lang/String;
+public java.lang.String homeContent(boolean); | descriptor: (Z)Ljava/lang/String;
+public java.lang.String homeVideoContent(); | descriptor: ()Ljava/lang/String;
+public java.lang.String liveContent(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String playerContent(java.lang.String, java.lang.String, java.util.List<java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+public java.lang.String searchContent(java.lang.String, boolean); | descriptor: (Ljava/lang/String;Z)Ljava/lang/String;
+public static byte[] byteFF(byte[]); | descriptor: ([B)[B
+public void cancelByTag(); | descriptor: ()V
+public void destroy(); | descriptor: ()V
+public void init(android.content.Context, java.lang.String); | descriptor: (Landroid/content/Context;Ljava/lang/String;)V
+## com.github.catvod.crawler.js.local
+public class com.github.catvod.crawler.js.local {
+public com.github.catvod.crawler.js.local(); | descriptor: ()V
+public java.lang.String get(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public void delete(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)V
+public void set(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+## com.github.catvod.crawler.js.Req
+private com.google.gson.JsonElement data; | descriptor: Lcom/google/gson/JsonElement;
+private com.google.gson.JsonElement getHeaders(); | descriptor: ()Lcom/google/gson/JsonElement;
+private com.google.gson.JsonElement headers; | descriptor: Lcom/google/gson/JsonElement;
+private java.lang.Integer buffer; | descriptor: Ljava/lang/Integer;
+private java.lang.Integer redirect; | descriptor: Ljava/lang/Integer;
+private java.lang.Integer timeout; | descriptor: Ljava/lang/Integer;
+private java.lang.String body; | descriptor: Ljava/lang/String;
+private java.lang.String getCharset(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+private java.lang.String method; | descriptor: Ljava/lang/String;
+private java.lang.String postType; | descriptor: Ljava/lang/String;
+public boolean isRedirect(); | descriptor: ()Z
+public class com.github.catvod.crawler.js.Req {
+public com.github.catvod.crawler.js.Req(); | descriptor: ()V
+public com.google.gson.JsonElement getData(); | descriptor: ()Lcom/google/gson/JsonElement;
+public int getBuffer(); | descriptor: ()I
+public java.lang.Integer getRedirect(); | descriptor: ()Ljava/lang/Integer;
+public java.lang.Integer getTimeout(); | descriptor: ()Ljava/lang/Integer;
+public java.lang.String getBody(); | descriptor: ()Ljava/lang/String;
+public java.lang.String getCharset(); | descriptor: ()Ljava/lang/String;
+public java.lang.String getMethod(); | descriptor: ()Ljava/lang/String;
+public java.lang.String getPostType(); | descriptor: ()Ljava/lang/String;
+public java.util.Map<java.lang.String, java.lang.String> getHeader(); | descriptor: ()Ljava/util/Map;
+public static com.github.catvod.crawler.js.Req objectFrom(java.lang.String); | descriptor: (Ljava/lang/String;)Lcom/github/catvod/crawler/js/Req;
+## com.github.catvod.crawler.js.Res
+private com.google.gson.JsonElement getHeaders(); | descriptor: ()Lcom/google/gson/JsonElement;
+private com.google.gson.JsonElement headers; | descriptor: Lcom/google/gson/JsonElement;
+private java.lang.Integer buffer; | descriptor: Ljava/lang/Integer;
+private java.lang.Integer code; | descriptor: Ljava/lang/Integer;
+private java.lang.String content; | descriptor: Ljava/lang/String;
+public class com.github.catvod.crawler.js.Res {
+public com.github.catvod.crawler.js.Res(); | descriptor: ()V
+public int getBuffer(); | descriptor: ()I
+public int getCode(); | descriptor: ()I
+public java.io.ByteArrayInputStream getStream(); | descriptor: ()Ljava/io/ByteArrayInputStream;
+public java.lang.String getContent(); | descriptor: ()Ljava/lang/String;
+public java.lang.String getContentType(); | descriptor: ()Ljava/lang/String;
+public java.util.Map<java.lang.String, java.lang.String> getHeader(); | descriptor: ()Ljava/util/Map;
+public static com.github.catvod.crawler.js.Res objectFrom(java.lang.String); | descriptor: (Ljava/lang/String;)Lcom/github/catvod/crawler/js/Res;
+## com.github.catvod.crawler.js.rsa.DataUtils
+public class com.github.catvod.crawler.js.rsa.DataUtils {
+public com.github.catvod.crawler.js.rsa.DataUtils(); | descriptor: ()V
+public static byte[] base64Decode(java.lang.String); | descriptor: (Ljava/lang/String;)[B
+public static byte[] int2byte(int); | descriptor: (I)[B
+public static int byte2Int(byte[]); | descriptor: ([B)I
+public static java.lang.String base64Encode(byte[]); | descriptor: ([B)Ljava/lang/String;
+## com.github.catvod.crawler.js.rsa.RSAEncrypt
+private static final int MAX_DECRYPT_BLOCK; | descriptor: I
+private static final int MAX_ENCRYPT_BLOCK; | descriptor: I
+private static void handleException(java.lang.Exception); | descriptor: (Ljava/lang/Exception;)V
+public class com.github.catvod.crawler.js.rsa.RSAEncrypt {
+public com.github.catvod.crawler.js.rsa.RSAEncrypt(); | descriptor: ()V
+public static final java.lang.String ECB_PKCS1_PADDING; | descriptor: Ljava/lang/String;
+public static final java.lang.String KEY_ALGORITHM; | descriptor: Ljava/lang/String;
+public static final java.lang.String TAG; | descriptor: Ljava/lang/String;
+public static java.lang.String decryptByPrivateKey(java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String decryptByPrivateKey(java.lang.String, java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String decryptByPublicKey(java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String decryptByPublicKey(java.lang.String, java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String encryptByPrivateKey(java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String encryptByPrivateKey(java.lang.String, java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String encryptByPublicKey(java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String encryptByPublicKey(java.lang.String, java.lang.String, java.lang.String, int, boolean); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)Ljava/lang/String;
+public static java.lang.String getPrivateKeyBase64(java.security.PrivateKey); | descriptor: (Ljava/security/PrivateKey;)Ljava/lang/String;
+public static java.lang.String getPublicKeyBase64(java.security.PublicKey); | descriptor: (Ljava/security/PublicKey;)Ljava/lang/String;
+public static java.security.KeyPair getKeyPair(int); | descriptor: (I)Ljava/security/KeyPair;
+public static java.security.PrivateKey getPrivateKey(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/security/PrivateKey;
+public static java.security.PublicKey getPublicKey(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/security/PublicKey;
+static {}; | descriptor: ()V
+## com.github.catvod.crawler.js.Trans
+private com.github.catvod.crawler.js.Trans(boolean); | descriptor: (Z)V
+private final boolean trans; | descriptor: Z
+private final java.util.Map<java.lang.Character, java.lang.Character> s2t; | descriptor: Ljava/util/Map;
+private final java.util.Map<java.lang.Character, java.lang.Character> t2s; | descriptor: Ljava/util/Map;
+private java.lang.String get(java.lang.String, java.util.Map<java.lang.Character, java.lang.Character>); | descriptor: (Ljava/lang/String;Ljava/util/Map;)Ljava/lang/String;
+private static boolean wantTraditional(); | descriptor: ()Z
+private static com.github.catvod.crawler.js.Trans get(); | descriptor: ()Lcom/github/catvod/crawler/js/Trans;
+private void init(); | descriptor: ()V
+public class com.github.catvod.crawler.js.Trans {
+public static boolean pass(); | descriptor: ()Z
+public static java.lang.String s2t(boolean, java.lang.String); | descriptor: (ZLjava/lang/String;)Ljava/lang/String;
+public static java.lang.String s2t(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public static java.lang.String t2s(boolean, java.lang.String); | descriptor: (ZLjava/lang/String;)Ljava/lang/String;
+public static java.lang.String t2s(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+## com.github.catvod.crawler.JsLoader
+private boolean loadClassLoader(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Z
+private java.lang.Class<?> loadJarInternal(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Class;
+private static final java.util.concurrent.ConcurrentHashMap<java.lang.String, com.github.catvod.crawler.Spider> spiders; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private static final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.Class<?>> classes; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private volatile java.lang.String recentKey; | descriptor: Ljava/lang/String;
+public class com.github.catvod.crawler.JsLoader {
+public com.github.catvod.crawler.JsLoader(); | descriptor: ()V
+public java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public static void destroy(); | descriptor: ()V
+public static void stopAll(); | descriptor: ()V
+public synchronized com.github.catvod.crawler.Spider getSpider(java.lang.String, java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/catvod/crawler/Spider;
+public synchronized void clear(); | descriptor: ()V
+static {}; | descriptor: ()V
+## com.github.catvod.crawler.pyLoader
+private com.undcover.freedom.pyramid.PythonLoader pythonLoader; | descriptor: Lcom/undcover/freedom/pyramid/PythonLoader;
+private final boolean isPythonSupported(); | descriptor: ()Z
+private final com.undcover.freedom.pyramid.PythonLoader getPythonLoader(); | descriptor: ()Lcom/undcover/freedom/pyramid/PythonLoader;
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, com.github.catvod.crawler.Spider> spiders; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private java.lang.String lastConfig; | descriptor: Ljava/lang/String;
+private java.lang.String recentPyKey; | descriptor: Ljava/lang/String;
+public com.github.catvod.crawler.pyLoader(); | descriptor: ()V
+public final class com.github.catvod.crawler.pyLoader implements com.github.catvod.crawler.python.IPyLoader {
+public java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>, java.lang.String); | descriptor: (Ljava/util/Map;Ljava/lang/String;)[Ljava/lang/Object;
+public java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public static final int $stable; | descriptor: I
+public synchronized com.github.catvod.crawler.Spider getSpider(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/catvod/crawler/Spider;
+public synchronized void clear(); | descriptor: ()V
+public void setConfig(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public void setRecentPyKey(java.lang.String); | descriptor: (Ljava/lang/String;)V
+static {}; | descriptor: ()V
+## com.github.catvod.crawler.python.IPyLoader
+public abstract com.github.catvod.crawler.Spider getSpider(java.lang.String, java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/github/catvod/crawler/Spider;
+public abstract java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>, java.lang.String); | descriptor: (Ljava/util/Map;Ljava/lang/String;)[Ljava/lang/Object;
+public abstract java.lang.Object[] proxyInvoke(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public abstract void clear(); | descriptor: ()V
+public abstract void setConfig(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public abstract void setRecentPyKey(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public interface com.github.catvod.crawler.python.IPyLoader {
+## com.github.catvod.crawler.Spider
+protected static android.content.Context mContext; | descriptor: Landroid/content/Context;
+public boolean isVideoFormat(java.lang.String); | descriptor: (Ljava/lang/String;)Z
+public boolean manualVideoCheck(); | descriptor: ()Z
+public class com.github.catvod.crawler.Spider {
+public com.github.catvod.crawler.Spider(); | descriptor: ()V
+public java.lang.Object[] proxy(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public java.lang.Object[] proxyLocal(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)[Ljava/lang/Object;
+public java.lang.String action(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String categoryContent(java.lang.String, java.lang.String, boolean, java.util.HashMap<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/lang/String;ZLjava/util/HashMap;)Ljava/lang/String;
+public java.lang.String detailContent(java.util.List<java.lang.String>); | descriptor: (Ljava/util/List;)Ljava/lang/String;
+public java.lang.String homeContent(boolean); | descriptor: (Z)Ljava/lang/String;
+public java.lang.String homeVideoContent(); | descriptor: ()Ljava/lang/String;
+public java.lang.String liveContent(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public java.lang.String playerContent(java.lang.String, java.lang.String, java.util.List<java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+public java.lang.String searchContent(java.lang.String, boolean, java.lang.String); | descriptor: (Ljava/lang/String;ZLjava/lang/String;)Ljava/lang/String;
+public java.lang.String searchContent(java.lang.String, boolean); | descriptor: (Ljava/lang/String;Z)Ljava/lang/String;
+public java.lang.String siteKey; | descriptor: Ljava/lang/String;
+public static okhttp3.Dns safeDns(); | descriptor: ()Lokhttp3/Dns;
+public static okhttp3.OkHttpClient client(); | descriptor: ()Lokhttp3/OkHttpClient;
+public static org.json.JSONObject empty; | descriptor: Lorg/json/JSONObject;
+public void cancelByTag(); | descriptor: ()V
+public void destroy(); | descriptor: ()V
+public void init(android.content.Context, java.lang.String); | descriptor: (Landroid/content/Context;Ljava/lang/String;)V
+public void init(android.content.Context); | descriptor: (Landroid/content/Context;)V
+public void initApi(com.github.catvod.crawler.SpiderApi); | descriptor: (Lcom/github/catvod/crawler/SpiderApi;)V
+static {}; | descriptor: ()V
+## com.github.catvod.crawler.SpiderApi
+private static com.google.gson.JsonElement toResult(java.lang.String); | descriptor: (Ljava/lang/String;)Lcom/google/gson/JsonElement;
+private static java.lang.String lambda$multiReq$0(com.google.gson.JsonObject) throws java.lang.Exception; | descriptor: (Lcom/google/gson/JsonObject;)Ljava/lang/String;
+private static java.lang.String request(com.google.gson.JsonObject); | descriptor: (Lcom/google/gson/JsonObject;)Ljava/lang/String;
+private static java.lang.String string(com.google.gson.JsonObject, java.lang.String); | descriptor: (Lcom/google/gson/JsonObject;Ljava/lang/String;)Ljava/lang/String;
+private static okhttp3.Headers headers(com.google.gson.JsonElement); | descriptor: (Lcom/google/gson/JsonElement;)Lokhttp3/Headers;
+private static okhttp3.RequestBody body(com.google.gson.JsonObject); | descriptor: (Lcom/google/gson/JsonObject;)Lokhttp3/RequestBody;
+public class com.github.catvod.crawler.SpiderApi {
+public com.github.catvod.crawler.SpiderApi(); | descriptor: ()V
+public int getScreenOrientation(); | descriptor: ()I
+public java.lang.String getAddress(boolean); | descriptor: (Z)Ljava/lang/String;
+public java.lang.String getPort(); | descriptor: ()Ljava/lang/String;
+public java.lang.String multiReq(com.google.gson.JsonArray); | descriptor: (Lcom/google/gson/JsonArray;)Ljava/lang/String;
+public java.lang.String webParse(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+public void log(java.lang.String); | descriptor: (Ljava/lang/String;)V
+## com.github.catvod.crawler.SpiderDebug
+public class com.github.catvod.crawler.SpiderDebug {
+public com.github.catvod.crawler.SpiderDebug(); | descriptor: ()V
+public static java.lang.String ec(int); | descriptor: (I)Ljava/lang/String;
+public static void log(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public static void log(java.lang.Throwable); | descriptor: (Ljava/lang/Throwable;)V
+## com.github.catvod.crawler.SpiderNull
+public class com.github.catvod.crawler.SpiderNull extends com.github.catvod.crawler.Spider {
+public com.github.catvod.crawler.SpiderNull(); | descriptor: ()V
+## com.github.catvod.net.OkDns
+private final java.util.concurrent.ConcurrentHashMap<java.lang.String, java.lang.String> hosts; | descriptor: Ljava/util/concurrent/ConcurrentHashMap;
+private java.lang.String get(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public class com.github.catvod.net.OkDns implements okhttp3.Dns {
+public com.github.catvod.net.OkDns(); | descriptor: ()V
+public java.util.List<java.net.InetAddress> lookup(java.lang.String) throws java.net.UnknownHostException; | descriptor: (Ljava/lang/String;)Ljava/util/List;
+public void addAll(java.util.List<java.lang.String>); | descriptor: (Ljava/util/List;)V
+public void clear(); | descriptor: ()V
+## com.github.catvod.net.OkHttp
+private static boolean lambda$setOkHttpSsl$0(java.lang.String, javax.net.ssl.SSLSession); | descriptor: (Ljava/lang/String;Ljavax/net/ssl/SSLSession;)Z
+private static com.github.catvod.net.OkDns dns; | descriptor: Lcom/github/catvod/net/OkDns;
+private static final javax.net.ssl.X509TrustManager TRUST_ALL_CERT; | descriptor: Ljavax/net/ssl/X509TrustManager;
+private static final long TIMEOUT; | descriptor: J
+private static okhttp3.Headers headers(java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/util/Map;)Lokhttp3/Headers;
+private static okhttp3.HttpUrl buildUrl(java.lang.String, androidx.collection.ArrayMap<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Landroidx/collection/ArrayMap;)Lokhttp3/HttpUrl;
+private static okhttp3.OkHttpClient client; | descriptor: Lokhttp3/OkHttpClient;
+private static void setOkHttpSsl(okhttp3.OkHttpClient$Builder); | descriptor: (Lokhttp3/OkHttpClient$Builder;)V
+public class com.github.catvod.net.OkHttp {
+public com.github.catvod.net.OkHttp(); | descriptor: ()V
+public static java.lang.String string(java.lang.String, java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/util/Map;)Ljava/lang/String;
+public static java.lang.String string(java.lang.String, long); | descriptor: (Ljava/lang/String;J)Ljava/lang/String;
+public static java.lang.String string(java.lang.String); | descriptor: (Ljava/lang/String;)Ljava/lang/String;
+public static okhttp3.Call newCall(java.lang.String, java.lang.String); | descriptor: (Ljava/lang/String;Ljava/lang/String;)Lokhttp3/Call;
+public static okhttp3.Call newCall(java.lang.String, java.util.Map<java.lang.String, java.lang.String>, androidx.collection.ArrayMap<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/util/Map;Landroidx/collection/ArrayMap;)Lokhttp3/Call;
+public static okhttp3.Call newCall(java.lang.String, java.util.Map<java.lang.String, java.lang.String>, okhttp3.RequestBody); | descriptor: (Ljava/lang/String;Ljava/util/Map;Lokhttp3/RequestBody;)Lokhttp3/Call;
+public static okhttp3.Call newCall(java.lang.String, java.util.Map<java.lang.String, java.lang.String>); | descriptor: (Ljava/lang/String;Ljava/util/Map;)Lokhttp3/Call;
+public static okhttp3.Call newCall(java.lang.String, okhttp3.RequestBody, java.lang.String); | descriptor: (Ljava/lang/String;Lokhttp3/RequestBody;Ljava/lang/String;)Lokhttp3/Call;
+public static okhttp3.Call newCall(java.lang.String); | descriptor: (Ljava/lang/String;)Lokhttp3/Call;
+public static okhttp3.Call newCall(okhttp3.OkHttpClient, java.lang.String, java.lang.String); | descriptor: (Lokhttp3/OkHttpClient;Ljava/lang/String;Ljava/lang/String;)Lokhttp3/Call;
+public static okhttp3.Call newCall(okhttp3.OkHttpClient, java.lang.String, okhttp3.RequestBody); | descriptor: (Lokhttp3/OkHttpClient;Ljava/lang/String;Lokhttp3/RequestBody;)Lokhttp3/Call;
+public static okhttp3.Call newCall(okhttp3.OkHttpClient, java.lang.String); | descriptor: (Lokhttp3/OkHttpClient;Ljava/lang/String;)Lokhttp3/Call;
+public static okhttp3.FormBody toBody(androidx.collection.ArrayMap<java.lang.String, java.lang.String>); | descriptor: (Landroidx/collection/ArrayMap;)Lokhttp3/FormBody;
+public static okhttp3.OkHttpClient client(boolean, long); | descriptor: (ZJ)Lokhttp3/OkHttpClient;
+public static okhttp3.OkHttpClient client(long); | descriptor: (J)Lokhttp3/OkHttpClient;
+public static okhttp3.OkHttpClient noRedirect(); | descriptor: ()Lokhttp3/OkHttpClient;
+public static okhttp3.OkHttpClient noRedirect(long); | descriptor: (J)Lokhttp3/OkHttpClient;
+public static okhttp3.OkHttpClient player(); | descriptor: ()Lokhttp3/OkHttpClient;
+public static synchronized com.github.catvod.net.OkDns dns(); | descriptor: ()Lcom/github/catvod/net/OkDns;
+public static synchronized okhttp3.OkHttpClient client(); | descriptor: ()Lokhttp3/OkHttpClient;
+public static synchronized void reset(); | descriptor: ()V
+public static synchronized void resetClient(); | descriptor: ()V
+public static void cancel(java.lang.String); | descriptor: (Ljava/lang/String;)V
+public static void cancel(okhttp3.OkHttpClient, java.lang.String); | descriptor: (Lokhttp3/OkHttpClient;Ljava/lang/String;)V
+public static void cancelAll(); | descriptor: ()V
+public static void cancelAll(okhttp3.OkHttpClient); | descriptor: (Lokhttp3/OkHttpClient;)V
+static {}; | descriptor: ()V
+## com.github.catvod.Proxy
+private static int port; | descriptor: I
+private static java.lang.String getIp(); | descriptor: ()Ljava/lang/String;
+public class com.github.catvod.Proxy {
+public com.github.catvod.Proxy(); | descriptor: ()V
+public static int getPort(); | descriptor: ()I
+public static java.lang.String getUrl(boolean); | descriptor: (Z)Ljava/lang/String;
+public static void set(int); | descriptor: (I)V
+static {}; | descriptor: ()V
