@@ -34,6 +34,21 @@ import com.github.tvbox.osc.util.PlayerUtils
  */
 internal class VideoGestureActionsImpl(private val host: ComposeVideoController) : VideoGestureActions {
 
+    /** 手势提示的种类(用于"换模式时撤下另一套") */
+    private enum class HintKind { NONE, SEEK, SLIDE }
+
+    /** 切到 seek 提示:若屏上还是亮/音量提示,先撤下 */
+    private fun showSeekHintOnly() {
+        if (shownHint == HintKind.SLIDE) host.hideSlideHint()
+        shownHint = HintKind.SEEK
+    }
+
+    /** 切到亮/音量提示:若屏上还是 seek 提示,先撤下 */
+    private fun showSlideHintOnly() {
+        if (shownHint == HintKind.SEEK) host.hideSeekHint()
+        shownHint = HintKind.SLIDE
+    }
+
     /**
      * 横滑满屏宽对应的时长。
      *
@@ -73,6 +88,15 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     /** 手势开始时的音量基准(同样必须固定,理由同上) */
     private var volumeBase: Int? = null
 
+    /**
+     * 本次会话当前在展示哪一套提示。
+     *
+     * <p>seek 提示与亮/音量提示是**两个独立状态位**,各自 1 秒后自动隐藏。手势中途换模式时,
+     * 旧那套还在屏上(最长 1 秒),于是两套叠在一起 —— 真机反馈:亮度滑到一半改成横滑调进度,
+     * 亮度百分比与进度时间重叠显示。故换模式时必须主动撤下另一套。
+     */
+    private var shownHint: HintKind = HintKind.NONE
+
     private val audioManager: AudioManager? by lazy {
         host.context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     }
@@ -85,6 +109,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
      */
     fun beginSession(width: Int, height: Int, screenWidth: Int, downY: Float): VideoGestureSession {
         seekTargetMs = -1
+        shownHint = HintKind.NONE
         // 基准在手势开始时取一次,整场手势复用(见字段注释)
         brightnessBase = host.playerActivity()?.window?.attributes?.screenBrightness?.let {
             if (it < 0f) 0.5f else it
@@ -152,6 +177,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         var target = (totalDeltaX / width * slideFullWidthMs + current).toInt()
         if (target > duration) target = duration
         if (target < 0) target = 0
+        showSeekHintOnly()
         host.updateSeekUiHint(current, target)
         seekTargetMs = target
     }
@@ -189,6 +215,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
                 " base=" + base + " target=" + target,
         )
+        showSlideHintOnly()
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (target * 100).toInt()), brightness = true)
     }
 
@@ -211,6 +238,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             "echo-slide: kind=volume dy=" + totalDeltaY + " h=" + height +
                 " base=" + base + " max=" + streamMax + " target=" + index,
         )
+        showSlideHintOnly()
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (index / streamMax * 100).toInt()), brightness = false)
     }
 }
