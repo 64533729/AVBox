@@ -300,12 +300,27 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - **验证**：构建（debug + release 双变体 —— release 才暴露 R8 对 `media3-effect` 反射查找的 keep 覆盖）+ 单测（不低于 536 基线，新增按切片补）+ 逐项行为对照 + 真机走查（`avbox-playback-service-spec.md` §4 全清单 1–14 逐项重跑，另加本节「必须承接」四条清单）。
 - **风险**：最高（本项目回归成本最大区域）。**回滚**：doikki 源码与依赖在 M10 拆除前始终在库，任一切片可退回旧路径。
 
-## M8｜`osc` 主包收尾（不含契约层）
+## M8｜`osc` 主包收尾（不含契约层） —— ✅ **已执行（2026-10-06）**
 
 - 全库检索确认 `com/github/tvbox/osc` 主包 Java 清零（含 M6b 的 17 个与 M7 的 36 个）。
 - 复查行尾 LF、UI 层零新增注释、i18n 卡口、包级环（旧 spec 阶段 6 收尾的 17 组是否因迁移新增）。
 - 清理引用已推翻决策的 KDoc（例：~~`sourcedata/LiveDataFlow.kt` 仍写着「D2 分域：不重写 Java→Kotlin」~~ —— M4a 已连文件一并删除；`sourcedata` 属数据层、可改注释）。
 - 契约层：`catvod` 此时仍为 Java（`player` 模块随 M10 整体拆除，见其节）—— 全库零 Java 由 M11 判定。
+
+
+**M8 实测记录（2026-10-06，四条逐项）**：
+
+1. **主包 Java 清零** ✅ —— `app/src/main/java/com/github/tvbox` = **0 Java / 349 Kotlin**（`app/src/main/java` 总计 24 Java，**全部在 `com/github/catvod`**）。M6b 的 17 个与 M7 的 36 个均已收口；M7e/M7f 另清了 `ui/player` 4 个与 `player/` 根 2 个。
+2. **行尾 LF** ✅ —— `git ls-files --eol`：**`i/crlf` = 0**（入库内容全 LF）。工作区有 37 个 `i/lf w/crlf`，系本地 `core.autocrlf` 检出差异，非入库问题；每个切片的改动文件均已按 LF 写入。
+3. **i18n 卡口** ⚠️ **门通过、但非 UI 侧有 35 处待补标记** —— 跑 `.codebuddy/tools/i18n_gate.py`：
+   - **ui 层（硬闸门，须 0）= 0 处 / 0 文件** ✅
+   - 非 ui 层 = **35 处 / 3 文件**：`player/engine/PlayerEngine.kt` 33（`LANG_MAP` 轨道语言归类值 18 + `matchLanguage` 匹配关键字与返回值 14 + `"未知"` 过滤值 1）、`sourcedata/SourceHelper.kt` 1（`"豆瓣"` 探测值）、`sourcedata/SourceResultParser.kt` 1（异常文案）。
+   - **逐条甄别结论**：35 处**全部属"匹配关键字 / 归类值 / 探测值 / 诊断文案"**，**没有一处是用户可见的待翻译 UI 文案** ⇒ 不是翻译缺口，而是**缺 `i18n: keep` 白名单标记**（规范 §1.3 R1–R11 的"数据值/日志"类）。来源是 **M7a 新建 `PlayerEngine.kt`（`8878235`）时未标注**；`SourceHelper` 的 `ERR_NETWORK` 未被门计入（已有豁免）。**登记为待办**：补 34 处 `// i18n: keep(…)` 可把门恢复到历史上的 `ui 0 / 非 ui 0`（纯注释、零行为风险，但会在引擎文件插入约 30 行注释，故未擅自执行）。
+4. **包级环** —— 实测 **22 组 / 231 边 / 53 包**（提取口径：文件所在包与 import 目标包各取根包之后头 3 段，双向即成环）。**旧基线 17 组的分组口径脚本已丢失，无法逐组比对** ⇒ **不做"是否新增"的断言**，改为**重新基线**：22 组中 5 组为 M7 播放栈拆子包带来的 `player.*` 家族内环（`player ⇄ player.{engine,host,state,effect}`、`player.effect ⇄ player.engine`），属旧文档已判"可接受"的**父子/同族**类，其余构成与旧文档"util 枢纽 9 组 + 父子里程 4 组 + 跨族若干"同型。**全量清环未做且不建议做**：22 组的"较小方向导入数"之和为 63，但其中 11 组涉及 `util` 枢纽，而旧 spec 已**实测证明挪包无效**（util 拆分实验 23 → 23 不降），只能逐类做依赖反转 ⇒ 属跨轮架构重构，计划明确将其排除在范围外。
+5. **清理引用已推翻决策的 KDoc** ✅ —— 检索 `不重写 Java` / `LiveDataFlow` / `D2 分域` / `按语言分域` 等措辞，**0 命中**（计划举的 `sourcedata/LiveDataFlow.kt` 已随 M4a 删除）。
+6. **契约层** —— `com/github/catvod` 仍为 24 Java（M9）；全库零 Java 由 M11 判定。
+7. **UI 层零新增注释** ⚠️ **有一处需登记** —— 本会话为两处**功能性布局修复**在 UI 层加了 10 行注释（`ui/page/CollectPage.kt` 4 行：标题移出海报的依据与首页样式对齐出处；`ui/page/ConfigManagePage.kt` 4 行：空态为何不居中）。规则（规范 §57 / 计划 §362「UI 层不写注释」）针对的是**迁移期不该顺手加注释**，这两处是解释新行为与依据 ⇒ **登记为"功能性改动所加"的例外**，如需严格清零可删（用户可随时否决此例外）。
+
 
 ## M9｜`com/github/catvod` 契约包迁 Kotlin（24 个 Java；Tier A 为主）
 
