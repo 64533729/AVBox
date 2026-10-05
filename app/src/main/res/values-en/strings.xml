@@ -390,7 +390,6 @@
     <string name="settings_play_scale">Video Scaling</string>
     <string name="settings_play_decode">Decoding Mode</string>
     <string name="settings_play_anime4k">Anime4K Enhancement</string>
-    <string name="settings_play_anime4k_subtitle">VOD only; live and HDR sources are skipped</string>
     <string name="settings_play_tunnel">Tunnel Mode</string>
     <string name="settings_play_kernel_prewarm">Player Engine Prewarm</string>
     <string name="settings_play_kernel_prewarm_subtitle">Pre-create the player engine and keep it resident for faster start-up</string>

@@ -118,13 +118,18 @@ class VideoGestureHandler(
     val doubleTapTimeoutMs: Long = 300L,
     val doubleTapMinTimeMs: Long = 40L,
     /**
-     * 竖滑**起判阈值**:纵向位移超过 `height * 该比例` 才真正开始改亮度/音量。
+     * 滑动**起判距离**:位移超过 `height * 该比例` 才算真正开始滑动。**横竖共用一个绝对距离**。
      *
-     * <p>为什么需要:真机反馈"下拉通知栏/上滑退出应用也会触发亮度音量"。系统手势抢走触摸前
-     * 会先送来一串 MOVE,等在系统取消时,亮度/音量**已经被改过了**。加一道门槛后,系统手势
-     * 惯常的那点位移不足以越过它(真机 1080×2400 下约 288px);用户明确要调时很容易越过。
+     * <p>两条真机反馈都指向它:
+     * ① 竖滑 —— "下拉通知栏/上滑退出应用也会触发亮度音量"。系统手势抢走触摸前会先送来一串 MOVE,
+     *    等在系统取消时数值**已经被改过了**;加门槛后系统手势那点位移不足以越过。
+     * ② 横滑 —— "手指不小心滑动一下都会触发调节视频进度"。横滑原先只受 8px 的 slop 约束,
+     *    而竖滑已有本门槛,两者**不对称**;现在统一到同一距离。
+     *
+     * <p>取 `height` 的 12%(与方向无关,故横竖是同一段像素距离):真机手势区高 1260px 时约 **151px**。
+     * 明确要拖时很容易越过,而无意的手抖远达不到。要更灵敏/更钝改这一个数即可。
      */
-    private val verticalCommitFraction: Float = 0.12f,
+    private val commitFraction: Float = 0.12f,
 ) {
 
     enum class Mode { UNDECIDED, SEEK, BRIGHTNESS, VOLUME, NONE }
@@ -212,10 +217,15 @@ class VideoGestureHandler(
         }
 
         if (mode == Mode.UNDECIDED) {
-            // 竖滑要越过起判阈值才算数(横滑仍按 slop 即响应,见 decideMode)
-            val verticalEnough = kotlin.math.abs(dy) > s.height * verticalCommitFraction
-            if (kotlin.math.abs(dy) > kotlin.math.abs(dx) && !verticalEnough) {
-                return false
+            // 横竖都必须越过**同一个绝对起判距离**才算开始滑动(见 commitFraction 说明)。
+            // 未越过时保持 UNDECIDED,继续跟手;越过的那一刻才定模式。
+            val commitPx = s.height * commitFraction
+            val adx = kotlin.math.abs(dx)
+            val ady = kotlin.math.abs(dy)
+            if (adx > ady) {
+                if (adx <= commitPx) return false
+            } else {
+                if (ady <= commitPx) return false
             }
             mode = decideMode(dx, dy, s)
         }

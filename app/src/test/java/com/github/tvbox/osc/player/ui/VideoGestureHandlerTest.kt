@@ -472,13 +472,40 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.any { it.startsWith("brightness") })
     }
 
-    /** 起判阈值只管竖滑:横滑仍按 slop 立即响应 */
+    /**
+     * 真机反馈 ⑤(2026-10-06):横滑太容易误触 —— "手指不小心滑动一下都会触发调节视频进度"。
+     *
+     * <p>原先横滑只受 8px 的 slop 约束,而竖滑已有起判阈值,两者不对称。现在横竖共用同一绝对
+     * 起判距离(手势区高度的 12%)。本用例钉住:小幅横移**不得**进入 seek。
+     */
     @Test
-    fun horizontalMoveBelowCommitThresholdStillSeeks() {
+    fun smallHorizontalMoveDoesNotSeek() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        assertTrue("横滑不该被竖滑阈值牵制", h.onMove(340f, 305f, slop = 8f))
+        // h=600 ⇒ 起判 72px;走 40px(无意的横向抖动量级)
+        assertFalse(h.onMove(340f, 302f, slop = 8f))
+        assertTrue("小幅横移不该 seek,实际: ${r.calls}", r.calls.none { it.startsWith("seekPreview") })
+    }
+
+    /** 越过起判距离后横滑照常生效(门槛不能把正常拖进度也挡掉) */
+    @Test
+    fun horizontalMoveBeyondCommitThresholdSeeks() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        assertTrue(h.onMove(460f, 302f, slop = 8f)) // 160px > 72px
+        assertTrue(r.calls.any { it.startsWith("seekPreview") })
+    }
+
+    /** 门槛未越过的横移之后继续拖:一旦越过就应立刻开始 seek(不能因为一次早退就失效) */
+    @Test
+    fun horizontalSeekStartsOnceThresholdCrossed() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        assertFalse(h.onMove(340f, 302f, slop = 8f))   // 未越
+        assertTrue(h.onMove(500f, 302f, slop = 8f))    // 越过后立刻生效
         assertTrue(r.calls.any { it.startsWith("seekPreview") })
     }
 

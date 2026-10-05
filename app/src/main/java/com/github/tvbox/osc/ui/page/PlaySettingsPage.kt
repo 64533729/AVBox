@@ -147,7 +147,6 @@ fun PlaySettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel = viewM
                     SettingsOptionMenuRow(
                         title = stringResource(R.string.settings_play_anime4k),
                         leadingIconRes = R.drawable.ic_play_anime4k,
-                        subtitle = stringResource(R.string.settings_play_anime4k_subtitle),
                         valueText = labels[selected],
                         enabled = state.playType == 2,
                         options = labels,

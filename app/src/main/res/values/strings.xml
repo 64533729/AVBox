@@ -390,7 +390,6 @@
     <string name="settings_play_scale">画面缩放</string>
     <string name="settings_play_decode">解码方式</string>
     <string name="settings_play_anime4k">Anime4K 画质增强</string>
-    <string name="settings_play_anime4k_subtitle">仅点播生效，直播 / HDR 源自动跳过</string>
     <string name="settings_play_tunnel">隧道模式</string>
     <string name="settings_play_kernel_prewarm">内核预热</string>
     <string name="settings_play_kernel_prewarm_subtitle">启动后提前创建并常驻，加快起播</string>
