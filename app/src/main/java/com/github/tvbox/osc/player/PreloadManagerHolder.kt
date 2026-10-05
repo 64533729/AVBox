@@ -25,8 +25,9 @@ import java.util.TreeMap
  *
  * <p>移植口径 = 纯语言迁移(Java → Kotlin),逐行等价。几处 Kotlin 形态差异:
  * ① Java 的"全静态类"→ Kotlin `object` + 公开成员加 `@JvmStatic`(Java 侧调用形式不变);
- * ② Java 的 `synchronized static` → `@Synchronized`(互斥对象由 Class 变为 INSTANCE,
- *    但全部访问点都走同一把锁,互斥语义不变);
+ * ② Java 的 `synchronized static` → `@Synchronized` + `@JvmStatic`。**互斥对象仍是 Class**:
+ *    `@JvmStatic` 会在静态桥上生成带 `ACC_SYNCHRONIZED` 的方法(独立复核已用 `javap` 核实,
+ *    整个类里 `monitorenter` 计数为 0),与 Java 的语义逐位一致 —— 并非"改为锁 INSTANCE"。
  * ③ `LinkedHashMap` 匿名子类重写 `removeEldestEntry` → Kotlin `object : LinkedHashMap(...)`;
  * ④ `PreloadManagerListener` 匿名类 → Kotlin 匿名对象;`PreloadException.getCause()` → `.cause`。
  */

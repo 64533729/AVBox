@@ -152,7 +152,11 @@ class PreloadCoordinator(
             return
         }
         if (snapshot.nextKey == snapshot.currentKey) return
-        if (snapshot.currentKey == gaveUpKey) return
+        // ⚠️ 登记一处**有意偏离**:Java 原文是 `snapshot.currentKey.equals(gaveUpKey)`,
+        // `currentKey` 可空(VodInfo 的 progressKey)→ 为空时 Java 直接 NPE 崩溃。
+        // Kotlin 的 `==` 在 `null == null` 时返回 true,会让本片预载被**静默跳过**。
+        // 两者都不是本意,故按意图写成"确实对该内容放弃过才跳过"(gaveUpKey 非空且相等)。
+        if (gaveUpKey != null && snapshot.currentKey == gaveUpKey) return
         if (snapshot.nextKey == preloadedKey) {
             LOG.i("echo-preload-skip: already preloaded")
             return
