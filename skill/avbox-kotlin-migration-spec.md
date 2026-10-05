@@ -622,6 +622,17 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律，**整片回退**：`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除，仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置** = 先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（其判定语义经复核确认与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
+**② 已接线到控制器（2026-10-06,提交 `43b730a`）**：`GestureController.kt`(259 行 View 级 `GestureDetector`)**已删除**,改由:
+- `ComposeVideoController` 持有 `VideoGestureHandler`(判定)+ `VideoGestureActionsImpl`(副作用);
+- `PlayerOverlay` 根 `BoxWithConstraints` 挂 `Modifier.videoGestureLayer(gestureHandler)`,快照由 `gestureActions.beginSession(w,h,screenWidth)` **每次 DOWN 现算**(宽高/边缘/半屏分侧都现算);
+- 半屏分侧用的屏幕宽度在**组合期**读出(`pointerInput` 的 lambda 内不能有 `@Composable` 调用 —— 编译期会报 `@Composable invocations can only happen from the context of a @Composable function`);
+- `gestureActions`/`gestureHandler` 在 `init{}` 里**先于** `initComposeLayer()` 建好,故 `pointerInput(handler)` 的键稳定、无初始化顺序风险;
+- 接线层不再有 `onTouchEvent` 覆写,空白区触摸由 Compose 层认领(子控件消费的照旧不认领)。
+
+**两处接线期修正**:① 亮/音量基准**按会话现取**(旧草稿缓存过一次,跨会话串味 —— 复核高危项 ③ 的正解);② 手势横滑进入与底部进度条拖动**同一个 `dragging` 态**,否则 1Hz 进度表会与预览互相打架;此外把 `endSession` 的返回值改为显式 `EndResult`,让接线层不必猜"该不该等第二下"。
+
+`assembleDebug` + `assembleRelease` + **638 用例 / 0 失败** 全绿。
+
 **② 已落地实现 + 接线层用例（2026-10-06,提交 `2fba430`）**：在验证栈跑通后重建了手势层,并**用测试钉住两轮复核的阻断项**:
 - **实现**:`player/ui/VideoGestureLayer.kt` = 纯状态机 `VideoGestureHandler`(判定,20 例单测)+ `Modifier.videoGestureLayer`(指针接线)。两条硬约束:① `awaitFirstDown(requireUnconsumed = true)` —— 子控件消费的触摸从不认领(阻断项 B1 正解);② 等第二下时**不消费**取到的 DOWN,交给下一轮 `awaitEachGesture` 重新起会话(双击可达)。
 - **写测试时抓到 3 个真 bug(全部已修)**:① `endSession` 先把 `mode` 复位再读,导致**横滑永远不提交/不取消** seek(状态机用例当场抓到);② **首下抬手几乎总落在长按竞速窗口内**(测试里 down/up 同帧),旧写法之后会再等一个永不到来的 up ⇒ `endSession` 永不执行、**点击全部无反应**;③ 单击确认只在两条收尾路径之一可达 ⇒ 点击静默结束。为此把 `endSession` 返回值从 `Boolean` 改为显式 `EndResult{TAP_PENDING, DOUBLE_TAP, NONE}`。
