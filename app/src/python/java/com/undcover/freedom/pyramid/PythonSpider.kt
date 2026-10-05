@@ -38,15 +38,15 @@ class PythonSpider : Spider {
         this.name = name
     }
 
-    override fun init(context: Context) {
+    override fun init(context: Context?) {
         app!!.callAttr("init", pySpider)
     }
 
-    override fun init(context: Context, url: String?) {
+    override fun init(context: Context?, url: String?) {
         init(context, url, "")
     }
 
-    fun init(context: Context, url: String?, extend: String?) {
+    fun init(context: Context?, url: String?, extend: String?) {
         app = PythonLoader.getInstance().pyApp
         val retValue = app!!.callAttr("downloadPlugin", cachePath, url)
         val uri = Uri.parse(url!!)
@@ -238,7 +238,7 @@ class PythonSpider : Spider {
      * @param extend
      * @return
      */
-    override fun categoryContent(tid: String, pg: String, filter: Boolean, extend: HashMap<String, String>?): String {
+    override fun categoryContent(tid: String?, pg: String, filter: Boolean, extend: HashMap<String, String>?): String {
         PyLog.nw("categoryContent-$name", paramLog(tid, pg, filter, map2json(extend).toString()))
         val po = app!!.callAttr("categoryContent", pySpider, tid, pg, filter, map2json(extend).toString())
         val rsp = po.toString()
@@ -267,7 +267,7 @@ class PythonSpider : Spider {
      * @param quick
      * @return
      */
-    override fun searchContent(key: String, quick: Boolean): String {
+    override fun searchContent(key: String?, quick: Boolean): String {
         PyLog.nw("searchContent-$name", paramLog(key, quick))
         val po = app!!.callAttr("searchContent", pySpider, key, quick)
         val rsp = po.toString()
@@ -282,7 +282,7 @@ class PythonSpider : Spider {
      * @param id
      * @return
      */
-    override fun playerContent(flag: String, id: String, vipFlags: List<String>?): String {
+    override fun playerContent(flag: String?, id: String, vipFlags: List<String>?): String {
         PyLog.nw("playerContent-$name", paramLog(flag, id, list2json(vipFlags).toString()))
         val po = app!!.callAttr("playerContent", pySpider, flag, id, list2json(vipFlags).toString())
         val rsp = replaceLocalUrl(po.toString())

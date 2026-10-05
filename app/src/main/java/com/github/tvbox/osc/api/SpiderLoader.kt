@@ -319,7 +319,7 @@ class SpiderLoader {
         } else if (sourceBean.api!!.contains(".py")) {
             currentPyKey = sourceBean.key
             pyLoader.setRecentPyKey(currentPyKey)
-            return pyLoader.getSpider(sourceBean.key, sourceBean.api, sourceBean.ext)
+            return pyLoader.getSpider(sourceBean.key!!, sourceBean.api, sourceBean.ext)
         } else {
             currentPyKey = ""
             return jarLoader.getSpider(sourceBean.key, sourceBean.api, sourceBean.ext, sourceBean.jar)
@@ -328,7 +328,7 @@ class SpiderLoader {
 
     /** 按 key 装载 py spider(代理分发时按"当前源"重新装载) */
     fun pySpider(key: String?, api: String?, ext: String?): Spider {
-        val result = pyLoader.getSpider(key, api, ext)
+        val result = pyLoader.getSpider(key!!, api, ext)
         pyLoader.setRecentPyKey(key)
         return result
     }
@@ -340,7 +340,7 @@ class SpiderLoader {
     fun setLiveJar(liveJar: String) {
         if (liveJar.contains(".py")) {
             currentLivePyKey = MD5.string2MD5(liveJar)
-            pyLoader.getSpider(currentLivePyKey, liveJar, "")
+            pyLoader.getSpider(currentLivePyKey!!, liveJar, "")
             pyLoader.setRecentPyKey(currentLivePyKey)
         } else if (liveJar.contains(".js")) {
             jsLoader.getSpider(MD5.string2MD5(liveJar), liveJar, "", "")
@@ -354,7 +354,7 @@ class SpiderLoader {
     fun getPyCSP(url: String): Spider {
         currentLivePyKey = MD5.string2MD5(url)
         currentLiveSpider = url
-        return pyLoader.getSpider(currentLivePyKey, url, "")
+        return pyLoader.getSpider(currentLivePyKey!!, url, "")
     }
 
     fun getJsCSP(url: String): Spider {
@@ -374,7 +374,7 @@ class SpiderLoader {
             val ext = liveExt(livesOBJ)
             currentLivePyKey = MD5.string2MD5(api)
             currentLiveSpider = api
-            pyLoader.getSpider(currentLivePyKey, api, ext)
+            pyLoader.getSpider(currentLivePyKey!!, api, ext)
         } else if (api.contains(".js")) {
             LOG.i("echo-jsLoader.getSpider")
             val ext = liveExt(livesOBJ)
