@@ -88,6 +88,8 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Robolectric 需要真实资源与清单(Compose UI 测试在 JVM 上跑的前提)
+        unitTests.isIncludeAndroidResources = true
     }
 }
 kotlin {
@@ -173,6 +175,17 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
+
+    // ---- 纯 JVM 上的 Compose/Android 行为验证栈 ----
+    // 动机:M7e 的"手势改 Compose pointerInput"两次在独立复核被判不予交付,根因是接线层语义
+    // (子控件消费、双击时序、ACTION_CANCEL、长按计时)在只有 JUnit4 的环境里无法离线验证。
+    // 这三条依赖把 Compose 的指针分发与 Android 框架行为搬进 JVM 单测。
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
 }
 
 configurations.configureEach {

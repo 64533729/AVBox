@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  测试源集清单:为 Robolectric 下的 Compose UI 测试提供可实例化的宿主 Activity。
+
+  背景与坑:
+  - `ui-test-manifest` 合并进来的 `androidx.activity.ComponentActivity` 不在本应用运行期 dex 里,
+    Robolectric 实例化时解析失败(`Unable to resolve activity for Intent ...`);
+  - 本工程 `applicationId`(com.github.avbox.osc)≠ `namespace`(com.github.tvbox.osc),
+    AGP 会把清单里**以点开头的相对类名**按 namespace 展开,而 ActivityScenario 按 applicationId
+    发 Intent ⇒ 两边对不上。因此这里写**绝对类名**,并显式用 applicationId 前缀的等价包路径,
+    保证 Robolectric 用 applicationId 查询时能命中。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="com.github.avbox.osc.ui.ComposeTestActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+
+</manifest>
