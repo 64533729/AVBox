@@ -9,6 +9,7 @@ import com.github.tvbox.osc.player.ui.VideoGestureSession
 import com.github.tvbox.osc.util.GestureHelper
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
 
 /**
@@ -42,12 +43,12 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     private val slideFullWidthMs = 120000f
 
     /**
-     * 竖滑灵敏度:满屏高对应多少倍范围。
+     * 竖滑定标:**滑过多少个"手势区高度"才走完全量程**。
      *
-     * <p>旧实现是 `deltaY * 2 / height`(半屏就走完 0..100%);真机反馈"太灵敏"⇒ 改为 **0.9**:
-     * 需要接近整屏高度才走完整个范围,微调更好停。
+     * <p>旧实现是 `deltaY * 2 / height` ⇒ 半屏就到底;真机反馈"轻轻一划就到 100%,跟闪光弹一样"。
+     * 现取 2.5 ⇒ 一屏位移只走 **40%**,要两屏半才到顶/到底,微调余量充足。
      */
-    private val verticalSensitivity = 0.9f
+    private val verticalRangePerScreen = 2.5f
 
     /**
      * 屏幕顶端"系统手势保留带"占手势区高度的比例。
@@ -159,11 +160,18 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val height = host.height
         if (height <= 0) return
         val base = if (attrs.screenBrightness < 0f) 0.5f else attrs.screenBrightness
-        var target = base - totalDeltaY * verticalSensitivity / height
+        // 下降 = 变暗、上升 = 变亮;按 verticalRangePerScreen 定标
+        val delta = -totalDeltaY / (height * verticalRangePerScreen)
+        var target = base + delta
         if (target < 0f) target = 0f
         if (target > 1f) target = 1f
         attrs.screenBrightness = target
         window.attributes = attrs
+        // 诊断:亮度这条最容易"感觉不对却算不出",把参与量都记下来
+        LOG.i(
+            "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
+                " base=" + base + " target=" + target,
+        )
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (target * 100).toInt()), brightness = true)
     }
 
@@ -175,10 +183,16 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         val streamMax = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         if (streamMax <= 0) return
         val base = am.getStreamVolume(AudioManager.STREAM_MUSIC)
-        var index = base - totalDeltaY * verticalSensitivity / height * streamMax
+        // 与亮度同一把尺子:全量程(0..max)对应 verticalRangePerScreen 个屏高
+        val delta = -totalDeltaY / (height * verticalRangePerScreen) * streamMax
+        var index = base + delta
         if (index > streamMax) index = streamMax.toFloat()
         if (index < 0f) index = 0f
         am.setStreamVolume(AudioManager.STREAM_MUSIC, index.toInt(), 0)
+        LOG.i(
+            "echo-slide: kind=volume dy=" + totalDeltaY + " h=" + height +
+                " base=" + base + " max=" + streamMax + " target=" + index,
+        )
         host.showSlideHint(host.context.getString(R.string.player_gesture_percent, (index / streamMax * 100).toInt()), brightness = false)
     }
 }
