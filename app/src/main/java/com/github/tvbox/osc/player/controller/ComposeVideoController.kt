@@ -53,13 +53,13 @@ import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.PlaybackProgress
+import com.github.tvbox.osc.util.PlayerUtils
 import org.greenrobot.eventbus.EventBus
 import org.json.JSONException
 import org.json.JSONObject
 import xyz.doikki.videoplayer.controller.BaseVideoController
 import xyz.doikki.videoplayer.controller.ControlWrapper
 import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.util.PlayerUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.HashMap

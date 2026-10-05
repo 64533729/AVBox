@@ -9,9 +9,9 @@ import android.view.View
 import android.view.Window
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.GestureHelper
+import com.github.tvbox.osc.util.PlayerUtils
 import xyz.doikki.videoplayer.controller.BaseVideoController
 import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.util.PlayerUtils
 import kotlin.math.abs
 
 /**

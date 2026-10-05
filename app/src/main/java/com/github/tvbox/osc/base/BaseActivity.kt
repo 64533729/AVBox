@@ -28,7 +28,7 @@ import java.io.InputStreamReader
 import me.jessyan.autosize.AutoSizeCompat
 import me.jessyan.autosize.AutoSizeConfig
 import me.jessyan.autosize.internal.CustomAdapt
-import xyz.doikki.videoplayer.util.CutoutUtil
+import com.github.tvbox.osc.util.CutoutUtil
 
 /**
  * @author pj567

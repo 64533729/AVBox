@@ -11,9 +11,9 @@ import com.github.tvbox.osc.util.GestureHelper
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.PlayerUtils
 import org.json.JSONException
 import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.util.PlayerUtils
 import kotlin.math.abs
 
 class GestureController(private val host: ComposeVideoController) :

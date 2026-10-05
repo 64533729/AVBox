@@ -44,7 +44,7 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.player.state.PlayerActions
 import com.github.tvbox.osc.player.state.PlayerUiState
-import xyz.doikki.videoplayer.util.PlayerUtils.stringForTime
+import com.github.tvbox.osc.util.PlayerUtils.stringForTime
 
 /** SeekBar max 照搬旧布局 android:max="1000" */
 private const val SEEK_MAX = 1000
