@@ -323,7 +323,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         val headers = controller.webHeaderMap()?.let { HashMap(it) }
         ui.castSheet = CastSheetState(
             CastVideo(
-                controller.getCastUrl(url),
+                controller.getCastUrl(url) ?: url,
                 title,
                 headers,
                 player.currentPosition.coerceAtLeast(0L),

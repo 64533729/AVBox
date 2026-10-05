@@ -32,9 +32,9 @@ class MusicSessionDelegate(private val host: Host) {
 
         fun retryAfterStartedError(): Boolean
 
-        fun initParse(flag: String?, useParse: Boolean, playUrl: String?, url: String?)
+        fun initParse(flag: String?, useParse: Boolean, playUrl: String, url: String)
 
-        fun playUrl(url: String, headers: HashMap<String, String>)
+        fun playUrl(url: String, headers: HashMap<String, String>?)
     }
 
     /** 纯音频封面地址(影视绝不设置:否则视频被压成海报) */

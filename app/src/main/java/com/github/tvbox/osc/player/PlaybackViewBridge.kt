@@ -120,8 +120,8 @@ interface PlaybackViewBridge {
         playerType: Int,
         url: String,
         title: String,
-        subtitle: String,
-        headers: HashMap<String, String>,
+        subtitle: String?,
+        headers: HashMap<String, String>?,
         progress: Long,
     ): Boolean
 
@@ -133,7 +133,7 @@ interface PlaybackViewBridge {
      * 期间切集的话旧集地址会把新播放顶掉。实现方须在起播前用
      * [PlaybackController.isParseResultCurrent] 校验,不一致则丢弃。
      */
-    fun playM3u8(url: String, headers: HashMap<String, String>, gen: Int)
+    fun playM3u8(url: String, headers: HashMap<String, String>?, gen: Int)
 
     /**
      * 真正把地址交给播放器并起播(既有 goPlayUrl 的尾部连招):
