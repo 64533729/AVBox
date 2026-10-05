@@ -12,7 +12,7 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
 - **全量范围（2026-10-05 追加）**：`com/github/catvod` 24 个 Java（`Spider` 基类 + 网络栈）**迁 Kotlin**（M9，契约守恒）；`player` 模块 27 个 Java（仅 `xyz.doikki.videoplayer` fork；`tv.danmaku.ijk` 已由 `0814a85` 移除）**改为整体替换删除**（D12 / M7 / M10，不迁）。`catvod` 属**字节码契约层**，迁移口径 = 源码零 Java 且**产物签名逐成员不变**（规则 §7.1，分级 D8）。
 - **播放栈自研替换（2026-10-05 追加，D12 / A 路线）**：本栈只剩 media3 一个内核，doikki fork 的「多内核抽象」已无对象 —— 与其迁一份 2017 年风格的 Kotlin 化 fork，改为**自写 app 侧 Kotlin 播放层 + 整体删除 fork**。终态：无 `xyz.doikki.videoplayer`（源码/依赖/keep 规则全无）、无 `AbstractPlayer`/`PlayerFactory` 泛型链、无 View 控制器层（`BaseVideoController`/`ControlWrapper` 等）、无 FrameLayout 播放容器；Compose 直持 media3 `ExoPlayer`。承接面 = doikki 实测 1213 行 media3 适配（移植）+ ~3940 行 View/状态机骨架（重写，逐类行为对照）；app 内 `player/` 36 Java + `ui/player/` 4 Java 在同一切片内重写。**本决策是「迁移≠重构」的明示授权例外（仅限播放栈），并覆盖 D8 中 `player` 模块部分**。
 - **不可动的不是文件而是签名**：`ApiConfig.get()` / `AppDataManager.get()` / `Spider.*` / Gson 反射的 bean 字段，以及动态 jar 触及的每个类名、字段名、方法描述符（原 `dkplayer-ui` 一例随 A 路线删除）。
-- 每步独立 commit（全英文小写 + scope）、每步跑 `:app:assembleDebug` + `:app:testDebugUnitTest`。
+- 每步独立 commit（全英文小写 + scope）、每步跑 `:app:assembleDebug` + `:app:testDebugUnitTest`。**`:app:assembleRelease` 未经用户明确许可一律不跑（2026-10-05 用户指令；单次 4–5 分钟，只为 R8/keep/混淆/契约层 release 侧 javap 服务，细则见规范 §2 构建口径）** —— 本文件历史行里的「assembleRelease 绿」是当时事实，不代表后续照跑。
 
 # 1. 与既有 spec 的关系（先读，避免重复立项）
 

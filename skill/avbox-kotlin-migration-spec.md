@@ -44,6 +44,8 @@ description: M0 立规产出——迁移流程与禁止项、Kotlin 静态/字�
 
 判据 = `BUILD SUCCESSFUL` + 用例数 ≥ 基线 501（迁移步只许持平或增加）。
 
+**构建口径（2026-10-05 用户指令，硬规则）**：`:app:assembleRelease` **未经用户明确许可一律不跑** —— 单次 4–5 分钟，只为 R8/keep 规则、资源混淆、契约层 release 侧 `javap` 比对这三类事服务；日常切片验证只跑 `:app:assembleDebug` + `:app:testDebugUnitTest`。本文件各里程碑历史行里的「`assembleRelease` 绿」是当时的事实记录，**不代表后续切片照跑**；需要 release 产物时先问用户。
+
 # 3. Kotlin 转换规范
 
 ## 3.1 通用（全库适用）
@@ -136,10 +138,10 @@ Repository 约定（D2/D7/D10/D11）：接口与 Room 域/内容域实现统一�
 | 归一化多重集比对 | 同语言搬迁（移动、包改名、原样搬） | **新旧任一侧有增删即违规**（原样搬迁不该有任何内容变化，「新增了 2 行」也必须解释） |
 | 跨语言 token 多重集 | Java→Kotlin 迁移 | **旧有新无 = 0**（标识符/字符串/数字字面量丢失 = 漏迁）；新有旧无 = 参考项 |
 | 方法级存在性 | 纯搬迁步的粗网 | 旧侧**声明**（方法/构造函数名，不认调用点）在新文件全部命中 |
-| `javap -p -s` 逐类描述符 | 契约层（M9/M10）与公开签名变更 | 与基线逐类一致；新增/消失/描述符变化即驳回；debug 与 release 各跑一次 |
-| 构建 + 单测 | 每切片 | `BUILD SUCCESSFUL` + 用例数 ≥ 501 |
+| `javap -p -s` 逐类描述符 | 契约层（M9/M10）与公开签名变更 | 与基线逐类一致；新增/消失/描述符变化即驳回；debug 与 release 各跑一次（**release 侧需用户许可**） |
+| 构建 + 单测 | 每切片 | `:app:assembleDebug` `BUILD SUCCESSFUL` + 用例数 ≥ 501（**`:app:assembleRelease` 不在常规卡口内，未经许可不跑**，见 §2 构建口径） |
 
-**关于 `javap` 的一侧可比性**：迁移后 Java 产物消失，所以**在动契约层之前**先把基线快照导出；要 debug/release 两侧就分别构建后各导一次。
+**关于 `javap` 的一侧可比性**：迁移后 Java 产物消失，所以**在动契约层之前**先把基线快照导出；要 debug/release 两侧就分别构建后各导一次（release 构建前先取得用户许可）。
 
 **快照前必须重新构建对应变体**（`assembleDebug` / `assembleRelease`）：产物目录会残留已删除源码的陈旧 `.class`（2026-10-05 实测：`app/build/intermediates/javac/release/**` 里还留着 3 个已删类的 `ProtectedInitJar*`）。脚本遇到同名类出现在多个产物目录时会告警——出现告警就先重跑构建，否则可能拿到陈旧产物造成假通过。
 
@@ -155,7 +157,7 @@ pwsh skill/scripts/verify-migration.ps1 -Action tokens -Path <旧路径> -NewPat
 # 纯搬迁粗网：方法名存在性
 pwsh skill/scripts/verify-migration.ps1 -Action methods -Path <旧路径> -NewPath <新路径>
 
-# 契约层字节码基线（Java 产物；release 需先跑 assembleRelease 再指定 -ClassPath）
+# 契约层字节码基线（Java 产物；release 侧需先跑 assembleRelease——该构建须先取得用户许可——再指定 -ClassPath）
 pwsh skill/scripts/verify-migration.ps1 -Action javap -Snapshot -Package com.github.catvod -Out <基线文件>
 pwsh skill/scripts/verify-migration.ps1 -Action javap -Baseline <基线文件> -Package com.github.catvod
 
@@ -470,7 +472,7 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 # 7.13 M7a 实测登记（2026-10-05，播放栈自研替换：M7-0 + 新内核适配层 `osc.player.engine`）
 
-**结论**：M7-0 删 `player/build.gradle.kts` 的 `api(libs.dkplayer.ui)`（死依赖，全库源码零 `xyz.doikki.videocontroller` 类引用；toml 项留 M10 删）；M7a 新建 **`com.github.tvbox.osc.player.engine`** 包 9 个 Kotlin 文件 = 移植 4 件（`OkHttpDataSource`/`HlsErrorHandlingPolicy`/`MediaSources`/共享缓存委派 `PlayerCache`）+ 装配 2 件（`EngineRenderersFactory`/`PlayerEngine`）+ 策略 3 件（`SourcePolicy`/`CodecPreferences`/`NetworkSpeed`），另 4 个单测文件。`:app:assembleDebug` + `:app:assembleRelease` 绿；`:app:testDebugUnitTest` **569 用例 / 0 失败 / 0 错误 / 0 跳过（74 suite）**（536 基线 + 33 新增）。**M7a 不接 UI/不接调用方（双栈并存，doikki 仍是回退面）**，新旧共享状态收口 2 处：旧 `ExoPlayer.setPreferSoftwareDecode/isPreferSoftwareDecode` 改读写 `CodecPreferences`（选择器同源）、app 侧 `PlayerCache` 反向委派旧 `ExoMediaSourceHelper`（模块依赖方向 app→player）。独立子代理逐类对照复核（18 条结论）：**1 阻断 + 1 高（同根因）+ 6 中低全部已修**，2 条登记（私改公为单测、`usesExoSelector` 日志恒真）。
+**结论**：M7-0 删 `player/build.gradle.kts` 的 `api(libs.dkplayer.ui)`（死依赖，全库源码零 `xyz.doikki.videocontroller` 类引用；toml 项留 M10 删）；M7a 新建 **`com.github.tvbox.osc.player.engine`** 包 9 个 Kotlin 文件 = 移植 4 件（`OkHttpDataSource`/`HlsErrorHandlingPolicy`/`MediaSources`/共享缓存委派 `PlayerCache`）+ 装配 2 件（`EngineRenderersFactory`/`PlayerEngine`）+ 策略 3 件（`SourcePolicy`/`CodecPreferences`/`NetworkSpeed`），另 4 个单测文件。`:app:assembleDebug` + `:app:assembleRelease` 绿（**该次 release 为许可前套跑，此后一律按 §2 构建口径：未经用户许可不跑**）；`:app:testDebugUnitTest` **569 用例 / 0 失败 / 0 错误 / 0 跳过（74 suite）**（536 基线 + 33 新增）。**M7a 不接 UI/不接调用方（双栈并存，doikki 仍是回退面）**，新旧共享状态收口 2 处：旧 `ExoPlayer.setPreferSoftwareDecode/isPreferSoftwareDecode` 改读写 `CodecPreferences`（选择器同源）、app 侧 `PlayerCache` 反向委派旧 `ExoMediaSourceHelper`（模块依赖方向 app→player）。独立子代理逐类对照复核（18 条结论）：**1 阻断 + 1 高（同根因）+ 6 中低全部已修**，2 条登记（私改公为单测、`usesExoSelector` 日志恒真）。
 
 **本切片现场核实出的规则（M7b–M7f 照查）**：
 
@@ -489,7 +491,7 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **审查轮（第二轮，2026-10-05，结论 = 可收尾）**：两个独立只读子代理（A = 逐项复审首轮 10 条修复；B = 独立收尾判据审查：公开契约面/语义/单测质量/代码卫生）+ 本机 `javap` 闭环。**0 阻断 / 0 高**：首轮 10 条修复 9 条确证落地、1 条（`@Volatile` 清单）本轮补齐；新层 9 文件逐方法对读未发现功能性偏差。本轮修订（全部为低风险口径对齐，无行为变更）：① `@Volatile` 齐平旧栈 10 个 volatile 字段（补 `frameRateWindowStartMs`，补旧 `AbstractPlayer` 的 `startPositionMs`/`startPositionApplied`）；② 删恒假判空 `tracks == null`（非空形参）；③ `MediaSources` KDoc 与 client 回落链实现对齐；④ 删 `PlayerCache` 两个无引用死常量（容量/目录名真值源保留在旧实现，避免多处声明）；⑤ `isLocalProxyUrl` 三处重复实现收敛 —— `PlayerHelper.isLocalProxyUrl` 改为委派 `SourcePolicy`（旧调用点零行为变化），`PreloadCoordinator` 的私有实现登记留 M7f；⑥ `PlayerEngine` 6 处 `lowercase()/uppercase()` 对齐旧 Java 默认 locale（§7.12 规则 14 口径，`Locale.getDefault()`）；⑦ 单测加判别力声明并钉跨层契约值（`ERROR_KIND_*` = 0/1/2；HLS 切片档 3 与 media3 默认 3 数值巧合 ⇒ 判别力只在 progressive-live=6 一条）。**登记未改**（低）：单测对 `Uri`/`Bundle` 依赖分支不可覆盖（规则 6）、`usesExoSelector` 日志恒真、`OkHttpDataSource` 整类无 JVM 单测（入 M7d 真机走查）。
 
-**未验证面（诚实标注）**：M7a 不接 UI ⇒ 真机走查无从执行，门 = 双变体构建 + 单测 + 逐类对照复核；新栈的起播/渲染/效果/字幕/轨道全部行为留待 M7b/M7c 切换后随 `avbox-playback-service-spec.md` §4 清单走查。
+**未验证面（诚实标注）**：M7a 不接 UI ⇒ 真机走查无从执行，门 = `:app:assembleDebug` 构建 + 单测 + 逐类对照复核（release 侧 R8/keep 验证留待用户许可时补跑，见 §2 构建口径）；新栈的起播/渲染/效果/字幕/轨道全部行为留待 M7b/M7c 切换后随 `avbox-playback-service-spec.md` §4 清单走查。
 
 # 8. 回滚
 
