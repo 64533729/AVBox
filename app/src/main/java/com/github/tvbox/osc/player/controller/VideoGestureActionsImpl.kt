@@ -49,6 +49,14 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
      */
     private val verticalSensitivity = 0.9f
 
+    /**
+     * 屏幕顶端"系统手势保留带"占手势区高度的比例。
+     *
+     * <p>系统拉下通知栏的手势只从最顶端起手;15% 在 1080×2400 上约 360px,足够覆盖
+     * 状态栏/挖孔区域,又不会吃掉正常的画面中部竖滑。
+     */
+    private val topBandFraction = 0.15f
+
     /** 本次手势的横滑目标(-1 = 无) */
     private var seekTargetMs = -1
 
@@ -62,7 +70,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
      * 组装本次会话快照。**宽高与边缘带每次现算**,不用组合期常量
      * (旧草稿把屏幕几何冻结在组合期,旋转后不重算 —— 复核中危项 ⑥)。
      */
-    fun beginSession(width: Int, height: Int, screenWidth: Int): VideoGestureSession {
+    fun beginSession(width: Int, height: Int, screenWidth: Int, downY: Float): VideoGestureSession {
         seekTargetMs = -1
         val view = host.playerView
         val paused = host.curPlayState == AppPlayerView.STATE_PAUSED
@@ -80,6 +88,9 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             height = height,
             screenWidth = screenWidth,
             edge = false,
+            // 系统只把屏幕最顶端留给"下拉通知栏":从那一带起手的竖滑整段不参与亮度/音量,
+            // 否则我们会在系统接管之前先把数值改掉(真机反馈 ④ 的根因)
+            fromTopBand = downY < height * topBandFraction,
         )
     }
 

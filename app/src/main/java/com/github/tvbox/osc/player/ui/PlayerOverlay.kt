@@ -68,7 +68,7 @@ fun PlayerOverlay(
     /** 手势判定状态机(由 ComposeVideoController 持有) */
     gestureHandler: VideoGestureHandler,
     /** 每次 DOWN 现算的手势会话快照:入参为手势区宽高与屏幕宽度 */
-    gestureSession: (width: Int, height: Int, screenWidth: Int) -> VideoGestureSession,
+    gestureSession: (width: Int, height: Int, screenWidth: Int, downY: Float) -> VideoGestureSession,
     /** 出现"待定单击"⇒ 控制器在双击窗口后调 `handler.markSingleTapConfirmed()` */
     onTapPending: () -> Unit,
 ) {
@@ -81,14 +81,14 @@ fun PlayerOverlay(
             // 只认领子控件(控制条按钮/进度条)未消费的触摸 —— 见 videoGestureLayer 的说明。
             .videoGestureLayer(
                 handler = gestureHandler,
-                sessionProvider = { size ->
+                sessionProvider = { size, downY ->
                     val sizeW = size.width
                     val sizeH = size.height
                     if (sizeW <= 0 || sizeH <= 0) {
                         null
                     } else {
                         // 屏幕宽度用于半屏分侧(含导航栏),与旧实现同口径
-                        gestureSession(sizeW, sizeH, screenWidthPx)
+                        gestureSession(sizeW, sizeH, screenWidthPx, downY)
                     }
                 },
                 onTapPending = onTapPending,

@@ -57,8 +57,8 @@ class VideoGestureLayerWiringTest {
         override fun onVolumeSlide(totalDeltaY: Float) { calls += "volume" }
     }
 
-    private fun alwaysClaim(): (androidx.compose.ui.unit.IntSize) -> VideoGestureSession =
-        { sz ->
+    private fun alwaysClaim(): (androidx.compose.ui.unit.IntSize, Float) -> VideoGestureSession =
+        { sz, _ ->
             VideoGestureSession(
                 inPlayback = true,
                 canChangePosition = true,

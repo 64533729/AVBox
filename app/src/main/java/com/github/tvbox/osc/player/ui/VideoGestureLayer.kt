@@ -8,6 +8,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import com.github.tvbox.osc.util.LOG
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -86,6 +87,14 @@ data class VideoGestureSession(
     val screenWidth: Int,
     /** 是否落在四边边缘带内 */
     val edge: Boolean,
+    /**
+     * 手势是否起于**屏幕顶端带**。
+     *
+     * <p>为什么单独一项:系统只把屏幕最顶端那一小条留给"下拉通知栏"。从那一带起手的竖滑
+     * 应当**整段不参与**亮度/音量(让系统顺利接管,而不是被我们先改一遍数值)。
+     * 从画面中部下拉则不会被系统接管 —— 那种情况本来就该正常调音量。
+     */
+    val fromTopBand: Boolean = false,
 )
 
 /** DOWN 的归属判定:接线层据此决定要不要消费这次触摸 */
@@ -172,6 +181,7 @@ class VideoGestureHandler(
         if (!session.inPlayback) return GestureVerdict.IGNORE
         // 四边边缘带:旧 PlayerUtils.isEdge 直接不响应(由接线层现算后传入)
         if (session.edge) return GestureVerdict.IGNORE
+        // 顶端带起手:认领(避免事件冒泡去别处),但竖滑一律不生效 —— 见 decideMode
         return GestureVerdict.CLAIMED
     }
 
@@ -234,6 +244,8 @@ class VideoGestureHandler(
             // 横滑 seek:受 setCanChangePosition 约束;总开关关闭时旧实现仍放行横滑
             return if (s.canChangePosition) Mode.SEEK else Mode.NONE
         }
+        // 顶端带起手的竖滑:交给系统(下拉通知栏),我们不碰亮度/音量
+        if (s.fromTopBand) return Mode.NONE
         // 竖滑:预览态不响应;非全屏需 enableInNormal;"禁用手势控制"只拦竖滑
         if (s.previewMode) return Mode.NONE
         if (!s.fullScreen && !s.enableInNormal) return Mode.NONE
@@ -357,7 +369,7 @@ class VideoGestureHandler(
  */
 fun Modifier.videoGestureLayer(
     handler: VideoGestureHandler,
-    sessionProvider: (IntSize) -> VideoGestureSession?,
+    sessionProvider: (IntSize, downY: Float) -> VideoGestureSession?,
     /** 出现"待定单击"(已抬手、等第二下中)⇒ 宿主应在双击窗口后调 `handler.markSingleTapConfirmed()` */
     onTapPending: () -> Unit = {},
 ): Modifier = composed {
@@ -368,7 +380,7 @@ fun Modifier.videoGestureLayer(
             awaitEachGesture {
                 // 1. 子控件(控制条按钮、进度条)消费过的 DOWN 不认领 ⇒ 从不进入手势层
                 val down = awaitFirstDown(requireUnconsumed = true)
-                val snapshot = sessionProvider(size) ?: return@awaitEachGesture
+                val snapshot = sessionProvider(size, down.position.y) ?: return@awaitEachGesture
                 if (handler.beginSession(snapshot, down.position.x, down.position.y) ==
                     GestureVerdict.IGNORE
                 ) {
@@ -422,6 +434,12 @@ fun Modifier.videoGestureLayer(
                 //    ⚠️ 长按要排除:它本来就是静止的,收尾自己会恢复倍速。
                 val quietMs = System.currentTimeMillis() - lastMoveAt
                 val cancelled = !handler.isLongPressing && (!sawMove || quietMs > CANCEL_QUIET_MS)
+                // 诊断:核对系统是否真的把 CANCEL 送到了本层(而不是我们自己在改数值)
+                LOG.i(
+                    "echo-gesture: sawMove=" + sawMove + " quietMs=" + quietMs +
+                        " mode=" + handler.currentMode + " cancelled=" + cancelled +
+                        " fromTopBand=" + snapshot.fromTopBand,
+                )
 
                 val result = handler.endSession(cancelled, System.currentTimeMillis())
 

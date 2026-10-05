@@ -348,7 +348,7 @@ class ComposeVideoController @JvmOverloads constructor(
                         state = state,
                         actions = this@ComposeVideoController,
                         gestureHandler = gestureHandler,
-                        gestureSession = { w, h, sw -> gestureActions.beginSession(w, h, sw) },
+                        gestureSession = { w, h, sw, y -> gestureActions.beginSession(w, h, sw, y) },
                         onTapPending = { onGestureTapPending() },
                     )
                 }

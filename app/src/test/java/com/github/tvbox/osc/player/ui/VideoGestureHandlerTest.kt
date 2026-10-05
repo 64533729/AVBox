@@ -43,9 +43,10 @@ class VideoGestureHandlerTest {
         height: Int = 600,
         screenWidth: Int = 1000,
         edge: Boolean = false,
+        fromTopBand: Boolean = false,
     ) = VideoGestureSession(
         inPlayback, canChangePosition, enableInNormal, fullScreen, locked, previewMode,
-        paused, gestureEnabled, verticalSlidingDisabled, width, height, screenWidth, edge,
+        paused, gestureEnabled, verticalSlidingDisabled, width, height, screenWidth, edge, fromTopBand,
     )
 
     // ---------- 单击 / 双击 ----------
@@ -479,5 +480,46 @@ class VideoGestureHandlerTest {
         h.beginSession(session(), 300f, 300f)
         assertTrue("横滑不该被竖滑阈值牵制", h.onMove(340f, 305f, slop = 8f))
         assertTrue(r.calls.any { it.startsWith("seekPreview") })
+    }
+
+    // ---------- 真机反馈 ④(2026-10-06):顶端带起手不得触发亮度/音量 ----------
+
+    /**
+     * 真机现象:下拉通知栏仍会触发音量。
+     *
+     * <p>关键认识:系统只把**屏幕最顶端**那一带留给"下拉通知栏"。从那一带起手的竖滑,
+     * 应当在系统接管前就**整段不参与**亮度/音量(否则我们先把数值改了,系统再接管也晚了)。
+     * 从画面中部下拉则不会被系统接管,那种情况本来就该正常调音量。
+     */
+    @Test
+    fun topBandVerticalDragNeverAdjustsBrightnessOrVolume() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(fromTopBand = true), 300f, 30f)
+        // 位移远超起判阈值,但因为是顶端带起手,仍不得改数值
+        assertFalse(h.onMove(300f, 500f, slop = 8f))
+        assertFalse(h.onMove(800f, 600f, slop = 8f))
+        assertTrue("顶端带不该改亮度", r.calls.none { it.startsWith("brightness") })
+        assertTrue("顶端带不该改音量", r.calls.none { it.startsWith("volume") })
+    }
+
+    /** 顶端带起手仍允许横滑 seek(那是画面内的正常手势) */
+    @Test
+    fun topBandStillAllowsHorizontalSeek() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(fromTopBand = true), 300f, 30f)
+        assertTrue(h.onMove(500f, 40f, slop = 8f))
+        assertTrue(r.calls.any { it.startsWith("seekPreview") })
+    }
+
+    /** 画面中部起手:竖滑照常(不能被顶端带规则误伤) */
+    @Test
+    fun midScreenVerticalDragStillAdjusts() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 1200f)
+        assertTrue(h.onMove(300f, 1400f, slop = 8f))
+        assertTrue(r.calls.any { it.startsWith("brightness") })
     }
 }
