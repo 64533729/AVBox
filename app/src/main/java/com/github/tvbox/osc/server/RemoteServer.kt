@@ -265,8 +265,8 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         if (vodInfo.seriesMap != null && !TextUtils.isEmpty(vodInfo.playFlag)) {
             val series = vodInfo.seriesMap!![vodInfo.playFlag]
             if (series != null && vodInfo.playIndex >= 0 && vodInfo.playIndex < series.size) {
-                val current = series[vodInfo.playIndex]
-                if (!TextUtils.isEmpty(current.name)) {
+                val current: VodInfo.VodSeries? = series[vodInfo.playIndex]
+                if (current != null && !TextUtils.isEmpty(current.name)) {
                     val number = extractNumber(current.name)
                     return if (TextUtils.isEmpty(number)) current.name else number
                 }

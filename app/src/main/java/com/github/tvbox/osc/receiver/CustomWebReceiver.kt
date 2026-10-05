@@ -40,7 +40,7 @@ class CustomWebReceiver : BroadcastReceiver() {
         var REFRESH_PARSE = "parse"
 
         @JvmField
-        val callback: MutableList<Callback> = ArrayList()
+        var callback: MutableList<Callback> = ArrayList()
     }
 
     interface Callback {
