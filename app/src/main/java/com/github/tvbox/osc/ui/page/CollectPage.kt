@@ -49,11 +49,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -417,55 +417,52 @@ private fun CollectCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(2f / 3f)
-            .clip(RoundedCornerShape(16.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-    ) {
-        VodPoster(name = item.name, pic = item.pic, modifier = Modifier.fillMaxSize())
-        if (editMode) {
-            SelectCircle(
-                selected = selected,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
-            )
-        }
-        if (unavailable) {
-            Text(
-                text = stringResource(R.string.source_unavailable),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                maxLines = 1,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-        }
+    // 标题移到**海报正下方居中**,字体/字重与首页一致:
+    // 首页 HomeGridLayout 用的是 VodCard(style = VodCardStyle.Stacked),其标题为
+    // titleSmall + onSurface + 居中 + padding(top = 6.dp) —— 这里逐项对齐。
+    // 原先标题叠在海报上并配一层底部渐变做可读性底衬;标题移出后那层渐变已无作用,一并去掉。
+    Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.5f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.75f),
-                    )
-                ),
-        )
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(16.dp))
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        ) {
+            VodPoster(name = item.name, pic = item.pic, modifier = Modifier.fillMaxSize())
+            if (editMode) {
+                SelectCircle(
+                    selected = selected,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                )
+            }
+            if (unavailable) {
+                Text(
+                    text = stringResource(R.string.source_unavailable),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.85f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
+        }
         Text(
             text = item.name ?: "",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            maxLines = 2,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp),
+                .fillMaxWidth()
+                .padding(top = 6.dp),
         )
     }
 }

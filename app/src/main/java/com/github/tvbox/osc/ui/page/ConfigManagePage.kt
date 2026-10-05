@@ -271,15 +271,38 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
             ) { m ->
                 val mIsVod = m == ConfigMode.Vod
                 val mItems = if (mIsVod) vodItems else liveItems
-                if (mIsVod && mItems.isEmpty()) {
-                    LoadStateBox(
-                        state = LoadState.Empty,
-                        emptyText = stringResource(R.string.config_empty_subscribe),
-                        errorText = "",
-                        retryText = "",
-                        emptyIconRes = R.drawable.ic_empty_record,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                // 空态统一走这一支(点播/直播一致):LoadStateBox 内部已是 Center 对齐,
+                // 这里用 fillMaxSize/weight 给它**可用整块空间**才会真正居中。
+                // ⚠️ 直播的空态原先塞在 LazyColumn 的 item 里、高度写死 220dp ⇒ 紧贴「跟随点播源」卡
+                // 下方、再往下空一大片,视觉上并不居中(真机反馈)。
+                if (mItems.isEmpty()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (!mIsVod) {
+                            // 直播无源时「跟随点播源」仍有意义(可直接切成跟随点播),故保留在空态之上
+                            FollowVodCard(
+                                checked = liveFollow,
+                                subtitle = if (activeUrl.isEmpty()) {
+                                    stringResource(R.string.config_no_vod_source)
+                                } else {
+                                    stringResource(R.string.config_current_vod_source, vodBadge)
+                                },
+                                onFollow = { vm.followLiveNow() },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            )
+                        }
+                        LoadStateBox(
+                            state = LoadState.Empty,
+                            emptyText = stringResource(
+                                if (mIsVod) R.string.config_empty_subscribe
+                                else R.string.config_empty_live_source
+                            ),
+                            errorText = "",
+                            retryText = "",
+                            emptyIconRes = R.drawable.ic_empty_record,
+                            // weight(1f) = 占满剩余空间,空态即在其中居中
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    }
                 } else {
                     val mOrdered = remember(mItems, activeUrl, liveActiveUrl, liveFollow, mIsVod) {
                         mItems.sortedByDescending {
@@ -350,20 +373,6 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
                                     }
                                 },
                             )
-                        }
-                        if (!mIsVod && mItems.isEmpty()) {
-                            item(key = "Live#empty") {
-                                LoadStateBox(
-                                    state = LoadState.Empty,
-                                    emptyText = stringResource(R.string.config_empty_live_source),
-                                    errorText = "",
-                                    retryText = "",
-                                    emptyIconRes = R.drawable.ic_empty_record,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(220.dp),
-                                )
-                            }
                         }
                     }
                 }
