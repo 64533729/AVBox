@@ -572,6 +572,37 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **未验证面（诚实标注）**：真机走查未做 —— 本片把直播/音乐/详情页的状态读取面与音乐页外部播放器出口翻新，走查至少覆盖：直播（起播 loading/暂停图标/自动换源超时分支/切台复用判定/分辨率 OSD 时机）、音乐（缓冲转圈/播放暂停图标/播完续播/外部播放器拉起）、详情页自动进音乐页判定、DLNA 投屏回归（零改动，仅核对），以及登记项 ③④⑦ 三条可观测差异。
 
+# 7.18 M7f 实测登记（2026-10-06，2 片）
+
+**交付**：`app/src/main/java/com/github/tvbox/osc/player/` 下最后两个 Java 迁 Kotlin —— `PreloadCoordinator`（325 行，`e46ca59`）与 `PreloadManagerHolder`（333 行，`035c4cc`），**纯语言迁移、逻辑零改动**。该目录实测 **0 Java / 30 Kotlin**；主包 Java 26 → 24。**`com/github/tvbox` 已全量 Kotlin（0 Java / 349 Kotlin）**，剩余 24 个 Java **全部在 `com/github/catvod`**（契约保持边界，计划明确保留）。
+
+**结构性改写早已完成（本片只需语言迁移）**：计划原写「其订阅改由 `PlaybackPreload` 收集通道 `flow`」，实测 `observeForever` 全仓清零（仅注释提及），flow 订阅已在 `PlaybackPreload.kt:42`（`vm.preloadResult.flow.collect`），两个待迁类本身 `LiveData/Observer/Disposable/Flow` 引用数均为 0。
+
+**逐文件结构卡口（零丢失）**：
+| 文件 | 方法 | 字段 | 匿名类 | `kotlin.Unit` lambda | `@Override` |
+| --- | --- | --- | --- | --- | --- |
+| PreloadCoordinator | 19（0 丢失） | 46（0 丢失） | 0 | 0 | 0 |
+| PreloadManagerHolder | 30（0 丢失） | 30（0 丢失） | 1 | 0 | 8 |
+
+**`PreloadManagerHolder` 迁 Kotlin 的形态要点（承接给后续同类"全静态工具类"）**：
+1. Java 全静态类 → Kotlin `object` + 公开函数加 `@JvmStatic`（**Java 侧调用形式不变**：仍是 `PreloadManagerHolder.enabled()`）。
+2. `synchronized static` → `@Synchronized` + `@JvmStatic`。**互斥对象仍是 Class**：`@JvmStatic` 在静态桥上加 `ACC_SYNCHRONIZED`（独立复核用 `javap` 核实：全类 `monitorenter` 计数为 0），与 Java 逐位一致 —— **不是**「改为锁 INSTANCE」（我原先的注释写错了，已改）。
+3. `@Volatile` 在同一批字段上逐一对齐（`sPreloadHeaders`/`sStartPosMs`/`sRangeMs`/`sReadyListener`/`sCompletedUrl`）；Kotlin `object` 的属性后备字段会提升为 static，故 `@Volatile` 保持 Java 的 static volatile 内存语义。
+4. `LinkedHashMap` 匿名子类重写 `removeEldestEntry` → Kotlin 对象表达式；参数须与原版逐项一致（容量 8 / `0.75f` / `accessOrder=true` / `size() > 8`），复核已用字节码核实。
+5. media3 的两个 Factory（`DataSource.Factory`/`MediaSource.Factory`）：`getSupportedTypes()` 返回 `IntArray`、`setDrmSessionManagerProvider`/`setLoadErrorHandlingPolicy` 返回 `this`；接口方法顺序不变。
+6. **Python 写文件的坑（本轮踩到）**：用 `u'''...'''` 写含 `'\n'` 的 Kotlin 源码时，Python 会把 `\n` 解释成真实换行、打断语法 —— 需写 `\\n`。凡是要在产物里出现反斜杠转义，都要多一层。
+
+**nullability 决策（逐条，均为"复刻 Java 平台类型"而非收紧）**：
+- `PreloadCoordinator(sourceViewModel: SourceViewModel?)`：调用点 `PlaybackPreload.kt:36-38` 先 `ensureFetch()` 再读、**仍可能为空**，Java 靠平台类型放行、到取流时才 NPE ⇒ Kotlin 保留可空 + 在**使用点** `!!`，而不是在构造期就抛（那会把失败点提前，属行为变更）。
+- `Snapshot.playFlag`/`currentKey`/`nextUrl` 可空：调用点分别传 `VodInfo.playFlag`、`scheduler.progressKey()`、`VodSeries.url`，在 Kotlin 侧都是可空；只有 `isJpUrl(url: String)` 要求非空，故仅该处用 `!!`。
+- `preload(url: String?, headers: Map?)`、`isPreloadTargetUrl(url: String?, headers: Map?)`：保留 Java 的显式判空分支。
+
+**已登记的**有意偏离**（1 条）**：`PreloadCoordinator.evaluate` 里 Java 原文 `snapshot.currentKey.equals(gaveUpKey)` 在 `currentKey` 为空时 **NPE 崩溃**；Kotlin 的 `==` 在 `null == null` 时为 true，会**静默跳过该片全部预载**。两者都不是本意 ⇒ 改为「`gaveUpKey` 非空且相等才跳过」。
+
+**复核轮（独立只读子代理，含字节码与 media3 1.11.1 源码核证）**：**阻断 0 / 高 0 / 中 0 / 低 6，无功能回归**。除上述两条已处置外，其余 4 条低危均为 **Kotlin 强制的非空参数校验**，落在复核已证明**当前不可达**的路径上：`Snapshot` 构造 4 项、`preload` 的 `context`、ranking lambda 的 `it`、`get()` 中 `sManager` 的赋值时机（`addListener` 期间 `sManager` 尚为 null，但该窗口不可观测）。复核另核实：同步面 7 处一致、`@Volatile` 5 字段一致、LRU 参数一致、**43 条日志字符串逐字节一致**、`headersSignature` 的 `TreeMap(CASE_INSENSITIVE_ORDER)` 与 `':'`/`';'` 拼接一致、`putCache` 两轮迭代的条件顺序一致、`consumeResult` 四个出口一致、`getSupportedTypes()` 顺序一致、无 `equals/hashCode/toString` 新增、**无任何 Java 调用方**。复核遗留的「未验证 media3 版本」已闭合：`:app:dependencies` 实测 debugRuntimeClasspath = **1.11.1**。
+
+**未验证面（诚实标注）**：真机走查未做（预载路径的可见表现是"下一集已就绪"提示与读盘命中）—— 建议随 M7a–M7d 的 §4 清单一起走查。
+
 # 7.17 M7e 实测登记（2026-10-06，播放栈自研替换：控制器去 View + 全量去 doikki，4 片）
 
 **结论**：**`app/src` 已零 `xyz.doikki` 导入、零代码引用**（只有「移植自 …」的示意性注释）。提交 **`a9e8fef`**（doikki 工具面移植：`util/PlayerUtils.kt` + `util/CutoutUtil.kt`）/ **`aaeb98d`**（宿主与控制器去 doikki View 层：新增 `KernelPlayer.kt`/`AppPlayerView.kt`/`host/PlayerRenderView.kt`，`ExoPlayer : KernelPlayer`，`MyVideoView : AppPlayerView` 直持 media3 `ExoPlayer`，`ComposeVideoController`/`ComposeLiveController` 去 `BaseVideoController`，删 `ExoMediaPlayerFactory`）/ **`7717458`**（`PlayerCache` 收回 `SimpleCache` 实现体、`MediaSources.getInstance` 承接单例、`App`/`OkGoHelper`/`PreloadManagerHolder` 切走）/ **`ce198db`**（手势边缘带工具公开）。`:app:assembleDebug` + `:app:assembleRelease` 绿；`:app:testDebugUnitTest` **611 用例 / 0 失败 / 0 错误 / 0 跳过（79 suite）**（与 M7d 基线持平）；改动文件全 LF。
