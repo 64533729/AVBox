@@ -186,7 +186,8 @@ final class PlayContainerViewBridge implements PlaybackViewBridge {
     public boolean playExternalPlayer(int playerType, String url, String title, String subtitle,
                                      HashMap<String, String> headers, long progress) {
         if (container.mActivity == null) return false;
-        return PlayerHelper.runExternalPlayer(playerType, container.mActivity, url, title, subtitle, headers, progress);
+        // 接口已放宽 subtitle 可空(parseSubtitle 可能未产出):直传非空 Kotlin 形参会 NPE,与音乐页实现同一兜底口径
+        return PlayerHelper.runExternalPlayer(playerType, container.mActivity, url, title, subtitle == null ? "" : subtitle, headers, progress);
     }
 
     @Override

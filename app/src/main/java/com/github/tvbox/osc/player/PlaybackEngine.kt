@@ -119,6 +119,10 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
     private fun createPlayerView(): MyVideoView {
         val ctx = ContextThemeWrapper(appContext, R.style.AppTheme_NoActionBar)
         val view = MyVideoView(ctx)
+        // M7d:显式装桥工厂 —— 无页面起播(HeadlessView 不下发配置)若沿用 dooki 默认工厂,内核会是旧 ExoMediaPlayer,
+        // MyVideoView.playState(读桥内状态机)会静默退回 IDLE、状态读取面失真。有页面时 PlayerHelper.updateCfg 覆盖本值。
+        @Suppress("UNCHECKED_CAST")
+        (view as VideoView<ExoPlayer>).setPlayerFactory(ExoMediaPlayerFactory.create())
         // M7b:无页面桥(HeadlessView)不会注入播放器配置,而引擎仍可能起播 —— 这里按全局设置给初始渲染宿主,
         // 否则会落到 dooki 默认 Texture 工厂(新宿主的交面/输出尺寸钩子挂不上)。有页面时 PlayerHelper.updateCfg 覆盖本值。
         view.setRenderViewFactory(

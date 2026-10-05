@@ -39,7 +39,6 @@ enum class PlayState {
          * (监听回调参数、控制器转发),读值请走 `MyVideoView.playState`。
          * 注意 -1 在旧通知语义下是 `STATE_ERROR`(无播放器的 -1 只出现在读值口,不会出现在通知里)。
          */
-        @JvmStatic
         fun fromLegacy(state: Int): PlayState = when (state) {
             -1 -> ERROR
             0 -> IDLE

@@ -202,7 +202,7 @@ object PlayerHelper {
 
     @JvmStatic
     fun runExternalPlayer(playerType: Int, activity: Activity, url: String, title: String, subtitle: String, headers: HashMap<String, String>?): Boolean {
-        return runExternalPlayer(playerType, activity, url, title, subtitle, headers)
+        return runExternalPlayer(playerType, activity, url, title, subtitle, headers, 0L)
     }
 
     @JvmStatic

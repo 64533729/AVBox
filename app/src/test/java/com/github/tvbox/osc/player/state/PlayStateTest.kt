@@ -33,4 +33,13 @@ class PlayStateTest {
         assertEquals(PlayState.IDLE, PlayState.fromLegacy(9))
         assertEquals(PlayState.IDLE, PlayState.fromLegacy(Int.MIN_VALUE))
     }
+
+    @Test
+    fun enumMembersArePinned() {
+        // 成员表被无 else 的 when 语句消费(MusicPlayerActivity 状态监听):新增成员必须同步核对全部 when 读点
+        assertEquals(
+            listOf("IDLE", "PREPARING", "PREPARED", "PLAYING", "PAUSED", "COMPLETED", "BUFFERING", "BUFFERED", "ERROR", "START_ABORT"),
+            PlayState.entries.map { it.name },
+        )
+    }
 }
