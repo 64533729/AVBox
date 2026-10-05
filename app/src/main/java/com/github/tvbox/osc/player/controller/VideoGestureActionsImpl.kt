@@ -9,6 +9,7 @@ import com.github.tvbox.osc.player.ui.VideoGestureSession
 import com.github.tvbox.osc.util.GestureHelper
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.player.ui.VERBOSE_GESTURE_LOG
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
 
@@ -33,14 +34,6 @@ import com.github.tvbox.osc.util.PlayerUtils
  *    避免 CANCEL 时倍速停在 3.0x。
  */
 internal class VideoGestureActionsImpl(private val host: ComposeVideoController) : VideoGestureActions {
-
-    /**
-     * 手势诊断日志开关。
-     *
-     * <p>默认**关**:一次拖动可达 **109 个事件/秒**(真机实测),每个事件写日志 = 3 次字符串分配
-     * + 一次日志写入系统调用,是单事件里最大的一笔开销。定位问题时临时置 true。
-     */
-    private val verboseGestureLog = false
 
     /** 手势提示的种类(用于"换模式时撤下另一套") */
     private enum class HintKind { NONE, SEEK, SLIDE }
@@ -245,7 +238,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             window.attributes = attrs
             lastAppliedBrightness = target
         }
-        if (verboseGestureLog) {
+        if (VERBOSE_GESTURE_LOG) {
             LOG.i(
                 "echo-slide: kind=brightness dy=" + totalDeltaY + " h=" + height +
                     " base=" + base + " target=" + target,
@@ -274,7 +267,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             am.setStreamVolume(AudioManager.STREAM_MUSIC, applied, 0)
             lastAppliedVolume = applied
         }
-        if (verboseGestureLog) {
+        if (VERBOSE_GESTURE_LOG) {
             LOG.i(
                 "echo-slide: kind=volume dy=" + totalDeltaY + " h=" + height +
                     " base=" + base + " max=" + streamMax + " target=" + index,

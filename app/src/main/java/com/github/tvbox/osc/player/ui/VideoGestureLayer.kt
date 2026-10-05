@@ -434,12 +434,14 @@ fun Modifier.videoGestureLayer(
                 //    ⚠️ 长按要排除:它本来就是静止的,收尾自己会恢复倍速。
                 val quietMs = System.currentTimeMillis() - lastMoveAt
                 val cancelled = !handler.isLongPressing && (!sawMove || quietMs > CANCEL_QUIET_MS)
-                // 诊断:核对系统是否真的把 CANCEL 送到了本层(而不是我们自己在改数值)
-                LOG.i(
-                    "echo-gesture: sawMove=" + sawMove + " quietMs=" + quietMs +
-                        " mode=" + handler.currentMode + " cancelled=" + cancelled +
-                        " fromTopBand=" + snapshot.fromTopBand,
-                )
+                if (VERBOSE_GESTURE_LOG) {
+                    // 核对系统是否真的把 CANCEL 送到了本层(而不是我们自己在改数值)
+                    LOG.i(
+                        "echo-gesture: sawMove=" + sawMove + " quietMs=" + quietMs +
+                            " mode=" + handler.currentMode + " cancelled=" + cancelled +
+                            " fromTopBand=" + snapshot.fromTopBand,
+                    )
+                }
 
                 val result = handler.endSession(cancelled, System.currentTimeMillis())
 
@@ -454,6 +456,16 @@ fun Modifier.videoGestureLayer(
             }
         }
 }
+
+/**
+ * 手势诊断日志总开关(**编译期常量,默认关**)。
+ *
+ * <p>为什么默认关:一次拖动峰值可达 **109 个事件/秒**(真机实测),每个事件写一行日志 =
+ * 3 次字符串拼接 + 一次日志写入系统调用,是单事件里最大的一笔开销。定为 `const val false`
+ * 后整个 `if` 块(含字符串拼接)会被编译器消除,运行时**零成本**。
+ * 需要排查手势问题时把这里改成 true,重新构建即可。
+ */
+const val VERBOSE_GESTURE_LOG = false
 
 /**
  * 判定"系统抢走手势"的静默窗口(ms):正常抬手的 MOVE 与 UP 几乎同时到达;
