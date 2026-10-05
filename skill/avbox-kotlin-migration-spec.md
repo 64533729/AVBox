@@ -622,6 +622,26 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **为什么回退而不是继续修**：两个阻断项都在"Compose 指针语义"这一层，而本仓库**无 `androidTest`、无真机走查条件**，继续修只能靠再猜一轮框架语义（复核列出的 12 条缺失用例全部落在接线层，无法离线覆盖）。按「迁移步禁夹带高风险改写」纪律，**整片回退**：`GestureController` 原样恢复、`VideoGestureLayer.kt` 与手势接线删除，仅保留 `PlayerUtils.dp2px`/`getScreenHeight` 公开（手势边缘带与子类布局共用，属无害增强）。**下一片落地的前置** = 先补 Compose UI 测试（`androidTest`）或安排一次真机手势走查，并按 ①–⑧ + 12 条缺失用例逐条验收；纯状态机代码与 16 例单测可直接复用（其判定语义经复核确认与旧实现等价，含 seek 符号代数：`target = cur + Δx/width·240000`，右滑前进）。
 
+**② 真机走查与迭代（2026-10-06,用户实测;提交 `2fba430`→`b0fa2bf`→`c23ce2c`→`373d2b4`）**：接线后用户连续走了四轮真机,共报 7 个问题,**全部已修**。价值最高的三条:
+
+1. **`dragging` 是我多做的**:手势横滑时我额外设了 `dragging=true` + `seekPreviewPositionMs`,而底部进度条渲染取的正是 `seekPreviewOrPosition` ⇒ 真机表现为"进度条白球缩放、整条左移"。**旧 `GestureController` 手势滑动只出提示文字、不碰 SeekBar**。教训:迁移时"顺手对齐口径"就是引入 bug。
+2. **长按必须独占会话**:长按成立后 `onMove` 须立即返回、不再选模式,否则"手指轻微移动就变成调进度/音量"。
+3. **顶端带(最关键)**:系统只把**屏幕最顶端**留给"下拉通知栏"。从那一带起手时,系统会**先持续送 MOVE**,等它接管时亮度/音量**已经被改过**了 ⇒ 因此"等一个更好的 CANCEL 信号"这条路在**顺序上就不可能成立**(前两轮我都在改 CANCEL 判据,方向错了)。正解:**起手位置在画面顶部 15% 以内 ⇒ 竖滑整段不参与亮度/音量**(横滑仍照常)。中部起手的竖滑不受影响,因为系统根本不会接管它。
+
+**验证(2026-10-06,用户操作 + `adb logcat` 抓 `echo-gesture` 痕迹,9 条样本)**：
+```
+fromTopBand=true |NONE   -> 3 次   ← 顶端带起手,一次都没进亮度/音量
+fromTopBand=false|SEEK   -> 1 次   ← 横滑
+fromTopBand=false|VOLUME -> 3 次   ← 画面中部竖滑(期望行为)
+fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
+断言:顶端带出现 VOLUME/BRIGHTNESS = 0 次;VOLUME/BRIGHTNESS 全部来自非顶端带 = 3/3
+```
+手势层保留 `echo-gesture` 诊断行(sawMove/quietMs/mode/cancelled/fromTopBand),后续真机问题先看它,不再靠猜。
+
+**其余各条修复**:双击失效(接线层阻塞等第二下、被 `awaitEachGesture` 收尾吃掉 ⇒ 改为抬手即返回 + 宿主定时器补发单击,并把"待定单击"的归属收回状态机使 `markSingleTapConfirmed` 幂等);长按无倍速提示(适配器漏设 `speedBoostVisible/speedBoostValue`);时间/音量基准按会话现取;`ACTION_CANCEL` 不当抬手提交 seek;竖滑起判阈值(高度的 12%,约 288px)与横滑缩放从 240000ms 收敛到 120000ms(真机反馈"太灵敏")。
+
+**过程教训(登记)**:这四轮里我三次都是"只改了实现没同步状态/判据"(漏 `speedBoostVisible`、漏 `tapPending` 赋值、连续两轮改错 CANCEL 方向)。**凡是一个状态被两个组件持有,判断权必须归给信息更全的那个**(待定单击归状态机);**凡是系统会介入的手势区域,先确认区域边界再写判据**(顶端带)。
+
 **② 已接线到控制器（2026-10-06,提交 `43b730a`）**：`GestureController.kt`(259 行 View 级 `GestureDetector`)**已删除**,改由:
 - `ComposeVideoController` 持有 `VideoGestureHandler`(判定)+ `VideoGestureActionsImpl`(副作用);
 - `PlayerOverlay` 根 `BoxWithConstraints` 挂 `Modifier.videoGestureLayer(gestureHandler)`,快照由 `gestureActions.beginSession(w,h,screenWidth)` **每次 DOWN 现算**(宽高/边缘/半屏分侧都现算);
