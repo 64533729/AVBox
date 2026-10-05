@@ -626,7 +626,11 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **① `GestureController` 仍是 `GestureDetector` + View `onTouchEvent`**（未改 Compose `pointerInput`）。本片已尝试并**主动回退**（详见上一节「该项已尝试并主动回退」）。
 
-**② `ui/player` 4 Java 未清零：已迁 2 / 剩 2。** 已迁（提交 `ccc41e4`，纯语言迁移、逐行等价）：`PlayContainerControlListener.java`(153) → `.kt`、`TrackSelectorDelegate.java`(154) → `.kt`；`:app:assembleDebug` + **611 用例 / 0 失败** 绿；`app/src/main/java` Java 30 → 28、Kotlin 343 → 345。剩 `PlayContainerViewBridge`(330) 与 `PlayContainer`(1354)。
+**② `ui/player` 4 Java 未清零：已迁 3 / 剩 1。** 已迁（均为纯语言迁移、逐行等价，每笔跑 `:app:assembleDebug` + **611 用例 / 0 失败**）：`PlayContainerControlListener.java`(153) → `.kt`、`TrackSelectorDelegate.java`(154) → `.kt`（提交 `ccc41e4`）；`PlayContainerViewBridge.java`(330) → `.kt`（提交 `7f0c405`，47 个 override）。`app/src/main/java` Java 30 → **27**、Kotlin 343 → **346**。**只剩 `PlayContainer`(1354 行)**，实测规模 = 117 方法 / 89 字段 / 6 匿名类 / ~30 处返回 `kotlin.Unit` 的 Java lambda + 内部类 `MyWebView` + `@Subscribe` + 4 个宿主接口实现 + 泛型 `observe` 回调 ⇒ 需单独一整轮 + 完整复核。
+
+**`PlayContainerViewBridge` 迁移中发现的两处"必须做决定、不能字面转写"（已按同族实现口径处理）**：
+- `scheduler.playerCfg()` 在 Kotlin 声明为 `JSONObject?`，而 Java 侧是平台类型直传进 `PlayerHelper.updateCfg(view, JSONObject)` ⇒ 无配置时必须显式给空对象（`?: JSONObject()`，与 `MusicPlayerActivity` 同类实现同一兜底；`updateCfg` 内部按缺键回落全局设置）。
+- `playM3u8(url, headers, gen)` 的 `headers` 在 Java 侧未判空、直接转调双参重载 ⇒ Kotlin 侧保持该假定（`headers!!`），**不要**擅自补 `?: HashMap()`（那会静默改变"调用方保证非空"的既有契约）。
 
 **本片核实出的迁移规则（续 `ui/player` 用）**：
 1. **同名 `.java` 仍在时不能新建 `.kt`**：本仓库 `write` 工具会报 `file no longer exists` —— 先 `Remove-Item` 掉 `.java`，再写 `.kt`（本片两笔均如此落地）。同包内 Kotlin 类被 Java 代码 `new` 时**不需要** `@JvmStatic`/`@JvmField`：Kotlin `class` 默认 public，构造函数 Java 可见（本片 `PlayContainer.java` 仍 `new PlayContainerControlListener(this)` / `new TrackSelectorDelegate(host)`，编译通过即是证明）。
