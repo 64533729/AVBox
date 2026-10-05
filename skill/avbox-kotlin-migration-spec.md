@@ -572,6 +572,43 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 
 **未验证面（诚实标注）**：真机走查未做 —— 本片把直播/音乐/详情页的状态读取面与音乐页外部播放器出口翻新，走查至少覆盖：直播（起播 loading/暂停图标/自动换源超时分支/切台复用判定/分辨率 OSD 时机）、音乐（缓冲转圈/播放暂停图标/播完续播/外部播放器拉起）、详情页自动进音乐页判定、DLNA 投屏回归（零改动，仅核对），以及登记项 ③④⑦ 三条可观测差异。
 
+# 7.17 M7e 实测登记（2026-10-06，播放栈自研替换：控制器去 View + 全量去 doikki，4 片）
+
+**结论**：**`app/src` 已零 `xyz.doikki` 导入、零代码引用**（只有「移植自 …」的示意性注释）。提交 **`a9e8fef`**（doikki 工具面移植：`util/PlayerUtils.kt` + `util/CutoutUtil.kt`）/ **`aaeb98d`**（宿主与控制器去 doikki View 层：新增 `KernelPlayer.kt`/`AppPlayerView.kt`/`host/PlayerRenderView.kt`，`ExoPlayer : KernelPlayer`，`MyVideoView : AppPlayerView` 直持 media3 `ExoPlayer`，`ComposeVideoController`/`ComposeLiveController` 去 `BaseVideoController`，删 `ExoMediaPlayerFactory`）/ **`7717458`**（`PlayerCache` 收回 `SimpleCache` 实现体、`MediaSources.getInstance` 承接单例、`App`/`OkGoHelper`/`PreloadManagerHolder` 切走）/ **`ce198db`**（手势边缘带工具公开）。`:app:assembleDebug` + `:app:assembleRelease` 绿；`:app:testDebugUnitTest` **611 用例 / 0 失败 / 0 错误 / 0 跳过（79 suite）**（与 M7d 基线持平）；改动文件全 LF。
+
+**新旧接口对照（迁移口径 = 逐语义承接，命名的对应关系必须记住）**：
+
+| 旧 doikki 面 | 新 app 侧面 | 备注 |
+| --- | --- | --- |
+| `AbstractPlayer`（内核契约） | `player/KernelPlayer.kt` | 抽象类；`mPlayerEventListener` 用 `@JvmField protected` 承接（子类 7 处直读零改动）；`setStartPosition` 内含 `max(0, pos)` 钳位；`startPosition` 是 `protected val`（与 setter 分名字段） |
+| `VideoView<P>`（播放器视图） | `player/AppPlayerView.kt` | 只保留本仓库用到的面；删 XML 属性读取、`VideoViewManager`/`VideoViewConfig` 单例、`PlayerFactory`、`setFullScreen`/`setTinyScreen`（app 零调用点，全屏是 Activity 级）、静音/循环/镜像/截图 |
+| `ProgressManager` | `AppPlayerView.ProgressSink` | 两个入口同名同义；`PlaybackEngine` 注入；`setProgressManager` → `setProgressSink`（5 处） |
+| `AudioFocusHelper` | `host/PlayerAudioFocus`（M7b 已建 + 单测） | 只建一次；`ensureAudioFocusHelper` 等价物在 `AppPlayerView`；`pause` 放弃、`release` 无条件放弃并置空 |
+| `IRenderView` / `RenderViewFactory` | `host/PlayerRenderView` / `PlayerRenderViewFactory` | `attachToPlayer(KernelPlayer)`；`doScreenShot()` 改可空 |
+| `TextureRenderViewFactory` 的 `is` 判定 | `AppPlayerView.renderIsSurface`（Java 侧 `getRenderIsSurface()`） | `MyVideoView.factoryRenderType()` 改判 `EngineTextureRenderViewFactory` |
+| `BaseVideoController` | `AppPlayerView.VideoControllerHost` + 控制器自持 | `setPlayState`/`setPlayerState`/`onVideoSizeChanged`/`onVideoSizeCleared`/`startProgress`；进度定时器从基类搬到 `ComposeVideoController.progressRunnable` |
+| `ControlWrapper` | `AppPlayerView` 自身的查询面 | `duration`/`currentPosition`/`bufferedPercentage`/`videoSize`/`tcpSpeed`/`isPlaying`/`togglePlay`/`seekTo`/`setSpeed`/`setScreenScaleType`/`isFullScreen` |
+| `VideoView.setVideoController` | `PlayerControlApi.setKernelProvider(MyVideoView?)` | 注入视图 + 自注册为状态宿主；`AppPlayerView.setVideoController` 的三件事（摘旧、追加到容器顶部、状态回灌＋`startProgress`）逐条保留；引擎侧用 `releaseController()` |
+| `ExoMediaSourceHelper`（共享缓存 + 单例） | `engine/PlayerCache` + `engine/MediaSources.getInstance` | `SimpleCache`/`LRU`/`StandaloneDatabaseProvider`/`externalCacheDir ?: cacheDir`/目录名 `exo-video-cache` 逐条一致 |
+| `PlayerUtils` / `CutoutUtil` / `L` / `VideoViewManager` / `VideoViewConfig` / `MeasureHelper` / `TextureRenderView` | `util/PlayerUtils` / `util/CutoutUtil` / 其余不移植 | `L`/`VideoViewManager`/`VideoViewConfig` 全零调用点、`MeasureHelper` 已由 `host/RenderMeasure` 替代、`TextureRenderView` 已由 `EngineTextureRenderView` 替代 |
+
+**本片现场核实出的规则（后续片照查）**：
+
+1. **Kotlin 类里 `open`/`override` 属性不能加 `@get:JvmName`**（"annotation is not applicable to this declaration"）。想让 Java 继续按 `getXxx()`/`isXxx()` 调：要么该成员保留为**函数**（另给同义属性，如 `AppPlayerView.isPlaying` + `isPlaying()`），要么在 Java 调用点改读 Kotlin 属性自动生成的 `getXxx()`。
+2. **属性与其同义函数不能同名**：`val isPlaying` 与 `fun isPlaying()` 在 JVM 上撞签名（Platform declaration clash）；`val renderIsSurface` 与 `val isSurfaceRenderActive` 同被注解成 `isSurfaceRenderActive()` 也撞。二选一或改名。
+3. **Java 侧读 Kotlin 属性会编译失败**：`mVideoView.currentPosition` 必须写 `getCurrentPosition()`。本片修正 `PlayContainer`/`TrackSelectorDelegate` 共 9 处。
+4. **内部对内核的读数要一起改**：`mMediaPlayer?.getDuration()` → `mMediaPlayer?.duration`（`KernelPlayer` 的读数面是 Kotlin 属性）。漏一处就是 Unresolved reference。
+5. **`protected val startPosition` 与 `setStartPosition(position)` 必须分名字段**，否则属性与参数同名遮蔽。
+6. **`LOG.d` 等 app 侧日志是单参**（`LOG.d(msg)`），noikki `L.d(tag:msg)` 的双参写法不可照搬。
+7. **`@JvmName` 在普通 `protected fun` 上可用**（如早期草稿的 `getStartPosition`），但一旦该成员被 `override` 就不行 —— 最终选择直接暴露 `protected val startPosition`。
+8. **共享缓存实现体搬迁必须一案一提交完成**：`App` 容量注入 → `PlayerCache`、`OkGoHelper` client 注入 → `MediaSources`、`PreloadManagerHolder` 5 处调用点，全部切完才提交（`SimpleCache` 同目录双实例会抛）。
+9. **`getInstance` 单例的 client 必须懒读**：`MediaSources.getInstance(ctx)` 不缓存 `OkGoHelper.getItvClient()`（`reloadDns()` 会重建 client）。
+10. **`isEdge` 依赖"含导航栏的屏幕宽高"**：`AppPlayerView`/`PlayerUtils` 的 `getScreenWidth(ctx, true)`/`getScreenHeight(ctx, true)` 不能因为"无直接调用点"而删，`PlayerUtils.dp2px` 已公开（手势边缘带用）。
+
+**未完成项（1 项，诚实标注）**：**`GestureController` 仍是 `GestureDetector` + View `onTouchEvent`**，未改 Compose `pointerInput`。这是唯一"手感即规格"的面（单击显隐必须等双击窗口 300ms、双击播放暂停、长按倍速与滑动互斥、四边 40dp 边缘带、预览态只放行单击/双击、锁屏只放行点按唤钮、横滑 seek 与竖滑亮度音量按半屏分侧）。移植草稿（手写 `awaitEachGesture` 状态机）经复核判定阈值/时序无法离线等价（`detectTapGestures` 的 onTap 不保证双击窗口语义），且无真机手势走查条件 ⇒ 按"迁移步禁夹带高风险改写"纪律**主动回退草稿**，留待与真机手势走查同批。该文件已去 doikki（只依赖 `AppPlayerView` 常量与 `PlayerUtils`），不阻塞 M10 拆除。
+
+**未验证面（诚实标注）**：真机走查未做 —— 走查重点见计划档 M7e 未验证面（控制器状态回灌与图标一致性、1Hz 进度刷新、音频焦点、Surface↔Texture 热切与纯音频强制 Texture、边播缓存/预载读盘命中、点播↔直播内核复用与控制器挂摘、手势手感回归）。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。
