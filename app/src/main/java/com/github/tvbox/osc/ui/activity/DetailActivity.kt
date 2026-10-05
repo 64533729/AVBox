@@ -22,13 +22,13 @@ import com.github.tvbox.osc.ui.components.SheetHostScaffold
 import com.github.tvbox.osc.player.PageHost
 import com.github.tvbox.osc.player.PlaybackController
 import com.github.tvbox.osc.player.PlaybackService
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.ui.player.PlayContainer
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
 import com.github.tvbox.osc.ui.theme.AppThemeState
 import com.github.tvbox.osc.util.MusicSettings
 import com.github.tvbox.osc.util.PermissionHelper
 import kotlinx.coroutines.launch
-import xyz.doikki.videoplayer.player.VideoView
 
 private const val SYSBAR_APPEARANCE_REASSERT_DELAY_MS = 400L
 
@@ -173,12 +173,12 @@ class DetailActivity : BaseActivity(), PageHost {
         val container = playContainer ?: return false
         val engine = PlaybackService.peek() ?: return false
         if (engine.isReleased() || engine.attachedPage() !== container) return false
-        val state = engine.player().currentPlayState
-        if (state != VideoView.STATE_PREPARING &&
-            state != VideoView.STATE_PREPARED &&
-            state != VideoView.STATE_BUFFERING &&
-            state != VideoView.STATE_BUFFERED &&
-            state != VideoView.STATE_PLAYING
+        val state = engine.player().playState
+        if (state != PlayState.PREPARING &&
+            state != PlayState.PREPARED &&
+            state != PlayState.BUFFERING &&
+            state != PlayState.BUFFERED &&
+            state != PlayState.PLAYING
         ) {
             return false
         }

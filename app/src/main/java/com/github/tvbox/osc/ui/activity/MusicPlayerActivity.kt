@@ -29,6 +29,7 @@ import com.github.tvbox.osc.player.PlaybackService
 import com.github.tvbox.osc.player.PlaybackSession
 import com.github.tvbox.osc.player.PlaybackViewBridge
 import com.github.tvbox.osc.player.state.CastSheetState
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.ui.music.MusicLrc
 import com.github.tvbox.osc.ui.music.MusicPlayMode
 import com.github.tvbox.osc.ui.music.MusicPlayerScreen
@@ -185,8 +186,8 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         override fun run() {
             ui.positionMs = player.currentPosition.coerceAtLeast(0L)
             ui.durationMs = player.duration.coerceAtLeast(0L)
-            val state = player.currentPlayState
-            ui.buffering = state == VideoView.STATE_PREPARING || state == VideoView.STATE_BUFFERING
+            val state = player.playState
+            ui.buffering = state == PlayState.PREPARING || state == PlayState.BUFFERING
             ui.playing = player.isPlaying
             main.postDelayed(this, POSITION_TICK_MS)
         }
@@ -194,31 +195,33 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
 
     private val stateListener = object : VideoView.SimpleOnStateChangeListener() {
         override fun onPlayStateChanged(playState: Int) {
-            when (playState) {
-                VideoView.STATE_PREPARING, VideoView.STATE_BUFFERING -> ui.buffering = true
-                VideoView.STATE_PREPARED, VideoView.STATE_BUFFERED -> ui.buffering = false
-                VideoView.STATE_PLAYING -> {
+            val state = PlayState.fromLegacy(playState)
+            when (state) {
+                PlayState.PREPARING, PlayState.BUFFERING -> ui.buffering = true
+                PlayState.PREPARED, PlayState.BUFFERED -> ui.buffering = false
+                PlayState.PLAYING -> {
                     ui.buffering = false
                     ui.playing = true
                 }
-                VideoView.STATE_PAUSED -> {
+                PlayState.PAUSED -> {
                     ui.buffering = false
                     ui.playing = false
                 }
-                VideoView.STATE_PLAYBACK_COMPLETED -> {
+                PlayState.COMPLETED -> {
                     ui.buffering = false
                     ui.playing = false
                     onSongCompleted()
                 }
-                VideoView.STATE_ERROR -> {
+                PlayState.ERROR -> {
                     ui.buffering = false
                     ui.playing = false
                 }
+                PlayState.IDLE, PlayState.START_ABORT -> {}
             }
             ui.durationMs = player.duration.coerceAtLeast(0L)
-            if (playState == VideoView.STATE_PREPARING
-                || playState == VideoView.STATE_PREPARED
-                || playState == VideoView.STATE_PLAYING
+            if (state == PlayState.PREPARING
+                || state == PlayState.PREPARED
+                || state == PlayState.PLAYING
             ) {
                 refreshMeta()
                 syncLyric()
@@ -571,6 +574,18 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
 
         override fun useTextureRenderForAudio() {
             activity.player.setRenderViewFactory(EngineTextureRenderViewFactory.create())
+        }
+
+        override fun playExternalPlayer(
+            playerType: Int,
+            url: String,
+            title: String,
+            subtitle: String?,
+            headers: HashMap<String, String>?,
+            progress: Long,
+        ): Boolean {
+            if (!isPageAlive()) return false
+            return PlayerHelper.runExternalPlayer(playerType, activity, url, title, subtitle.orEmpty(), headers, progress)
         }
     }
 }
