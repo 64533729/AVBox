@@ -124,6 +124,16 @@ class VideoGestureHandler(
     var lastTapTime: Long = -1L
         private set
 
+    /**
+     * 是否存在"待定单击"(已抬手、还没等到第二下)。
+     *
+     * <p>⚠️ 这是**必须由状态机持有**的状态:接线层抬手即返回,由宿主的定时器在双击窗口后补发单击;
+     * 若第二下先到,状态机会判成双击并清掉这个标记,宿主据此**不能再补一次单击** ——
+     * 否则"双击"会连带触发一次控制条显隐(真机实测:点一下暂停后,控制条再也收不回去)。
+     */
+    var tapPending: Boolean = false
+        private set
+
     /** 当前模式(接线层判断 CANCEL 时该回退还是提交) */
     val currentMode: Mode get() = mode
 
@@ -244,11 +254,13 @@ class VideoGestureHandler(
         // 长按必须恢复(即便 CANCEL)
         if (longPressed) {
             longPressed = false
+            tapPending = false
             actions.onLongPressEnd()
             return EndResult.NONE
         }
 
         if (moved) {
+            tapPending = false
             if (endedMode == Mode.SEEK) {
                 if (cancelled) actions.onSeekCancel() else actions.onSeekCommit()
             }
@@ -257,6 +269,7 @@ class VideoGestureHandler(
 
         // 未移动 = 点击。锁屏抬手唤锁屏钮(旧实现语义)
         if (s.locked) {
+            tapPending = false
             actions.onSingleTap()
             return EndResult.NONE
         }
@@ -264,12 +277,15 @@ class VideoGestureHandler(
         // 双击判定:与上一次点击的时间差落在 [min, timeout] 内
         val last = lastTapTime
         if (last > 0 && nowMs - last in doubleTapMinTimeMs..doubleTapTimeoutMs) {
+            // 判成双击 ⇒ 取消待定单击,宿主不能再补发(否则会多显隐一次控制条)
             lastTapTime = -1L
+            tapPending = false
             actions.onDoubleTapTogglePlay()
             return EndResult.DOUBLE_TAP
         }
-        // 单击待定:记基准,由接线层等第二下,超时后调 markSingleTapConfirmed
+        // 单击待定:记基准 + 立标记;宿主在双击窗口后调 markSingleTapConfirmed
         lastTapTime = nowMs
+        tapPending = true
         return EndResult.TAP_PENDING
     }
 
@@ -285,10 +301,20 @@ class VideoGestureHandler(
         NONE,
     }
 
-    /** 单击确认:**只在双击窗口超时且未等到第二下时**由接线层调用 */
-    fun markSingleTapConfirmed() {
+    /**
+     * 单击确认(宿主在双击窗口后调用)。
+     *
+     * <p>**幂等**:若窗口内来了第二下,这里已经是双击,`tapPending` 已被清掉 ⇒ 直接返回,
+     * 不会再多派一次单击。
+     *
+     * @return true = 确实派发了单击
+     */
+    fun markSingleTapConfirmed(): Boolean {
+        if (!tapPending) return false
+        tapPending = false
         lastTapTime = -1L
         actions.onSingleTap()
+        return true
     }
 
     /** 是否还在双击窗口内(接线层据此决定要不要等第二下) */
@@ -312,8 +338,8 @@ class VideoGestureHandler(
 fun Modifier.videoGestureLayer(
     handler: VideoGestureHandler,
     sessionProvider: (IntSize) -> VideoGestureSession?,
-    /** 双击窗口内没等到第二下 ⇒ 这是一次单击(由宿主决定怎么显隐控制条) */
-    onTapConfirmed: () -> Unit = { handler.markSingleTapConfirmed() },
+    /** 出现"待定单击"(已抬手、等第二下中)⇒ 宿主应在双击窗口后调 `handler.markSingleTapConfirmed()` */
+    onTapPending: () -> Unit = {},
 ): Modifier = composed {
     var size = IntSize.Zero
     this
@@ -381,7 +407,7 @@ fun Modifier.videoGestureLayer(
                 //    改成"先返回 + 让状态机在下一个 DOWN 上按 lastTapTime 判双击":
                 //    单击由 [onTapConfirmed] 在宿主侧用定时器补发。
                 if (result == VideoGestureHandler.EndResult.TAP_PENDING) {
-                    onTapConfirmed()
+                    onTapPending()
                 }
             }
         }

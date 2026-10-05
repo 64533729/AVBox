@@ -69,8 +69,8 @@ fun PlayerOverlay(
     gestureHandler: VideoGestureHandler,
     /** 每次 DOWN 现算的手势会话快照:入参为手势区宽高与屏幕宽度 */
     gestureSession: (width: Int, height: Int, screenWidth: Int) -> VideoGestureSession,
-    /** 双击窗口内没等到第二下 ⇒ 派发单击(由控制器用定时器补发,接线层不阻塞) */
-    onTapConfirmed: () -> Unit,
+    /** 出现"待定单击"⇒ 控制器在双击窗口后调 `handler.markSingleTapConfirmed()` */
+    onTapPending: () -> Unit,
 ) {
     // 屏幕宽度(半屏分侧用)必须在组合期读出:pointerInput 的 lambda 里不能有 @Composable 调用
     val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
@@ -91,7 +91,7 @@ fun PlayerOverlay(
                         gestureSession(sizeW, sizeH, screenWidthPx)
                     }
                 },
-                onTapConfirmed = onTapConfirmed,
+                onTapPending = onTapPending,
             ),
     ) {
         // 图标盒只有一处算,胶囊与右侧竖排共用 ⇒ 两处图标必然等大(竖屏全屏下胶囊会被钳小)

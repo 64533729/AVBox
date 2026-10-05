@@ -94,8 +94,8 @@ class VideoGestureLayerWiringTest {
                     .videoGestureLayer(
                         handler = handler,
                         sessionProvider = alwaysClaim(),
-                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
-                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                        // 模拟生产:接线层只通知"有待定单击",确认由宿主在窗口后调(幂等)
+                        onTapPending = { handler.markSingleTapConfirmed() },
                     ),
             ) {
                 // 模拟控制条上的按钮:它自己消费点击
@@ -135,8 +135,8 @@ class VideoGestureLayerWiringTest {
                     .videoGestureLayer(
                         handler = handler,
                         sessionProvider = alwaysClaim(),
-                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
-                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                        // 模拟生产:接线层只通知"有待定单击",确认由宿主在窗口后调(幂等)
+                        onTapPending = { handler.markSingleTapConfirmed() },
                     ),
             ) {
                 Box(
@@ -186,8 +186,8 @@ class VideoGestureLayerWiringTest {
                     .videoGestureLayer(
                         handler = handler,
                         sessionProvider = alwaysClaim(),
-                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
-                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                        // 模拟生产:接线层只通知"有待定单击",确认由宿主在窗口后调(幂等)
+                        onTapPending = { handler.markSingleTapConfirmed() },
                     ),
             )
         }
@@ -228,8 +228,8 @@ class VideoGestureLayerWiringTest {
                     .videoGestureLayer(
                         handler = handler,
                         sessionProvider = alwaysClaim(),
-                        // 模拟生产:宿主在双击窗口过后补发单击(接线层抬手即返回,不阻塞)
-                        onTapConfirmed = { handler.markSingleTapConfirmed() },
+                        // 模拟生产:接线层只通知"有待定单击",确认由宿主在窗口后调(幂等)
+                        onTapPending = { handler.markSingleTapConfirmed() },
                     ),
             )
         }

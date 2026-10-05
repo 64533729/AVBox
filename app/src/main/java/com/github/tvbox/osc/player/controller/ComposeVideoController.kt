@@ -166,16 +166,21 @@ class ComposeVideoController @JvmOverloads constructor(
      */
     private val tapConfirmRunnable = Runnable { confirmGestureTap() }
 
-    /** 接线层在"待定单击"时调用:双击窗口过后若仍未被判为双击,就派发单击 */
-    internal fun onGestureTapConfirmed() {
+    /** 接线层出现"待定单击"时调用:双击窗口过后再确认 */
+    internal fun onGestureTapPending() {
         uiHandler.removeCallbacks(tapConfirmRunnable)
         uiHandler.postDelayed(tapConfirmRunnable, gestureHandler.doubleTapTimeoutMs)
     }
 
-    /** 若第二下已把它变成双击(基准被清),这里就不能再补一次单击 */
+    /**
+     * 补发单击。
+     *
+     * <p>交给状态机判断"是否还在待定":若窗口内来了第二下,状态机已判成双击并清掉待定标记,
+     * 这里就什么也不做 —— 否则双击会**连带**触发一次控制条显隐(真机实测:点一下暂停后,
+     * 控制条再也收不回去)。
+     */
     private fun confirmGestureTap() {
-        if (gestureHandler.withinDoubleTapWindow(System.currentTimeMillis())) return
-        gestureActions.dispatchSingleTap()
+        gestureHandler.markSingleTapConfirmed()
     }
 
     /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
@@ -344,7 +349,7 @@ class ComposeVideoController @JvmOverloads constructor(
                         actions = this@ComposeVideoController,
                         gestureHandler = gestureHandler,
                         gestureSession = { w, h, sw -> gestureActions.beginSession(w, h, sw) },
-                        onTapConfirmed = { onGestureTapConfirmed() },
+                        onTapPending = { onGestureTapPending() },
                     )
                 }
             }

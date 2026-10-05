@@ -330,4 +330,63 @@ class VideoGestureHandlerTest {
         assertTrue("刚抬手时仍在窗口内(不能立刻发单击)", h.withinDoubleTapWindow(1100L))
         assertFalse("超过窗口后不再是双击候选", h.withinDoubleTapWindow(1400L))
     }
+
+    // ---------- 真机反馈 ②(2026-10-06):双击不得遗留一次单击 ----------
+
+    /**
+     * 真机现象:点一下暂停后,控制条再也收不回去。
+     *
+     * <p>根因是双击的第二下**也走了单击路径**(以及第一下的单击确认定时器在双击之后才补发),
+     * 于是同一个手势序列里"显隐"与"播放暂停"互相踩。这里钉住:判成双击后,
+     * 待定标记必须被清掉,宿主再调 [VideoGestureHandler.markSingleTapConfirmed] 也**不能再派发**。
+     */
+    @Test
+    fun doubleTapLeavesNoStraySingleTap() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        // 第一下
+        h.beginSession(session(), 300f, 300f)
+        assertEquals(
+            VideoGestureHandler.EndResult.TAP_PENDING,
+            h.endSession(cancelled = false, nowMs = 1000L),
+        )
+        assertTrue("第一下后应存在待定单击", h.tapPending)
+        // 第二下(窗口内)⇒ 双击
+        h.beginSession(session(), 300f, 300f)
+        assertEquals(
+            VideoGestureHandler.EndResult.DOUBLE_TAP,
+            h.endSession(cancelled = false, nowMs = 1120L),
+        )
+        assertFalse("判成双击后不得再留待定单击", h.tapPending)
+        // 宿主(控制器)随后仍会调一次确认 ⇒ 必须是空操作
+        assertFalse(
+            "双击之后补发的单击确认必须无效",
+            h.markSingleTapConfirmed(),
+        )
+        assertEquals("整个序列只应有双击", listOf("doubleTap"), r.calls)
+    }
+
+    /** 纯单击:宿主确认后恰好一次 */
+    @Test
+    fun singleTapConfirmedOnceAndIdempotent() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(), 300f, 300f)
+        h.endSession(cancelled = false, nowMs = 1000L)
+        assertTrue(h.markSingleTapConfirmed())
+        assertFalse("重复确认必须无效", h.markSingleTapConfirmed())
+        assertEquals(listOf("singleTap"), r.calls)
+    }
+
+    /** 锁屏是立即派发,不该再留下待定(否则会多唤一次锁屏钮) */
+    @Test
+    fun lockedTapDispatchesImmediatelyWithoutPending() {
+        val r = Recorder()
+        val h = VideoGestureHandler(r)
+        h.beginSession(session(locked = true), 300f, 300f)
+        h.endSession(cancelled = false, nowMs = 1000L)
+        assertFalse("锁屏点击应立即派发,不留待定", h.tapPending)
+        assertFalse("确认必须是空操作", h.markSingleTapConfirmed())
+        assertEquals(listOf("singleTap"), r.calls)
+    }
 }

@@ -81,9 +81,6 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         )
     }
 
-    /** 供控制器在双击窗口过后补发单击(接线层抬手即返回,不再阻塞等第二下) */
-    fun dispatchSingleTap() = onSingleTap()
-
     override fun onSingleTap() {
         // 锁屏:只唤出锁屏钮(旧 onTouch 在锁屏时吞掉全部事件并只在 UP 时 showLockView)
         if (host.isLocked) {
