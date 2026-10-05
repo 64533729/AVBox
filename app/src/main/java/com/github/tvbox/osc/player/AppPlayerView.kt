@@ -193,9 +193,11 @@ open class AppPlayerView @JvmOverloads constructor(
 
     /** 第一次播放(旧 `startPlay` 的顺序逐条保留) */
     protected open fun startPlay(): Boolean {
-        // 移动网络提示:旧实现经控制器拿配置,而 dkplayer 的 `VideoViewManager.instance().playOnMobileNetwork()`
-        // 在本仓库恒 false(从没人调 setConfig/setPlayOnMobileNetwork)⇒ 该闸门在本仓库"非本地源 + 移动网"
-        // 时会中止起播。去 doikki 后没有控制器可问,故按同一恒值口径落成字段:保持"不中止"的现状。
+        // 移动网络提示:旧实现经 `BaseVideoController.showNetWarning()` → `VideoViewManager.instance()
+        // .playOnMobileNetwork()`。注意两个默认值不同:Builder 的 `mPlayOnMobileNetwork` 默认 **true**,
+        // 但单例字段取自 `VideoViewManager` 自己的 `mPlayOnMobileNetwork`(默认 false),而本仓库
+        // 从不调用 `VideoViewManager.setConfig/setPlayOnMobileNetwork` ⇒ 旧闸门恒为 false(从不中止起播)。
+        // 去 doikki 后无控制器可问,故按同一"恒不中止"口径落成钩子,保持现状。
         if (showNetWarning()) {
             setPlayState(STATE_START_ABORT)
             return false

@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.player.controller
 
 import com.github.tvbox.osc.util.LOG
+import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.os.BatteryManager
@@ -90,12 +91,27 @@ class ComposeVideoController @JvmOverloads constructor(
     val playerView: MyVideoView?
         get() = videoView
 
+    /** [playerActivity] 的缓存(控制器上下文在生命周期内不变,解析一次即可) */
+    private var activityCache: Activity? = null
+
     /** 是否处于锁定态(手势委托读;与 UI 的 lockState 互为镜像) */
     val isLocked: Boolean
         get() = state.locked
 
-    /** 控制器上下文所在的 Activity(字幕字号/旋转/返回键/O SD 屏参都问它) */
-    fun playerActivity(): android.app.Activity? = videoView?.hostActivity()
+    /**
+     * 控制器上下文所在的 Activity(字幕字号 / 旋转 / 返回键 / OSD 屏参都问它)。
+     *
+     * <p>⚠️ **必须从控制器自身上下文解析,不能问播放器视图**:`ComposeVideoController` 由页面
+     * (`PlayContainer`)以 **Activity** 为上下文创建,而 `AppPlayerView` 归引擎、由
+     * `ContextThemeWrapper(applicationContext, …)` 创建 —— 对后者 `PlayerUtils.scanForActivity`
+     * 沿 `ContextWrapper` 链走到 Application 会返回 null(旧 doikki `BaseVideoController` 用的正是
+     * 控制器上下文,见其 `mActivity = PlayerUtils.scanForActivity(getContext())`)。
+     * 消费方(`SubtitleHelper.getTextSize` 内部 `activity!!`、`requestedOrientation`、
+     * `onBackPressedDispatcher`)对 null 都不友好,故这里按"控制器上下文优先、视图兜底"解析。
+     */
+    fun playerActivity(): Activity? =
+        activityCache ?: PlayerUtils.scanForActivity(context)?.also { activityCache = it }
+            ?: videoView?.hostActivity()
 
     /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
     fun togglePlayFromGesture() {
@@ -262,7 +278,10 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        // ⚠️ 必须同时复位标志:只 removeCallbacks 会让 progressTicking 停在 true,
+        // 重挂后 startProgress() 全部早退 ⇒ 进度条/时间胶囊永久冻结
         uiHandler.removeCallbacks(progressRunnable)
+        progressTicking = false
         uiHandler.removeCallbacks(idleHideRunnable)
         uiHandler.removeCallbacks(lockHideRunnable)
         uiHandler.removeCallbacks(keySeekCommitRunnable)
@@ -306,6 +325,9 @@ class ComposeVideoController @JvmOverloads constructor(
             AppPlayerView.STATE_ERROR -> listener?.errReplay()
             AppPlayerView.STATE_PREPARED -> listener?.prepared()
             AppPlayerView.STATE_PLAYBACK_COMPLETED -> {
+                // 旧 doikki `BaseVideoController.onPlayStateChanged` 在本态清锁定态;手势层读的就是它,
+                // 漏清会让"锁屏 → 自动跳下一集"之后手势全被拒(锁图标此时也已自动隐藏,用户无从解锁)
+                state.locked = false
                 PlaybackProgress.markFinished()
                 listener?.playNext(true)
             }
@@ -329,11 +351,18 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     /**
-     * 进度刷新一跳(旧 doikki 基类 `startProgress` 挂上来的 1Hz 定时器本体)。
+     * 进度刷新一跳(旧 doikki 基类 `mShowProgress` 的等价物)。
      *
-     * <p>去 doikki 后定时器归控制器自己([progressRunnable]),但**读取口径与旧基类逐字一致**:
-     * 位置/时长都经 `PlayerUtils.safeTimeMs` 收敛(旧 `BaseVideoController.setProgress` 如此),
-     * 非播放态时位置读 0(旧 `MediaPlayerControl.getCurrentPosition` 在 IDLE 也返回 0)。
+     * <p>**节奏与停止条件逐条照抄旧基类**(`BaseVideoController.java:314-331`):
+     * 一跳读完位置后,若仍在播则按 `(1000 - 位置 % 1000) / 倍速` **延迟**续期(对齐秒边界、跟随倍速);
+     * 不在播则把标志复位并**不再续期**(定时器自行停表)。
+     *
+     * <p>⚠️ 陷阱(本片首版踩过):旧基类的续期是 `postDelayed` 而非 `post`,且"不在播即停表";
+     * 写成 `post` + 无条件续期会变成 0 延迟自旋 —— 主线程被消息队列灌满、
+     * `PlaybackProgress.onProgress` 以最大频率触达。
+     *
+     * <p>读取口径与旧基类一致:位置/时长都经 `PlayerUtils.safeTimeMs` 收敛
+     * (旧 `BaseVideoController.setProgress` 如此),非播放态位置读 0。
      */
     private fun onProgressTick() {
         progressTicking = false
@@ -341,8 +370,13 @@ class ComposeVideoController @JvmOverloads constructor(
         if (view != null && !state.dragging) {
             onProgressTick(view.duration, view.currentPosition)
         }
-        // 与旧基类一致:读完之后无条件续期(下一跳再判在播与否),否则拖拽期间会永久停表
-        startProgress()
+        // 拖拽中不续期(与旧 stopProgress 同效);onSeekFinished/onSeekCancelled 会重新 startProgress
+        if (state.dragging) return
+        if (view?.isPlaying != true) return
+        progressTicking = true
+        val speed = view.speed.takeIf { it > 0f } ?: 1f
+        val delayMs = ((1000 - state.position % 1000) / speed).toLong().coerceAtLeast(1L)
+        uiHandler.postDelayed(progressRunnable, delayMs)
     }
 
     private fun onProgressTick(duration: Long, position: Long) {
@@ -363,8 +397,8 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     /**
-     * 启动进度刷新(旧 `BaseVideoController.startProgress`):已在跑则空操作;
-     * 非播放态也照旧登记一次(`mShowProgress` 首跳发现不在播后自行停表)。
+     * 启动进度刷新(旧 `BaseVideoController.startProgress`):已在跑则空操作,否则**立即**投一跳
+     * (`post` 而非 `postDelayed` —— 旧基类同样是 `post(mShowProgress)`,首跳自行判断在播与否再决定是否续期)。
      */
     override fun startProgress() {
         if (progressTicking) return
