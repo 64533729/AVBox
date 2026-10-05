@@ -326,7 +326,8 @@ source: 2026-10-05 用户指令：「将 Java 迁移为 Kotlin，并在此过程
   - `player/` 整个模块目录（27 Java / 5313 行 + `res/` + `jniLibs` + `proguard-rules.pro`）；
   - `gradle/libs.versions.toml` 的 `dkplayerUi = "3.3.7"` 版本项与 `dkplayer-ui` 库项（`api(libs.dkplayer.ui)` 已在 M7-0 删除）；
   - `app/proguard-rules.pro` 中 `xyz.doikki` 相关 keep 规则（`com.github.tvbox.osc.**`/`com.github.catvod.**` 的 keep 不动）。
-- 断言：`Search xyz\.doikki` 在 `app/src`、`settings.gradle.kts`、`*.toml`、`*.pro` 零命中；APK `classes*.dex` 无 `xyz/doikki` 类、无 dkplayer-ui 资源（`unzip -l` 抽查）。
+  - **⚠️ 前置（M7e 复核轮新发现，必须先做）**：`:player` 模块还携带 **app 唯一来源的原生库** —— `player/src/main/jniLibs/arm64-v8a/{libp2p.so, libxl_stat.so, libxl_thunder_sdk.so}`，而 `app/src/main/jniLibs` **不存在**；`app/.../com/p2p/P2PClass.kt` 用 `System.loadLibrary("p2p")`（被 `App`/`util/thunder/Jianpian` 使用）。删模块前必须先把这些 `.so` 迁到 `app/src/main/jniLibs/arm64-v8a/`，否则 `P2PClass` 类初始化即 `UnsatisfiedLinkError`。
+- 断言：`Search xyz\.doikki` 在 `app/src`、`settings.gradle.kts`、`*.toml`、`*.pro` 零命中（**M7e 已完成 `app/src` 部分**：实测 `app/src` 的命中全为 KDoc）；APK `classes*.dex` 无 `xyz/doikki` 类、无 dkplayer-ui 资源（`unzip -l` 抽查）。**实测口径补充**：M7e 后 app 代码已零 doikki 引用，但 release APK 的 `classes3.dex` 仍含 `xyz/doikki` 与 `BaseVideoController` 等符号 —— 原因是 `app/proguard-rules.pro:61 -keep public class * extends android.view.View { *; }` 保留了继承 `View` 的 fork 类、且 `implementation(project(":player"))` 仍在，**故 dex 层清零确需 M10 拆模块 + 清 keep 规则**。
 - **验证**：`:app:assembleDebug` + `:app:assembleRelease` + `:app:testDebugUnitTest` 绿；真机冒烟（点播起播/切集/全屏旋转/手势/清晰度/字幕/弹幕/直播/音乐通知/DLNA 投屏）。
 - **风险**：低（纯删除；错漏表现为编译期错误或运行时 `NoClassDefFoundError`，冒烟即可覆盖）。
 
