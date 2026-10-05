@@ -42,7 +42,7 @@ class ConfigLoader(private val owner: ApiConfig) {
             callback.error("-1")
             return
         }
-        val cache = File(App.getInstance().getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl))
+        val cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl))
         // 本地/局域网源不吃快照(与 useCachedConfig 同一口径):本地源失效时靠快照"加载成功"会让用户
         // 以为源正常、实则内容永不更新,而这一支在 fetch 之前就早退,后面的可读性判据拦不住
         if (useCache && cache.exists() && isRemoteSource(apiUrl)) {
@@ -124,7 +124,7 @@ class ConfigLoader(private val owner: ApiConfig) {
         val resolvedLive = ConfigParser.configUrl(liveApiUrl, Supplier { ApiConfig.localFileBase() })
         val liveApiConfigUrl = resolvedLive.url
         val liveConfigKey = resolvedLive.key
-        val live_cache = File(App.getInstance().getFilesDir().getAbsolutePath() + "/" + MD5.encode(liveApiUrl))
+        val live_cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/" + MD5.encode(liveApiUrl))
         LOG.i("echo-load live config " + liveApiUrl)
         // 同 loadConfig:本地/局域网直播源不吃快照,否则失效的本地源会被旧快照长期掩盖
         if (useCache && live_cache.exists() && isRemoteSource(liveApiUrl)) {
@@ -220,8 +220,8 @@ class ConfigLoader(private val owner: ApiConfig) {
     private fun isLocalSourceUnreadable(apiUrl: String): Boolean {
         val path = localSourcePath(apiUrl)
         if (path == null) return false
-        if (LocalSourceTree.serves(App.getInstance(), path)) return false
-        return !PermissionHelper.isStorageGranted(App.getInstance()) && !File(path).canRead()
+        if (LocalSourceTree.serves(App.getInstance()!!, path)) return false
+        return !PermissionHelper.isStorageGranted(App.getInstance()!!) && !File(path).canRead()
     }
 
     /**
@@ -237,7 +237,7 @@ class ConfigLoader(private val owner: ApiConfig) {
     private fun isLocalSourceMissing(apiUrl: String): Boolean {
         val path = localSourcePath(apiUrl)
         // 目录授权兜底时 File.exists 同样不可信(可能把"读不到"误报成"已删除"),由本地服务判读不到即报 not found
-        if (path == null || LocalSourceTree.serves(App.getInstance(), path)) return false
+        if (path == null || LocalSourceTree.serves(App.getInstance()!!, path)) return false
         return !File(path).exists()
     }
 

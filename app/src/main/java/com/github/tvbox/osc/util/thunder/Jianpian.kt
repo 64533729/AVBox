@@ -29,12 +29,12 @@ object Jianpian {
                     replace = split[0].replace("xgplay://", "ftp://")
                 }
                 if (!TextUtils.isEmpty(App.burl)) {
-                    App.getp2p().P2Pdoxpause(App.burl.toByteArray(Charset.forName("GBK")))
-                    App.getp2p().P2Pdoxdel(App.burl.toByteArray(Charset.forName("GBK")))
+                    App.getp2p()!!.P2Pdoxpause(App.burl!!.toByteArray(Charset.forName("GBK")))
+                    App.getp2p()!!.P2Pdoxdel(App.burl!!.toByteArray(Charset.forName("GBK")))
                 }
                 App.burl = replace
-                App.getp2p().P2Pdoxstart(replace.toByteArray(Charset.forName("GBK")))
-                App.getp2p().P2Pdoxadd(replace.toByteArray(Charset.forName("GBK")))
+                App.getp2p()!!.P2Pdoxstart(replace.toByteArray(Charset.forName("GBK")))
+                App.getp2p()!!.P2Pdoxadd(replace.toByteArray(Charset.forName("GBK")))
                 return "http://" + LocalIPAddress.getIP(AppContextHolder.context()!!) + ":" + P2PClass.port + "/" + URLEncoder.encode(Uri.parse(replace).getLastPathSegment(), "GBK")
             } catch (e: Exception) {
                 return e.localizedMessage
@@ -48,8 +48,8 @@ object Jianpian {
     fun finish() {
         if (!TextUtils.isEmpty(App.burl) && App.getp2p() != null) {
             try {
-                App.getp2p().P2Pdoxpause(App.burl.toByteArray(Charset.forName("GBK")))
-                App.getp2p().P2Pdoxdel(App.burl.toByteArray(Charset.forName("GBK")))
+                App.getp2p()!!.P2Pdoxpause(App.burl!!.toByteArray(Charset.forName("GBK")))
+                App.getp2p()!!.P2Pdoxdel(App.burl!!.toByteArray(Charset.forName("GBK")))
                 App.burl = ""
             } catch (e: UnsupportedEncodingException) {
                 LOG.e("Jianpian", e)

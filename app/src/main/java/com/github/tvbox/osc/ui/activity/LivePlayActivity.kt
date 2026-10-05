@@ -499,7 +499,7 @@ class LivePlayActivity : BaseActivity() {
 
     private fun isCurrentLiveChannelValid(): Boolean {
         if (currentLiveChannelItem == null) {
-            Toast.makeText(App.getInstance(), getString(R.string.live_please_select_channel), Toast.LENGTH_SHORT).show()
+            Toast.makeText(App.getInstance()!!, getString(R.string.live_please_select_channel), Toast.LENGTH_SHORT).show()
             return false
         }
         return true
@@ -563,7 +563,7 @@ class LivePlayActivity : BaseActivity() {
             channelVersion++
             loadChannelGroupDataAndPlay(groupIndex, target.second)
         } else {
-            Toast.makeText(App.getInstance(), getString(R.string.live_wrong_password), Toast.LENGTH_SHORT).show()
+            Toast.makeText(App.getInstance()!!, getString(R.string.live_wrong_password), Toast.LENGTH_SHORT).show()
         }
     }
 

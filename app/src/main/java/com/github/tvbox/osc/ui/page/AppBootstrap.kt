@@ -175,7 +175,7 @@ object AppBootstrap {
 
     private fun toast(msg: String?) {
         if (msg.isNullOrEmpty()) return
-        val context = com.github.tvbox.osc.base.App.getInstance()
+        val context = com.github.tvbox.osc.base.App.getInstance()!!
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }

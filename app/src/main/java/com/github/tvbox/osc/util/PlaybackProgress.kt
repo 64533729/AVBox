@@ -121,7 +121,7 @@ object PlaybackProgress {
         token != lastToken && advancedMs >= MIN_ADVANCE_MS
 
     private fun markWatched(positionMs: Int, durationMs: Int) {
-        val vod = App.getInstance().vodInfo ?: return
+        val vod = App.getInstance()!!.getVodInfo() ?: return
         if (PlaybackService.peek()?.isLiveMode() == true) return
         val token = key(vod.sourceKey, vod.id) + "#" + vod.playFlag + "#" + vod.playIndex
         if (token != sampleToken) {
@@ -145,7 +145,7 @@ object PlaybackProgress {
     }
 
     private fun currentKey(): String? {
-        val vod = App.getInstance().vodInfo ?: return null
+        val vod = App.getInstance()!!.getVodInfo() ?: return null
         if (vod.sourceKey.isNullOrEmpty() || vod.id.isNullOrEmpty()) return null
         return key(vod.sourceKey, vod.id)
     }

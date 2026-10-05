@@ -100,7 +100,7 @@ class DefaultSubtitleEngine : SubtitleEngine {
 
                 val subtitlePath = result.subtitlePath
                 if (subtitlePath!!.startsWith("http://") || subtitlePath.startsWith("https://")) {
-                    val subtitleFileCacheDir = App.getInstance().cacheDir.absolutePath + "/zimu/"
+                    val subtitleFileCacheDir = App.getInstance()!!.cacheDir.absolutePath + "/zimu/"
                     val cacheDir = File(subtitleFileCacheDir)
                     if (!cacheDir.exists()) {
                         cacheDir.mkdirs()

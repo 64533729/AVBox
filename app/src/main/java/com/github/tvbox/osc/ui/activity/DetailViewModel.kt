@@ -843,7 +843,7 @@ class DetailViewModel : ViewModel() {
     /** 播放器真的播起来才落库;校验在播内容与本页一致(含集/线路:音乐页接管后改的是同一份 session) */
     private fun onPlaybackStarted() {
         val info = vodInfo ?: return
-        val playing = App.getInstance().vodInfo ?: return
+        val playing = App.getInstance()!!.getVodInfo() ?: return
         if (playing.id != info.id || playing.sourceKey != info.sourceKey) return
         if (playing.playFlag != info.playFlag || playing.playIndex != info.playIndex) return
         insertVod()
@@ -906,7 +906,7 @@ class DetailViewModel : ViewModel() {
         preview.playFlag = info.playFlag
         preview.playIndex = info.playIndex
         previewVodInfo = preview
-        App.getInstance().setVodInfo(preview)
+        App.getInstance()!!.setVodInfo(preview)
         return PlaybackSession(preview, sourceKey, consumeManualLineSwitch())
     }
 

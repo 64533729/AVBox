@@ -177,7 +177,7 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                 }
                 if (hasThunder) {
                     thunderParse = true
-                    Thunder.parse(App.getInstance(), video.urlBean, object : Thunder.ThunderCallback {
+                    Thunder.parse(App.getInstance()!!, video.urlBean, object : Thunder.ThunderCallback {
                         override fun status(code: Int, info: String) {
                             if (code >= 0) {
                                 LOG.i(info)

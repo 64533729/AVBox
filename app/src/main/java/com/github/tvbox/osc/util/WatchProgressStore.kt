@@ -294,7 +294,7 @@ object WatchProgressStore {
         }
         // 快照与索引同口径:各留 300 条会积下"进度已被回收、卡片还挂着"的孤儿,淘汰也挑不到最旧的
         val keep = entries.mapTo(HashSet(entries.size + 1)) { it.first }
-        val currentOwner = App.getInstance().vodInfo?.let { ownerOf(it) }
+        val currentOwner = App.getInstance()!!.getVodInfo()?.let { ownerOf(it) }
         if (!currentOwner.isNullOrEmpty()) keep.add(currentOwner)
         PlaybackProgress.retain(keep)
         EpisodeTotals.retain(keep)

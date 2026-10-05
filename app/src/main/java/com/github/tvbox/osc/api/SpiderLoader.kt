@@ -212,7 +212,7 @@ class SpiderLoader {
         val urls = RegexUtils.getPattern(";md5;").split(spider)
         var jarUrl = urls[0]
         val md5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
-        val cache = File(App.getInstance().getFilesDir().getAbsolutePath() + "/csp/" + MD5.string2MD5(jarUrl) + ".jar")
+        val cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/csp/" + MD5.string2MD5(jarUrl) + ".jar")
 
         if (!md5.isEmpty() || useCache) {
             if (cache.exists() && (useCache || MD5.getFileMd5(cache).equals(md5, ignoreCase = true))) {
