@@ -989,8 +989,8 @@ class ApiConfig private constructor() {
         }
 
         @JvmStatic
-        fun FindResult(json: String, configKey: String?): String {
-            var json = json
+        fun FindResult(json: String, configKey: String?): String? {
+            var out: String? = json
             var content = json
             try {
                 if (AES.isJson(content)) return content
@@ -1007,16 +1007,16 @@ class ApiConfig private constructor() {
                     content = String(AES.toBytes(content), Charset.defaultCharset()).lowercase(Locale.getDefault())
                     val key = AES.rightPadding(content.substring(content.indexOf("\$#") + 2, content.indexOf("#\$")), "0", 16)
                     val iv = AES.rightPadding(content.substring(content.length - 13), "0", 16)
-                    json = AES.CBC(data, key, iv)
+                    out = AES.CBC(data, key, iv)
                 } else if (configKey != null && !AES.isJson(content)) {
-                    json = AES.ECB(content, configKey)
+                    out = AES.ECB(content, configKey)
                 } else {
-                    json = content
+                    out = content
                 }
             } catch (e: Exception) {
                 LOG.e("ApiConfig", e)
             }
-            return json
+            return out
         }
 
         /** 本机服务基址:用 Supplier 传给解析器,保证只在 clan://localhost/ 地址上才求值 */

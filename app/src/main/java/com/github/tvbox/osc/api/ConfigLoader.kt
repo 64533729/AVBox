@@ -390,7 +390,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                 } else if (response.body == null) {
                     error = "empty body"
                 } else {
-                    result = ApiConfig.FindResult(response.body.string(), configKey)
+                    result = ApiConfig.FindResult(response.body.string(), configKey)!!
                     // 包装必须早于下面的 clanContentFix:否则包装出的 clan:// api 不会被换成本机服务地址
                     val packedPy = PySourcePack.packUrl(apiUrl, result)
                     if (packedPy != null) result = packedPy

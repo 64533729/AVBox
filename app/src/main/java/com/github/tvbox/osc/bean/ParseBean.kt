@@ -15,7 +15,7 @@ class ParseBean {
     private var urlValue: String? = null
 
     var url: String?
-        get() = DefaultConfig.checkReplaceProxy(urlValue)
+        get() = DefaultConfig.checkReplaceProxy(urlValue!!)
         set(value) {
             urlValue = value
         }
