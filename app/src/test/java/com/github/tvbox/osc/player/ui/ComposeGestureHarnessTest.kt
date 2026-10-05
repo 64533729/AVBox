@@ -18,11 +18,10 @@ import androidx.compose.ui.test.up
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import com.github.avbox.osc.ui.ComposeTestActivity
+import com.github.avbox.osc.ComposeTestActivity
 import com.github.tvbox.osc.testing.TestApplication
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,7 +61,6 @@ import org.robolectric.annotation.Config
 // ① 把宿主 Activity 放进**主源集**(或在主清单声明一个调试用 Activity),使两边名字天然一致;
 // ② 改走 `androidTest`(设备/模拟器标准 Compose 测试路径,正好与本片真机走查同批);
 // ③ 查清 AGP 9 下 `applicationId ≠ namespace` 时 Robolectric 的清单来源。
-@Ignore("宿主 Activity 清单解析:applicationId≠namespace 导致名字规范化不一致(见上方注释)")
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = TestApplication::class)
 class ComposeGestureHarnessTest {

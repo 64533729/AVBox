@@ -70,6 +70,14 @@
 
         <!-- 方向策略见 BaseActivity.applyOrientationPolicy:sw<600dp 锁竖屏,>=600dp 放开。
              在此写死 portrait 会让平板被信箱化,且 API 37 起系统在大屏本就会忽略它。 -->
+        <!-- Compose UI 测试(Robolectric,纯 JVM)的宿主 Activity:见
+             app/src/main/java/com/github/avbox/osc/ComposeTestActivity.kt 的说明。
+             无 intent-filter、exported=false,仅用于测试进程拉起。 -->
+        <activity
+            android:name="com.github.avbox.osc.ComposeTestActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
         <activity
             android:name=".ui.activity.MainActivity"
             android:exported="true"
