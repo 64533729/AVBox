@@ -49,7 +49,6 @@ dependencies {
     // jellyfin 预编译 ffmpeg 软解(16KB 页对齐),类名 androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
     // 由 media3 DefaultRenderersFactory 反射自动发现,无需手动接线
     api(libs.media3.ffmpeg.decoder)
-    api(libs.dkplayer.ui)
 
     // 脱糖运行时库(实际打包在 :app,此处声明以启用本模块代码的脱糖)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
