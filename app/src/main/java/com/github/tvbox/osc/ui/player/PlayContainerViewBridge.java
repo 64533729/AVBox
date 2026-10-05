@@ -17,7 +17,7 @@ import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.PlayerHelper;
 import org.json.JSONObject;
 import java.util.HashMap;
-import xyz.doikki.videoplayer.player.AbstractPlayer;
+import com.github.tvbox.osc.player.KernelPlayer;
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory;
 
 final class PlayContainerViewBridge implements PlaybackViewBridge {
@@ -79,7 +79,7 @@ final class PlayContainerViewBridge implements PlaybackViewBridge {
     }
 
     @Override
-    public AbstractPlayer mediaPlayer() {
+    public KernelPlayer mediaPlayer() {
         return container.mVideoView == null ? null : container.mVideoView.getMediaPlayer();
     }
 
@@ -109,7 +109,7 @@ final class PlayContainerViewBridge implements PlaybackViewBridge {
 
     @Override
     public void switchRenderToTexture() {
-        if (container.mVideoView != null && container.mVideoView.isSurfaceRenderActive()) {
+        if (container.mVideoView != null && container.mVideoView.getRenderIsSurface()) {
             container.mVideoView.switchRenderToTexture();
         }
     }

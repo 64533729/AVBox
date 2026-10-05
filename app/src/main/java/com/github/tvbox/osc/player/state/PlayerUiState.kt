@@ -9,7 +9,7 @@ import com.github.tvbox.osc.dlna.CastVideo
 import com.github.tvbox.osc.player.effect.PictureEffectUnavailableReason
 import com.github.tvbox.osc.player.effect.PicturePreset
 import com.github.tvbox.osc.player.effect.PictureProfile
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.AppPlayerView
 
 /**
  * 播放器控制层集中状态容器。
@@ -21,8 +21,8 @@ import xyz.doikki.videoplayer.player.VideoView
 class PlayerUiState {
 
     // —— 来自 dkplayer（只读，事件桥写入） ——
-    var playState: Int by mutableStateOf(VideoView.STATE_IDLE)
-    var playerState: Int by mutableStateOf(VideoView.PLAYER_NORMAL)
+    var playState: Int by mutableStateOf(AppPlayerView.STATE_IDLE)
+    var playerState: Int by mutableStateOf(AppPlayerView.PLAYER_NORMAL)
     var duration: Int by mutableStateOf(0)
     var position: Int by mutableStateOf(0)
     var bufferedPercent: Int by mutableStateOf(0)
@@ -163,13 +163,13 @@ class PlayerUiState {
     /** 控制层按“播放中”渲染(中央键/预览态键):BUFFERED 不回 PLAYING(dkplayer),只判 PLAYING 会图标反显;生命周期暂停回前台必续播 */
     val playbackActive: Boolean
         get() = lifecyclePaused ||
-                playState == VideoView.STATE_PLAYING ||
-                playState == VideoView.STATE_BUFFERING ||
-                playState == VideoView.STATE_BUFFERED
+                playState == AppPlayerView.STATE_PLAYING ||
+                playState == AppPlayerView.STATE_BUFFERING ||
+                playState == AppPlayerView.STATE_BUFFERED
 
     /** 暂停浮层可见:暂停中且底栏已收起;生命周期暂停不算(避免任务快照拍到"已暂停"假象) */
     val pauseOverlayVisible: Boolean
-        get() = playState == VideoView.STATE_PAUSED && !controlsVisible && !lifecyclePaused
+        get() = playState == AppPlayerView.STATE_PAUSED && !controlsVisible && !lifecyclePaused
 
     /** 当前时间行文本位置：拖拽/按键步进中显示预览位置，否则显示真实播放位置 */
     val seekPreviewOrPosition: Int
@@ -177,14 +177,14 @@ class PlayerUiState {
 
     /** loading 可见（照搬 BaseController.onPlayStateChanged） */
     val loadingVisible: Boolean
-        get() = playState == VideoView.STATE_PREPARING || playState == VideoView.STATE_BUFFERING
+        get() = playState == AppPlayerView.STATE_PREPARING || playState == AppPlayerView.STATE_BUFFERING
 
     val centerControlsVisible: Boolean
         get() = controlsVisible && !loadingVisible && !tipVisible && !locked
 
     /** 中央网速文本可见（旧实现仅 IDLE 阶段可见） */
     val netSpeedCenterVisible: Boolean
-        get() = playState == VideoView.STATE_IDLE
+        get() = playState == AppPlayerView.STATE_IDLE
 }
 
 /** 锁屏按钮三态（照搬旧实现 GONE/INVISIBLE/VISIBLE 的区别） */

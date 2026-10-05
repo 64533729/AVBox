@@ -7,23 +7,25 @@ import android.util.AttributeSet
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import xyz.doikki.videoplayer.player.AbstractPlayer
-import xyz.doikki.videoplayer.render.IRenderView
+import com.github.tvbox.osc.player.KernelPlayer
 
 /**
  * 新栈表面宿主(Surface 模式,M7b):逐行为等价移植旧 `osc.player.render.SurfaceRenderView`,
- * 测量算法换用 [RenderMeasure](app 侧自有,不再引用 doikki `MeasureHelper`)。
+ * 测量算法用 app 侧自有的 [RenderMeasure]。
  *
  * <p>交面/离面语义照旧:Created/Changed → `setDisplay(holder)`、Destroyed → `setDisplay(null)`;
  * 输出分辨率补发由内核侧 `setDisplay` 完成(Surface 路径唯一补发点,见 PlayerEngine.setDisplay)。
+ *
+ * <p>去 doikki(M7e 起):渲染契约由 [PlayerRenderView] 承担、内核形参由 doikki `AbstractPlayer`
+ * 换成 app 侧 [KernelPlayer]。
  */
 class EngineSurfaceRenderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
-) : SurfaceView(context, attrs, defStyleAttr), IRenderView, SurfaceHolder.Callback {
+) : SurfaceView(context, attrs, defStyleAttr), PlayerRenderView, SurfaceHolder.Callback {
 
-    private var mediaPlayer: AbstractPlayer? = null
+    private var mediaPlayer: KernelPlayer? = null
 
     private var scaleType = RenderMeasure.SCALE_DEFAULT
 
@@ -39,7 +41,7 @@ class EngineSurfaceRenderView @JvmOverloads constructor(
         surfaceHolder.setFormat(PixelFormat.RGBA_8888)
     }
 
-    override fun attachToPlayer(player: AbstractPlayer) {
+    override fun attachToPlayer(player: KernelPlayer) {
         mediaPlayer = player
         val surfaceHolder = holder
         val surface = surfaceHolder.surface

@@ -6,7 +6,7 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
 import org.json.JSONException
 import org.json.JSONObject
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.MyVideoView
 
 class LivePlayerManager {
     @JvmField
@@ -15,7 +15,7 @@ class LivePlayerManager {
     @JvmField
     var currentPlayerConfig: JSONObject? = null
 
-    fun init(videoView: VideoView<*>) {
+    fun init(videoView: MyVideoView) {
         try {
             defaultPlayerConfig.put("exo", KV.get(HawkConfig.EXO_DECODE, "硬解码")) // i18n: keep
             defaultPlayerConfig.put("pr", KV.get(HawkConfig.PLAY_RENDER, 1))
@@ -26,7 +26,7 @@ class LivePlayerManager {
         getDefaultLiveChannelPlayer(videoView)
     }
 
-    fun getDefaultLiveChannelPlayer(videoView: VideoView<*>) {
+    fun getDefaultLiveChannelPlayer(videoView: MyVideoView) {
         PlayerHelper.updateCfg(videoView, defaultPlayerConfig)
         try {
             currentPlayerConfig = JSONObject(defaultPlayerConfig.toString())
@@ -53,7 +53,7 @@ class LivePlayerManager {
     val livePlayerScale: Int
         get() = currentOrDefaultConfig().optInt("sc", 0)
 
-    fun changeLivePlayerType(videoView: VideoView<*>, playerType: Int) {
+    fun changeLivePlayerType(videoView: MyVideoView, playerType: Int) {
         var playerConfig: JSONObject
         try {
             playerConfig = JSONObject(currentOrDefaultConfig().toString())
@@ -71,7 +71,7 @@ class LivePlayerManager {
         currentPlayerConfig = playerConfig
     }
 
-    fun changeLivePlayerScale(videoView: VideoView<*>, playerScale: Int) {
+    fun changeLivePlayerScale(videoView: MyVideoView, playerScale: Int) {
         videoView.setScreenScaleType(playerScale)
         KV.put(HawkConfig.LIVE_PLAY_SCALE, playerScale)
 

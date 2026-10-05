@@ -7,7 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.AppPlayerView
 
 /**
  * 预载调度:何时喂快照、何时取结果、何时作废(目标评估时机与冷却期都在 [PreloadCoordinator])。
@@ -64,9 +64,9 @@ class PlaybackPreload(private val host: Host) {
         val view = host.view()
         // 无页面(仅引擎)时快照为空:跳过评估(预载需要页面上下文与集信息)
         if (view == null) return
-        if (playState == VideoView.STATE_PLAYING || playState == VideoView.STATE_BUFFERED) {
+        if (playState == AppPlayerView.STATE_PLAYING || playState == AppPlayerView.STATE_BUFFERED) {
             coordinator.scheduleEvaluate(view.buildPreloadSnapshot())
-        } else if (playState == VideoView.STATE_BUFFERING) {
+        } else if (playState == AppPlayerView.STATE_BUFFERING) {
             coordinator.onMainPlayerBuffering()
         }
     }

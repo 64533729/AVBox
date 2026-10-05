@@ -46,7 +46,7 @@ import com.github.tvbox.osc.subtitle.SubtitleEngine
 import com.github.tvbox.osc.subtitle.model.Subtitle
 import com.github.tvbox.osc.util.MD5
 
-import xyz.doikki.videoplayer.player.AbstractPlayer
+import com.github.tvbox.osc.player.KernelPlayer
 
 /**
  * @author AveryZhong.
@@ -187,7 +187,7 @@ class SimpleSubtitleView : TextView,
         mSubtitleEngine.destroy()
     }
 
-    override fun bindToMediaPlayer(mediaPlayer: AbstractPlayer?) {
+    override fun bindToMediaPlayer(mediaPlayer: KernelPlayer?) {
         mSubtitleEngine.bindToMediaPlayer(mediaPlayer)
     }
 

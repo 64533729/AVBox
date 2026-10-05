@@ -7,8 +7,7 @@ import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
-import xyz.doikki.videoplayer.player.AbstractPlayer
-import xyz.doikki.videoplayer.render.IRenderView
+import com.github.tvbox.osc.player.KernelPlayer
 
 /**
  * 新栈表面宿主(Texture 模式,M7b):逐行为等价移植 doikki `TextureRenderView`。
@@ -16,13 +15,16 @@ import xyz.doikki.videoplayer.render.IRenderView
  * <p>承重细节一个不丢:输出缓冲尺寸(`setDefaultBufferSize`,TextureView 会把缓冲尺寸改回视图尺寸、
  * 这里改回去)、换面时旧 Surface 延后释放(先放会让 EGL 卡在已释放的 BufferQueue 上)、
  * `onSurfaceTextureDestroyed` 返回 false(面不销毁,供复用)、交面回调([setOnSurfaceReadyListener])。
+ *
+ * <p>去 doikki(M7e 起):渲染契约由 [PlayerRenderView] 承担、内核形参由 doikki `AbstractPlayer`
+ * 换成 app 侧 [KernelPlayer]。
  */
 @SuppressLint("ViewConstructor")
 class EngineTextureRenderView(
     context: Context,
-) : TextureView(context), IRenderView, TextureView.SurfaceTextureListener, TextureRenderHost {
+) : TextureView(context), PlayerRenderView, TextureView.SurfaceTextureListener, TextureRenderHost {
 
-    private var mediaPlayer: AbstractPlayer? = null
+    private var mediaPlayer: KernelPlayer? = null
 
     private var texture: SurfaceTexture? = null
 
@@ -92,7 +94,7 @@ class EngineTextureRenderView(
         retiredSurface = null
     }
 
-    override fun attachToPlayer(player: AbstractPlayer) {
+    override fun attachToPlayer(player: KernelPlayer) {
         mediaPlayer = player
         val current = surface
         if (current != null) {

@@ -24,6 +24,7 @@ import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.dlna.CastVideo;
 import com.github.tvbox.osc.event.RefreshEvent;
+import com.github.tvbox.osc.player.AppPlayerView;
 import com.github.tvbox.osc.player.ExoPlayer;
 import com.github.tvbox.osc.player.PreloadCoordinator;
 import com.github.tvbox.osc.player.MyVideoView;
@@ -73,9 +74,7 @@ import java.util.List;
 
 import me.jessyan.autosize.AutoSize;
 import master.flame.danmaku.ui.widget.DanmakuView;
-import xyz.doikki.videoplayer.controller.BaseVideoController;
-import xyz.doikki.videoplayer.player.AbstractPlayer;
-import xyz.doikki.videoplayer.player.VideoView;
+import com.github.tvbox.osc.player.KernelPlayer;
 
 public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackHostApi, PlaybackPage {
 
@@ -213,10 +212,10 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
             mVideoView.saveCurrentProgress();
         }
         if (mVideoView != null && mController != null) {
-            mVideoView.setVideoController((BaseVideoController) mController);
+            mController.setKernelProvider(mVideoView);
             int state = mVideoView.getCurrentPlayState();
             if (mVideoView.getMediaPlayer() != null
-                    && state != VideoView.STATE_IDLE && state != VideoView.STATE_ERROR
+                    && state != AppPlayerView.STATE_IDLE && state != AppPlayerView.STATE_ERROR
                     && ownsEngineContent()) {
                 rebindPlaybackOverlay();
             }
@@ -365,7 +364,6 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
         });
         surfaceSlot = findViewById(R.id.surfaceSlot);
         mController = new ComposeVideoController(mActivity);
-        mController.setKernelProvider(() -> mVideoView);
 
         mController.getLyricView().setTextSize(previewMode ? 16 : 24);
         mController.setCanChangePosition(true);
@@ -373,7 +371,8 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
         mController.setGestureEnabled(true);
         mVideoView = engine == null ? null : engine.player();
         mController.setListener(controlListener);
-        if (mVideoView != null) mVideoView.setVideoController((BaseVideoController) mController);
+        // 挂载控制器:注入播放器视图并把自己注册为状态宿主(去 doikki 后取代 setVideoController)
+        if (mVideoView != null) mController.setKernelProvider(mVideoView);
     }
 
     public void showCast() {
@@ -451,7 +450,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
         try {
             if (!isAttached() || mVideoView == null) return;
             PlayerUiState uiState = mController.getUiState();
-            AbstractPlayer mediaPlayer = mVideoView.getMediaPlayer();
+            KernelPlayer mediaPlayer = mVideoView.getMediaPlayer();
             boolean hasInternal = mController.getSubtitleView().hasInternal || hasExoInternalSubtitle(mediaPlayer);
             boolean exoInternal = mediaPlayer instanceof ExoPlayer && exoInternalSubtitle;
             uiState.setSubtitleSheet(new SubtitleSheetState(
@@ -578,7 +577,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
 
     void selectMyInternalSubtitle() {
         if (mVideoView == null) return;
-        AbstractPlayer mediaPlayer = mVideoView.getMediaPlayer();
+        KernelPlayer mediaPlayer = mVideoView.getMediaPlayer();
         TrackInfo trackInfo = null;
         if (mediaPlayer instanceof ExoPlayer) {
             trackInfo = ((ExoPlayer) mediaPlayer).getTrackInfo();
@@ -622,7 +621,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
                 }));
     }
 
-    private boolean hasExoInternalSubtitle(AbstractPlayer mediaPlayer) {
+    private boolean hasExoInternalSubtitle(KernelPlayer mediaPlayer) {
         if (!(mediaPlayer instanceof ExoPlayer)) return false;
         TrackInfo trackInfo = ((ExoPlayer) mediaPlayer).getTrackInfo();
         return trackInfo != null && !trackInfo.getSubtitle().isEmpty();
@@ -782,7 +781,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
                     void initSubtitleView() {
         if (mVideoView == null) return;
         TrackInfo trackInfo = null;
-        AbstractPlayer mediaPlayer = mVideoView.getMediaPlayer();
+        KernelPlayer mediaPlayer = mVideoView.getMediaPlayer();
         mController.getLyricView().setTextSize(previewMode ? 16 : 24);
         applySubtitleTextSize();
         mController.getLyricView().setVisibility(View.GONE);
@@ -835,7 +834,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
      *
      * <p>显式选择压过源站每集给的字幕(点过来源就是明确意图);任一步拿不到就落到默认链,不新增"没字幕"的空档。
      */
-    private void applySubtitleDecision(AbstractPlayer mediaPlayer, TrackInfo trackInfo) {
+    private void applySubtitleDecision(KernelPlayer mediaPlayer, TrackInfo trackInfo) {
         final String memoryKey = trackMemoryKey();
         // 新一轮决策:上一轮在途的在线字幕解析作废
         subtitleDecisionSeq++;
@@ -852,7 +851,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
             }
             LOG.i("echo-track-memory local subtitle gone, fallback: " + path);
         } else if (TrackMemory.isSubtitleOnline(record)) {
-            final AbstractPlayer player = mediaPlayer;
+            final KernelPlayer player = mediaPlayer;
             final TrackInfo info = trackInfo;
             resolveRememberedOnlineSubtitle(memoryKey, record, () -> applyDefaultSubtitle(player, info));
             return;
@@ -865,7 +864,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
     }
 
     /** 无记忆(或记忆失效)时的既有链路:本集缓存 → 源站字幕 → 内置字幕 */
-    private void applyDefaultSubtitle(AbstractPlayer mediaPlayer, TrackInfo trackInfo) {
+    private void applyDefaultSubtitle(KernelPlayer mediaPlayer, TrackInfo trackInfo) {
         String subtitlePathCache = cachedPlayPath(scheduler.subtitleCacheKey());
         if (subtitlePathCache != null && !subtitlePathCache.isEmpty()) {
             hideExoInternalSubtitle();
@@ -883,7 +882,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
     }
 
     /** 让内置字幕显示出来(选哪条轨由播放器负责,这里只管视图与延时) */
-    private void showInternalSubtitle(AbstractPlayer mediaPlayer) {
+    private void showInternalSubtitle(KernelPlayer mediaPlayer) {
         if (mediaPlayer instanceof ExoPlayer) {
             ((ExoPlayer) mediaPlayer).setInternalSubtitleDelay(SubtitleHelper.getTimeDelay());
             exoInternalSubtitle = true;
@@ -900,7 +899,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
      * ⚠️ 不要在"按指纹还原"那条分支上加这个调用:EXO 的 getCurrentTracks 读不到刚下发到播放线程的
      * setParameters,会把刚还原好的用户选择当成"没选",再顶成默认轨。
      */
-    private void ensureInternalSubtitleTrackSelected(AbstractPlayer mediaPlayer, TrackInfo trackInfo) {
+    private void ensureInternalSubtitleTrackSelected(KernelPlayer mediaPlayer, TrackInfo trackInfo) {
         if (mediaPlayer instanceof ExoPlayer) {
             ((ExoPlayer) mediaPlayer).ensureSubtitleTrackSelected();
         }
@@ -1032,7 +1031,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
         engine.attach(this);
         handedOver = false;
         if (mVideoView != null) {
-            mVideoView.setVideoController((BaseVideoController) mController);
+            mController.setKernelProvider(mVideoView);
             if (danmuLoadController != null) danmuLoadController.setVideoView(mVideoView);
         }
         LOG.i("echo-p2 revive engine after release");
@@ -1157,7 +1156,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
         if (engine.isLiveMode()) return false;
         if (mVideoView == null || mVideoView.getMediaPlayer() == null) return false;
         int state = mVideoView.getCurrentPlayState();
-        return state != VideoView.STATE_ERROR && state != VideoView.STATE_IDLE;
+        return state != AppPlayerView.STATE_ERROR && state != AppPlayerView.STATE_IDLE;
     }
 
     public boolean onBackPressed() {
@@ -1255,7 +1254,7 @@ public class PlayContainer extends FrameLayout implements CustomAdapt, PlaybackH
             String nextKey = scheduler.vod().sourceKey + scheduler.vod().id + scheduler.vod().playFlag + nextIndex + next.name;
             String nextSubtKey = scheduler.vod().sourceKey + "-" + scheduler.vod().id + "-" + scheduler.vod().playFlag + "-" + nextIndex + "-" + next.name + "-subt";
             long startSkipMs = scheduler.playerCfg() == null ? 0 : scheduler.playerCfg().optInt("st", 0) * 1000L;
-            AbstractPlayer mediaPlayer = mVideoView == null ? null : mVideoView.getMediaPlayer();
+            KernelPlayer mediaPlayer = mVideoView == null ? null : mVideoView.getMediaPlayer();
             boolean exoKernel = mediaPlayer instanceof ExoPlayer;
             return new PreloadCoordinator.Snapshot(mContext, scheduler.sourceKey(), scheduler.vod().playFlag, scheduler.progressKey(), nextKey, next.url, nextSubtKey, startSkipMs, exoKernel);
         } catch (Throwable th) {

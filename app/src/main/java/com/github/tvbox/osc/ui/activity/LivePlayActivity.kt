@@ -254,7 +254,7 @@ class LivePlayActivity : BaseActivity() {
         liveController = controller
         val view = PlaybackService.engine(this).also { it.enterLive() }.player()
         view.setVideoController(controller)
-        view.setProgressManager(null)
+        view.setProgressSink(null)
         mVideoView = view
     }
 
@@ -953,7 +953,7 @@ class LivePlayActivity : BaseActivity() {
         if (TextUtils.isEmpty(shiyiUrl)) return
         LOG.i("echo-回看地址playUrl :$shiyiUrl")
         playUrl = shiyiUrl
-        videoView.setUrl(playUrl, liveChannelHeader())
+        videoView.setUrl(shiyiUrl, liveChannelHeader())
         videoView.start()
         shiyiTimeC = LiveEpgParser.getCatchupDurationSeconds(epg)
         tsDuration = PlaybackTimes.safeTimeMs(shiyiTimeC.toLong() * 1000)

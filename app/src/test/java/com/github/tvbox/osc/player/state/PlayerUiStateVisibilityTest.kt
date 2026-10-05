@@ -3,12 +3,12 @@ package com.github.tvbox.osc.player.state
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.AppPlayerView
 
 class PlayerUiStateVisibilityTest {
 
     private fun state(
-        playState: Int = VideoView.STATE_PLAYING,
+        playState: Int = AppPlayerView.STATE_PLAYING,
         controlsVisible: Boolean = true,
         locked: Boolean = false,
     ) = PlayerUiState().apply {
@@ -19,26 +19,26 @@ class PlayerUiStateVisibilityTest {
 
     @Test
     fun centerControls_hiddenWhileParseTipOnScreen() {
-        val s = state(playState = VideoView.STATE_IDLE)
+        val s = state(playState = AppPlayerView.STATE_IDLE)
         s.applyTip("解析中", loading = true, err = false)
         assertFalse(s.centerControlsVisible)
     }
 
     @Test
     fun centerControls_hiddenWhileErrorTipOnScreen() {
-        val s = state(playState = VideoView.STATE_IDLE)
+        val s = state(playState = AppPlayerView.STATE_IDLE)
         s.applyTip("播放失败", loading = false, err = true)
         assertFalse(s.centerControlsVisible)
     }
 
     @Test
     fun centerControls_hiddenWhilePreparing() {
-        assertFalse(state(playState = VideoView.STATE_PREPARING).centerControlsVisible)
+        assertFalse(state(playState = AppPlayerView.STATE_PREPARING).centerControlsVisible)
     }
 
     @Test
     fun centerControls_hiddenWhileBuffering() {
-        assertFalse(state(playState = VideoView.STATE_BUFFERING).centerControlsVisible)
+        assertFalse(state(playState = AppPlayerView.STATE_BUFFERING).centerControlsVisible)
     }
 
     @Test
@@ -49,17 +49,17 @@ class PlayerUiStateVisibilityTest {
 
     @Test
     fun centerControls_visibleDuringPlaybackAndInPreviewMode() {
-        val playing = state(playState = VideoView.STATE_PLAYING)
+        val playing = state(playState = AppPlayerView.STATE_PLAYING)
         assertTrue(playing.centerControlsVisible)
         playing.previewMode = true
         assertTrue(playing.centerControlsVisible)
 
-        assertTrue(state(playState = VideoView.STATE_PAUSED).centerControlsVisible)
+        assertTrue(state(playState = AppPlayerView.STATE_PAUSED).centerControlsVisible)
     }
 
     @Test
     fun centerControls_visibleAgainAfterTipCleared() {
-        val s = state(playState = VideoView.STATE_PLAYING)
+        val s = state(playState = AppPlayerView.STATE_PLAYING)
         s.applyTip("解析中", loading = true, err = false)
         assertFalse(s.centerControlsVisible)
         s.applyTip("", loading = false, err = false)

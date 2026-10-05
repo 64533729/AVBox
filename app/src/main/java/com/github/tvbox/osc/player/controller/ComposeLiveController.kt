@@ -7,26 +7,33 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.Window
+import android.widget.FrameLayout
+import com.github.tvbox.osc.player.AppPlayerView
+import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.GestureHelper
 import com.github.tvbox.osc.util.PlayerUtils
-import xyz.doikki.videoplayer.controller.BaseVideoController
-import xyz.doikki.videoplayer.player.VideoView
 import kotlin.math.abs
 
 /**
- * 直播控制层 Compose 化(avbox-mobile-ui-spec Step 5,复用方案 C1 思路):
- * - 继承 [BaseVideoController],`getLayoutId() = 0`,**无任何自绘 UI**(headless):
- *   loading / 时移条 / 全屏浮层 / 手势指示器全部由 LivePlayActivity 的 Compose 层渲染;
- * - 职责只剩两件事:
- *   1) 手势桥——单击 / 长按 / 左右快滑切台 / 上下滑调亮度音量(灵敏度照抄旧
- *      LiveController + BaseController,保证手感等价);
- *   2) 播放状态转发(onPlayStateChanged → 直播页自动换源状态机)。
- * - 旧 LiveController(含 BaseController 基类)随本类落地后退役。
+ * 直播控制层(avbox-mobile-ui-spec Step 5,复用方案 C1 思路)。
+ *
+ * <p>**去 doikki(M7e 起)**:基类由 doikki `BaseVideoController`(headless,`getLayoutId() = 0`)
+ * 换成普通 [FrameLayout] + [AppPlayerView.VideoControllerHost];"是否已挂到播放器"的判据由
+ * 父类字段 `mControlWrapper != null` 换成自己持有的 [videoView] 引用(语义等价:由同一处
+ * 挂载通道注入)。**无任何自绘 UI**(headless):
+ * loading / 时移条 / 全屏浮层 / 手势指示器全部由 `LivePlayActivity` 的 Compose 层渲染。
+ *
+ * <p>职责只剩两件事:
+ * 1) 手势桥——单击 / 长按 / 左右快滑切台 / 上下滑调亮度音量(灵敏度照抄旧 LiveController + BaseController,保证手感等价);
+ * 2) 播放状态转发([setPlayState] → 直播页自动换源状态机)。
+ *
+ * <p>旧 LiveController(含 BaseController 基类)随本类落地后退役。
  */
 class ComposeLiveController(
     context: Context,
-) : BaseVideoController(context),
+) : FrameLayout(context),
+    AppPlayerView.VideoControllerHost,
     GestureDetector.OnGestureListener,
     GestureDetector.OnDoubleTapListener,
     View.OnTouchListener {
@@ -61,30 +68,48 @@ class ComposeLiveController(
         this.listener = listener
     }
 
-    // —— 手势引擎字段(照抄 BaseController;必须 lateinit:initView 由父类构造函数虚调用,
-    //    那时属性初始化器还没跑 —— 用带初始化器的属性持有会在 initView 里读到 null) ——
-    private lateinit var gestureDetector: GestureDetector
-    private lateinit var audioManager: AudioManager
+    /** 播放器视图(由直播页经 [setVideoController] 注入;非空 = 控制层已挂上) */
+    private var videoView: MyVideoView? = null
+
+    // —— 手势引擎字段(照抄 BaseController;构造器里建,不再有父类构造期的虚调用 initView) ——
+    private val gestureDetector: GestureDetector = GestureDetector(context, this)
+    private val audioManager: AudioManager =
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var streamVolume = 0
     private var brightness = 0f
     private var firstTouch = false
     private var changeBrightness = false
     private var changeVolume = false
-    private var curPlayState = VideoView.STATE_IDLE
+    private var curPlayState = AppPlayerView.STATE_IDLE
 
-    override fun getLayoutId(): Int = 0
-
-    @SuppressLint("ClickableViewAccessibility")
-    override fun initView() {
-        super.initView()
-        audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        gestureDetector = GestureDetector(context, this)
+    init {
+        @Suppress("ClickableViewAccessibility")
         setOnTouchListener(this)
     }
-    override fun onPlayStateChanged(playState: Int) {
-        super.onPlayStateChanged(playState)
+
+    // ============================================================
+    // AppPlayerView.VideoControllerHost
+    // ============================================================
+
+    override fun setPlayState(playState: Int) {
         curPlayState = playState
         listener?.onPlayStateChanged(PlayState.fromLegacy(playState))
+    }
+
+    override fun setPlayerState(playerState: Int) {
+        // 直播页不区分全屏/小屏搬运(去 doikki 后该面已删),无需处理
+    }
+
+    override fun onVideoSizeChanged(width: Int, height: Int) {
+        // 直播页的分辨率 OSD 由 LiveOverlayController 轮询读取,无需事件推送
+    }
+
+    override fun onVideoSizeCleared() {
+        // 同上:直播页不缓存尺寸
+    }
+
+    override fun startProgress() {
+        // 直播页没有进度条,不需要进度刷新
     }
 
     // ============================================================
@@ -92,13 +117,13 @@ class ComposeLiveController(
     // ============================================================
 
     private fun gesturePlaybackState(): Boolean {
-        return mControlWrapper != null &&
-                curPlayState != VideoView.STATE_ERROR &&
-                curPlayState != VideoView.STATE_IDLE &&
-                curPlayState != VideoView.STATE_PREPARING &&
-                curPlayState != VideoView.STATE_PREPARED &&
-                curPlayState != VideoView.STATE_START_ABORT &&
-                curPlayState != VideoView.STATE_PLAYBACK_COMPLETED
+        return videoView != null &&
+                curPlayState != AppPlayerView.STATE_ERROR &&
+                curPlayState != AppPlayerView.STATE_IDLE &&
+                curPlayState != AppPlayerView.STATE_PREPARING &&
+                curPlayState != AppPlayerView.STATE_PREPARED &&
+                curPlayState != AppPlayerView.STATE_START_ABORT &&
+                curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
     }
 
     private fun canHandleGesture(event: MotionEvent): Boolean {
@@ -167,7 +192,7 @@ class ComposeLiveController(
         if (target > 1.0f) target = 1.0f
         val percent = (target * 100).toInt()
         attributes.screenBrightness = target
-        window.setAttributes(attributes)
+        window.attributes = attributes
         listener?.onGesturePercent(true, percent)
     }
 
@@ -187,7 +212,7 @@ class ComposeLiveController(
     override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
         val consumed = listener?.onSingleTap() ?: false
         if (consumed) return true
-        // 旧实现回落 super.toggleShowState,headless 下无 UI 可切换,直接视为已消费
+        // 旧实现回落父类 toggleShowState,headless 下无 UI 可切换,直接视为已消费
         return true
     }
 

@@ -193,7 +193,7 @@ object PictureEffects {
     fun setAnime4kSharpen(value: Float) {
         Anime4kSettings.setSharpen(value)
         val player = current?.get() ?: return
-        if (RedrawPolicy.shouldRedrawOnParams(player.isPlaying(), player.isPictureEffectsActive())) {
+        if (RedrawPolicy.shouldRedrawOnParams(player.isPlaying, player.isPictureEffectsActive())) {
             player.redrawVideoFrame()
         }
     }
@@ -234,7 +234,7 @@ object PictureEffects {
         if (tunneling) return
         if (openedThisSession) {
             // 播放中下一帧就现读新参数;暂停态没有下一帧,只能靠重绘那次合成
-            if (RedrawPolicy.shouldRedrawOnParams(player.isPlaying(), player.isPictureEffectsActive())) {
+            if (RedrawPolicy.shouldRedrawOnParams(player.isPlaying, player.isPictureEffectsActive())) {
                 player.redrawVideoFrame()
             }
             return

@@ -44,7 +44,7 @@ import java.nio.charset.Charset
 import java.util.ArrayList
 import java.util.TreeMap
 
-import xyz.doikki.videoplayer.player.AbstractPlayer
+import com.github.tvbox.osc.player.KernelPlayer
 
 /**
  * @author AveryZhong.
@@ -54,12 +54,12 @@ class DefaultSubtitleEngine : SubtitleEngine {
     private var mWorkHandler: Handler? = null
     private var mSubtitles: MutableList<Subtitle>? = null
     private var mUIRenderTask: UIRenderTask? = null
-    private var mMediaPlayer: AbstractPlayer? = null
+    private var mMediaPlayer: KernelPlayer? = null
     private var mOnSubtitlePreparedListener: SubtitleEngine.OnSubtitlePreparedListener? = null
     private var mOnSubtitleChangeListener: SubtitleEngine.OnSubtitleChangeListener? = null
     private var mergeSameTime: Boolean = false
 
-    override fun bindToMediaPlayer(mediaPlayer: AbstractPlayer?) {
+    override fun bindToMediaPlayer(mediaPlayer: KernelPlayer?) {
         mMediaPlayer = mediaPlayer
     }
 
@@ -246,7 +246,7 @@ class DefaultSubtitleEngine : SubtitleEngine {
         mWorkHandler = Handler(Looper.getMainLooper(), Handler.Callback { msg: Message ->
             try {
                 var delay: Long = REFRESH_INTERVAL.toLong()
-                if (mMediaPlayer != null && mMediaPlayer!!.isPlaying()) {
+                if (mMediaPlayer != null && mMediaPlayer!!.isPlaying) {
                     val position = mMediaPlayer!!.currentPosition
                     val subtitle = SubtitleFinder.find(position, mSubtitles)
                     notifyRefreshUI(subtitle)

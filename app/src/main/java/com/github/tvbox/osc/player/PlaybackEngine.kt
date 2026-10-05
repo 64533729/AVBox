@@ -17,9 +17,6 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
 import org.json.JSONObject
-import xyz.doikki.videoplayer.player.AbstractPlayer
-import xyz.doikki.videoplayer.player.ProgressManager
-import xyz.doikki.videoplayer.player.VideoView
 import java.lang.ref.WeakReference
 import java.util.HashMap
 
@@ -63,7 +60,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
     private val main: Handler = Handler(Looper.getMainLooper())
 
     /** 点播进度落盘(直播模式摘下、退出直播恢复;P4) */
-    private val progressManager: ProgressManager = object : ProgressManager() {
+    private val progressSink: AppPlayerView.ProgressSink = object : AppPlayerView.ProgressSink {
         override fun saveProgress(url: String?, progress: Long) {
             WatchProgressStore.save(controller.progressOwner(), url, progress, videoView.duration)
             if (controller.webPlayUrl() != null && progress > 0) {
@@ -119,12 +116,9 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
     private fun createPlayerView(): MyVideoView {
         val ctx = ContextThemeWrapper(appContext, R.style.AppTheme_NoActionBar)
         val view = MyVideoView(ctx)
-        // M7d:显式装桥工厂 —— 无页面起播(HeadlessView 不下发配置)若沿用 dooki 默认工厂,内核会是旧 ExoMediaPlayer,
-        // MyVideoView.playState(读桥内状态机)会静默退回 IDLE、状态读取面失真。有页面时 PlayerHelper.updateCfg 覆盖本值。
-        @Suppress("UNCHECKED_CAST")
-        (view as VideoView<ExoPlayer>).setPlayerFactory(ExoMediaPlayerFactory.create())
-        // M7b:无页面桥(HeadlessView)不会注入播放器配置,而引擎仍可能起播 —— 这里按全局设置给初始渲染宿主,
-        // 否则会落到 dooki 默认 Texture 工厂(新宿主的交面/输出尺寸钩子挂不上)。有页面时 PlayerHelper.updateCfg 覆盖本值。
+        // M7e:内核由 AppPlayerView.initPlayer 直接建 ExoPlayer(不再有 PlayerFactory 注入面)。
+        // M7b 起必须按全局设置给初始渲染宿主:无页面桥(HeadlessView)不会注入播放器配置,而引擎仍可能起播 ——
+        // 否则会落到默认 Texture 工厂(新宿主的交面/输出尺寸钩子挂不上)。有页面时 PlayerHelper.updateCfg 覆盖本值。
         view.setRenderViewFactory(
             if (KV.get(HawkConfig.PLAY_RENDER, 1) == 1) {
                 EngineSurfaceRenderViewFactory.create()
@@ -133,8 +127,8 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
             }
         )
         view.setExoDiskCacheEnabled(true)
-        view.setProgressManager(progressManager)
-        view.addOnStateChangeListener(object : VideoView.SimpleOnStateChangeListener() {
+        view.setProgressSink(progressSink)
+        view.addOnStateChangeListener(object : AppPlayerView.SimpleOnStateChangeListener() {
             override fun onPlayStateChanged(playState: Int) {
                 // 引擎已释放(空闲 TTL / 任务移除):下面任何一步都不该再走 ——
                 // 尤其 handlePlayStateForMusicSession 会去 updateSession,那会在没有引擎的情况下
@@ -143,7 +137,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                 // 通知参数(旧 int)转新栈状态:音乐会话/已起播判定的消费面按 PlayState 收口(M7d)
                 val state = PlayState.fromLegacy(playState)
                 // 播放错误落一条盘:本机 ROM 吞 logcat,只有 App 文件日志能取证(白名单已含 echo-player)
-                if (playState == VideoView.STATE_ERROR) {
+                if (playState == AppPlayerView.STATE_ERROR) {
                     LOG.i(
                         "echo-player error: kernel="
                             + (if (videoView.mediaPlayer == null) "null" else videoView.mediaPlayer!!.javaClass.simpleName)
@@ -155,7 +149,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                 // 遮黑帧的揭开与点播/直播无关:直播页共用同一块容器,漏揭就是"有声无画",
                 // 故必须在下面的 liveMode 短路**之前**。纯音频没有画面可露、海报就是它的背景
                 // (只有确认是影视才需要「收黑帧 + 撤封面」的互斥)
-                if (playState == VideoView.STATE_PLAYING) {
+                if (playState == AppPlayerView.STATE_PLAYING) {
                     if (controller.isConfirmedAudioOnly()) {
                         videoView.hideVideoFrameCover()
                     } else {
@@ -166,13 +160,13 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                 // 预载排期、进度落盘、媒体会话、弹幕启动一概不参与 —— 否则会拿上一部点播的
                 // vod 去更新通知/预载(错内容)或把直播画面当成点播起播
                 if (liveMode) return
-                if (playState == VideoView.STATE_PLAYING) {
+                if (playState == AppPlayerView.STATE_PLAYING) {
                     // 纯音频渲染兜底(2026-09-13):URL 预判漏网(无后缀音乐直链)时,轨道信息就绪后补切
                     controller.ensureAudioOnlyRender()
                     // 正片稳定播放 → 延迟评估下一集预载(预载方案第一期)
                     controller.onPlayerStateForPreload(playState)
                 }
-                if (playState == VideoView.STATE_BUFFERING || playState == VideoView.STATE_BUFFERED) {
+                if (playState == AppPlayerView.STATE_BUFFERING || playState == AppPlayerView.STATE_BUFFERED) {
                     // 缓冲让路 / 缓冲结束补一次评估(见原页面同名注释:dkplayer 的 STATE_PLAYING 只在首帧发一次)
                     controller.onPlayerStateForPreload(playState)
                 }
@@ -224,7 +218,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         LOG.i(TAG + " re-enter live state (after vod takeover)")
         session = null
         controller.clearStartedContent()
-        videoView.setProgressManager(null)
+        videoView.setProgressSink(null)
         videoView.setExoDiskCacheEnabled(false)
         // 停死内核(在摘下点播进度管理器**之后**:release 内部会 saveProgress,若进度管理器还挂着,
         // 会把 mCurrentPosition —— 可能已是点播/直播的错位值 —— 写进残留的 mProgressKey;
@@ -255,7 +249,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         // 只 pause 不够:退页面后内核本就停在 PAUSED,pause() 是空操作,旧内容会留下被直播页 onResume 的 resume() 恢复出声。
         // 释放须在摘进度管理器之前 —— 那一刻进度键还是旧内容的,正好把它的观看位置落盘(直播无进度语义)
         releasePlayer()
-        videoView.setProgressManager(null)
+        videoView.setProgressSink(null)
         // 边播边缓存是点播特性(直播流是 m3u8 直播片,缓存数据源无意义甚至影响起播):直播期间关掉
         videoView.setExoDiskCacheEnabled(false)
         videoView.clearArtwork()
@@ -295,7 +289,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         videoView.release()
         exitLiveState()
         // 直播控制器属直播页(其 ComposeLiveController);页面销毁后必须摘掉,防引擎持有页面 View
-        videoView.setVideoController(null)
+        videoView.releaseController()
         LOG.i(TAG + " live stream released")
         // 直播已停且没人接管(点播页可能还在栈里但没 attach)→ 排一次空闲释放,让宿主服务最终能退出
         scheduleIdleRelease()
@@ -339,7 +333,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         liveMode = false
         setLiveFlag(false)
         LOG.i(TAG + " exit live mode")
-        videoView.setProgressManager(progressManager)
+        videoView.setProgressSink(progressSink)
         videoView.setExoDiskCacheEnabled(true)
     }
 
@@ -416,7 +410,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
             PlaybackService.forceStopSession(appContext)
         }
         // ④ 摘视图与页面 View 引用(防引擎持有页面)
-        videoView.setVideoController(null)
+        videoView.releaseController()
         videoView.setDanmuView(null)
         videoView.detachContainerFromHost()
         controller.setViewBridge(headlessView)
@@ -520,7 +514,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         // 强制再收一次会话:`stopMusicSession()` 走的是带**归属守卫**的 stopSession,
         // 而此时 owner 往往还是那个页面(守卫拒停)⇒ 通知与 wake/wifi 锁会残留。释放路径必须绕过守卫。
         PlaybackService.forceStopSession(appContext)
-        videoView.setVideoController(null)
+        videoView.releaseController()
         videoView.setDanmuView(null)
         videoView.release()
         controller.releaseFetch()
@@ -663,7 +657,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
 
         override fun isPlaying(): Boolean = !released && videoView.isPlaying
 
-        override fun mediaPlayer(): AbstractPlayer? = if (released) null else videoView.mediaPlayer
+        override fun mediaPlayer(): KernelPlayer? = if (released) null else videoView.mediaPlayer
 
         override fun isKernelErrored(): Boolean = !released && videoView.isKernelErrored()
 
@@ -706,7 +700,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         }
 
         override fun switchRenderToTexture() {
-            if (!released && videoView.isSurfaceRenderActive) videoView.switchRenderToTexture()
+            if (!released && videoView.renderIsSurface) videoView.switchRenderToTexture()
         }
 
         override fun ensureRenderViewMatchesConfig() {

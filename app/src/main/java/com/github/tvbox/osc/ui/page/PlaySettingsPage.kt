@@ -38,7 +38,7 @@ import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.MusicSettings
 import com.github.tvbox.osc.util.PlayerHelper
 import kotlin.math.roundToInt
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.AppPlayerView
 
 // KV 持久化值(exo_decode),不能翻;显示走 player_decode_* 资源
 private const val DecodeHard = "硬解码" // i18n: keep
@@ -102,12 +102,12 @@ fun PlaySettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel = viewM
                 }
                 SettingsCard(SettingsCardPosition.MIDDLE) {
                     val scales = listOf(
-                        VideoView.SCREEN_SCALE_DEFAULT to stringResource(R.string.common_default),
-                        VideoView.SCREEN_SCALE_16_9 to "16:9",
-                        VideoView.SCREEN_SCALE_4_3 to "4:3",
-                        VideoView.SCREEN_SCALE_MATCH_PARENT to stringResource(R.string.player_scale_fill),
-                        VideoView.SCREEN_SCALE_ORIGINAL to stringResource(R.string.player_scale_origin),
-                        VideoView.SCREEN_SCALE_CENTER_CROP to stringResource(R.string.player_scale_crop),
+                        AppPlayerView.SCREEN_SCALE_DEFAULT to stringResource(R.string.common_default),
+                        AppPlayerView.SCREEN_SCALE_16_9 to "16:9",
+                        AppPlayerView.SCREEN_SCALE_4_3 to "4:3",
+                        AppPlayerView.SCREEN_SCALE_MATCH_PARENT to stringResource(R.string.player_scale_fill),
+                        AppPlayerView.SCREEN_SCALE_ORIGINAL to stringResource(R.string.player_scale_origin),
+                        AppPlayerView.SCREEN_SCALE_CENTER_CROP to stringResource(R.string.player_scale_crop),
                     )
                     SettingsOptionMenuRow(
                         title = stringResource(R.string.settings_play_scale),

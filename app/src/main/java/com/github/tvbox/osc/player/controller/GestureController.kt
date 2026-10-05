@@ -13,7 +13,7 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
 import org.json.JSONException
-import xyz.doikki.videoplayer.player.VideoView
+import com.github.tvbox.osc.player.AppPlayerView
 import kotlin.math.abs
 
 class GestureController(private val host: ComposeVideoController) :
@@ -50,9 +50,9 @@ class GestureController(private val host: ComposeVideoController) :
     }
 
     fun onPlayerState(playerState: Int) {
-        if (playerState == VideoView.PLAYER_NORMAL) {
+        if (playerState == AppPlayerView.PLAYER_NORMAL) {
             canSlide = enableInNormal
-        } else if (playerState == VideoView.PLAYER_FULL_SCREEN) {
+        } else if (playerState == AppPlayerView.PLAYER_FULL_SCREEN) {
             canSlide = true
         }
     }
@@ -73,7 +73,7 @@ class GestureController(private val host: ComposeVideoController) :
         return host.isInPlaybackState() &&
                 isGestureEnabled &&
                 canSlide &&
-                !host.isLocked() &&
+                !host.isLocked &&
                 !PlayerUtils.isEdge(context, event)
     }
 
@@ -134,15 +134,15 @@ class GestureController(private val host: ComposeVideoController) :
     override fun onDoubleTap(e: MotionEvent): Boolean {
         // 预览态（竖屏详情页）同样支持双击暂停/播放（此态只放行单击显隐）。
         // ⚠️ GestureDetector 语义下单击显隐要等双击窗口超时（~300ms）才确认，是双击功能的固有代价。
-        if (isDoubleTapTogglePlayEnabled && !host.isLocked() && host.isInPlaybackState()) {
-            host.wrapper?.togglePlay()
+        if (isDoubleTapTogglePlayEnabled && !host.isLocked && host.isInPlaybackState()) {
+            host.togglePlayFromGesture()
         }
         return true
     }
 
     override fun onLongPress(e: MotionEvent) {
         if (host.previewMode) return
-        if (host.curPlayState != VideoView.STATE_PAUSED) {
+        if (host.curPlayState != AppPlayerView.STATE_PAUSED) {
             speedPlayStart()
         }
     }
@@ -158,7 +158,7 @@ class GestureController(private val host: ComposeVideoController) :
         if (host.previewMode) {
             return gestureDetector?.onTouchEvent(event) ?: false
         }
-        if (host.isLocked()) {
+        if (host.isLocked) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 host.showLockView()
             }
@@ -177,7 +177,7 @@ class GestureController(private val host: ComposeVideoController) :
             when (event.actionMasked) {
                 MotionEvent.ACTION_UP -> {
                     if (mSeekPosition >= 0) {
-                        host.wrapper?.seekTo(mSeekPosition.toLong())
+                        host.seekToFromGesture(mSeekPosition.toLong())
                         mSeekPosition = -1
                     }
                 }
@@ -189,9 +189,8 @@ class GestureController(private val host: ComposeVideoController) :
     private fun slideToChangePosition(deltaX: Float) {
         val width = host.measuredWidth
         if (width <= 0) return
-        val wrapper = host.wrapper ?: return
-        val duration = PlayerUtils.safeTimeMs(wrapper.duration)
-        val currentPosition = PlayerUtils.safeTimeMs(wrapper.currentPosition)
+        val duration = PlayerUtils.safeTimeMs(host.playerView?.duration ?: 0L)
+        val currentPosition = PlayerUtils.safeTimeMs(host.playerView?.currentPosition ?: 0L)
         var position = (-deltaX / width * SLIDE_POSITION_FULL_WIDTH_MS + currentPosition).toInt()
         if (position > duration) position = duration
         if (position < 0) position = 0
@@ -242,7 +241,7 @@ class GestureController(private val host: ComposeVideoController) :
             host.speedOld = cfg.getDouble("sp").toFloat()
             // 长按倍速:设置页滑块可调 2x~10x,每次长按实时读 KV,改设置立即生效
             val boost = KV.get(HawkConfig.LONG_PRESS_SPEED, HawkConfig.LONG_PRESS_SPEED_DEFAULT).toFloat()
-            host.wrapper?.setSpeed(boost)
+            host.setSpeedFromGesture(boost)
             host.state.speedBoostValue = boost
             host.state.speedBoostVisible = true
         } catch (e: JSONException) {
@@ -254,7 +253,7 @@ class GestureController(private val host: ComposeVideoController) :
         if (!fromLongPress) return
         fromLongPress = false
         // 恢复 DOWN 时快照的原速度;cfg 未被修改,无需回写与持久化
-        host.wrapper?.setSpeed(host.speedOld)
+        host.setSpeedFromGesture(host.speedOld)
         host.state.speedBoostVisible = false
     }
 }

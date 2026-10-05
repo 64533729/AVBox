@@ -11,12 +11,12 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
-import android.view.animation.Animation
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.webkit.WebView
 import android.widget.Toast
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.media3.common.Format
@@ -29,6 +29,7 @@ import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.ExoPlayer
+import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.state.LockVisibility
 import com.github.tvbox.osc.player.state.ParamsChoice
@@ -57,9 +58,6 @@ import com.github.tvbox.osc.util.PlayerUtils
 import org.greenrobot.eventbus.EventBus
 import org.json.JSONException
 import org.json.JSONObject
-import xyz.doikki.videoplayer.controller.BaseVideoController
-import xyz.doikki.videoplayer.controller.ControlWrapper
-import xyz.doikki.videoplayer.player.VideoView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.HashMap
@@ -70,7 +68,10 @@ class ComposeVideoController @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
-) : BaseVideoController(context, attrs, defStyleAttr), PlayerControlApi, PlayerActions {
+) : FrameLayout(context, attrs, defStyleAttr),
+    AppPlayerView.VideoControllerHost,
+    PlayerControlApi,
+    PlayerActions {
 
     companion object {
 
@@ -85,18 +86,41 @@ class ComposeVideoController @JvmOverloads constructor(
 
     internal lateinit var state: PlayerUiState
 
-    private var kernelSource: PlayerControlApi.KernelProvider? = null
+    /** 播放器视图(手势委托与测试用;null = 尚未挂载) */
+    val playerView: MyVideoView?
+        get() = videoView
 
-    override fun setKernelProvider(provider: PlayerControlApi.KernelProvider?) {
-        kernelSource = provider
+    /** 是否处于锁定态(手势委托读;与 UI 的 lockState 互为镜像) */
+    val isLocked: Boolean
+        get() = state.locked
+
+    /** 控制器上下文所在的 Activity(字幕字号/旋转/返回键/O SD 屏参都问它) */
+    fun playerActivity(): android.app.Activity? = videoView?.hostActivity()
+
+    /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
+    fun togglePlayFromGesture() {
+        videoView?.togglePlay()
     }
 
-    // initView 由父类构造函数虚调用:那时属性初始化器还没跑 ⇒ 委托必须在 initView 里建(同 ComposeLiveController)
-    internal lateinit var gestures: GestureController
+    fun seekToFromGesture(positionMs: Long) {
+        videoView?.seekTo(positionMs)
+    }
 
-    /** mControlWrapper 是父类 protected 字段,手势委托经这里取用(dkplayer 的类型) */
-    internal val wrapper: ControlWrapper?
-        get() = mControlWrapper
+    fun setSpeedFromGesture(speed: Float) {
+        videoView?.setSpeed(speed)
+    }
+
+    /** 播放器视图(由 PlayContainer 在挂载时注入;控制器的一切播控/读数都问它,等价旧 ControlWrapper) */
+    private var videoView: MyVideoView? = null
+
+    override fun setKernelProvider(view: MyVideoView?) {
+        videoView = view
+        // 去 doikki:控制器不再经 dooki VideoView.setVideoController 挂载,改由自己注册为状态宿主
+        view?.setVideoController(this)
+    }
+
+    /** 手势委托:在 init 块里建(不再有父类构造期的虚调用 initView) */
+    internal lateinit var gestures: GestureController
 
     // —— 原生字幕视图（PlayContainer 直接操作，保留 View 引用） ——
     private lateinit var mSubtitleView: SimpleSubtitleView
@@ -124,6 +148,10 @@ class ComposeVideoController @JvmOverloads constructor(
     private val idleHideMillis = 10000L
 
     private val uiHandler by lazy { Handler(Looper.getMainLooper()) }
+
+    /** 进度刷新定时器(替代旧 doikki 基类的 `mShowProgress`;读取口径见 [onProgressTick]) */
+    private var progressTicking = false
+    private val progressRunnable by lazy { Runnable { onProgressTick() } }
     private val idleHideRunnable by lazy {
         Runnable {
             // 面板在屏时续期而不是收起:面板会吃掉点击(玩家不会收到 onSingleTapConfirmed),不续期就会
@@ -163,8 +191,7 @@ class ComposeVideoController @JvmOverloads constructor(
     // 生命周期 / 初始化
     // ============================================================
 
-    override fun initView() {
-        super.initView()
+    init {
         state = PlayerUiState()
 
         gestures = GestureController(this)
@@ -181,8 +208,6 @@ class ComposeVideoController @JvmOverloads constructor(
         updateDanmuSearchBtnState()
         initSubtitleInfo()
     }
-
-    override fun getLayoutId(): Int = 0
 
     /** 原生字幕视图（z-order：Compose 层之下，与旧布局一致） */
     private fun initNativeSubtitleViews() {
@@ -232,11 +257,12 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     private fun initSubtitleInfo() {
-        mSubtitleView.setTextSize(SubtitleHelper.getTextSize(mActivity).toFloat())
+        mSubtitleView.setTextSize(SubtitleHelper.getTextSize(playerActivity()).toFloat())
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        uiHandler.removeCallbacks(progressRunnable)
         uiHandler.removeCallbacks(idleHideRunnable)
         uiHandler.removeCallbacks(lockHideRunnable)
         uiHandler.removeCallbacks(keySeekCommitRunnable)
@@ -244,43 +270,31 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     // ============================================================
-    // dkplayer 事件钩子 → PlayerUiState
+    // 播放器事件钩子 → PlayerUiState
     // ============================================================
 
     override fun setPlayState(playState: Int) {
-        super.setPlayState(playState)
-        curPlayState = playState
-    }
-
-    override fun setPlayerState(playerState: Int) {
-        super.setPlayerState(playerState)
-        state.playerState = playerState
-        gestures.onPlayerState(playerState)
-    }
-
-    override fun onPlayStateChanged(playState: Int) {
-        super.onPlayStateChanged(playState)
         curPlayState = playState
         state.playState = playState
         // 时长可信的状态才对齐:同片接管/页面重挂只回灌当前状态(PAUSED/PLAYING),不会再有 PREPARED;
         // PREPARING 要排除 —— 此时时长读作 0,会把点播误判成直播源而隐藏倍速/片头尾
-        if (playState != VideoView.STATE_IDLE && playState != VideoView.STATE_ERROR &&
-            playState != VideoView.STATE_PREPARING
+        if (playState != AppPlayerView.STATE_IDLE && playState != AppPlayerView.STATE_ERROR &&
+            playState != AppPlayerView.STATE_PREPARING
         ) {
             updateLiveButtonsState()
         }
         when (playState) {
-            VideoView.STATE_IDLE -> {
+            AppPlayerView.STATE_IDLE -> {
                 savePlaybackProgress(notifyHistory = true)
                 state.locked = false
                 state.duration = 0
                 state.position = 0
             }
-            VideoView.STATE_PLAYING -> {
+            AppPlayerView.STATE_PLAYING -> {
                 initOrientationState()
                 startProgress()
             }
-            VideoView.STATE_PAUSED -> {
+            AppPlayerView.STATE_PAUSED -> {
                 // 生命周期暂停保留界面(退后台那一帧进任务快照):不收菜单、不清顶栏
                 if (!state.lifecyclePaused) {
                     state.topLeftVisible = false
@@ -289,62 +303,90 @@ class ComposeVideoController @JvmOverloads constructor(
                 }
                 savePlaybackProgress(notifyHistory = true)
             }
-            VideoView.STATE_ERROR -> listener?.errReplay()
-            VideoView.STATE_PREPARED -> listener?.prepared()
-            VideoView.STATE_PLAYBACK_COMPLETED -> {
+            AppPlayerView.STATE_ERROR -> listener?.errReplay()
+            AppPlayerView.STATE_PREPARED -> listener?.prepared()
+            AppPlayerView.STATE_PLAYBACK_COMPLETED -> {
                 PlaybackProgress.markFinished()
                 listener?.playNext(true)
             }
         }
     }
 
-    override fun onLockStateChanged(isLocked: Boolean) {
-        super.onLockStateChanged(isLocked)
-        state.locked = isLocked
+    /** 播放器状态变化(旧 `setPlayerState`):全屏/小屏搬运已随去 doikki 删除 ⇒ 只会收到普通态 */
+    override fun setPlayerState(playerState: Int) {
+        state.playerState = playerState
+        gestures.onPlayerState(playerState)
     }
 
     /** 内核上报尺寸（换内容必然先回落 0）：角标当帧刷新，不等轮询 */
     override fun onVideoSizeChanged(width: Int, height: Int) {
-        super.onVideoSizeChanged(width, height)
         state.videoSize = videoSizeGate.textFor(width, height)
     }
 
     /** 内核换了内容（setUrl）：解除闸门过滤 */
     override fun onVideoSizeCleared() {
-        super.onVideoSizeCleared()
         videoSizeGate.onKernelContentReplaced()
     }
 
-    override fun onVisibilityChanged(isVisible: Boolean, anim: Animation?) {
-        super.onVisibilityChanged(isVisible, anim)
-        state.showing = isVisible
+    /**
+     * 进度刷新一跳(旧 doikki 基类 `startProgress` 挂上来的 1Hz 定时器本体)。
+     *
+     * <p>去 doikki 后定时器归控制器自己([progressRunnable]),但**读取口径与旧基类逐字一致**:
+     * 位置/时长都经 `PlayerUtils.safeTimeMs` 收敛(旧 `BaseVideoController.setProgress` 如此),
+     * 非播放态时位置读 0(旧 `MediaPlayerControl.getCurrentPosition` 在 IDLE 也返回 0)。
+     */
+    private fun onProgressTick() {
+        progressTicking = false
+        val view = videoView
+        if (view != null && !state.dragging) {
+            onProgressTick(view.duration, view.currentPosition)
+        }
+        // 与旧基类一致:读完之后无条件续期(下一跳再判在播与否),否则拖拽期间会永久停表
+        startProgress()
     }
 
-    override fun setProgress(duration: Int, position: Int) {
-        if (state.dragging) return
-        super.setProgress(duration, position)
-        state.duration = duration
-        state.position = position
-        PlaybackProgress.onProgress(position, duration)
+    private fun onProgressTick(duration: Long, position: Long) {
+        val durationMs = PlayerUtils.safeTimeMs(duration)
+        val positionMs = PlayerUtils.safeTimeMs(position)
+        state.duration = durationMs
+        state.position = positionMs
+        PlaybackProgress.onProgress(positionMs, durationMs)
         // 片尾自动跳下一集（skipEnd 防重，照搬）
-        if (skipEnd && position != 0 && duration != 0) {
+        if (skipEnd && positionMs != 0 && durationMs != 0) {
             val et = playerConfig?.optInt("et", 0) ?: 0
-            if (et > 0 && position + et * 1000 >= duration) {
+            if (et > 0 && positionMs + et * 1000 >= durationMs) {
                 skipEnd = false
                 listener?.playNext(true)
             }
         }
-        state.bufferedPercent = runCatching { mControlWrapper?.bufferedPercentage ?: 0 }.getOrDefault(0)
+        state.bufferedPercent = runCatching { videoView?.bufferedPercentage ?: 0 }.getOrDefault(0)
+    }
+
+    /**
+     * 启动进度刷新(旧 `BaseVideoController.startProgress`):已在跑则空操作;
+     * 非播放态也照旧登记一次(`mShowProgress` 首跳发现不在播后自行停表)。
+     */
+    override fun startProgress() {
+        if (progressTicking) return
+        progressTicking = true
+        uiHandler.post(progressRunnable)
+    }
+
+    /** 停止进度刷新(旧 `BaseVideoController.stopProgress`) */
+    private fun stopProgress() {
+        if (!progressTicking) return
+        uiHandler.removeCallbacks(progressRunnable)
+        progressTicking = false
     }
 
     /** [seekTargetMs] 只在 seek 提交时给:此刻读 currentPosition 还是拖动前的老位置,暂停态也等不到下一拍更正 */
     private fun savePlaybackProgress(notifyHistory: Boolean, seekTargetMs: Int = -1) {
-        val wrapperDuration = runCatching { mControlWrapper?.duration ?: 0L }.getOrDefault(0L).toInt()
-        val wrapperPosition = runCatching { mControlWrapper?.currentPosition ?: 0L }.getOrDefault(0L).toInt()
-        val duration = if (wrapperDuration > 0) wrapperDuration else state.duration
+        val viewDuration = runCatching { videoView?.duration ?: 0L }.getOrDefault(0L).toInt()
+        val viewPosition = runCatching { videoView?.currentPosition ?: 0L }.getOrDefault(0L).toInt()
+        val duration = if (viewDuration > 0) viewDuration else state.duration
         val position = when {
             seekTargetMs >= 0 -> seekTargetMs
-            wrapperDuration > 0 -> wrapperPosition
+            viewDuration > 0 -> viewPosition
             else -> state.position
         }
         if (duration <= 0) return
@@ -362,13 +404,13 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     internal fun isInPlaybackState(): Boolean {
-        return mControlWrapper != null &&
-                curPlayState != VideoView.STATE_ERROR &&
-                curPlayState != VideoView.STATE_IDLE &&
-                curPlayState != VideoView.STATE_PREPARING &&
-                curPlayState != VideoView.STATE_PREPARED &&
-                curPlayState != VideoView.STATE_START_ABORT &&
-                curPlayState != VideoView.STATE_PLAYBACK_COMPLETED
+        return videoView != null &&
+                curPlayState != AppPlayerView.STATE_ERROR &&
+                curPlayState != AppPlayerView.STATE_IDLE &&
+                curPlayState != AppPlayerView.STATE_PREPARING &&
+                curPlayState != AppPlayerView.STATE_PREPARED &&
+                curPlayState != AppPlayerView.STATE_START_ABORT &&
+                curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -432,14 +474,14 @@ class ComposeVideoController @JvmOverloads constructor(
 
     internal fun showLockView() {
         if (previewMode) {
-            setLocked(false)
+            state.locked = false
             uiHandler.removeCallbacks(lockHideRunnable)
             state.lockState = LockVisibility.GONE
             return
         }
         state.lockState = LockVisibility.SHOWN
         uiHandler.removeCallbacks(lockHideRunnable)
-        if (isLocked()) {
+        if (state.locked) {
             uiHandler.postDelayed(lockHideRunnable, LOCK_HIDE_DELAY_MS)
         }
     }
@@ -599,7 +641,7 @@ class ComposeVideoController @JvmOverloads constructor(
             updatePlayerCfgState()
             listener?.updatePlayerCfg()
             speedOld = value
-            mControlWrapper?.setSpeed(value)
+            videoView?.setSpeed(value)
         } catch (e: JSONException) {
             LOG.e("ComposeVideoController", e)
         }
@@ -612,7 +654,7 @@ class ComposeVideoController @JvmOverloads constructor(
             cfg.put("sc", index)
             updatePlayerCfgState()
             listener?.updatePlayerCfg()
-            mControlWrapper?.setScreenScaleType(index)
+            videoView?.setScreenScaleType(index)
         } catch (e: JSONException) {
             LOG.e("ComposeVideoController", e)
         }
@@ -663,14 +705,14 @@ class ComposeVideoController @JvmOverloads constructor(
 
     /** 直播源(duration==0)隐藏倍速/片头尾按钮;取不到时长按可显示处理 */
     private fun updateLiveButtonsState() {
-        state.liveButtonsVisible = runCatching { mControlWrapper?.duration ?: 0L != 0L }.getOrDefault(true)
+        state.liveButtonsVisible = runCatching { videoView?.duration ?: 0L != 0L }.getOrDefault(true)
     }
 
     private fun applySpeedWhenReady() {
         if (isInPlaybackState()) {
             speedRetryCount = 0
             try {
-                playerConfig?.let { mControlWrapper?.setSpeed(it.getDouble("sp").toFloat()) }
+                playerConfig?.let { videoView?.setSpeed(it.getDouble("sp").toFloat()) }
             } catch (e: JSONException) {
                 LOG.e("ComposeVideoController", e)
             }
@@ -741,7 +783,7 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun hidePauseRoot() = Unit
 
     override fun onNewPlayStarted() {
-        val size = runCatching { mControlWrapper?.videoSize }.getOrNull() ?: intArrayOf(0, 0)
+        val size = runCatching { videoView?.videoSize }.getOrNull() ?: intArrayOf(0, 0)
         state.videoSize = videoSizeGate.onNewSession(size[0], size[1])
     }
 
@@ -768,7 +810,7 @@ class ComposeVideoController @JvmOverloads constructor(
             hideBottom()
             return true
         }
-        return super.onBackPressed()
+        return false
     }
 
     /**
@@ -817,7 +859,7 @@ class ComposeVideoController @JvmOverloads constructor(
         // 遮罩在屏且不在播放态时短路:内核里可能还挂着上一次会话的地址,start() 会按旧地址起播
         // (错误态同样是 IDLE,故判遮罩而非只判 loading)
         if (state.tipVisible && !isInPlaybackState()) return
-        mControlWrapper?.togglePlay()
+        videoView?.togglePlay()
         keepControlsAlive()
     }
 
@@ -929,17 +971,17 @@ class ComposeVideoController @JvmOverloads constructor(
 
     /** 把当前位置设为片头;位置已过半程时不设(那时它更可能是片尾) */
     private fun markTimeStart() {
-        val wrapper = mControlWrapper ?: return
-        val current = PlayerUtils.safeTimeMs(wrapper.currentPosition)
-        if (current > PlayerUtils.safeTimeMs(wrapper.duration) / 2) return
+        val view = videoView ?: return
+        val current = PlayerUtils.safeTimeMs(view.currentPosition)
+        if (current > PlayerUtils.safeTimeMs(view.duration) / 2) return
         setTimeMark("st", current / 1000)
     }
 
     /** 把当前位置到结尾的时长设为片尾;位置未过半程时不设 */
     private fun markTimeEnd() {
-        val wrapper = mControlWrapper ?: return
-        val current = PlayerUtils.safeTimeMs(wrapper.currentPosition)
-        val duration = PlayerUtils.safeTimeMs(wrapper.duration)
+        val view = videoView ?: return
+        val current = PlayerUtils.safeTimeMs(view.currentPosition)
+        val duration = PlayerUtils.safeTimeMs(view.duration)
         if (current < duration / 2) return
         setTimeMark("et", (duration - current) / 1000)
     }
@@ -1017,11 +1059,11 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     override fun onRotateClicked() {
-        if (isLocked()) return
+        if (state.locked) return
         if (!fastClickAllowed("rotate")) return
         val toPortrait =
             resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT
-        mActivity?.requestedOrientation =
+        playerActivity()?.requestedOrientation =
             if (toPortrait) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         hideBottom()
@@ -1034,10 +1076,10 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onInfoOsdClicked() {
         state.infoOsdVisible = !state.infoOsdVisible
-        val exo = kernelSource?.get()?.mediaPlayer as? ExoPlayer
+        val exo = videoView?.mediaPlayer as? ExoPlayer
         if (state.infoOsdVisible) {
             exo?.setFrameRateTracking(true)
-            refreshInfoOsd(runCatching { wrapper?.tcpSpeed ?: 0L }.getOrDefault(0L))
+            refreshInfoOsd(runCatching { videoView?.tcpSpeed ?: 0L }.getOrDefault(0L))
         } else {
             exo?.setFrameRateTracking(false)
         }
@@ -1047,12 +1089,12 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun onBackClicked() {
         isClickBackBtn = state.controlsVisible && !previewMode
         // 走 dispatcher(宿主一律是 BaseActivity):Activity.onBackPressed() 已废弃
-        (mActivity as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed()
+        (playerActivity() as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed()
     }
 
     override fun onLockClicked() {
-        val newLocked = !isLocked()
-        setLocked(newLocked)
+        val newLocked = !state.locked
+        state.locked = newLocked
         if (newLocked) hideBottom()
         showLockView()
     }
@@ -1071,31 +1113,31 @@ class ComposeVideoController @JvmOverloads constructor(
         if (!state.controlsVisible) applyShowBottom()
         if (state.dragging) return
         state.dragging = true
-        mControlWrapper?.stopProgress()
-        mControlWrapper?.stopFadeOut()
+        stopProgress()
+        uiHandler.removeCallbacks(idleHideRunnable)
         keepControlsAlive()
     }
 
     override fun onSeekPreview(progress: Int) {
-        val wrapper = mControlWrapper ?: return
-        val duration = PlayerUtils.safeTimeMs(wrapper.duration)
+        val view = videoView ?: return
+        val duration = PlayerUtils.safeTimeMs(view.duration)
         state.seekPreviewPositionMs = seekBarToPosition(progress, duration)
     }
 
     override fun onSeekFinished(progress: Int) {
         keepControlsAlive()
-        val wrapper = mControlWrapper
+        val view = videoView
         var seekTarget = -1
-        if (wrapper != null) {
-            val duration = PlayerUtils.safeTimeMs(wrapper.duration)
+        if (view != null) {
+            val duration = PlayerUtils.safeTimeMs(view.duration)
             seekTarget = seekBarToPosition(progress, duration).toInt()
-            wrapper.seekTo(seekTarget.toLong())
+            view.seekTo(seekTarget.toLong())
         }
-        // 顺序反了这次 seek 的位置就进不了记录:拖拽态下 setProgress 丢弃这一拍,而暂停态的循环开完这一拍就停
+        // 顺序反了这次 seek 的位置就进不了记录:拖拽态下进度拍丢弃这一拍,而暂停态的循环开完这一拍就停
         state.dragging = false
         keySeekProgress = 0
-        mControlWrapper?.startProgress()
-        mControlWrapper?.startFadeOut()
+        startProgress()
+        keepControlsAlive()
         // 显式落盘:暂停态等不到下一拍,播放态也不该等到下一拍才更新历史页
         if (seekTarget >= 0) savePlaybackProgress(notifyHistory = true, seekTargetMs = seekTarget)
     }
@@ -1103,24 +1145,24 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun onSeekCancelled() {
         state.dragging = false
         keySeekProgress = 0
-        mControlWrapper?.startProgress()
-        mControlWrapper?.startFadeOut()
+        startProgress()
+        keepControlsAlive()
     }
 
     override fun onSeekStep(dir: Int) {
-        val wrapper = mControlWrapper ?: return
-        val duration = PlayerUtils.safeTimeMs(wrapper.duration)
+        val view = videoView ?: return
+        val duration = PlayerUtils.safeTimeMs(view.duration)
         if (duration <= 0) return
         if (!state.controlsVisible) applyShowBottom()
         if (!state.dragging) {
             state.dragging = true
-            wrapper.stopProgress()
-            wrapper.stopFadeOut()
+            stopProgress()
+            uiHandler.removeCallbacks(idleHideRunnable)
         }
         keySeekProgress = (keySeekProgress + keySeekIncrement(duration) * dir).coerceIn(0, SEEK_MAX)
         state.seekPreviewPositionMs = seekBarToPosition(keySeekProgress, duration)
         updateSeekUiHint(
-            PlayerUtils.safeTimeMs(wrapper.currentPosition),
+            PlayerUtils.safeTimeMs(view.currentPosition),
             state.seekPreviewPositionMs.toInt(),
         )
         uiHandler.removeCallbacks(keySeekCommitRunnable)
@@ -1150,20 +1192,20 @@ class ComposeVideoController @JvmOverloads constructor(
 
 
     override fun refreshSystemInfo() {
-        val wrapper = mControlWrapper ?: return
+        val view = videoView ?: return
         state.sysTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         readBattery()
-        val speed = runCatching { wrapper.tcpSpeed }.getOrDefault(0L)
+        val speed = runCatching { view.tcpSpeed }.getOrDefault(0L)
         state.netSpeedTopRight = PlayerHelper.getDisplaySpeed(speed, true)
         state.netSpeedCenter = PlayerHelper.getDisplaySpeed(speed, false)
-        val size = runCatching { wrapper.videoSize }.getOrDefault(intArrayOf(0, 0))
+        val size = runCatching { view.videoSize }.getOrDefault(intArrayOf(0, 0))
         state.videoSize = videoSizeGate.textFor(size[0], size[1])
         if (state.infoOsdVisible) refreshInfoOsd(speed)
     }
 
     private fun refreshInfoOsd(speed: Long) {
-        val videoView = kernelSource?.get()
-        val exo = videoView?.mediaPlayer as? ExoPlayer
+        val view = videoView
+        val exo = view?.mediaPlayer as? ExoPlayer
         val video = exo?.selectedVideoFormat
         val left = ArrayList<String>()
         val right = ArrayList<String>()
@@ -1181,10 +1223,10 @@ class ComposeVideoController @JvmOverloads constructor(
                 + " · " + bitrateText(throughput) + marginText(throughput, video)
         )
         left.add(context.getString(R.string.osd_playback) + " " + playbackText(exo))
-        val footer = context.getString(R.string.osd_config) + " " + configText(videoView, exo)
+        val footer = context.getString(R.string.osd_config) + " " + configText(view, exo)
         left.add(
             context.getString(R.string.osd_conclusion) + " "
-                + context.getString(if (state.playState == VideoView.STATE_ERROR) R.string.osd_abnormal else R.string.osd_normal)
+                + context.getString(if (state.playState == AppPlayerView.STATE_ERROR) R.string.osd_abnormal else R.string.osd_normal)
         )
 
         right.add(
@@ -1266,11 +1308,11 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     private fun playStateRes(): Int = when (state.playState) {
-        VideoView.STATE_BUFFERING -> R.string.osd_state_buffering
-        VideoView.STATE_PLAYING -> R.string.osd_state_playing
-        VideoView.STATE_PAUSED -> R.string.osd_state_paused
-        VideoView.STATE_PLAYBACK_COMPLETED -> R.string.osd_state_ended
-        VideoView.STATE_ERROR -> R.string.osd_abnormal
+        AppPlayerView.STATE_BUFFERING -> R.string.osd_state_buffering
+        AppPlayerView.STATE_PLAYING -> R.string.osd_state_playing
+        AppPlayerView.STATE_PAUSED -> R.string.osd_state_paused
+        AppPlayerView.STATE_PLAYBACK_COMPLETED -> R.string.osd_state_ended
+        AppPlayerView.STATE_ERROR -> R.string.osd_abnormal
         else -> R.string.osd_state_ready
     }
 
@@ -1287,11 +1329,11 @@ class ComposeVideoController @JvmOverloads constructor(
         return context.getString(if (software) R.string.player_decode_soft else R.string.player_decode_hard)
     }
 
-    private fun configText(videoView: MyVideoView?, exo: ExoPlayer?): String {
+    private fun configText(videoView: AppPlayerView?, exo: ExoPlayer?): String {
         val parts = ArrayList<String>()
         parts.add(context.getString(R.string.player_exo))
         parts.add(decodeText(exo))
-        parts.add(if (videoView?.isSurfaceRenderActive == true) "Surface" else "Texture")
+        parts.add(if (videoView?.renderIsSurface == true) "Surface" else "Texture")
         parts.add(context.getString(R.string.osd_tunnel) + " " + onOffText(exo?.isTunnelingEnabled == true))
         parts.add(context.getString(R.string.osd_frame_rate_match) + " " + onOffText(false))
         parts.add(context.getString(R.string.osd_preload) + " " + onOffText(KV.get(HawkConfig.PRELOAD_NEXT_EPISODE, false) == true))
@@ -1313,9 +1355,9 @@ class ComposeVideoController @JvmOverloads constructor(
 
     @Suppress("DEPRECATION")
     private fun screenText(): String {
-        val display = mActivity?.windowManager?.defaultDisplay ?: return "-"
+        val display = playerActivity()?.windowManager?.defaultDisplay ?: return "-"
         val parts = ArrayList<String>()
-        val mode = display.mode
+        val mode = display?.mode
         if (mode != null) {
             parts.add(mode.physicalWidth.toString() + "x" + mode.physicalHeight)
         } else {

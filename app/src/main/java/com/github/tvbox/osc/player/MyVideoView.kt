@@ -18,37 +18,49 @@ import master.flame.danmaku.controller.DrawHandler
 import master.flame.danmaku.danmaku.model.BaseDanmaku
 import master.flame.danmaku.danmaku.model.DanmakuTimer
 import master.flame.danmaku.ui.widget.DanmakuView
-import xyz.doikki.videoplayer.player.AbstractPlayer
-import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.render.TextureRenderViewFactory
 
-class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
+/**
+ * app 侧播放器视图(点播/直播/音乐共用实例):在 [AppPlayerView] 之上叠加本仓库特有的
+ * 封面/黑帧/弹幕/渲染模式/内核重建 语义。
+ *
+ * <p>**去 doikki(M7e 起)**:基类由 `xyz.doikki.videoplayer.player.VideoView<AbstractPlayer>`
+ * 换成 app 侧 [AppPlayerView];内核字段类型固定为 [ExoPlayer](media3 内核的唯一适配器),
+ * 因此"读内核状态机"这类读口不再需要 `as? ExoPlayer` 判空降级。
+ *
+ * <p>**所有权**:实例由 [PlaybackEngine] 持有;渲染容器([AppPlayerView.playerContainer])在页面
+ * 与引擎之间搬运,故本类持有的封面/黑帧视图不会随页面销毁而泄漏(它们挂在容器上,容器随引擎走)。
+ */
+class MyVideoView : AppPlayerView, DrawHandler.Callback {
 
     private var danmuView: DanmakuView? = null
+
     private var artworkView: ImageView? = null
 
-    /** 封面的在途图片请求句柄:换图/隐藏前必须先取消,否则过期海报可能盖到画面上(见 clearArtwork) */
+    /** 封面的在途图片请求句柄:换图/隐藏前必须先取消,否则过期海报可能盖到画面上(见 [clearArtwork]) */
     private var artworkDisposable: Disposable? = null
+
     private var frameCover: View? = null
 
-    /** 点播磁盘缓存标记(第二期扩展「边播边缓存」):默认 false(直播页不设置),点播容器 PlayContainer 启用 */
+    /** 点播磁盘缓存标记(第二期扩展「边播边缓存」):默认 false(直播页不设置),点播容器启用 */
     private var mExoDiskCacheEnabled: Boolean = false
 
-    /** "本次起播必须重建内核"标记(EXO 解码方式变更,见 PlayerHelper.updateCfg) */
+    /** "本次起播必须重建内核"标记(EXO 解码方式变更,见 `PlayerHelper.updateCfg`) */
     private var mKernelRebuildRequired: Boolean = false
 
-    /** 本片记忆键(见 TrackMemory);存于 VideoView 是因为内核重建后要把键推给新实例 */
+    /** 本片记忆键(见 `TrackMemory`);存于播放器视图是因为内核重建后要把键推给新实例 */
     private var mTrackMemoryKey: String = ""
 
-    constructor(context: Context) : super(context, null)
+    @JvmOverloads
+    constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
+        super(context, attrs, defStyleAttr)
 
-    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs, 0)
-
-    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
+    /** 本实例的内核(media3 唯一适配器;未建内核时为 null) */
+    val exoPlayer: ExoPlayer?
+        get() = mMediaPlayer as? ExoPlayer
 
     /**
      * 点播磁盘缓存标记:true 时 Exo 播放器对普通集也使用 cache 数据源(边播边缓存)。
-     * 标志存于 VideoView(而非播放器实例),内核切换/自动重试重建播放器后仍自动生效(见 initPlayer 覆写)。
+     * 标志存于播放器视图(而非内核实例),内核切换/自动重试重建播放器后仍自动生效(见 [initPlayer])。
      */
     fun setExoDiskCacheEnabled(enabled: Boolean) {
         mExoDiskCacheEnabled = enabled
@@ -67,29 +79,19 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     }
 
     private fun applyTrackMemoryKey() {
-        val player = mMediaPlayer
-        if (player is ExoPlayer) {
-            player.setContentKey(mTrackMemoryKey)
-        }
+        exoPlayer?.setContentKey(mTrackMemoryKey)
     }
 
     private fun applyExoDiskCacheFlag() {
-        val player = mMediaPlayer
-        if (player is ExoPlayer) {
-            player.setUseDiskCache(mExoDiskCacheEnabled)
-        }
+        exoPlayer?.setUseDiskCache(mExoDiskCacheEnabled)
     }
 
-    @get:JvmName("getMediaPlayer")
-    val mediaPlayer: AbstractPlayer?
-        get() = mMediaPlayer
-
     /**
-     * 新栈播放状态(M7d):读桥内状态机,承接旧 `currentPlayState`(doikki int)的读取面。
+     * 新栈播放状态:读内核状态机,承接旧 `currentPlayState`(doikki int)的读取面。
      * 内核不存在/未建时为 [PlayState.IDLE](旧读口的 -1 "无播放器"与"未在播"同判)。
      */
     val playState: PlayState
-        get() = (mMediaPlayer as? ExoPlayer)?.stateMachine?.currentState ?: PlayState.IDLE
+        get() = exoPlayer?.stateMachine?.currentState ?: PlayState.IDLE
 
     /** 内核存在且停在错误态:复用判定用它兜底 —— 复用一个坏内核没有意义,必须强制重建(无内核时为 false) */
     fun isKernelErrored(): Boolean = mMediaPlayer != null && playState == PlayState.ERROR
@@ -106,24 +108,12 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     }
 
     /** 当前渲染视图是否为 SurfaceView(见 [switchRenderToTexture] 的纯音频兜底) */
-    @get:JvmName("isSurfaceRenderActive")
-    val isSurfaceRenderActive: Boolean
-        get() {
-            val render = mRenderView ?: return false
-            return render.view is SurfaceView
-        }
+    override val renderIsSurface: Boolean
+        get() = renderView()?.getView() is SurfaceView
 
     /** 当前渲染工厂对应的渲染方式(1=Surface,0=Texture):"本次起播实际会用哪种视图"的唯一取值口 */
-    fun factoryRenderType(): Int = if (mRenderViewFactory is TextureRenderViewFactory) 0 else 1
-
-    /**
-     * 渲染视图是否与目标渲染方式不一致(不一致 = 必须重建内核才会生效);未挂载时算已就绪 —— 下次 start() 本就按工厂新建。
-     * 目标是"工厂"还是"配置值"由调用方给(起播链路传 [factoryRenderType],接管链路传配置值),两处口径都经本方法。
-     */
-    fun needsRenderRebuild(targetRenderType: Int): Boolean {
-        if (mRenderView == null) return false
-        return (targetRenderType == 1) != isSurfaceRenderActive
-    }
+    override fun factoryRenderType(): Int =
+        if (renderViewFactory() is EngineTextureRenderViewFactory) 0 else 1
 
     fun switchRenderToTexture() {
         setRenderViewFactory(EngineTextureRenderViewFactory.create())
@@ -131,19 +121,19 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     }
 
     fun ensureRenderViewMatchesConfig() {
-        // mRenderView 空 = 尚未挂载(下次 start() 会按工厂创建);
-        // mMediaPlayer 空 = 无播放器可挂载 —— addDisplay 内 attachToPlayer(null) 属未定义调用,
-        // 直接返回更稳(与 clearVideoFrame 的判空风格一致)
-        if (mRenderView == null || mMediaPlayer == null) return
-        val expectedSurface = mRenderViewFactory !is TextureRenderViewFactory
-        if (expectedSurface == isSurfaceRenderActive) return
+        // 渲染视图空 = 尚未挂载(下次 start() 会按工厂创建);
+        // 内核空 = 无播放器可挂载 —— attachToPlayer(null) 属未定义调用,直接返回更稳(与 clearVideoFrame 的判空风格一致)
+        if (renderView() == null || mMediaPlayer == null) return
+        val expectedSurface = renderViewFactory() !is EngineTextureRenderViewFactory
+        if (expectedSurface == renderIsSurface) return
+        // addDisplay() 内部已 release 旧实例并按新工厂重建 + attachToPlayer(当前内核)
         addDisplay()
     }
 
     /** 纹理渲染路径没有 SurfaceHolder:补发输出分辨率信令的时机靠这里挂钩(交面之后),漏挂 = 效果链拿不到输出面 */
     override fun addDisplay() {
         super.addDisplay()
-        val render = mRenderView
+        val render = renderView()
         if (render is TextureRenderHost) {
             render.setOnSurfaceReadyListener { pushRenderOutputResolution() }
         }
@@ -156,19 +146,18 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
     }
 
     /** 视频尺寸就绪必须当帧补发(不能等下一次布局),输出面尺寸就取它 */
-    override fun onVideoSizeChanged(videoWidth: Int, videoHeight: Int) {
-        super.onVideoSizeChanged(videoWidth, videoHeight)
+    override fun onVideoSizeReported(videoWidth: Int, videoHeight: Int) {
         pushRenderOutputResolution()
     }
 
     /** 纹理路径只推视频原生尺寸(推视图尺寸会被管线等比适应进画布 = 丢「铺满/裁剪」;取流前不下发) */
     private fun pushRenderOutputResolution() {
-        val player = mMediaPlayer
-        if (player !is ExoPlayer || mRenderView == null || isSurfaceRenderActive) return
+        val player = exoPlayer ?: return
+        if (renderView() == null || renderIsSurface) return
         val width = mVideoSize[0]
         val height = mVideoSize[1]
         if (width <= 0 || height <= 0) return
-        val render = mRenderView
+        val render = renderView()
         if (render is TextureRenderHost) {
             render.setOutputSize(width, height)
         }
@@ -187,10 +176,15 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
             view.scaleType = ImageView.ScaleType.FIT_CENTER
             view.isClickable = false
             view.isFocusable = false
-            val index = if (mRenderView == null) 0 else Math.min(1, mPlayerContainer.childCount)
+            val index = if (renderView() == null) 0 else Math.min(1, mPlayerContainer.childCount)
             mPlayerContainer.addView(
-                view, index,
-                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER)
+                view,
+                index,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER,
+                ),
             )
             artworkView = view
         }
@@ -213,8 +207,6 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
         artworkDisposable = null
     }
 
-    override fun getVideoSize(): IntArray = mVideoSize
-
     fun isPortraitVideo(): Boolean = VideoOrientation.isPortrait(mVideoSize[0], mVideoSize[1])
 
     fun clearVideoFrame() {
@@ -235,7 +227,11 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
             cover.setBackgroundColor(Color.BLACK)
             mPlayerContainer.addView(
                 cover,
-                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER)
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER,
+                ),
             )
             frameCover = cover
         }
@@ -243,7 +239,7 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
         // 遮罩是追加的,会把控制器(顶栏/手势层/字幕/直播控制层)一起盖住;控制器属 UI 层必须压在最上。
         // 用 bringToFront 而不是按 index 插:addDisplay() 永远把渲染视图插到 index 0,index 方案在
         // "渲染视图尚未创建"时会算错位(此时容器里可能只有控制器)
-        mVideoController?.bringToFront()
+        bringControllerToFront()
     }
 
     fun showVideoFrame() {
@@ -258,7 +254,7 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
         frameCover?.visibility = GONE
     }
 
-    fun isVideoFrameCleared(): Boolean = frameCover != null && frameCover!!.visibility == VISIBLE
+    fun isVideoFrameCleared(): Boolean = frameCover?.visibility == VISIBLE
 
     override fun seekTo(pos: Long) {
         super.seekTo(pos)
@@ -287,7 +283,7 @@ class MyVideoView : VideoView<AbstractPlayer>, DrawHandler.Callback {
         if (haveDanmu()) danmuView?.release()
     }
 
-    private fun haveDanmu(): Boolean = danmuView != null && danmuView!!.isPrepared
+    private fun haveDanmu(): Boolean = danmuView?.isPrepared == true
 
     fun setDanmuView(view: DanmakuView?) {
         danmuView = view

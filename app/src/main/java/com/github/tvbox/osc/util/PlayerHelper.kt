@@ -4,12 +4,13 @@ import android.app.Activity
 import android.content.Context
 
 import com.github.tvbox.osc.R
-import com.github.tvbox.osc.player.ExoMediaPlayerFactory
+import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.engine.SourcePolicy
 import com.github.tvbox.osc.player.host.EngineSurfaceRenderViewFactory
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
+import com.github.tvbox.osc.player.host.PlayerRenderViewFactory
 import com.github.tvbox.osc.player.thirdparty.Kodi
 import com.github.tvbox.osc.player.thirdparty.MXPlayer
 import com.github.tvbox.osc.player.thirdparty.ReexPlayer
@@ -22,18 +23,15 @@ import org.json.JSONObject
 
 import java.text.DecimalFormat
 
-import xyz.doikki.videoplayer.player.VideoView
-import xyz.doikki.videoplayer.render.RenderViewFactory
-
 object PlayerHelper {
     @JvmStatic
-    fun updateCfg(videoView: VideoView<*>?, playerCfg: JSONObject) {
+    fun updateCfg(videoView: MyVideoView?, playerCfg: JSONObject) {
         updateCfg(videoView, playerCfg, -1)
     }
 
     /** forcePlayerType 为历史遗留(内核对仅剩 EXO,不再有可强制的目标),保留入参以稳定既有调用方 */
     @JvmStatic
-    fun updateCfg(videoView: VideoView<*>?, playerCfg: JSONObject, forcePlayerType: Int) {
+    fun updateCfg(videoView: MyVideoView?, playerCfg: JSONObject, forcePlayerType: Int) {
         var renderType = KV.get(HawkConfig.PLAY_RENDER, 1)
         var exoDecode = KV.get(HawkConfig.EXO_DECODE, "硬解码") // i18n: keep
         var scale = KV.get(HawkConfig.PLAY_SCALE, 0)
@@ -49,22 +47,16 @@ object PlayerHelper {
         // EXO 解码方式下发(2026-09-17):进程级静态位,与 videoView 实例无关(故不放在下面的判空块里),
         // 每次起播前按"本剧配置 → 全局设置"的有效值推一次
         val exoDecodeChanged = applyExoDecode(exoDecode)
-        val playerFactory = ExoMediaPlayerFactory.create()
-        var renderViewFactory: RenderViewFactory? = null
-        when (renderType) {
-            1 -> renderViewFactory = EngineSurfaceRenderViewFactory.create()
-            else -> renderViewFactory = EngineTextureRenderViewFactory.create()
+        val renderViewFactory: PlayerRenderViewFactory = when (renderType) {
+            1 -> EngineSurfaceRenderViewFactory.create()
+            else -> EngineTextureRenderViewFactory.create()
         }
         if (videoView != null) {
-            @Suppress("UNCHECKED_CAST")
-            (videoView as VideoView<ExoPlayer>).setPlayerFactory(playerFactory)
-            if (videoView is MyVideoView) {
-                // EXO 解码方式变了且当前还活着一个 EXO 内核(换集复用路径):media3 不会重选解码器,
-                // 只改静态位不生效 —— 标记本次起播必须重建内核(见 MyVideoView.consumeKernelRebuildRequired)
-                if (exoDecodeChanged && videoView.mediaPlayer is ExoPlayer) {
-                    videoView.requireKernelRebuild()
-                    LOG.i("echo-exo-decode-changed: rebuild kernel on next start")
-                }
+            // EXO 解码方式变了且当前还活着一个 EXO 内核(换集复用路径):media3 不会重选解码器,
+            // 只改静态位不生效 —— 标记本次起播必须重建内核(见 MyVideoView.consumeKernelRebuildRequired)
+            if (exoDecodeChanged && videoView.mediaPlayer is ExoPlayer) {
+                videoView.requireKernelRebuild()
+                LOG.i("echo-exo-decode-changed: rebuild kernel on next start")
             }
             videoView.setRenderViewFactory(renderViewFactory)
             videoView.setScreenScaleType(scale)
@@ -241,11 +233,11 @@ object PlayerHelper {
     @JvmStatic
     fun getScaleName(screenScaleType: Int): String {
         return when (screenScaleType) {
-            VideoView.SCREEN_SCALE_16_9 -> "16:9"
-            VideoView.SCREEN_SCALE_4_3 -> "4:3"
-            VideoView.SCREEN_SCALE_MATCH_PARENT -> str(R.string.player_scale_fill)
-            VideoView.SCREEN_SCALE_ORIGINAL -> str(R.string.player_scale_origin)
-            VideoView.SCREEN_SCALE_CENTER_CROP -> str(R.string.player_scale_crop)
+            AppPlayerView.SCREEN_SCALE_16_9 -> "16:9"
+            AppPlayerView.SCREEN_SCALE_4_3 -> "4:3"
+            AppPlayerView.SCREEN_SCALE_MATCH_PARENT -> str(R.string.player_scale_fill)
+            AppPlayerView.SCREEN_SCALE_ORIGINAL -> str(R.string.player_scale_origin)
+            AppPlayerView.SCREEN_SCALE_CENTER_CROP -> str(R.string.player_scale_crop)
             else -> str(R.string.common_default)
         }
     }

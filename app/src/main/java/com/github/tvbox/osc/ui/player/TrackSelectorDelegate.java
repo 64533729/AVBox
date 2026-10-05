@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.widget.Toast;
 
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.player.AppPlayerView;
 import com.github.tvbox.osc.player.ExoPlayer;
 import com.github.tvbox.osc.player.MyVideoView;
 import com.github.tvbox.osc.player.TrackInfo;
@@ -18,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import xyz.doikki.videoplayer.player.AbstractPlayer;
+import com.github.tvbox.osc.player.KernelPlayer;
 
 final class TrackSelectorDelegate {
 
@@ -49,7 +50,7 @@ final class TrackSelectorDelegate {
 
     void selectAudioTrack() {
         if (host.player() == null) return;
-        AbstractPlayer mediaPlayer = host.player().getMediaPlayer();
+        KernelPlayer mediaPlayer = host.player().getMediaPlayer();
         TrackInfo trackInfo = null;
         if (mediaPlayer instanceof ExoPlayer) {
             trackInfo = ((ExoPlayer) mediaPlayer).getTrackInfo();
@@ -106,7 +107,7 @@ final class TrackSelectorDelegate {
 
     void selectVideoTrack() {
         if (host.player() == null) return;
-        AbstractPlayer mediaPlayer = host.player().getMediaPlayer();
+        KernelPlayer mediaPlayer = host.player().getMediaPlayer();
         TrackInfo trackInfo = null;
         if (mediaPlayer instanceof ExoPlayer) {
             trackInfo = ((ExoPlayer) mediaPlayer).getTrackInfo();

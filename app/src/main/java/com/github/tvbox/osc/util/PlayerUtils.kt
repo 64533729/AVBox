@@ -97,8 +97,7 @@ object PlayerUtils {
     }
 
     /** 屏幕高度(px);口径同 [getScreenWidth] */
-    @JvmStatic
-    fun getScreenHeight(context: Context, isIncludeNav: Boolean): Int {
+    private fun getScreenHeight(context: Context, isIncludeNav: Boolean): Int {
         return if (isIncludeNav) {
             context.resources.displayMetrics.heightPixels + getNavigationBarHeight(context)
         } else {
@@ -107,8 +106,7 @@ object PlayerUtils {
     }
 
     /** 导航栏高度(px);无导航栏时为 0 */
-    @JvmStatic
-    fun getNavigationBarHeight(context: Context): Int {
+    private fun getNavigationBarHeight(context: Context): Int {
         if (!hasNavigationBar(context)) return 0
         val resources = context.resources
         val resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
@@ -116,8 +114,7 @@ object PlayerUtils {
     }
 
     /** 是否存在导航栏:比较 `getSize` 与 `getRealSize` 的差值(等价旧实现) */
-    @JvmStatic
-    fun hasNavigationBar(context: Context): Boolean {
+    private fun hasNavigationBar(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             val display = getWindowManager(context).defaultDisplay
             val size = Point()
@@ -133,27 +130,15 @@ object PlayerUtils {
     }
 
     /** 等价旧实现:未创建也直接取系统服务(返回的必定非空,类型不可空) */
-    @JvmStatic
-    fun getWindowManager(context: Context): WindowManager {
+    private fun getWindowManager(context: Context): WindowManager {
         return context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
 
     /** dp → px(等价旧 `TypedValue.applyDimension` + 截断取整) */
-    @JvmStatic
-    fun dp2px(context: Context, dpValue: Float): Int {
+    private fun dp2px(context: Context, dpValue: Float): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dpValue,
-            context.resources.displayMetrics,
-        ).toInt()
-    }
-
-    /** sp → px(口径同 [dp2px]) */
-    @JvmStatic
-    fun sp2px(context: Context, spValue: Float): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP,
-            spValue,
             context.resources.displayMetrics,
         ).toInt()
     }

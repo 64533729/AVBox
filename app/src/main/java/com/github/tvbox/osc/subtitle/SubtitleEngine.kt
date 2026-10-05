@@ -27,7 +27,7 @@ package com.github.tvbox.osc.subtitle
 
 import com.github.tvbox.osc.subtitle.model.Subtitle
 
-import xyz.doikki.videoplayer.player.AbstractPlayer
+import com.github.tvbox.osc.player.KernelPlayer
 
 /**
  * @author AveryZhong.
@@ -87,7 +87,7 @@ interface SubtitleEngine {
      *
      * @param mediaPlayer mediaPlayer
      */
-    fun bindToMediaPlayer(mediaPlayer: AbstractPlayer?)
+    fun bindToMediaPlayer(mediaPlayer: KernelPlayer?)
 
     /**
      * 设置字幕准备完成监接口

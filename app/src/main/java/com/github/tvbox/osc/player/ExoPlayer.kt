@@ -1,7 +1,6 @@
 package com.github.tvbox.osc.player
 
 import android.content.Context
-import android.content.res.AssetFileDescriptor
 import android.view.Surface
 import android.view.SurfaceHolder
 import androidx.media3.common.Effect
@@ -17,14 +16,17 @@ import com.github.tvbox.osc.player.state.PlaybackStateMachine
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
-import xyz.doikki.videoplayer.player.AbstractPlayer
 
 /**
- * 新栈内核适配器(M7b):把旧 doikki `AbstractPlayer` 契约桥到新内核 [PlayerEngine]。
+ * 新栈内核适配器(M7b):把 app 侧内核契约 [KernelPlayer] 桥到新内核 [PlayerEngine]。
  *
- * <p>为什么保留类名与对外方法面:宿主([MyVideoView]/doikki `VideoView`)、控制器与调度层
+ * <p>为什么保留类名与对外方法面:宿主([AppPlayerView]/[MyVideoView])、控制器与调度层
  * (选轨菜单/OSD/重试阶梯/媒体会话/画面效果)都按本类型读取内核能力;类名与方法面不变 ⇒
- * 内核换代对它们是透明的(M7b 最小切换面),M7c 重写 `player/` 时再按终态收敛。
+ * 内核换代对它们是透明的(M7b 最小切换面)。
+ *
+ * <p>**去 doikki(M7e 起)**:基类由 `xyz.doikki.videoplayer.player.AbstractPlayer` 换成
+ * app 侧 [KernelPlayer](逐签名等价,含起播位置契约与 `mPlayerEventListener` 直读形态),
+ * 本类因此不再引用任何 `xyz.doikki` 符号。
  *
  * <p>行为对齐(逐条对照旧 `ExoPlayer extends ExoMediaPlayer`):
  * 首次 READY 发 `onPrepared` + `onInfo(RENDERING_START)`(旧 `mIsPreparing` 语义,含 HLS 原地重试后的重发)、
@@ -33,7 +35,7 @@ import xyz.doikki.videoplayer.player.AbstractPlayer
  * `keepRenderViewOnReset` 固定 true(宿主 `replay` 的复用分支);
  * `setStartPosition` 用基类记录值(旧 `ExoMediaPlayer.prepareAsync` 的 getStartPosition/markStartPositionApplied 契约)。
  */
-class ExoPlayer(context: Context) : AbstractPlayer() {
+class ExoPlayer(context: Context) : KernelPlayer() {
 
     private val appContext: Context = context.applicationContext
 
@@ -95,10 +97,6 @@ class ExoPlayer(context: Context) : AbstractPlayer() {
     override fun setDataSource(path: String, headers: Map<String, String>?) {
         stateMachine.onContentReplaced()
         engine?.setDataSource(path, headers, KV.get(HawkConfig.PLAYER_IS_LIVE, false))
-    }
-
-    override fun setDataSource(fd: AssetFileDescriptor?) {
-        // 不支持 AssetFileDescriptor 方式(旧实现为空,保持不变)
     }
 
     override fun prepareAsync() {
@@ -163,17 +161,17 @@ class ExoPlayer(context: Context) : AbstractPlayer() {
         engine?.seekTo(time)
     }
 
-    override fun isPlaying(): Boolean = engine?.isPlaying ?: false
+    override val isPlaying: Boolean get() = engine?.isPlaying ?: false
 
-    override fun getCurrentPosition(): Long = engine?.currentPosition ?: 0L
+    override val currentPosition: Long get() = engine?.currentPosition ?: 0L
 
-    override fun getDuration(): Long = engine?.duration ?: 0L
+    override val duration: Long get() = engine?.duration ?: 0L
 
-    override fun getBufferedPercentage(): Int = engine?.bufferedPercentage ?: 0
+    override val bufferedPercentage: Int get() = engine?.bufferedPercentage ?: 0
 
-    override fun getTcpSpeed(): Long = engine?.tcpSpeed ?: 0L
+    override val tcpSpeed: Long get() = engine?.tcpSpeed ?: 0L
 
-    override fun getSpeed(): Float = engine?.speed ?: pendingSpeed ?: 1f
+    override val speed: Float get() = engine?.speed ?: pendingSpeed ?: 1f
 
     override fun setSpeed(speed: Float) {
         pendingSpeed = speed

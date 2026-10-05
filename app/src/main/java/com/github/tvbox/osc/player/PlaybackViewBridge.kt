@@ -5,7 +5,6 @@ import android.webkit.WebView
 import com.github.tvbox.osc.player.state.PlayState
 import org.json.JSONObject
 import java.util.HashMap
-import xyz.doikki.videoplayer.player.AbstractPlayer
 
 /**
  * 播放调度层需要的"视图侧契约"(播放服务化 Spec §3-P1 出口条件)。
@@ -67,7 +66,7 @@ interface PlaybackViewBridge {
     fun isPlaying(): Boolean
 
     /** 当前内核实例(轨道信息读取用;无播放器时 null) */
-    fun mediaPlayer(): AbstractPlayer?
+    fun mediaPlayer(): KernelPlayer?
 
     /** 内核是否停在错误态(无内核为 false):错误内核不能复用,必须强制重建 */
     fun isKernelErrored(): Boolean
