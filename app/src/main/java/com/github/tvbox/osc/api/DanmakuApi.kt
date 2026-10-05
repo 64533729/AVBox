@@ -249,8 +249,8 @@ class DanmakuApi {
 
         private fun searchBuiltin(apiUrl: String, name: String?, episode: String?, callback: SearchCallback?, retry: Int, seq: Int, queryMode: Int) {
             val baseUrl = normalizeBaseUrl(apiUrl)
-            val simpleName = Trans.t2s(name ?: "")
-            val simpleEpisode = Trans.t2s(episode ?: "")
+            val simpleName = Trans.t2s(name ?: "") ?: ""
+            val simpleEpisode = Trans.t2s(episode ?: "") ?: ""
             val episodeQuery = getEpisodeQuery(simpleEpisode, queryMode)
             val searchUrl = baseUrl + "/api/v2/search/episodes?anime=" + encode(simpleName) +
                     (if (TextUtils.isEmpty(episodeQuery)) "" else "&episode=" + encode(episodeQuery))
@@ -296,7 +296,7 @@ class DanmakuApi {
         }
 
         private fun tryNextEpisodeQuery(apiUrl: String, name: String?, episode: String?, callback: SearchCallback?, seq: Int, queryMode: Int): Boolean {
-            val nextMode = getNextEpisodeQueryMode(Trans.t2s(episode ?: ""), queryMode)
+            val nextMode = getNextEpisodeQueryMode(Trans.t2s(episode ?: "") ?: "", queryMode)
             if (nextMode < 0) return false
 //        LOG.i("echo-danmaku builtin retry episodes query mode: " + queryMode + " -> " + nextMode);
             searchBuiltin(apiUrl, name, episode, callback, 0, seq, nextMode)
@@ -407,8 +407,8 @@ class DanmakuApi {
         }
 
         private fun newCall(apiUrl: String, name: String?, episode: String?): Call {
-            var name = Trans.t2s(name ?: "")
-            var episode = Trans.t2s(episode ?: "")
+            var name = Trans.t2s(name ?: "") ?: ""
+            var episode = Trans.t2s(episode ?: "") ?: ""
             if (hasPlaceholder(apiUrl)) {
                 return OkHttp.newCall(fillPlaceholders(apiUrl, name, episode), TAG)
             }
