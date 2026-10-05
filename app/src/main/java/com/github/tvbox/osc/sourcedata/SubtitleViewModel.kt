@@ -1,7 +1,6 @@
 package com.github.tvbox.osc.sourcedata
 
 import android.text.TextUtils
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 
 import com.github.tvbox.osc.bean.Subtitle
@@ -38,7 +37,7 @@ class SubtitleViewModel : ViewModel() {
         fun onFiles(files: List<Subtitle>?, error: Boolean)
     }
 
-    val searchResult: MutableLiveData<SubtitleData> = MutableLiveData()
+    val searchResult = SourceChannel<SubtitleData?>()
 
     fun searchResult(title: String?, page: Int) {
         searchResultFromAssrt(title, page)

@@ -1,6 +1,11 @@
 package com.github.tvbox.osc.player
 
 import com.github.tvbox.osc.sourcedata.SourceViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import xyz.doikki.videoplayer.player.VideoView
 
@@ -24,11 +29,19 @@ class PlaybackPreload(private val host: Host) {
 
     private var preloadCoordinator: PreloadCoordinator? = null
     private var preloadReadyListener: PreloadManagerHolder.ReadyListener? = null
+    private var collectJob: Job? = null
 
     /** 建立预载协调器与"下一集已就绪"回调(页面 init 时调用一次,须在取流实例建立之后) */
     fun init() {
         if (host.sourceViewModel() == null) host.ensureFetch()
-        preloadCoordinator = PreloadCoordinator(host.sourceViewModel())
+        val vm = host.sourceViewModel()
+        preloadCoordinator = PreloadCoordinator(vm)
+        // 预载结果的收集域随本对象:主线程派发,与旧 LiveData.observeForever 的投递线程一致
+        if (vm != null) {
+            collectJob = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+                vm.preloadResult.flow.collect { info -> preloadCoordinator?.handlePreloadResult(info) }
+            }
+        }
         val listener = PreloadManagerHolder.ReadyListener { _ ->
             val view = host.view()
             if (view == null || !view.isPageAlive()) return@ReadyListener
@@ -85,6 +98,8 @@ class PlaybackPreload(private val host: Host) {
     fun destroy() {
         PreloadManagerHolder.clearReadyListener(preloadReadyListener)
         preloadReadyListener = null
+        collectJob?.cancel()
+        collectJob = null
         preloadCoordinator?.destroy()
         preloadCoordinator = null
     }

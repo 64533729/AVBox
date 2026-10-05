@@ -2,7 +2,6 @@ package com.github.tvbox.osc.player
 
 import android.text.TextUtils
 import android.util.Base64
-import androidx.lifecycle.Observer
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.api.DanmakuApi
@@ -11,6 +10,11 @@ import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
@@ -21,36 +25,33 @@ import java.util.Locale
  * 取流状态与结果观察者:持有取流通道并把结果落到会话数据(清晰度/进度键/字幕/歌词/封面),
  * 起播与解析分发仍由宿主完成。
  *
- * 观察面仍走 `LiveData.observeForever`(通道的兼容面):切 Flow 面须先定"收集在哪个 Scope + 主线程派发"
- * 生命周期,随播放栈收口一步做,本片只做语言迁移。
+ * 观察面走通道的 [SourceChannel.flow]:收集域随本对象(init 建立、release 取消),
+ * 主线程派发与旧 LiveData 观察面一致 —— 通道在发射线程上恢复收集者,由 Main.immediate 落回主线程。
  */
 class PlaybackFetch(private val controller: PlaybackController) {
 
     private var sourceViewModel: SourceViewModel? = null
-    private var playResultObserver: Observer<JSONObject?>? = null
+    private var collectJob: Job? = null
 
     /** 建立取流结果观察者(预载协调器仍归页面) */
     fun init() {
         val vm = SourceViewModel()
         sourceViewModel = vm
-        val observer = Observer<JSONObject?> { info -> handlePlayResult(info) }
-        playResultObserver = observer
-        vm.playResult.liveData.observeForever(observer)
+        collectJob = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            vm.playResult.flow.collect { info -> handlePlayResult(info) }
+        }
     }
 
     /** 页面销毁时注销观察者(对应原 hostDestroy 的 removeObserver) */
     fun release() {
-        val vm = sourceViewModel
-        val observer = playResultObserver
-        if (vm != null && observer != null) {
-            vm.playResult.liveData.removeObserver(observer)
-            playResultObserver = null
-        }
+        collectJob?.cancel()
+        collectJob = null
     }
 
     /** 把“已准备好的取流结果”直接喂给解析链(页面 play() 命中预载数据时调用) */
     fun deliver(info: JSONObject?) {
-        playResultObserver?.onChanged(info)
+        if (collectJob?.isActive != true) return
+        handlePlayResult(info)
     }
 
     /** 预载协调器需要它取流(PreloadCoordinator 构造参数) */

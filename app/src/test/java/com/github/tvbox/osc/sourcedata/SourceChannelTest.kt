@@ -14,20 +14,10 @@ import org.junit.Test
 /**
  * 取数通道的行为锁(M4a 语义转换的回归网):取数侧只认 postValue/setValue、消费侧只认 flow。
  *
- * 三条不变量:①flow 是热流且回放最近一次值(等价 LiveData 粘性,新收集者不会空等已发生的结果);
- * ②null 也是合法载荷(取数失败就是投 null,不能被当成"没有回包");③LiveData 兼容面的投递走向
- * 在 M7 之前必须与旧 `MutableLiveData` 一致(postValue 异步 / setValue 同步)——
- * 真实 `MutableLiveData` 不能在 JVM 单测里投递(没有 Looper),故用替身记录 [dispatchToLiveData]。
+ * 两条不变量:①flow 是热流且回放最近一次值(等价 LiveData 粘性,新收集者不会空等已发生的结果);
+ * ②null 也是合法载荷(取数失败就是投 null,不能被当成"没有回包")。
  */
 class SourceChannelTest {
-
-    /** 记录 LiveData 兼容面投递走向;Flow 面仍走真实实现 */
-    private class RecordingLiveChannel : SourceChannel<Int?>() {
-        val live = ArrayList<Pair<Int?, Boolean>>()
-        override fun dispatchToLiveData(value: Int?, sync: Boolean) {
-            live.add(value to sync)
-        }
-    }
 
     @Test
     fun flowReplaysLatestValueToLateCollector() = runBlocking {
@@ -58,28 +48,41 @@ class SourceChannelTest {
     }
 
     @Test
-    fun postValueFeedsFlowAndMirrorsAsync() = runBlocking {
-        val channel = RecordingLiveChannel()
-        channel.postValue(11)
-        assertEquals(11, withTimeout(1000) { channel.flow.first() })
-        assertEquals(listOf<Pair<Int?, Boolean>>(11 to false), channel.live)
-    }
-
-    @Test
-    fun setValueFeedsFlowAndMirrorsSync() = runBlocking {
-        val channel = RecordingLiveChannel()
-        channel.setValue(9)
-        assertEquals(9, withTimeout(1000) { channel.flow.first() })
-        assertEquals(listOf<Pair<Int?, Boolean>>(9 to true), channel.live)
-    }
-
-    @Test
     fun bothEntryPointsFeedTheSameFlowOnceEach() = runBlocking {
-        val channel = RecordingLiveChannel()
+        val channel = SourceChannel<Int?>()
         val pending = async { withTimeout(1000) { channel.flow.take(2).toList() } }
         yield()
         channel.postValue(1)
         channel.setValue(2)
         assertEquals(listOf<Int?>(1, 2), pending.await())
+    }
+
+    @Test
+    fun postValueFromBackgroundThreadIsDelivered() = runBlocking {
+        val channel = SourceChannel<Int?>()
+        val pending = async { withTimeout(2000) { channel.flow.first() } }
+        yield()
+        val worker = Thread { channel.postValue(42) }
+        worker.start()
+        worker.join()
+        assertEquals("任意线程投递都必须送达活跃收集者", 42, pending.await())
+    }
+
+    /** 与 LiveData 的差异:SharedFlow 不做"同帧合并",活跃收集者逐条收到（生产侧是逐次取流回包，不能丢中间态） */
+    @Test
+    fun rapidPostsAreNotConflatedForActiveCollector() = runBlocking {
+        val channel = SourceChannel<Int?>()
+        val pending = async { withTimeout(2000) { channel.flow.take(5).toList() } }
+        yield()
+        for (i in 1..5) channel.postValue(i)
+        assertEquals(listOf(1, 2, 3, 4, 5), pending.await())
+    }
+
+    /** 溢出策略 DROP_OLDEST:生产者不被阻塞，迟到收集者仍能拿到最近一次值 */
+    @Test
+    fun latestValueSurvivesOverflowForLateCollector() = runBlocking {
+        val channel = SourceChannel<Int?>()
+        for (i in 1..100) channel.postValue(i)
+        assertEquals("无收集者时投递不阻塞且回放最近一次值", 100, withTimeout(1000) { channel.flow.first() })
     }
 }

@@ -4,9 +4,6 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.Observer;
-
 import com.github.tvbox.osc.data.AppGraph;
 import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -85,7 +82,6 @@ public final class PreloadCoordinator {
     private String preloadedKey;
     private Snapshot activeSnapshot;
     private long bufferingCooldownUntil;
-    private boolean observing;
     private boolean replayReadyPending;
     /** 预解析直链缓存池:键 = progressKey(含源/片/线路/集名),消费即删;TTL 与容量见 PreloadCachePolicy */
     private final LinkedHashMap<String, CachedEntry> cache = new LinkedHashMap<>();
@@ -98,20 +94,8 @@ public final class PreloadCoordinator {
         bufferingCooldownUntil = System.currentTimeMillis() + BUFFERING_COOLDOWN_MS;
     };
 
-    private final Observer<JSONObject> preloadResultObserver = new Observer<JSONObject>() {
-        @Override
-        public void onChanged(JSONObject info) {
-            handlePreloadResult(info);
-        }
-    };
-
     public PreloadCoordinator(SourceViewModel sourceViewModel) {
         this.sourceViewModel = sourceViewModel;
-        LiveData<JSONObject> channel = sourceViewModel.preloadResult.getLiveData();
-        if (channel != null) {
-            channel.observeForever(preloadResultObserver);
-            observing = true;
-        }
     }
 
     public void scheduleEvaluate(Snapshot snapshot) {
@@ -162,10 +146,6 @@ public final class PreloadCoordinator {
         requestToken = null;
         activeSnapshot = null;
         clearCache();
-        if (observing && sourceViewModel != null) {
-            sourceViewModel.preloadResult.getLiveData().removeObserver(preloadResultObserver);
-            observing = false;
-        }
         PreloadManagerHolder.release();
     }
 
@@ -216,7 +196,8 @@ public final class PreloadCoordinator {
                 snapshot.nextSubtitleKey + PRELOAD_KEY_SUFFIX);
     }
 
-    private void handlePreloadResult(JSONObject info) {
+    /** 预载取流结果入口:由 {@link PlaybackPreload} 收集 preloadResult 通道后投递(主线程) */
+    public void handlePreloadResult(JSONObject info) {
         final Snapshot snapshot = activeSnapshot;
         String token = requestToken;
         requestToken = null;

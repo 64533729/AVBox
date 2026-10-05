@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -274,43 +275,44 @@ fun SubtitleSearchSheet(sheet: SubtitleSearchSheetState, onDismiss: () -> Unit) 
         }
     }
 
-    // 观察 SubtitleViewModel.searchResult
-    DisposableEffect(viewModel) {
-        val observer = androidx.lifecycle.Observer<com.github.tvbox.osc.bean.SubtitleData> { data ->
-            mainHandler.post {
-                loading = false
-                val list = data.subtitleList
-                if (list == null) {
-                    Toast.makeText(context, context.getString(R.string.toast_subtitle_not_found), Toast.LENGTH_SHORT).show()
-                    return@post
-                }
-                if (list.isNotEmpty()) {
-                    if (data.isZip == true) {
-                        if (data.isNew == true) {
+    // 观察 SubtitleViewModel.searchResult(STARTED 期收集,回前台由通道回放最近一次值)
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.searchResult.flow.collect { data ->
+                mainHandler.post {
+                    loading = false
+                    val result = data
+                    val list = result?.subtitleList
+                    if (result == null || list == null) {
+                        Toast.makeText(context, context.getString(R.string.toast_subtitle_not_found), Toast.LENGTH_SHORT).show()
+                        return@post
+                    }
+                    if (list.isNotEmpty()) {
+                        if (result.isZip == true) {
+                            if (result.isNew == true) {
+                                items = list
+                                zipCache.clear()
+                                zipCache.addAll(list)
+                            } else {
+                                items = items + list
+                                zipCache.addAll(list)
+                            }
+                            page++
+                            if (page > maxPage) {
+                                canLoadMore = false
+                            } else {
+                                canLoadMore = true
+                            }
+                        } else {
                             items = list
-                            zipCache.clear()
-                            zipCache.addAll(list)
-                        } else {
-                            items = items + list
-                            zipCache.addAll(list)
-                        }
-                        page++
-                        if (page > maxPage) {
                             canLoadMore = false
-                        } else {
-                            canLoadMore = true
                         }
                     } else {
-                        items = list
                         canLoadMore = false
                     }
-                } else {
-                    canLoadMore = false
                 }
             }
         }
-        viewModel.searchResult.observe(lifecycleOwner, observer)
-        onDispose { viewModel.searchResult.removeObserver(observer) }
     }
 
     // 进入即清洗片名并自动搜索(旧 setSearchWord 的清洗链)
