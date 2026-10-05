@@ -172,15 +172,15 @@ interface PlaybackViewBridge {
     fun evaluateScript(url: String, webView: WebView?)
 
     /** 新建 1×1 嗅探 WebView(页面用 Activity 上下文创建,保证 AutoSize/主题一致) */
-    fun newSniffWebView(): WebView
+    fun newSniffWebView(): WebView?
 
     /** 把嗅探 WebView 挂到页面内容视图(1×1) */
     fun attachSniffWebView(webView: WebView)
 
     // ---------- 预载(调度在控制器,视图资源在页面) ----------
 
-    /** 由页面组装的"下一集预载"目标快照(需要页面上下文与真实播放器实例判内核) */
-    fun buildPreloadSnapshot(): PreloadCoordinator.Snapshot
+    /** 由页面组装的"下一集预载"目标快照(需要页面上下文与真实播放器实例判内核);无页面桥为空 */
+    fun buildPreloadSnapshot(): PreloadCoordinator.Snapshot?
 
     /** 显示「下一集已就绪」Toast(页面持有 Toast 实例,约 3s 自动撤下) */
     fun showPreloadReadyTip()
