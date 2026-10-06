@@ -1,9 +1,7 @@
 package com.github.tvbox.osc.player.controller
 
-import com.github.tvbox.osc.util.LOG
 import android.app.Activity
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
@@ -12,27 +10,20 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebView
-import android.widget.Toast
 import android.widget.FrameLayout
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.media3.ui.SubtitleView
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
-import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.event.RefreshEvent
-import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.MyVideoView
-import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.state.LockVisibility
-import com.github.tvbox.osc.player.state.PlayerActions
 import com.github.tvbox.osc.player.state.PlayerUiState
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.state.VideoSizeGate
-import com.github.tvbox.osc.player.state.SelectDialogState
 import com.github.tvbox.osc.player.ui.PlayerOverlay
 import com.github.tvbox.osc.player.ui.VideoGestureHandler
 import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
@@ -44,12 +35,8 @@ import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.PlayerUtils
 import org.greenrobot.eventbus.EventBus
-import org.json.JSONException
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.HashMap
-import java.util.Locale
 
 @Suppress("MemberVisibilityCanBePrivate")
 class ComposeVideoController @JvmOverloads constructor(
@@ -58,13 +45,11 @@ class ComposeVideoController @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr),
     AppPlayerView.VideoControllerHost,
-    PlayerControlApi,
-    PlayerActions {
+    PlayerControlApi {
 
     companion object {
 
         private const val LOCK_HIDE_DELAY_MS = 3000L
-        private const val SEEK_MAX = 1000
     }
 
     internal lateinit var state: PlayerUiState
@@ -92,7 +77,7 @@ class ComposeVideoController @JvmOverloads constructor(
     internal fun enterGestureSeek() {
         if (!state.dragging) {
             state.dragging = true
-            if (!state.controlsVisible) applyShowBottom()
+            if (!state.controlsVisible) actions.applyShowBottom()
             stopProgress()
         }
     }
@@ -100,7 +85,7 @@ class ComposeVideoController @JvmOverloads constructor(
     internal fun exitGestureSeek() {
         state.dragging = false
         startProgress()
-        keepControlsAlive()
+        actions.keepControlsAlive()
     }
 
     internal fun saveGestureProgress(targetMs: Int) {
@@ -147,6 +132,8 @@ class ComposeVideoController @JvmOverloads constructor(
 
     internal lateinit var gestureHandler: VideoGestureHandler
 
+    internal lateinit var actions: PlayerActionsDelegate
+
     internal lateinit var config: PlayerConfigDelegate
 
     private var canChangePosition = true
@@ -157,31 +144,26 @@ class ComposeVideoController @JvmOverloads constructor(
     private lateinit var mLyricView: SimpleSubtitleView
     private lateinit var mExoSubtitleView: SubtitleView
 
-    private val videoSizeGate = VideoSizeGate()
+    internal val videoSizeGate = VideoSizeGate()
 
     internal var previewMode = false
     internal var speedOld = 1.0f
     private var skipEnd = true
-    private var isClickBackBtn = false
+    internal var isClickBackBtn = false
     private var showParseFlag = false
     internal var playerConfig: JSONObject? = null
     internal var listener: VodControlListener? = null
-
-    private var keySeekProgress = 0
-
-    private val idleHideMillis = 10000L
 
     internal val uiHandler by lazy { Handler(Looper.getMainLooper()) }
 
     private var progressTicking = false
     private val progressRunnable by lazy { Runnable { onProgressTick() } }
-    private val idleHideRunnable by lazy {
+    internal val idleHideRunnable by lazy {
         Runnable {
-            if (state.overlayPanelOpen) keepControlsAlive() else hideBottom()
+            if (state.overlayPanelOpen) actions.keepControlsAlive() else actions.hideBottom()
         }
     }
-    private val lockHideRunnable by lazy { Runnable { state.lockState = LockVisibility.HIDDEN } }
-    private val keySeekCommitRunnable by lazy { Runnable { commitKeySeek() } }
+    internal val lockHideRunnable by lazy { Runnable { state.lockState = LockVisibility.HIDDEN } }
 
     private val m3u8PurifyUseCase by lazy {
         M3u8PurifyUseCase(context, object : M3u8PurifyUseCase.Callback {
@@ -196,21 +178,12 @@ class ComposeVideoController @JvmOverloads constructor(
     }
     private val webParseUseCase by lazy { WebParseUseCase() }
 
-    private val fastClickMap = HashMap<String, Long>()
-
-    private fun fastClickAllowed(key: String): Boolean {
-        val now = System.currentTimeMillis()
-        val last = fastClickMap[key] ?: 0L
-        if (now - last < 500) return false
-        fastClickMap[key] = now
-        return true
-    }
-
     init {
         state = PlayerUiState()
 
         gestureActions = VideoGestureActionsImpl(this)
         gestureHandler = VideoGestureHandler(gestureActions)
+        actions = PlayerActionsDelegate(this)
         config = PlayerConfigDelegate(this)
 
         initNativeSubtitleViews()
@@ -262,7 +235,7 @@ class ComposeVideoController @JvmOverloads constructor(
                 AVBoxTheme(manageStatusBarIcons = false) {
                     PlayerOverlay(
                         state = state,
-                        actions = this@ComposeVideoController,
+                        actions = actions,
                         gestureHandler = gestureHandler,
                         gestureSession = { w, h, sw, y -> gestureActions.beginSession(w, h, sw, y) },
                         onTapPending = { onGestureTapPending() },
@@ -283,7 +256,7 @@ class ComposeVideoController @JvmOverloads constructor(
         progressTicking = false
         uiHandler.removeCallbacks(idleHideRunnable)
         uiHandler.removeCallbacks(lockHideRunnable)
-        uiHandler.removeCallbacks(keySeekCommitRunnable)
+        actions.cancelKeySeekCommit()
         config.cancelSpeedRetry()
         uiHandler.removeCallbacks(tapConfirmRunnable)
     }
@@ -313,7 +286,7 @@ class ComposeVideoController @JvmOverloads constructor(
             if (!state.lifecyclePaused) {
                 state.topLeftVisible = false
                 state.netSpeedTopRightVisible = false
-                if (state.controlsVisible) hideBottom()
+                if (state.controlsVisible) actions.hideBottom()
             }
             savePlaybackProgress(notifyHistory = true)
         }
@@ -375,13 +348,13 @@ class ComposeVideoController @JvmOverloads constructor(
         uiHandler.post(progressRunnable)
     }
 
-    private fun stopProgress() {
+    internal fun stopProgress() {
         if (!progressTicking) return
         uiHandler.removeCallbacks(progressRunnable)
         progressTicking = false
     }
 
-    private fun savePlaybackProgress(notifyHistory: Boolean, seekTargetMs: Int = -1) {
+    internal fun savePlaybackProgress(notifyHistory: Boolean, seekTargetMs: Int = -1) {
         val viewDuration = runCatching { videoView?.duration ?: 0L }.getOrDefault(0L).toInt()
         val viewPosition = runCatching { videoView?.currentPosition ?: 0L }.getOrDefault(0L).toInt()
         val duration = if (viewDuration > 0) viewDuration else state.duration
@@ -409,49 +382,8 @@ class ComposeVideoController @JvmOverloads constructor(
         }
     }
 
-    override fun toggleControls() {
-        if (!state.controlsVisible) showBottom() else hideBottom()
-    }
-
     override fun toggleControlBar() {
-        toggleControls()
-    }
-
-    private fun showBottom() {
-        applyShowBottom()
-    }
-
-    private fun applyShowBottom() {
-        updateDanmuSearchBtnState()
-        state.controlsVisible = true
-        state.topLeftVisible = true
-        state.topRightVisible = true
-        state.netSpeedTopRightVisible = true
-        state.sysTimeVisible = true
-        state.backVisible = !state.isPortrait
-        showLockView()
-        keepControlsAlive()
-    }
-
-    fun hideBottom() {
-        uiHandler.removeCallbacks(idleHideRunnable)
-        if (state.dragging) onSeekCancelled()
-        state.controlsVisible = false
-        state.topLeftVisible = false
-        state.netSpeedTopRightVisible = false
-        state.sysTimeVisible = false
-        state.backVisible = false
-        uiHandler.removeCallbacks(lockHideRunnable)
-        if (state.lockState != LockVisibility.GONE) {
-            state.lockState = LockVisibility.HIDDEN
-        }
-    }
-
-    override fun keepControlsAlive() {
-        if (state.controlsVisible) {
-            uiHandler.removeCallbacks(idleHideRunnable)
-            uiHandler.postDelayed(idleHideRunnable, idleHideMillis)
-        }
+        actions.toggleControls()
     }
 
     internal fun showLockView() {
@@ -485,7 +417,7 @@ class ComposeVideoController @JvmOverloads constructor(
         state.danmuOpen = DanmuHelper.isOpen()
     }
 
-    private fun updateDanmuSearchBtnState() {
+    internal fun updateDanmuSearchBtnState() {
         state.danmuSearchAvailable = ApiConfig.get().hasDanmuSearchUi()
     }
 
@@ -518,7 +450,7 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun setPreviewMode(previewMode: Boolean) {
         this.previewMode = previewMode
         state.previewMode = previewMode
-        if (previewMode && state.controlsVisible) hideBottom()
+        if (previewMode && state.controlsVisible) actions.hideBottom()
         uiHandler.removeCallbacks(lockHideRunnable)
         state.lockState = LockVisibility.GONE
     }
@@ -554,7 +486,7 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun setLifecyclePaused(paused: Boolean) {
         state.lifecyclePaused = paused
-        if (paused) uiHandler.removeCallbacks(idleHideRunnable) else keepControlsAlive()
+        if (paused) uiHandler.removeCallbacks(idleHideRunnable) else actions.keepControlsAlive()
     }
 
     override fun resetSpeed() {
@@ -565,11 +497,11 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun onBackPressed(): Boolean {
         if (isClickBackBtn) {
             isClickBackBtn = false
-            if (state.controlsVisible) hideBottom()
+            if (state.controlsVisible) actions.hideBottom()
             return false
         }
         if (state.controlsVisible) {
-            hideBottom()
+            actions.hideBottom()
             return true
         }
         return false
@@ -596,336 +528,4 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun getWebPlayUrlIfNeeded(webPlayUrl: String?): String {
         return webParseUseCase.getWebPlayUrlIfNeeded(webPlayUrl) ?: ""
     }
-
-    override fun onNextClicked() {
-        listener?.playNext(false)
-        hideBottom()
-    }
-
-    override fun onPreClicked() {
-        listener?.playPre()
-        hideBottom()
-    }
-
-    override fun onPlayPauseClicked() {
-        if (!fastClickAllowed("play_pause")) return
-        if (state.tipVisible && !isInPlaybackState()) return
-        videoView?.togglePlay()
-        keepControlsAlive()
-    }
-
-    override fun onRefreshClicked() {
-        listener?.replay(false)
-        hideBottom()
-    }
-
-    override fun onScaleClicked() {
-        keepControlsAlive()
-        config.showScaleDialog()
-    }
-
-    override fun onScaleLongClicked() {
-        keepControlsAlive()
-        if (!fastClickAllowed("scale_long")) return
-        config.applyScale(0)
-    }
-
-    override fun onSpeedClicked() {
-        keepControlsAlive()
-        config.showSpeedDialog()
-    }
-
-    override fun onSpeedLongClicked() {
-        keepControlsAlive()
-        if (!fastClickAllowed("speed_long")) return
-        config.applySpeed(1.0f)
-    }
-
-    override fun onPlayerClicked() {
-        keepControlsAlive()
-        val cfg = playerConfig ?: return
-        val existPlayerTypes = PlayerHelper.getExistPlayerTypes()
-        if (existPlayerTypes.isEmpty()) return
-        val current = cfg.optInt("pl", 2)
-        var nextIdx = 0
-        for (i in existPlayerTypes.indices) {
-            if (current == existPlayerTypes[i]) {
-                nextIdx = if (i == existPlayerTypes.size - 1) 0 else i + 1
-            }
-        }
-        config.applyPlayer(existPlayerTypes[nextIdx])
-        hideBottom()
-    }
-
-    override fun onPlayerLongClicked() {
-        keepControlsAlive()
-        if (!fastClickAllowed("player_long")) return
-        try {
-            val cfg = playerConfig ?: return
-            val playerType = cfg.getInt("pl")
-            var defaultPos = 0
-            val players = PlayerHelper.getExistPlayerTypes()
-            val names = ArrayList<String>()
-            for (p in players.indices) {
-                names.add(PlayerHelper.getPlayerName(players[p]))
-                if (players[p] == playerType) {
-                    defaultPos = p
-                }
-            }
-            state.selectDialog = SelectDialogState(
-                tip = context.getString(R.string.player_select_player),
-                items = names,
-                defaultIndex = defaultPos,
-                onSelected = { pos ->
-                    if (players[pos] != playerType) {
-                        config.applyPlayer(players[pos])
-                        hideBottom()
-                    }
-                },
-            )
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    override fun onTimeStartClicked() {
-        keepControlsAlive()
-        config.markTimeStart()
-    }
-
-    override fun onTimeStartLongClicked() {
-        config.setTimeMark("st", 0)
-    }
-
-    override fun onTimeEndClicked() {
-        keepControlsAlive()
-        config.markTimeEnd()
-    }
-
-    override fun onTimeEndLongClicked() {
-        config.setTimeMark("et", 0)
-    }
-
-    override fun onTimeResetClicked() {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            cfg.put("st", 0)
-            cfg.put("et", 0)
-            config.updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    override fun onEpisodeClicked() {
-        if (!fastClickAllowed("episode")) return
-        listener?.showEpisodes()
-        keepControlsAlive()
-    }
-
-    override fun onCastClicked() {
-        listener?.clickCast()
-    }
-
-    override fun onSubtitleClicked() {
-        if (!fastClickAllowed("zimu")) return
-        listener?.selectSubtitle()
-        keepControlsAlive()
-    }
-
-    override fun onSubtitleLongClicked() {
-        if (!fastClickAllowed("zimu_long")) return
-        listener?.closeSubtitles()
-        hideBottom()
-        Toast.makeText(context, context.getString(R.string.player_subtitle_closed), Toast.LENGTH_SHORT).show()
-    }
-
-    override fun onAudioTrackClicked() {
-        if (!fastClickAllowed("audio")) return
-        listener?.selectAudioTrack()
-        keepControlsAlive()
-    }
-
-    override fun onVideoTrackClicked() {
-        if (!fastClickAllowed("video")) return
-        listener?.selectVideoTrack()
-        keepControlsAlive()
-    }
-
-    override fun onDanmuSettingClicked() {
-        if (!fastClickAllowed("danmu")) return
-        listener?.showDanmuSetting()
-    }
-
-    override fun onDanmuSettingLongClicked() {
-        if (!fastClickAllowed("danmu_long")) return
-        val opened = listener?.toggleDanmu() ?: false
-        hideBottom()
-        Toast.makeText(context, context.getString(if (opened) R.string.player_danmu_opened else R.string.player_danmu_temp_closed), Toast.LENGTH_SHORT).show()
-    }
-
-    override fun onDanmuSearchClicked() {
-        listener?.searchDanmuUi(false)
-        hideBottom()
-    }
-
-    override fun onDanmuSearchLongClicked() {
-        listener?.searchDanmuUi(true)
-        hideBottom()
-    }
-
-    override fun onRotateClicked() {
-        if (state.locked) return
-        if (!fastClickAllowed("rotate")) return
-        val toPortrait =
-            resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT
-        playerActivity()?.requestedOrientation =
-            if (toPortrait) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-            else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        hideBottom()
-    }
-
-    override fun onParamsClicked() {
-        keepControlsAlive()
-        state.paramsSheet = config.buildParamsSheet()
-    }
-
-    override fun onInfoOsdClicked() {
-        state.infoOsdVisible = !state.infoOsdVisible
-        val exo = videoView?.mediaPlayer as? ExoPlayer
-        if (state.infoOsdVisible) {
-            exo?.setFrameRateTracking(true)
-            InfoOsdText.refreshInfoOsd(
-                context, state, videoView, playerActivity(),
-                runCatching { videoView?.tcpSpeed ?: 0L }.getOrDefault(0L),
-            )
-        } else {
-            exo?.setFrameRateTracking(false)
-        }
-        if (state.overlayPanelOpen) keepControlsAlive() else hideBottom()
-    }
-
-    override fun onBackClicked() {
-        isClickBackBtn = state.controlsVisible && !previewMode
-        (playerActivity() as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed()
-    }
-
-    override fun onLockClicked() {
-        val newLocked = !state.locked
-        state.locked = newLocked
-        if (newLocked) hideBottom()
-        showLockView()
-    }
-
-    override fun onParseSelected(position: Int) {
-        val parseBeanList = ApiConfig.get().parseBeanList
-        if (position < 0 || position >= parseBeanList.size) return
-        val parseBean: ParseBean = parseBeanList[position]
-        ApiConfig.get().setDefaultParse(parseBean)
-        state.parseListVersion++
-        listener?.changeParse(parseBean)
-        hideBottom()
-    }
-
-    override fun onSeekStarted() {
-        if (!state.controlsVisible) applyShowBottom()
-        if (state.dragging) return
-        state.dragging = true
-        stopProgress()
-        uiHandler.removeCallbacks(idleHideRunnable)
-        keepControlsAlive()
-    }
-
-    override fun onSeekPreview(progress: Int) {
-        val view = videoView ?: return
-        val duration = PlayerUtils.safeTimeMs(view.duration)
-        state.seekPreviewPositionMs = seekBarToPosition(progress, duration)
-    }
-
-    override fun onSeekFinished(progress: Int) {
-        keepControlsAlive()
-        val view = videoView
-        var seekTarget = -1
-        if (view != null) {
-            val duration = PlayerUtils.safeTimeMs(view.duration)
-            seekTarget = seekBarToPosition(progress, duration).toInt()
-            view.seekTo(seekTarget.toLong())
-        }
-        state.dragging = false
-        keySeekProgress = 0
-        startProgress()
-        keepControlsAlive()
-        if (seekTarget >= 0) savePlaybackProgress(notifyHistory = true, seekTargetMs = seekTarget)
-    }
-
-    override fun onSeekCancelled() {
-        state.dragging = false
-        keySeekProgress = 0
-        startProgress()
-        keepControlsAlive()
-    }
-
-    override fun onSeekStep(dir: Int) {
-        val view = videoView ?: return
-        val duration = PlayerUtils.safeTimeMs(view.duration)
-        if (duration <= 0) return
-        if (!state.controlsVisible) applyShowBottom()
-        if (!state.dragging) {
-            state.dragging = true
-            stopProgress()
-            uiHandler.removeCallbacks(idleHideRunnable)
-        }
-        keySeekProgress = (keySeekProgress + keySeekIncrement(duration) * dir).coerceIn(0, SEEK_MAX)
-        state.seekPreviewPositionMs = seekBarToPosition(keySeekProgress, duration)
-        updateSeekUiHint(
-            PlayerUtils.safeTimeMs(view.currentPosition),
-            state.seekPreviewPositionMs.toInt(),
-        )
-        uiHandler.removeCallbacks(keySeekCommitRunnable)
-        uiHandler.postDelayed(keySeekCommitRunnable, 400)
-    }
-
-    private fun commitKeySeek() {
-        if (!state.dragging) return
-        onSeekFinished(keySeekProgress)
-    }
-
-    private fun seekBarToPosition(progress: Int, duration: Int): Long {
-        if (duration <= 0) return 0L
-        return duration.toLong() * progress / SEEK_MAX
-    }
-
-    private fun keySeekIncrement(duration: Int): Int {
-        val increment: Long = when {
-            duration > 3 * 60 * 60 * 1000 -> 5 * 60 * 1000L
-            duration > 30 * 60 * 1000 -> 60 * 1000L
-            duration > 15 * 60 * 1000 -> 30 * 1000L
-            duration > 10 * 60 * 1000 -> 15 * 1000L
-            else -> 10 * 1000L
-        }
-        return maxOf(1, (increment * SEEK_MAX / duration).toInt())
-    }
-
-    override fun refreshSystemInfo() {
-        val view = videoView ?: return
-        state.sysTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        InfoOsdText.readBattery(context, state)
-        val speed = runCatching { view.tcpSpeed }.getOrDefault(0L)
-        state.netSpeedTopRight = PlayerHelper.getDisplaySpeed(speed, true)
-        state.netSpeedCenter = PlayerHelper.getDisplaySpeed(speed, false)
-        val size = runCatching { view.videoSize }.getOrDefault(intArrayOf(0, 0))
-        state.videoSize = videoSizeGate.textFor(size[0], size[1])
-        if (state.infoOsdVisible) InfoOsdText.refreshInfoOsd(context, state, videoView, playerActivity(), speed)
-    }
-
-    override fun hideSeekHint() {
-        state.seekHintVisible = false
-    }
-
-    override fun hideSlideHint() {
-        state.slideHintVisible = false
-    }
-
 }

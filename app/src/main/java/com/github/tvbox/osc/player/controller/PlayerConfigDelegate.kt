@@ -119,9 +119,9 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
             timeEndText = host.state.timeEndText,
             onSetTimeStart = { markTimeStart() },
             onSetTimeEnd = { markTimeEnd() },
-            onResetTime = { host.onTimeResetClicked() },
+            onResetTime = { host.actions.onTimeResetClicked() },
             onSearchDanmu = if (host.state.danmuSearchAvailable) {
-                { host.onDanmuSearchClicked() }
+                { host.actions.onDanmuSearchClicked() }
             } else {
                 null
             },
@@ -150,7 +150,7 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     fun applySpeed(value: Float) {
-        host.keepControlsAlive()
+        host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
             cfg.put("sp", value.toDouble())
@@ -164,7 +164,7 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     fun applyScale(index: Int) {
-        host.keepControlsAlive()
+        host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
             cfg.put("sc", index)
@@ -177,7 +177,7 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     fun applyPlayer(playerType: Int) {
-        host.keepControlsAlive()
+        host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
             if (playerType == cfg.optInt("pl", 2)) return
@@ -192,7 +192,7 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     fun applyDecode(value: String) {
-        host.keepControlsAlive()
+        host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
             val unchanged = cfg.optString("exo") == value
@@ -238,7 +238,7 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     fun setTimeMark(key: String, seconds: Int) {
-        host.keepControlsAlive()
+        host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
             cfg.put(key, seconds)

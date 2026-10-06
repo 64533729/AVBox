@@ -19,12 +19,12 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     private enum class HintKind { NONE, SEEK, SLIDE }
 
     private fun showSeekHintOnly() {
-        if (host.state.slideHintVisible) host.hideSlideHint()
+        if (host.state.slideHintVisible) host.actions.hideSlideHint()
         shownHint = HintKind.SEEK
     }
 
     private fun showSlideHintOnly() {
-        if (host.state.seekHintVisible) host.hideSeekHint()
+        if (host.state.seekHintVisible) host.actions.hideSeekHint()
         shownHint = HintKind.SLIDE
     }
 
@@ -87,7 +87,7 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
             host.showLockView()
             return
         }
-        host.toggleControls()
+        host.actions.toggleControls()
     }
 
     override fun onDoubleTapTogglePlay() {
