@@ -20,6 +20,7 @@ import java.util.HashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class SortLoader(
     private val gson: Gson,
@@ -267,8 +268,13 @@ class SortLoader(
                         }
 
                         override fun onResponse(call: Call, response: okhttp3.Response) {
-                            response.use {
-                                cont.resume(it.body.string())
+                            try {
+                                response.use {
+                                    cont.resume(it.body.string())
+                                }
+                            } catch (e: IOException) {
+                                LOG.i("echo--getSort-post-fail:" + sourceKey + " ex=" + e)
+                                cont.resumeWithException(e)
                             }
                         }
                     })
