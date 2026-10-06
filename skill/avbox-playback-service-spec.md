@@ -75,7 +75,7 @@ PlaybackService(前台服务,托管生命周期)
 ### 2.3 数据流与指令流
 
 - **指令**:页面(Compose 按钮/手势)/通知栏/媒体键 → `PlaybackHostApi` → `PlaybackController` → `PlaybackViewBridge` → `MyVideoView`/内核。
-- **状态**:内核事件 → `PlayerEngine` → `ExoPlayer`(适配器)→ **两条并存的状态面**:① `PlaybackStateMachine`(`PlayState` StateFlow,新栈读面,`MyVideoView.playState` 取它)② `AppPlayerView` 自持的旧 int 状态机(`mCurrentPlayState`,控制器回调/`VideoControllerHost.setPlayState` 走它)。消费方:引擎状态监听(业务:预载/进度/会话/揭黑帧)+ 页面控制器(UI,经 `setVideoController` 的既有回调路径)。
+- **状态**:内核事件 → `PlayerEngine` → `ExoPlayer`(适配器)→ **单一真源** `PlaybackStateMachine`(`PlayState`;`MyVideoView.playState` 同步读,`stateFlow` 为流式面)。派发面 `AppPlayerView.dispatchPlayState`(值变化去重 + `PREPARED`/`START_ABORT` 人造值;顺序 = 控制器 → flow):① `VideoControllerHost.setPlayState(PlayState)` → 页面控制器(UI)② `AppPlayerView.playStateFlow`(`SharedFlow`,`Dispatchers.Main.immediate` 订阅)→ 引擎状态订阅(业务:预载/进度/会话/揭黑帧)与音乐页。旧 int 面(`STATE_*`/`currentPlayState`/`OnStateChangeListener`/`fromLegacy`/`toLegacy`)已整体废除(2026-10-07,`skill/review/refactor-plan-20261007.md` 步 1–4;机械门 `.codebuddy/tools/playstate_gate.py`)。
 - **页面数据**:`PlaybackSession` 由详情页组装后交给引擎 —— **播放会话本身**不再经 `App.getInstance().getVodInfo()` 全局单槽 + `Bundle` 这两个隐式通道传递(改造前正是它们导致"详情页 B 覆盖 A 时 A 的播放数据被动改掉")。⚠️ 该字段**并未全仓清除**:`RemoteServer`/`PlaybackProgress`/`WatchProgressStore`/`DetailViewModel` 仍有既有读取点(登记见 `review/refactor-plan-20260928.md`),动它们要单独评估,别按"已废弃"处理。
 
 ## 3. 运行机制
