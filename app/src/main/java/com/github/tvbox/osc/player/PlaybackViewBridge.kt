@@ -26,8 +26,6 @@ interface PlaybackViewBridge {
 
     fun requestNotificationPermission()
 
-    fun currentPlayState(): Int
-
     fun playState(): PlayState
 
     fun currentPosition(): Long

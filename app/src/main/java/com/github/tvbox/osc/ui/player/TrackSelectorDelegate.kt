@@ -65,7 +65,7 @@ class TrackSelectorDelegate(private val host: Host) {
                     LOG.i(
                         "echo-setTrack request: name=" + value.name + " render=" + value.renderId +
                             " group=" + value.trackGroupId + " track=" + value.trackId +
-                            " pos=" + progress + " state=" + (host.player()?.currentPlayState ?: -999),
+                            " pos=" + progress + " state=" + (host.player()?.playState ?: "null"),
                     )
                     (mediaPlayer as? ExoPlayer)?.setTrack(value)
                     val seq = trackSwitchSeq.incrementAndGet()
@@ -74,7 +74,7 @@ class TrackSelectorDelegate(private val host: Host) {
                             mediaPlayer.start()
                             LOG.i(
                                 "echo-setTrack after start: state=" +
-                                    (host.player()?.currentPlayState ?: -999),
+                                    (host.player()?.playState ?: "null"),
                             )
                         }
                     }, 200)

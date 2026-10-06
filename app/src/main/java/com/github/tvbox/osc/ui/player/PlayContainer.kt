@@ -26,7 +26,6 @@ import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.dlna.CastVideo
 import com.github.tvbox.osc.event.RefreshEvent
-import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.KernelPlayer
 import com.github.tvbox.osc.player.MyVideoView
@@ -47,6 +46,7 @@ import com.github.tvbox.osc.player.danmu.DanmuLoadController
 import com.github.tvbox.osc.player.state.CastSheetState
 import com.github.tvbox.osc.player.state.DanmuSearchSheetState
 import com.github.tvbox.osc.player.state.PlayerUiState
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.state.SelectDialogState
 import com.github.tvbox.osc.player.state.SubtitleSearchSheetState
 import com.github.tvbox.osc.player.state.SubtitleSheetState
@@ -202,9 +202,9 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
         if (mVideoView != null && mController != null) {
             mController.setKernelProvider(mVideoView)
-            val state = mVideoView!!.currentPlayState
+            val state = mVideoView!!.playState
             if (mVideoView!!.mediaPlayer != null
-                && state != AppPlayerView.STATE_IDLE && state != AppPlayerView.STATE_ERROR
+                && state != PlayState.IDLE && state != PlayState.ERROR
                 && ownsEngineContent()
             ) {
                 rebindPlaybackOverlay()
@@ -1050,8 +1050,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (!TextUtils.equals(scheduler.startedPlaybackKey(), session.playbackKey())) return false
         if (engine!!.isLiveMode()) return false
         if (mVideoView == null || mVideoView!!.mediaPlayer == null) return false
-        val state = mVideoView!!.currentPlayState
-        return state != AppPlayerView.STATE_ERROR && state != AppPlayerView.STATE_IDLE
+        val state = mVideoView!!.playState
+        return state != PlayState.ERROR && state != PlayState.IDLE
     }
 
     override fun onBackPressed(): Boolean {

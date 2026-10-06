@@ -40,8 +40,6 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         container.hideTipOnUiThread()
     }
 
-    override fun currentPlayState(): Int = container.mVideoView?.currentPlayState ?: -1
-
     override fun playState(): PlayState = container.mVideoView?.playState ?: PlayState.IDLE
 
     override fun currentPosition(): Long = container.mVideoView?.currentPosition ?: 0L

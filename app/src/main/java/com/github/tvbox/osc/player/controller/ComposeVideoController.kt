@@ -310,34 +310,36 @@ class ComposeVideoController @JvmOverloads constructor(
         ) {
             updateLiveButtonsState()
         }
-        when (playState) {
-            PlayState.IDLE -> {
-                savePlaybackProgress(notifyHistory = true)
-                state.locked = false
-                state.duration = 0
-                state.position = 0
-            }
-            PlayState.PLAYING -> {
-                initOrientationState()
-                startProgress()
-            }
-            PlayState.PAUSED -> {
-                if (!state.lifecyclePaused) {
-                    state.topLeftVisible = false
-                    state.netSpeedTopRightVisible = false
-                    if (state.controlsVisible) hideBottom()
-                }
-                savePlaybackProgress(notifyHistory = true)
-            }
-            PlayState.ERROR -> listener?.errReplay()
-            PlayState.PREPARED -> listener?.prepared()
-            PlayState.COMPLETED -> {
-                state.locked = false
-                PlaybackProgress.markFinished()
-                listener?.playNext(true)
-            }
-            PlayState.PREPARING, PlayState.BUFFERING, PlayState.BUFFERED, PlayState.START_ABORT -> Unit
+        applyPlayState(playState)
+    }
+
+    private fun applyPlayState(playState: PlayState) = when (playState) {
+        PlayState.IDLE -> {
+            savePlaybackProgress(notifyHistory = true)
+            state.locked = false
+            state.duration = 0
+            state.position = 0
         }
+        PlayState.PLAYING -> {
+            initOrientationState()
+            startProgress()
+        }
+        PlayState.PAUSED -> {
+            if (!state.lifecyclePaused) {
+                state.topLeftVisible = false
+                state.netSpeedTopRightVisible = false
+                if (state.controlsVisible) hideBottom()
+            }
+            savePlaybackProgress(notifyHistory = true)
+        }
+        PlayState.ERROR -> listener?.errReplay()
+        PlayState.PREPARED -> listener?.prepared()
+        PlayState.COMPLETED -> {
+            state.locked = false
+            PlaybackProgress.markFinished()
+            listener?.playNext(true)
+        }
+        PlayState.PREPARING, PlayState.BUFFERING, PlayState.BUFFERED, PlayState.START_ABORT -> Unit
     }
 
     override fun setPlayerState(playerState: Int) {

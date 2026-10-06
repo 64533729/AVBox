@@ -16,6 +16,11 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.lang.ref.WeakReference
 import java.util.HashMap
@@ -31,6 +36,8 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
     private val headlessView: HeadlessView = HeadlessView()
 
     private val main: Handler = Handler(Looper.getMainLooper())
+
+    private val stateScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val progressSink: AppPlayerView.ProgressSink = object : AppPlayerView.ProgressSink {
         override fun saveProgress(url: String?, progress: Long) {
@@ -87,46 +94,48 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         )
         view.setExoDiskCacheEnabled(true)
         view.setProgressSink(progressSink)
-        view.addOnStateChangeListener(object : AppPlayerView.SimpleOnStateChangeListener() {
-            override fun onPlayStateChanged(playState: PlayState) {
-                if (released) return
-                if (playState == PlayState.ERROR) {
-                    LOG.i(
-                        "echo-player error: kernel="
-                            + (if (videoView.mediaPlayer == null) "null" else videoView.mediaPlayer!!.javaClass.simpleName)
-                            + " pos=" + videoView.currentPosition
-                            + " started=" + controller.isPlaybackStarted()
-                            + " url=" + controller.webPlayUrl()
-                    )
-                }
-                if (playState == PlayState.PLAYING) {
-                    if (controller.isConfirmedAudioOnly()) {
-                        videoView.hideVideoFrameCover()
-                    } else {
-                        videoView.showVideoFrame()
-                    }
-                }
-                if (liveMode) return
-                if (playState == PlayState.PLAYING) {
-                    controller.ensureAudioOnlyRender()
-                    controller.onPlayerStateForPreload(playState)
-                }
-                if (playState == PlayState.BUFFERING || playState == PlayState.BUFFERED) {
-                    controller.onPlayerStateForPreload(playState)
-                }
-                if (controller.webPlayUrl() != null && controller.isStartedPlayState(playState)) {
-                    controller.markPlaybackStarted()
-                    if (!released && !videoView.isVideoFrameCleared()) {
-                        activeView().hideTipOnUiThread()
-                    }
-                }
-                if (controller.handlePlayStateForMusicSession(playState)) {
-                    return
-                }
-                activeView().startDanmuIfReady()
-            }
-        })
+        stateScope.launch {
+            view.playStateFlow.collect { playState -> onPlayStateChanged(playState) }
+        }
         return view
+    }
+
+    private fun onPlayStateChanged(playState: PlayState) {
+        if (released) return
+        if (playState == PlayState.ERROR) {
+            LOG.i(
+                "echo-player error: kernel="
+                    + (if (videoView.mediaPlayer == null) "null" else videoView.mediaPlayer!!.javaClass.simpleName)
+                    + " pos=" + videoView.currentPosition
+                    + " started=" + controller.isPlaybackStarted()
+                    + " url=" + controller.webPlayUrl()
+            )
+        }
+        if (playState == PlayState.PLAYING) {
+            if (controller.isConfirmedAudioOnly()) {
+                videoView.hideVideoFrameCover()
+            } else {
+                videoView.showVideoFrame()
+            }
+        }
+        if (liveMode) return
+        if (playState == PlayState.PLAYING) {
+            controller.ensureAudioOnlyRender()
+            controller.onPlayerStateForPreload(playState)
+        }
+        if (playState == PlayState.BUFFERING || playState == PlayState.BUFFERED) {
+            controller.onPlayerStateForPreload(playState)
+        }
+        if (controller.webPlayUrl() != null && controller.isStartedPlayState(playState)) {
+            controller.markPlaybackStarted()
+            if (!released && !videoView.isVideoFrameCleared()) {
+                activeView().hideTipOnUiThread()
+            }
+        }
+        if (controller.handlePlayStateForMusicSession(playState)) {
+            return
+        }
+        activeView().startDanmuIfReady()
     }
 
     fun enterLiveState(): Boolean {
@@ -320,6 +329,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         controller.releaseFetch()
         controller.stopParse()
         controller.stopLoadWebView(true)
+        stateScope.cancel()
         main.removeCallbacksAndMessages(null)
     }
 
@@ -433,8 +443,6 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
 
         override fun requestNotificationPermission() {
         }
-
-        override fun currentPlayState(): Int = if (released) -1 else videoView.currentPlayState
 
         override fun playState(): PlayState = if (released) PlayState.IDLE else videoView.playState
 

@@ -52,7 +52,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
-import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 
 private const val POSITION_TICK_MS = 400L
@@ -111,7 +110,9 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         bridge = MusicPageBridge(this, engine.headlessBridge())
         host = MusicHost()
         engine.attach(this)
-        player.addOnStateChangeListener(stateListener)
+        scope.launch(Dispatchers.Main.immediate) {
+            player.playStateFlow.collect { playState -> onPlayStateChanged(playState) }
+        }
         findViewById<ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme {
                 SheetHostScaffold {
@@ -170,7 +171,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         scope.cancel()
         lyricJob = null
         if (ready) {
-            player.removeOnStateChangeListener(stateListener)
             PlayerTipBridge.hide()
             syncHistory()
             engine.detach(this)
@@ -189,38 +189,36 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         }
     }
 
-    private val stateListener = object : AppPlayerView.SimpleOnStateChangeListener() {
-        override fun onPlayStateChanged(playState: PlayState) {
-            when (playState) {
-                PlayState.PREPARING, PlayState.BUFFERING -> ui.buffering = true
-                PlayState.PREPARED, PlayState.BUFFERED -> ui.buffering = false
-                PlayState.PLAYING -> {
-                    ui.buffering = false
-                    ui.playing = true
-                }
-                PlayState.PAUSED -> {
-                    ui.buffering = false
-                    ui.playing = false
-                }
-                PlayState.COMPLETED -> {
-                    ui.buffering = false
-                    ui.playing = false
-                    onSongCompleted()
-                }
-                PlayState.ERROR -> {
-                    ui.buffering = false
-                    ui.playing = false
-                }
-                PlayState.IDLE, PlayState.START_ABORT -> {}
+    private fun onPlayStateChanged(playState: PlayState) {
+        when (playState) {
+            PlayState.PREPARING, PlayState.BUFFERING -> ui.buffering = true
+            PlayState.PREPARED, PlayState.BUFFERED -> ui.buffering = false
+            PlayState.PLAYING -> {
+                ui.buffering = false
+                ui.playing = true
             }
-            ui.durationMs = player.duration.coerceAtLeast(0L)
-            if (playState == PlayState.PREPARING
-                || playState == PlayState.PREPARED
-                || playState == PlayState.PLAYING
-            ) {
-                refreshMeta()
-                syncLyric()
+            PlayState.PAUSED -> {
+                ui.buffering = false
+                ui.playing = false
             }
+            PlayState.COMPLETED -> {
+                ui.buffering = false
+                ui.playing = false
+                onSongCompleted()
+            }
+            PlayState.ERROR -> {
+                ui.buffering = false
+                ui.playing = false
+            }
+            PlayState.IDLE, PlayState.START_ABORT -> {}
+        }
+        ui.durationMs = player.duration.coerceAtLeast(0L)
+        if (playState == PlayState.PREPARING
+            || playState == PlayState.PREPARED
+            || playState == PlayState.PLAYING
+        ) {
+            refreshMeta()
+            syncLyric()
         }
     }
 

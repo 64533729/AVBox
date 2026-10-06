@@ -21,22 +21,14 @@ import com.github.tvbox.osc.player.host.AudioFocusTarget
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 
 open class AppPlayerView @JvmOverloads constructor(
     context: Context,
     attrs: android.util.AttributeSet? = null,
     defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
-
-    interface OnStateChangeListener {
-        fun onPlayerStateChanged(playerState: Int)
-        fun onPlayStateChanged(playState: PlayState)
-    }
-
-    open class SimpleOnStateChangeListener : OnStateChangeListener {
-        override fun onPlayerStateChanged(playerState: Int) = Unit
-        override fun onPlayStateChanged(playState: PlayState) = Unit
-    }
 
     interface ProgressSink {
         fun saveProgress(url: String?, progress: Long)
@@ -71,18 +63,17 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected var mCurrentPosition = 0L
 
-    protected val mCurrentPlayState: Int
-        get() = mMediaPlayer?.playState?.toLegacy() ?: STATE_IDLE
-
     private var mLastReportedPlayState = PlayState.IDLE
+
+    private val _playStateFlow = MutableSharedFlow<PlayState>(extraBufferCapacity = PLAY_STATE_FLOW_BUFFER)
+
+    val playStateFlow: SharedFlow<PlayState> = _playStateFlow
 
     protected var mCurrentPlayerState = PLAYER_NORMAL
 
     protected var mEnableAudioFocus = true
 
     private var mAudioFocusHelper: PlayerAudioFocus? = null
-
-    protected var mOnStateChangeListeners: MutableList<OnStateChangeListener>? = null
 
     private val audioFocusTarget = object : AudioFocusTarget {
         override fun isPlaybackPlaying(): Boolean = isPlaying
@@ -465,9 +456,6 @@ open class AppPlayerView @JvmOverloads constructor(
     open val videoSize: IntArray
         get() = mVideoSize
 
-    val currentPlayState: Int
-        get() = mCurrentPlayState
-
     fun getCurrentPlayerState(): Int = mCurrentPlayerState
 
     @Suppress("UNUSED_PARAMETER")
@@ -475,7 +463,10 @@ open class AppPlayerView @JvmOverloads constructor(
 
     private fun dispatchPlayState(playState: PlayState) {
         mLastReportedPlayState = playState
-        setPlayState(playState)
+        mVideoController?.setPlayState(playState)
+        if (!_playStateFlow.tryEmit(playState)) {
+            LOG.e("echo-player playState-flow-drop: " + playState)
+        }
     }
 
     private fun reportPlayState() {
@@ -484,42 +475,9 @@ open class AppPlayerView @JvmOverloads constructor(
         dispatchPlayState(state)
     }
 
-    protected fun setPlayState(playState: PlayState) {
-        mVideoController?.setPlayState(playState)
-        mOnStateChangeListeners?.let { listeners ->
-            for (listener in it2snapshot(listeners)) {
-                listener?.onPlayStateChanged(playState)
-            }
-        }
-    }
-
     protected fun setPlayerState(playerState: Int) {
         mCurrentPlayerState = playerState
         mVideoController?.setPlayerState(playerState)
-        mOnStateChangeListeners?.let { listeners ->
-            for (listener in it2snapshot(listeners)) {
-                listener?.onPlayerStateChanged(playerState)
-            }
-        }
-    }
-
-    private fun it2snapshot(source: List<OnStateChangeListener>): List<OnStateChangeListener> {
-        val result = ArrayList<OnStateChangeListener>(source.size)
-        for (item in source) {
-            if (item != null) result.add(item)
-        }
-        return result
-    }
-
-    open fun addOnStateChangeListener(listener: OnStateChangeListener) {
-        val listeners = mOnStateChangeListeners ?: ArrayList<OnStateChangeListener>().also {
-            mOnStateChangeListeners = it
-        }
-        listeners.add(listener)
-    }
-
-    open fun removeOnStateChangeListener(listener: OnStateChangeListener) {
-        mOnStateChangeListeners?.remove(listener)
     }
 
     interface VideoControllerHost {
@@ -631,19 +589,10 @@ open class AppPlayerView @JvmOverloads constructor(
         const val SCREEN_SCALE_ORIGINAL = 4
         const val SCREEN_SCALE_CENTER_CROP = 5
 
-        const val STATE_ERROR = -1
-        const val STATE_IDLE = 0
-        const val STATE_PREPARING = 1
-        const val STATE_PREPARED = 2
-        const val STATE_PLAYING = 3
-        const val STATE_PAUSED = 4
-        const val STATE_PLAYBACK_COMPLETED = 5
-        const val STATE_BUFFERING = 6
-        const val STATE_BUFFERED = 7
-        const val STATE_START_ABORT = 8
-
         const val PLAYER_NORMAL = 10
         const val PLAYER_FULL_SCREEN = 11
         const val PLAYER_TINY_SCREEN = 12
+
+        private const val PLAY_STATE_FLOW_BUFFER = 8
     }
 }
