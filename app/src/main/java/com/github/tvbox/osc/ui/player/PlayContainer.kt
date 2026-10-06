@@ -123,7 +123,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (engine != null) engine!!.attach(this)
     }
 
-
     override fun viewBridge(): PlaybackViewBridge {
         return viewBridge
     }
@@ -257,6 +256,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         initView()
         overlays.initDanmuView()
     }
+
     fun applyDanmuSettings(reload: Boolean) = overlays.applyDanmuSettings(reload)
 
     fun checkDanmu(danmu: String?, callback: DanmuLoadController.LoadCallback?) =
@@ -265,7 +265,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     fun startDanmuIfReady() = overlays.startDanmuIfReady()
 
     fun resetDanmuState() = overlays.resetDanmuState()
-
 
     private fun initView() {
         EventBus.getDefault().register(this)
@@ -307,8 +306,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             if (mVideoView != null) mVideoView!!.pause()
         }
     }
-    fun openDanmuSearchSheet() = overlays.openDanmuSearchSheet()
 
+    fun openDanmuSearchSheet() = overlays.openDanmuSearchSheet()
 
     private fun syncSessionVod() {
         if (mController == null || scheduler == null) return
@@ -593,6 +592,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     private fun limit(value: Float, min: Float, max: Float): Float {
         return Math.max(min, Math.min(max, value))
     }
+
     fun setTip(msg: String, loading: Boolean, err: Boolean) = overlays.setTip(msg, loading, err)
 
     fun hideTip() = overlays.hideTip()
@@ -604,7 +604,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     fun hidePreloadReady() = overlays.hidePreloadReady()
 
     fun errorWithRetry(err: String, finish: Boolean) = overlays.errorWithRetry(err, finish)
-
 
     fun initSubtitleView() {
         if (mVideoView == null) return
