@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
-import android.os.Looper
 import android.text.TextUtils
 import android.provider.OpenableColumns
 import android.view.KeyEvent
@@ -45,7 +44,6 @@ import com.github.tvbox.osc.player.controller.ComposeVideoController
 import com.github.tvbox.osc.player.controller.PlayerControlApi
 import com.github.tvbox.osc.player.danmu.DanmuLoadController
 import com.github.tvbox.osc.player.state.CastSheetState
-import com.github.tvbox.osc.player.state.DanmuSearchSheetState
 import com.github.tvbox.osc.player.state.PlayerUiState
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.state.SelectDialogState
@@ -59,7 +57,6 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.TrackMemory
-import master.flame.danmaku.ui.widget.DanmakuView
 import me.jessyan.autosize.AutoSize
 import me.jessyan.autosize.internal.CustomAdapt
 import org.greenrobot.eventbus.EventBus
@@ -87,11 +84,13 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
 
     private val mContext: Context = activity
 
-    private val tipStateListener: TipStateListener = TipStateListener { onTipStateChanged(it) }
+    private val tipStateListener: TipStateListener = TipStateListener { overlays.onTipStateChanged(it) }
 
     private val viewBridge: PlaybackViewBridge = PlayContainerViewBridge(this)
 
     private val controlListener: PlayContainerControlListener = PlayContainerControlListener(this)
+
+    private val overlays: PlayContainerOverlays = PlayContainerOverlays(this)
 
     private var qualitySelectedListener: OnQualitySelectedListener? = null
 
@@ -101,11 +100,9 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
 
     var mVideoView: MyVideoView? = null
     lateinit var mController: PlayerControlApi
-    private var preloadReadyToast: Toast? = null
-    private var mHandler: Handler? = null
+    internal var mHandler: Handler? = null
     var mExitingPreview: Boolean = false
     private var previewMode: Boolean = false
-    private var mDanmuView: DanmakuView? = null
     var danmuLoadController: DanmuLoadController? = null
     private val exoCues: MutableList<Cue> = ArrayList()
     private var exoInternalSubtitle: Boolean = false
@@ -113,10 +110,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     private var subtitleDecisionSeq: Int = 0
 
     private val videoDuration: Long = -1
-
-    private val refreshPreloadToastRunnable: Runnable = Runnable {
-        if (preloadReadyToast != null) preloadReadyToast!!.show()
-    }
 
     init {
         engine = PlaybackService.engine(activity)
@@ -130,16 +123,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (engine != null) engine!!.attach(this)
     }
 
-    private fun onTipStateChanged(tip: PlayerTipState) {
-        if (mHandler == null) return
-        val showing = tip.loading || tip.err
-        mHandler?.post {
-            if (mController != null) {
-                mController.getUiState().applyTip(tip.msg, tip.loading, tip.err)
-            }
-            if (danmuLoadController != null) danmuLoadController?.setOverlayHidden(showing)
-        }
-    }
 
     override fun viewBridge(): PlaybackViewBridge {
         return viewBridge
@@ -235,7 +218,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         PlayerTipBridge.clearTipStateListener(tipStateListener)
         qualitySelectedListener = null
         if (engine != null && !handedOver) engine!!.detach(this)
-        cancelPreloadToast()
+        overlays.cancelPreloadToast()
         if (EventBus.getDefault().isRegistered(this)) {
             EventBus.getDefault().unregister(this)
         }
@@ -264,53 +247,25 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             applySubtitleTextSize()
         }
         if (event.type == RefreshEvent.TYPE_SET_DANMU_SETTINGS) {
-            setDanmuViewSettings(event.obj is Boolean && event.obj as Boolean)
+            overlays.setDanmuViewSettings(event.obj is Boolean && event.obj as Boolean)
         } else if (event.type == RefreshEvent.TYPE_DANMU_REFRESH) {
-            checkDanmu(if (event.obj is String) event.obj as String else "")
+            overlays.checkDanmu(if (event.obj is String) event.obj as String else "")
         }
     }
 
     private fun init() {
         initView()
-        initDanmuView()
+        overlays.initDanmuView()
     }
+    fun applyDanmuSettings(reload: Boolean) = overlays.applyDanmuSettings(reload)
 
-    private fun initDanmuView() {
-        mDanmuView = findViewById(R.id.danmaku)
-        danmuLoadController = DanmuLoadController(mVideoView, mController, mDanmuView)
-    }
+    fun checkDanmu(danmu: String?, callback: DanmuLoadController.LoadCallback?) =
+        overlays.checkDanmu(danmu, callback)
 
-    private fun setDanmuViewSettings(reload: Boolean) {
-        if (danmuLoadController != null) danmuLoadController!!.applySettings(reload)
-    }
+    fun startDanmuIfReady() = overlays.startDanmuIfReady()
 
-    fun applyDanmuSettings(reload: Boolean) {
-        setDanmuViewSettings(reload)
-    }
+    fun resetDanmuState() = overlays.resetDanmuState()
 
-    private fun checkDanmu(danmu: String?) {
-        checkDanmu(danmu, null)
-    }
-
-    fun checkDanmu(danmu: String?, callback: DanmuLoadController.LoadCallback?) {
-        scheduler.setPlayDanmu(danmu)
-        if (danmuLoadController != null) {
-            val series = if (scheduler.vod() == null) null else scheduler.currentSeries(scheduler.vod()!!.playFlag, scheduler.vod()!!.playIndex)
-            danmuLoadController!!.check(danmu, scheduler.vod()?.name ?: "", series?.name ?: "", callback)
-        }
-    }
-
-    fun startDanmuIfReady() {
-        if (danmuLoadController != null) danmuLoadController!!.startIfReady()
-    }
-
-    fun resetDanmuState() {
-        if (danmuLoadController != null) danmuLoadController!!.reset()
-    }
-
-    fun reloadDanmuForPlayback() {
-        if (danmuLoadController != null) danmuLoadController!!.reloadForPlayback()
-    }
 
     private fun initView() {
         EventBus.getDefault().register(this)
@@ -318,7 +273,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             when (msg.what) {
                 MSG_PARSE_TIMEOUT -> {
                     scheduler.stopParse()
-                    errorWithRetry(mContext.getString(R.string.player_error_sniff), false)
+                    overlays.errorWithRetry(mContext.getString(R.string.player_error_sniff), false)
                 }
             }
             false
@@ -352,20 +307,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             if (mVideoView != null) mVideoView!!.pause()
         }
     }
+    fun openDanmuSearchSheet() = overlays.openDanmuSearchSheet()
 
-    fun openDanmuSearchSheet() {
-        if (!isAttached()) return
-        val series = if (scheduler.vod() == null) null else scheduler.currentSeries(scheduler.vod()!!.playFlag, scheduler.vod()!!.playIndex)
-        val uiState = mController.getUiState()
-        uiState.danmuSearchSheet = DanmuSearchSheetState(
-            series?.name ?: "",
-            scheduler.vod()?.name ?: "",
-        ) { danmu ->
-            if (isAttached()) {
-                checkDanmu(danmu)
-            }
-        }
-    }
 
     private fun syncSessionVod() {
         if (mController == null || scheduler == null) return
@@ -650,75 +593,18 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     private fun limit(value: Float, min: Float, max: Float): Float {
         return Math.max(min, Math.min(max, value))
     }
+    fun setTip(msg: String, loading: Boolean, err: Boolean) = overlays.setTip(msg, loading, err)
 
-    fun setTip(msg: String, loading: Boolean, err: Boolean) {
-        if (!isAttached()) return
-        PlayerTipBridge.setTip(msg, loading, err)
-    }
+    fun hideTip() = overlays.hideTip()
 
-    fun hideTip() {
-        PlayerTipBridge.hide()
-    }
+    fun hideTipOnUiThread() = overlays.hideTipOnUiThread()
 
-    fun hideTipOnUiThread() {
-        if (!isAttached()) return
-        PlayerTipBridge.hide()
-    }
+    fun showPreloadReady() = overlays.showPreloadReady()
 
-    fun showPreloadReady() {
-        val activity = mActivity
-        if (activity == null || !isAttached() || mHandler == null) return
-        if (preloadReadyToast != null) preloadReadyToast!!.cancel()
-        preloadReadyToast = Toast.makeText(activity, activity.getString(R.string.player_next_episode_ready), Toast.LENGTH_SHORT)
-        preloadReadyToast!!.show()
-        mHandler!!.removeCallbacks(refreshPreloadToastRunnable)
-        mHandler!!.postDelayed(refreshPreloadToastRunnable, PRELOAD_TOAST_REFRESH_DELAY_MS)
-    }
+    fun hidePreloadReady() = overlays.hidePreloadReady()
 
-    fun hidePreloadReady() {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            cancelPreloadToast()
-        } else if (mActivity != null) {
-            mActivity!!.runOnUiThread {
-                cancelPreloadToast()
-            }
-        }
-    }
+    fun errorWithRetry(err: String, finish: Boolean) = overlays.errorWithRetry(err, finish)
 
-    private fun cancelPreloadToast() {
-        if (mHandler != null) mHandler!!.removeCallbacks(refreshPreloadToastRunnable)
-        if (preloadReadyToast != null) {
-            preloadReadyToast!!.cancel()
-            preloadReadyToast = null
-        }
-    }
-
-    fun errorWithRetry(err: String, finish: Boolean) {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            mHandler!!.post { errorWithRetry(err, finish) }
-            return
-        }
-        if (scheduler.isPlaybackStarted()) {
-            scheduler.cancelPlayTimeout()
-            hideTipOnUiThread()
-            if (scheduler.retryAfterStartedError()) return
-            scheduler.stopMusicSessionForFailedPlayback()
-            if (!isAttached()) return
-            setTip(err, false, true)
-            if (finish) {
-                Toast.makeText(mContext, err, Toast.LENGTH_SHORT).show()
-            }
-            return
-        }
-        if (!scheduler.autoRetry()) {
-            scheduler.stopMusicSessionForFailedPlayback()
-            if (!isAttached()) return
-            setTip(err, false, true)
-            if (finish) {
-                Toast.makeText(mContext, err, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
 
     fun initSubtitleView() {
         if (mVideoView == null) return
@@ -902,7 +788,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
 
     private fun rebindPlaybackOverlay() {
         initSubtitleView()
-        checkDanmu(scheduler.playDanmu())
+        overlays.checkDanmu(scheduler.playDanmu())
     }
 
     private fun cachedPlayPath(cacheKey: String?): String {
@@ -1006,7 +892,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     }
 
     fun replayCurrentAddress() {
-        reloadDanmuForPlayback()
+        overlays.reloadDanmuForPlayback()
         val url = scheduler.webPlayUrl()
         if (url != null && !url.isEmpty()) {
             scheduler.stopParse()
@@ -1209,7 +1095,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             releasePlayerKernel()
         }
         if (mController != null) mController.stopOther()
-        resetDanmuState()
+        overlays.resetDanmuState()
         scheduler.setWebPlayUrl(null)
         scheduler.setWebHeaderMap(null)
         scheduler.initParseLoadFound()
@@ -1251,6 +1137,5 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     companion object {
 
         private const val MSG_PARSE_TIMEOUT = 100
-        private const val PRELOAD_TOAST_REFRESH_DELAY_MS = 1000L
     }
 }
