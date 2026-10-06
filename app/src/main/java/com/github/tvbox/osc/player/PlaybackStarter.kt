@@ -82,6 +82,8 @@ class PlaybackStarter(private val host: Host) {
 
         fun startSwitchLinePlayTimeout()
 
+        fun setPlayTimeoutBasePosition(position: Long)
+
         fun invalidatePreload()
 
         fun syncDecodeFromGlobal()
@@ -318,7 +320,7 @@ class PlaybackStarter(private val host: Host) {
             } catch (e: JSONException) {
                 LOG.e("PlaybackController", e)
             }
-            st.playTimeoutBasePosition = host.getSavedProgress(host.progressKey())
+            host.setPlayTimeoutBasePosition(host.getSavedProgress(host.progressKey()))
             val forceExoPlayer = targetUrl.startsWith("data:application/dash+xml;base64,")
                 || targetUrl.contains(".mpd") || targetUrl.contains("type=mpd")
             if (targetUrl.startsWith("data:application/dash+xml;base64,")) {

@@ -1,7 +1,6 @@
 package com.github.tvbox.osc.player
 
 import android.text.TextUtils
-import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.ParseBean
@@ -641,6 +640,10 @@ class PlaybackController {
 
         override fun startSwitchLinePlayTimeout() {
             this@PlaybackController.startSwitchLinePlayTimeout()
+        }
+
+        override fun setPlayTimeoutBasePosition(position: Long) {
+            this@PlaybackController.setPlayTimeoutBasePosition(position)
         }
 
         override fun invalidatePreload() {
