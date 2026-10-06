@@ -12,13 +12,11 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
 import okhttp3.Call
-import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 
 open class OkHttpStreamClient(private val configuration: Configuration) :
     AbstractStreamClient<OkHttpStreamClient.Configuration, Call>() {

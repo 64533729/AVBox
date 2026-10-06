@@ -236,9 +236,9 @@ class AbsJson : Serializable {
                 val infoList = ArrayList<Movie.Video.UrlBean.UrlInfo>()
                 val count = Math.min(playFlags.size, playUrls.size)
                 for (i in 0 until count) {
-                    if (playFlags[i].trim().isEmpty() || playUrls[i].trim().isEmpty()) continue
+                    if (playFlags[i].trim { it <= ' ' }.isEmpty() || playUrls[i].trim { it <= ' ' }.isEmpty()) continue
                     val urlInfo = Movie.Video.UrlBean.UrlInfo()
-                    urlInfo.flag = playFlags[i].trim()
+                    urlInfo.flag = playFlags[i].trim { it <= ' ' }
                     urlInfo.urls = playUrls[i]
                     infoList.add(urlInfo)
                 }

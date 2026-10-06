@@ -16,11 +16,11 @@ class Depot {
     private var name: String? = null
 
     fun getUrl(): String {
-        return url?.trim() ?: ""
+        return url?.trim { it <= ' ' } ?: ""
     }
 
     fun getName(): String {
-        val value = name?.trim() ?: ""
+        val value = name?.trim { it <= ' ' } ?: ""
         return if (value.isEmpty()) getUrl() else value
     }
 

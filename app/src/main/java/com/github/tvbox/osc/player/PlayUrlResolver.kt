@@ -199,11 +199,11 @@ class PlayUrlResolver(private val host: Host) {
         if (headerMap != null) PlaybackController.putHeaders(headers, headerMap)
         if (dataHeaderMap != null) PlaybackController.putHeaders(headers, dataHeaderMap)
         val ua = playData.optString("user-agent", jsonPlayData.optString("user-agent", ""))
-        if (ua.trim().isNotEmpty()) {
+        if (ua.trim { it <= ' ' }.isNotEmpty()) {
             headers.put("User-Agent", " $ua")
         }
         val referer = playData.optString("referer", jsonPlayData.optString("referer", ""))
-        if (referer.trim().isNotEmpty()) {
+        if (referer.trim { it <= ' ' }.isNotEmpty()) {
             headers.put("Referer", " $referer")
         }
         val taskResult = JSONObject()
@@ -276,7 +276,7 @@ class PlayUrlResolver(private val host: Host) {
                                 continue
                             }
                             if (key.equals("user-agent", ignoreCase = true)) {
-                                host.setWebUserAgent(value!!.trim())
+                                host.setWebUserAgent(value!!.trim { it <= ' ' })
                             } else {
                                 reqHeaders[key] = value!!
                             }
@@ -326,7 +326,7 @@ class PlayUrlResolver(private val host: Host) {
                                 host.setWebHeaderMap(headers)
                                 if (headers != null) {
                                     host.setWebUserAgent(PlaybackController.headerValue(headers, "user-agent"))
-                                    host.webUserAgent()?.let { host.setWebUserAgent(it.trim()) }
+                                    host.webUserAgent()?.let { host.setWebUserAgent(it.trim { it <= ' ' }) }
                                 }
                                 loadWebView(DefaultConfig.checkReplaceProxy(rs.getString("url")))
                             } else {
@@ -430,7 +430,7 @@ class PlayUrlResolver(private val host: Host) {
                 } else {
                     if (rs.has("parse") && rs.optInt("parse", 0) == 1) {
                         if (rs.has("ua")) {
-                            host.setWebUserAgent(rs.optString("ua").trim())
+                            host.setWebUserAgent(rs.optString("ua").trim { it <= ' ' })
                         }
                         if (host.view() != null) {
                             val bridge = host.view()!!
@@ -465,7 +465,7 @@ class PlayUrlResolver(private val host: Host) {
                 } else {
                     if (rs.has("parse") && rs.optInt("parse", 0) == 1) {
                         if (rs.has("ua")) {
-                            host.setWebUserAgent(rs.optString("ua").trim())
+                            host.setWebUserAgent(rs.optString("ua").trim { it <= ' ' })
                         }
                         val mixParseUrl = DefaultConfig.checkReplaceProxy(rs.optString("url", ""))
                         if (host.view() != null) {

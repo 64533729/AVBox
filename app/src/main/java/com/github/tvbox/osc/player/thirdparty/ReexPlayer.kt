@@ -66,7 +66,7 @@ class ReexPlayer {
                 try {
                     val json = JSONObject()
                     for (key in headers.keys) {
-                        json.put(key, headers[key]!!.trim())
+                        json.put(key, headers[key]!!.trim { it <= ' ' })
                     }
                     intent.putExtra("reex.extra.http_header", json.toString())
                 } catch (e: JSONException) {

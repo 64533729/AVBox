@@ -37,7 +37,7 @@ class WebParseUseCase {
      */
     fun evaluateScript(sourceBean: SourceBean?, url: String?, webView: WebView?) {
         if (sourceBean == null || url == null) return
-        var clickSelector = sourceBean.clickSelector?.trim() ?: ""
+        var clickSelector = sourceBean.clickSelector?.trim { it <= ' ' } ?: ""
         clickSelector = if (clickSelector.isEmpty()) VideoParseRuler.getHostScript(url) else clickSelector
         if (clickSelector.isNotEmpty()) {
             val selector: String
@@ -46,9 +46,9 @@ class WebParseUseCase {
                 if (!url.contains(parts[0])) {
                     return
                 }
-                selector = parts[1].trim()
+                selector = parts[1].trim { it <= ' ' }
             } else {
-                selector = clickSelector.trim()
+                selector = clickSelector.trim { it <= ' ' }
             }
             // 构造点击的 JS 代码
             val js = selector

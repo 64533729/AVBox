@@ -292,7 +292,7 @@ object PreloadManagerHolder {
         val sorted = TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER)
         for ((key, value) in headers) {
             if (key != null && value != null) {
-                sorted[key.trim()] = value.trim()
+                sorted[key.trim { it <= ' ' }] = value.trim { it <= ' ' }
             }
         }
         val sb = StringBuilder()

@@ -93,7 +93,7 @@ class DanmuLoadController(
     fun check(danmu: String?, title: String?, episode: String?, callback: LoadCallback?) {
         loadCallback = callback
         temporarilyClosed = false
-        danmuText = if (TextUtils.isEmpty(danmu)) "" else danmu!!.trim()
+        danmuText = if (TextUtils.isEmpty(danmu)) "" else danmu!!.trim { it <= ' ' }
         danmuTitle = if (TextUtils.isEmpty(title)) "" else title!!
         danmuEpisode = if (TextUtils.isEmpty(episode)) "" else episode!!
         releaseView()

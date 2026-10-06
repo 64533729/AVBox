@@ -62,7 +62,7 @@ class Parser : BaseDanmakuParser {
     private fun resolveContent(input: String?): String {
         if (isCancelled()) return ""
         if (TextUtils.isEmpty(input)) return ""
-        val source = input!!.trim()
+        val source = input!!.trim { it <= ' ' }
         if (source.startsWith("file")) return FileUtils.read(source)
         if (source.startsWith("http")) {
             try {

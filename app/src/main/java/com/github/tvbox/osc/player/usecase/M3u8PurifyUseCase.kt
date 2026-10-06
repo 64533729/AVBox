@@ -87,11 +87,11 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
         // 于是第一个 #EXT-X-STREAM-INF 出现在第 50 行之后会被漏识别(master 被当媒体列表),第 49 行则会拼出跨行畸形 URL
         val lines = RegexUtils.getPattern("\\r?\\n").split(content, -1)
         for (i in lines.indices) {
-            val line = lines[i].trim()
+            val line = lines[i].trim { it <= ' ' }
             if (line.startsWith("#EXT-X-STREAM-INF")) {
                 // 只需要找接下来的几行
                 for (j in i + 1 until lines.size) {
-                    val targetLine = lines[j].trim()
+                    val targetLine = lines[j].trim { it <= ' ' }
                     if (targetLine.isEmpty()) continue
                     if (isValidM3u8Line(targetLine)) {
                         return resolveForwardUrl(baseUrl, targetLine)

@@ -5,7 +5,6 @@ import android.util.Base64
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.api.DanmakuApi
-import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
@@ -18,7 +17,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
-import java.util.HashMap
 import java.util.Locale
 
 /**
@@ -138,7 +136,7 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 }
                 // 取流成功,手动选线标记完成使命,后续失败恢复走正常自动策略
                 controller.setUserPickedLine(false)
-                val danmaku = info.optString("danmaku", "").trim()
+                val danmaku = info.optString("danmaku", "").trim { it <= ' ' }
                 val danmuProgressKey = controller.progressKey()
                 controller.setWebUserAgent(null)
                 controller.setWebHeaderMap(null)
@@ -146,7 +144,7 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 if (headers != null) {
                     controller.setWebHeaderMap(headers)
                     val ua = PlaybackController.headerValue(headers, "user-agent")
-                    controller.setWebUserAgent(if (ua == null) null else ua.trim())
+                    controller.setWebUserAgent(if (ua == null) null else ua.trim { it <= ' ' })
                 }
                 if (parse || jx) {
                     val userJxList = (playUrl.isEmpty() && (ApiConfig.get().getVipParseFlags() ?: mutableListOf()).contains(flag)) || jx
