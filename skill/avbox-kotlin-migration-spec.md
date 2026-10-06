@@ -812,11 +812,14 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 13. **Tier A 的"真实回归"应该用反汇编枚举引用面，而不是只跑一遍**：`dexdump -d` 反汇编 jar 后 `grep` 出 `Lcom/github/catvod/...;->成员` 即得**必须存在的成员清单**，可逐条到新字节码验证 —— 比"点开源看崩不崩"覆盖更全、可复现。
 14. **契约层迁移的"由内向外"顺序有效**：先 `crawler/js/*`（无 jar 直连），再 `SpiderDebug/SpiderNull/IPyLoader/OkDns`，再 `Spider/SpiderApi`，最后 `JarLoader/JsLoader/OkHttp/Proxy`；每步都构建 + 单测 + `javap`，`Spider` 那一步单独核对 Tier A 清单。
 
-## 审查轮（2026-10-06，两个独立只读子代理逐方法对账）
+## 审查轮（2026-10-06，三个独立只读子代理逐方法对账）
 
 - **A（契约与加载器：`Spider`/`SpiderApi`/`JarLoader`/`JsLoader`）**：**阻断 0 / 高 0 / 中 0**；2 条低 + 1 条口味 —— `JarLoader`/`JsLoader` 的 md5 `trim()` 未对齐（**已修**）；`Spider` 三个非空入参（`pg`/`id`/`action`）的 `checkNotNullParameter`，调用点全传非空且 jar 覆盖后不执行基类体 ⇒ 不可达；`proxyInvoke` 的 `!!` NPE 点位差异。
 - **B（JS 桥与网络栈：`JsSpider`/`Global`/`Connect`/`HtmlParser`/`Trans`/`Json`/`Req`/`Res`/`Crypto`/`Async`/`FunCall`/`local`/`OkHttp`/`Proxy`）**：**阻断 0**；1 条高 + 1 条中（都是 `trim()` 语义 —— `HtmlParser.parseDomForList` 的列表文本、`Json.safeString` 的 header 值，**已修**）+ 2 条低 + 1 条口味。B 另逐点确证等价：split 全走 `RegexUtils.getPattern(x).split(y)`、字符集/locale 全对齐、`replaceAll(regex,"$1")` ≡ `Regex.replace(...,"\$1")`、反射 vararg 全 `*args`、okhttp 5 替换的 null 边界与抛点一致。
-- **收敛结论**：修完 `trim()` 后复跑构建 + 单测 + `javap`（655/0/0/1、旧有新无 = 0）；剩余发现全部属**低（不可达或仅异常类型/点位）**或**口味** ⇒ 达到计划的收敛终止线。逐条见 `skill/review/review-20261006-m9.md`。
+- **C（第三角度：装箱比较/数值解析与进制/字符串 API 边界/集合迭代顺序/反射与类初始化时点/异常控制流，并逐例复核那 6 处 `trim`）**：**本轮无 阻断/高/中**；仅 2 条低/口味 —— `Connect.cancelByTag` 的 `tag!!` 被我提到 `if (client != null)` 之外（Java 只在分支内解引用，**已修** `28fad04`）；`SpiderDebug` 的 `"" + msg`（Android 对 null msg 同样渲染 `null`，且是 `LOG.kt` 既有写法，登记不改）。C 另逐点确证：装箱 `==`/拆箱点、`toInt()` ≡ `Integer.parseInt`、`and 0xFF` ≡ `& 0xFF`、Base64 flag 组合、`ArrayList(rules.toList())` ≡ `new ArrayList<>(Arrays.asList(...))`、`getMethod`/`getDeclaredConstructor`/`declaredClasses`/`getMethods` 同源同序、`switch`→`when else`、companion 初始化顺序全部一致；`it <= ' '` 与 Java `String.trim()` 在空串/全空白/单字符/单端空白/U+00A0/U+3000 逐例等价。
+- **收敛结论**：第 3 轮（修复后的干净轮）**无 阻断/高/中**，剩余全属低（不可达或仅异常类型/点位）或口味 ⇒ **达到计划的收敛终止线**。逐条见 `skill/review/review-20261006-m9.md`。
+
+- **⚠️ 一条给后续契约类里程碑的方法论**：三轮里**唯一**被两个不同角度同时命中的真问题族是「**Java 与 Kotlin 同名 API 的语义差**」（`trim` 6 处）；这类问题的特征是「编译通过、常规输入无感、边界输入才偏」。所以**别只按"文件"分工复核，要按"API 语义轴"分工**（split/trim/字符集/locale/装箱/数值解析/集合顺序/反射时点各一轮），覆盖面比按文件扫更全。
 
 ## Tier B 变化（D9）
 
