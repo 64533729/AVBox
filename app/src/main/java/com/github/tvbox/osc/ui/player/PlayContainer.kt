@@ -241,6 +241,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
 
     fun resetDanmuState() = overlays.resetDanmuState()
 
+    fun reloadDanmuForPlayback() = overlays.reloadDanmuForPlayback()
+
     private fun initView() {
         EventBus.getDefault().register(this)
         mHandler = Handler { msg ->
@@ -310,6 +312,10 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     fun setSubtitle(path: String?) = subtitles.setSubtitle(path)
 
     fun selectMySubtitle() = subtitles.selectMySubtitle()
+
+    fun setSubtitleViewTextStyle(style: Int) = subtitles.setSubtitleViewTextStyle(style)
+
+    fun selectMyInternalSubtitle() = subtitles.selectMyInternalSubtitle()
 
     override fun onLocalSubtitlePicked(uri: Uri) = subtitles.onLocalSubtitlePicked(uri)
 
