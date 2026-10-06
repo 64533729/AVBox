@@ -28,7 +28,7 @@
 | `R.string.` / `getString(R.string.)` 引用 | 盘点时 **0 处**；实施后 **424 处**(`i18n_check_keys.py`：声明=引用) |
 | `res/xml/` | 无 `locales_config.xml`;manifest 无 `android:localeConfig` |
 | 语言设置入口 | 盘点时无；实施后 = 偏好设置页顶部 `LanguageRow`(白名单**按步放开**,四语已全部放开:「跟随系统 / 简体中文 / English / 繁體(台灣) / 繁體(香港)」)。`Trans` 门控已随第 3 步改为跟随应用语言(§4.5) |
-| layout XML 硬编码文本 | 0 处(全项目只有 `activity_main.xml` / `view_play_container.xml`)；实施后复核:除 `strings.xml` 外 `res/*.xml` 无文案 |
+| layout XML 硬编码文本 | 0 处(全项目只有 `view_play_container.xml`)；实施后复核:除 `strings.xml` 外 `res/*.xml` 无文案 |
 | 平台条件 | minSdk 24 / targetSdk 37 / compileSdk 37;appcompat 已在依赖;`supportsRtl="true"` 已声明 |
 
 ### 1.2 文案规模

@@ -10,13 +10,16 @@ import android.os.Bundle
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.View
+import android.view.ViewGroup
 
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.PermissionChecker
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
+import com.github.tvbox.osc.R
 import com.github.tvbox.osc.ui.WindowSize
 import com.github.tvbox.osc.util.AppManager
 import com.github.tvbox.osc.util.LanguageManager
@@ -66,7 +69,13 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
             window.setNavigationBarContrastEnforced(false)
             window.setStatusBarContrastEnforced(false)
         }
-        setContentView(getLayoutResID())
+        setContentView(ComposeView(this).apply {
+            id = R.id.compose_view
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        })
         mContext = this
         initSystemUiListener()
         CutoutUtil.adaptCutoutAboveAndroidP(mContext!!, true)
@@ -213,8 +222,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         }
         return has
     }
-
-    protected abstract fun getLayoutResID(): Int
 
     protected abstract fun init()
 

@@ -18,8 +18,6 @@ class PreferenceSettingsActivity : BaseActivity() {
         }
     }
 
-    override fun getLayoutResID(): Int = R.layout.activity_main
-
     override fun shouldRefreshAutoSize(): Boolean = true
 
     override fun hideSysBar() {

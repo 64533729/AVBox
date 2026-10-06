@@ -88,8 +88,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     private var lyricSource: String? = null
     private var lyricJob: Job? = null
 
-    override fun getLayoutResID(): Int = R.layout.activity_main
-
     override fun shouldRefreshAutoSize(): Boolean = true
 
     override fun hideSysBar() {}
