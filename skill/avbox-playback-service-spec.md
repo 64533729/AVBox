@@ -6,6 +6,7 @@
 > 触发背景:2026-09-14 hprof 取证(`memory/2026-09-14.md`)——详情页快速换页 = 每页整套 ExoPlayer + 内部线程 + Looper + 文件句柄新建、退出仅异步释放;12 次进出后滞留 12 套详情页对象图、36 个 ExoPlayer、249 线程、RSS 692MB,finalizer 积压 97%。已定**沿用 fongmi 的播放器所有权模型**。
 > 参考实现 = fongmi/OK 影视 的本地只读副本(**只读参考,不改**)。
 > 本文只描述"怎么搬";是否执行、按哪几阶段执行由 §7 决策记录拍板。
+> ⚠️ **播放栈实现口径已换代(2026-10-06)**:本文"内核抽象 = dkplayer `AbstractPlayer`(Exo/IJK 双内核)"一类**实现层描述已作废** —— M7(D12 / A 路线)已把 doikki fork 整体替换为 app 内自研 Kotlin 栈(`osc.player` + `osc.player.engine`,唯一内核 = media3 `ExoPlayer`),M10 已删除 `player` 模块与 `dkplayer-ui`。**仍然有效**的是:所有权模型(播放器归前台服务、页面只挂摘视图)、挂摘协议、媒体会话/通知语义、§4 真机验收清单。实现细节以 `avbox-kotlin-migration-spec.md` §7.13–§7.21 与 `review/refactor-plan-20261005.md` §5 M7/M10 为准。
 
 ## 0. 摘要
 

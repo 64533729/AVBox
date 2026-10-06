@@ -837,6 +837,35 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 5. **`spider.Danmu`（数据类）与 `PanWebShare*` 等网盘源的真实调用**未验（需真实站点与账号）。
 6. **`OkHttp.reset()/resetClient()` 的 Class 锁在 release 混淆下**未验（debug 侧已确证锁对象一致）。
 
+# 7.21 M10 实测登记（2026-10-06，旧播放骨架拆除：`player` 模块 + `dkplayer-ui` + 残留）
+
+**性质**：本里程碑**不是迁移**（D12 已把 `player` 模块 27 Java 判为"整体替换删除"，不迁 Kotlin），是**纯拆除**。判据 = `player/` 目录与 Gradle include 均不存在，而非"Java 计数为 0"。
+
+**交付**（35 个受版本控制文件删除 + 6 处配置改动）：
+- 删 `player/` 整模块（27 Java / 5313 行 + `res/values/attrs.xml` + `jniLibs/arm64-v8a/*.so` ×3 + `proguard-rules.pro` + `.gitignore`）；
+- `settings.gradle.kts` 删 `include(":player")`；`app/build.gradle.kts` 删 `implementation(project(":player"))`；
+- `gradle/libs.versions.toml` 删 `dkplayerUi = "3.3.7"` 与 `dkplayer-ui = { … }`；
+- `.github/dependabot.yml` 删 `xyz.doikki.android.dkplayer:*` 忽略项（M7-0 已删 `api(libs.dkplayer.ui)`，此处是依赖项彻底清零）；
+- `gradle.properties` 的 `nonTransitiveRClass` 注释去掉 dkplayer 措辞。
+
+**⚠️ 两处计划未列的隐藏耦合（本轮最重要的发现，拆除类里程碑必查）**：
+1. **`api(...)` 传递依赖会在删模块时整批消失**。`app/build.gradle.kts` 原本只声明 `media3-effect`，其余 9 项 media3（`exoplayer` / `-dash` / `-hls` / `-rtsp` / `datasource` / `datasource-rtmp` / `database` / `ui` / `ffmpeg-decoder`）全靠 `:player` 的 `api` 暴露 ⇒ 直接删模块**编译期即炸**。已按 player 的 `api` 清单逐项搬进 app 的 `implementation`（保持同一运行时类路径）。**判据不是"app 源码有没有 import"，而是"依赖是从哪一层传递来的"** —— `implementation(project(":x"))` 会继承 `:x` 的 `api` 面，但**不继承**它的 `implementation` 面（`okhttp`/`androidx.annotation` 因此不需要搬）。
+2. **清单权限会随模块删除静默消失**。`WAKE_LOCK` 此前**只在 `player/src/main/AndroidManifest.xml` 声明**，而 app 侧 `PlaybackService.kt:431` 用 `PowerManager.newWakeLock(PARTIAL_WAKE_LOCK, …)` ⇒ 删模块后运行时 `SecurityException`，**编译期与单测都发现不了**。已补进 app manifest。**通用做法：删模块前把该模块清单的 `uses-permission`/`uses-feature`/`<application>` 子项逐条与 app manifest 对账**（本例 5 条权限中 app 已有 4 条，只差 `WAKE_LOCK`）。
+3. jniLibs 归位（M7e 复核轮已预告）：`player/src/main/jniLibs/arm64-v8a/{libp2p.so, libxl_stat.so, libxl_thunder_sdk.so}` → `app/src/main/jniLibs/arm64-v8a/`，md5 逐个一致；`P2PClass` 的 `System.loadLibrary("p2p")` 不再断。
+
+**实测**：`:app:assembleDebug` **BUILD SUCCESSFUL**；`:app:testDebugUnitTest` **655 用例 / 0 失败 / 0 错误 / 1 跳过（82 suite）**（与 M9 基线持平 —— 纯拆除无新增用例）；改动文本文件全 LF（`i/crlf` = 0）。
+
+**断言实测（可复现）**：
+- `xyz.doikki` 在 `settings.gradle.kts` / `*.toml` / `*.pro` **零命中**；`app/src` **零 import、零代码引用**，仅剩 **8 行 KDoc 溯源注释**（7 文件：`player/ExoPlayer.kt` 2 行 + `player/AppPlayerView.kt`/`player/KernelPlayer.kt`/`player/MyVideoView.kt`/`player/host/PlayerRenderView.kt`/`util/PlayerUtils.kt`/`util/CutoutUtil.kt` 各 1 行，内容为"取代 fork 的 X / 移植自 doikki Y"）—— 判定为**有价值的设计溯源，保留不动**。
+- **dex 层（debug APK，29 个 `classes*.dex`）零 `xyz/doikki`、零 `BaseVideoController`/`AbstractPlayer`/`dkplayer` 串**，APK 路径条目零 doikki/dkplayer；**对照 `com/github/catvod/crawler/Spider` 有命中**，证明检索口径有效（`unzip -p` 取 dex 后 `grep -a`）。检索命令：`unzip -o -q app/build/outputs/apk/debug/AVBox_debug.apk 'classes*.dex' -d <tmp> && grep -a -o "xyz/doikki[a-zA-Z0-9/]*" <tmp>/classes*.dex`。
+- 依赖归位实证：APK 含 `libffmpegJNI.so`（jellyfin 软解）与 `librtmp-jni.so`（RTMP）；merged manifest 含 `WAKE_LOCK`。
+
+**与计划的偏差（已登记）**：① 计划拆除清单列了「`app/proguard-rules.pro` 中 `xyz.doikki` 相关 keep 规则」，**实测该文件无任何 doikki 专属规则** —— 唯一保留 fork 类的是通用 `-keep public class * extends android.view.View`（`app/proguard-rules.pro:61`），模块删除后自然失效 ⇒ 该项**无事可做**，proguard 未改（原计划把它当成"需清理的 keep 规则"是误判）；② 断言原写「`app/src` 零命中」，实测有 8 行 KDoc（M7e 已声明该口径），按上文保留。
+
+**未验证面（诚实标注）**：① **`:app:assembleRelease` 未跑**（需用户明确许可）⇒ release 侧 dex 清零与 R8/keep 覆盖只做了推理（模块不在类路径 ⇒ 无从保留），未实测；② **真机冒烟未做** —— 重点两条链是 **P2P/迅雷（原生库 `libp2p.so`）** 与 **软解 ffmpeg（`libffmpegJNI.so`）**，另需按 `avbox-playback-service-spec.md` §4 清单走查点播起播/切集/全屏旋转/手势/清晰度/字幕/弹幕/直播/音乐通知/DLNA 投屏；③ 计划前置「M7 全切片真机走查无回归」按 §5 M7 记录**仅手势已走查** ⇒ 本轮删除了 fork 源码这个回退面，回滚须走 `git revert`。
+
+**顺带同步的文档（M10 直接证伪的断言）**：`skill/avbox-code-review-spec.md` 的"技术栈实况"（语言构成 / 模块清单 / 播放内核 / 排除范围四处）、`skill/SKILL.md` 的迁移规范条目与"契约层"高危约束（去掉 `player` 模块与 `xyz.doikki.videoplayer.**`）、`skill/avbox-playback-service-spec.md` 顶部加"播放栈实现口径已换代"横幅（该 spec 自 M7 起实现层描述已作废，全量重写仍未做）。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。

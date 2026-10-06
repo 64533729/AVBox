@@ -59,7 +59,7 @@ description: 项目规则、通用原则、通用代码规范、交付验证与�
 | `skill/history/features.md` | **历史归档**：2026-09-09 起功能迭代记录（下拉刷新、隧道模式+AAC、配置管理页、主题设置页、顶栏改造、选集溢出修复、快搜删除、卡片点击分发…） | 按需检索：某功能当初怎么实现、为什么这么定、踩过什么坑 |
 | `skill/history/preload-toast-deadlock.md` | **排查归档(根因已证;2026-09-27 已按方案 A 改磁盘预缓存,待真机验证)**：拖动进度条后预载 toast 概率不出现 = media3 1.11.1 预载完成死锁(时长目标 vs 32MB 字节闸门互不收敛,静默无回调);含源码证据链、撞顶码率阈值、修复选项 A/B/C、A 的实施方案(headers/cache key/mimeType 三处桥接)与真机验证判据 | 改动**预载/`PreloadManagerHolder`/`PreloadCoordinator`/预载读盘链路** 前必读;验证预载"完成/命中"类问题先读 |
 | `skill/avbox-code-review-spec.md` | **代码审查 Spec**：把本文件整份当提示词喂给 AI 做**只读**审查。含角色定义与技术栈实况、既定约定(报了即误报)、高危约束、快速/深度(三批)模式与分批策略、审查清单与硬阈值(文件 >500 行 / 方法 >100 行 / 重复 ≥3 次 / 门面被 ≥20 文件依赖)、输出格式(第 0–6 节 + **附录 A 度量盘点** + **附录 B 上轮对账**)、审查者禁止事项、**审查收敛终止线** | 要做代码审查、或判断"本轮审查能否收尾"时**必读**；判断标准以文末「审查收敛」为准 |
-| `skill/avbox-kotlin-migration-spec.md` | **活规范**：Java→Kotlin 迁移转换规范——M0 实测基线、每切片流程与卡口、Kotlin 静态/字段/构造器转换细则、契约层（`catvod`/`player` 模块）逐条清单、Gson×data class 规范、并发不变量、`skill/scripts/verify-migration.ps1` 用法 | 任何 Java→Kotlin 迁移、改动 `com.github.catvod.**`/`xyz.doikki.videoplayer.**`、或改动被动态 jar / 第三方 AAR 按名字访问的宿主静态面前**必读** |
+| `skill/avbox-kotlin-migration-spec.md` | **活规范**：Java→Kotlin 迁移转换规范——M0 实测基线、每切片流程与卡口、Kotlin 静态/字段/构造器转换细则、契约层（`catvod`）逐条清单、Gson×data class 规范、并发不变量、`skill/scripts/verify-migration.ps1` 用法 | 改动 `com.github.catvod.**`、或改动被动态 jar / 第三方 AAR 按名字访问的宿主静态面前**必读** |
 | `skill/review/` | **审查报告存档**：`review-<YYYYMMDD>-batch<N>.md`(分批审查报告)与 `refactor-plan-*.md`(重构计划)；同批修复轮记录追加在同一文件(内容 = 改了哪些条目 / 构建与单测结果 / 回归面清单) | 接手上一轮审查结论、需要出「附录 B 上轮对账」时**必读** |
 | 本地参考代码（只读） | 上游 TVBox 与 fongmi/OK影视 的本地副本 | 需要对照上游实现时（**只读参考，不改**） |
 
@@ -86,5 +86,5 @@ Select-String -Path skill\history\features.md -Pattern '配置管理页' -Contex
 - **配置驱动的 header 必须过字符集过滤**（`ConfigParser.isHeaderNameSendable`/`isHeaderValueSendable`）：OkHttp 在构造请求时校验，越界抛 `IllegalArgumentException`，而站点请求分支没有 try/catch ⇒ 一份带中文 header 的配置会把 App 带崩（spec §6.12）。
 - **规则表只能在 `parseJson` 入口清**（`VideoParseRuler.clearRule()`）：放进 `resetConfigData()` 会让换源失败时规则真空（在播内容广告回归/click 失效）；只在 `has("rules")` 时清则跨源残留（spec §6.12）。
 - **崩溃标记只由"可能与源有关"的崩溃写入**（`BootGuard.looksSourceRelated` 的白名单 `IGNORABLE_FRAME_PREFIXES` 是唯一旋钮；无帧/判不出按"有关"）：放宽它等于让坏源重新把应用锁进启动崩溃。没有崩溃标记的启动会把 `BOOT_LOADING_COUNT` 清零（spec §6.13）。
-- **契约层（`com.github.catvod.**` 与 `player` 模块 `xyz.doikki.videoplayer.**`）迁移后签名必须逐成员不变**：`open`/`@JvmStatic`/`@JvmField`/`@JvmOverloads` 只是手段，判据是 `javap -p -s` 输出等价；漏一处表现为"启动正常、点开该类源/该播放路径才崩"（细则见 `skill/avbox-kotlin-migration-spec.md` §3.2）。
+- **契约层（`com.github.catvod.**`）迁移后签名必须逐成员不变**：`open`/`@JvmStatic`/`@JvmField`/`@JvmOverloads` 只是手段，判据是 `javap -p -s` 输出等价；漏一处表现为"启动正常、点开该类源才崩"（细则见 `skill/avbox-kotlin-migration-spec.md` §3.2）。
 - **交给爬虫的 proxy 参数值必须全 ASCII**（`JarLoader.proxyInvoke` 调 jar 前从副本剔除客户端专用参数 `siteKey`）：`/proxy` 的 params 会把播放器请求头并进来，第三方 jar 会把它**当 header 原样透传给上游**，值里有中文（如中文站点 key）即被 OkHttp 以 `Unexpected char` 拒绝、最终兜底成 HTTP 500，表现为"网盘源播放出错"且 logcat 无任何 App 日志（spec §6.12）。
