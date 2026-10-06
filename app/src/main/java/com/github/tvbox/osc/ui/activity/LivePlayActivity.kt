@@ -107,24 +107,20 @@ class LivePlayActivity : BaseActivity() {
     internal var mVideoView: MyVideoView? = null
     private var liveController: ComposeLiveController? = null
     private val mHandler = Handler(Looper.getMainLooper())
-    private val liveChannelGroupList = ArrayList<LiveChannelGroup>()
+    internal val liveChannelGroupList = ArrayList<LiveChannelGroup>()
     internal var currentChannelGroupIndex: Int by VmVar(LivePlayViewModel::currentChannelGroupIndex)
     internal var currentLiveChannelIndex: Int by VmVar(LivePlayViewModel::currentLiveChannelIndex)
     internal var currentLiveLookBackIndex = -1
-    private var currentLiveChangeSourceTimes = 0
+    internal var currentLiveChangeSourceTimes = 0
     internal var currentLiveChannelItem: LiveChannelItem? = null
-    private var pendingLiveRefreshChannelName: String? = null
-    private var pendingLiveRefreshSourceIndex = -1
-    private var refreshingLiveChannelList = false
-    private val livePlayerManager = LivePlayerManager()
-    private val channelGroupPasswordConfirmed = ArrayList<Int>()
+    internal val livePlayerManager = LivePlayerManager()
+    internal val channelGroupPasswordConfirmed = ArrayList<Int>()
     internal var channelName: LiveChannelItem? = null
     internal var epgdata = ArrayList<Epginfo>()
     internal var logoUrl: String? = null
     internal var isSHIYI = false
-    private var selectedChannelGroupIndex = 0
+    internal var selectedChannelGroupIndex = 0
     private var exitingLivePlay = false
-    private var loadingLiveConfigOnEnter = false
     private var liveSettingGroupList: List<LiveSettingGroup> = ArrayList()
     private var nowday = Date()
 
@@ -147,21 +143,7 @@ class LivePlayActivity : BaseActivity() {
 
     internal val catchupController = LiveCatchupController(this)
 
-    private val proxyLoader = LiveProxyLoader(object : LiveProxyLoader.Host {
-        override fun isRefreshing(): Boolean = refreshingLiveChannelList
-
-        override fun onLoading() {
-            pageState = PageState.LOADING
-        }
-
-        override fun onEmpty() {
-            setEmptyLiveChannelList()
-        }
-
-        override fun onGroupsLoaded(groups: List<LiveChannelGroup>) {
-            applyLiveChannelGroups(groups)
-        }
-    })
+    internal val channelSourceLoader = LiveChannelSourceLoader(this, mHandler)
 
     override fun shouldRefreshAutoSize(): Boolean = true
 
@@ -197,7 +179,7 @@ class LivePlayActivity : BaseActivity() {
                 }
             }
         }
-        initLiveChannelList()
+        channelSourceLoader.initLiveChannelList()
         initLiveSettingGroupList()
     }
 
@@ -226,7 +208,7 @@ class LivePlayActivity : BaseActivity() {
         mVideoView = null
         mHandler.removeCallbacksAndMessages(null)
         epgController.cancelAll()
-        proxyLoader.cancelAll()
+        channelSourceLoader.cancelAll()
     }
 
     private fun initVideoView() {
@@ -376,7 +358,7 @@ class LivePlayActivity : BaseActivity() {
         ) {
             return true
         }
-        val groupChannels = getLiveChannels(channelGroupIndex)
+        val groupChannels = channelSourceLoader.getLiveChannels(channelGroupIndex)
         if (groupChannels == null || groupChannels.isEmpty() || liveChannelIndex < 0 || liveChannelIndex >= groupChannels.size) {
             return false
         }
@@ -385,7 +367,7 @@ class LivePlayActivity : BaseActivity() {
         if (!changeSource) {
             currentChannelGroupIndex = channelGroupIndex
             currentLiveChannelIndex = liveChannelIndex
-            currentLiveChannelItem = getLiveChannels(currentChannelGroupIndex)?.get(currentLiveChannelIndex)
+            currentLiveChannelItem = channelSourceLoader.getLiveChannels(currentChannelGroupIndex)?.get(currentLiveChannelIndex)
             KV.put(HawkConfig.LIVE_CHANNEL, currentLiveChannelItem?.channelName ?: "")
             scrollTick++
         }
@@ -449,7 +431,7 @@ class LivePlayActivity : BaseActivity() {
         playChannel(currentChannelGroupIndex, currentLiveChannelIndex, true)
     }
 
-    private val mConnectTimeoutChangeSourceRun = Runnable {
+    internal val mConnectTimeoutChangeSourceRun = Runnable {
         currentLiveChangeSourceTimes++
         if (currentLiveChannelItem?.sourceNum == currentLiveChangeSourceTimes) {
             currentLiveChangeSourceTimes = 0
@@ -467,7 +449,7 @@ class LivePlayActivity : BaseActivity() {
             currentChannelIndex = currentLiveChannelIndex,
             direction = direction,
             crossGroup = KV.get(HawkConfig.LIVE_CROSS_GROUP, false),
-            channelsOf = { groupIndex -> getLiveChannels(groupIndex) },
+            channelsOf = { groupIndex -> channelSourceLoader.getLiveChannels(groupIndex) },
         )
     }
 
@@ -479,7 +461,7 @@ class LivePlayActivity : BaseActivity() {
         return true
     }
 
-    private fun selectChannelGroup(groupIndex: Int, liveChannelIndex: Int) {
+    internal fun selectChannelGroup(groupIndex: Int, liveChannelIndex: Int) {
         selectedChannelGroupIndex = groupIndex
         if (isNeedInputPassword(groupIndex)) {
             showPasswordDialog(groupIndex, liveChannelIndex)
@@ -541,7 +523,7 @@ class LivePlayActivity : BaseActivity() {
         }
     }
 
-    private fun isNeedInputPassword(groupIndex: Int): Boolean {
+    internal fun isNeedInputPassword(groupIndex: Int): Boolean {
         val group = liveChannelGroupList.getOrNull(groupIndex) ?: return false
         return group.groupPassword.orEmpty().isNotEmpty() && !isPasswordConfirmed(groupIndex)
     }
@@ -553,165 +535,15 @@ class LivePlayActivity : BaseActivity() {
         return false
     }
 
-    fun getLiveChannels(groupIndex: Int): ArrayList<LiveChannelItem>? {
-        val group = liveChannelGroupList.getOrNull(groupIndex) ?: return null
-        return if (!isNeedInputPassword(groupIndex)) group.liveChannels else ArrayList()
-    }
+    fun getLiveChannels(groupIndex: Int): ArrayList<LiveChannelItem>? =
+        channelSourceLoader.getLiveChannels(groupIndex)
 
-    private fun initLiveChannelList() {
-        if (ApiConfig.get().shouldReloadLiveConfig()) {
-            loadLiveConfigOnEnter()
-            return
-        }
-        val list = ApiConfig.get().channelGroupList
-        if (list.isEmpty()) {
-            loadLiveConfigOnEnter()
-            return
-        }
-        catchupController.initLiveObj()
-        if (list.size == 1 && list[0].groupName.orEmpty().startsWith("http://127.0.0.1")) {
-            loadProxyLives(list[0].groupName.orEmpty())
-        } else {
-            applyLiveChannelGroups(ArrayList(list))
-        }
-    }
+    internal fun loadLiveConfigOnEnter() = channelSourceLoader.loadLiveConfigOnEnter()
 
-    internal fun loadLiveConfigOnEnter() {
-        if (loadingLiveConfigOnEnter) return
-        loadingLiveConfigOnEnter = true
-        pageState = PageState.LOADING
-        ApiConfig.get().loadLiveConfig(true, object : ApiConfig.LoadConfigCallback {
-            override fun success() {
-                mHandler.post {
-                    loadingLiveConfigOnEnter = false
-                    initLiveChannelList()
-                    initLiveSettingGroupList()
-                }
-            }
+    private fun setEmptyLiveChannelList(releasePlayer: Boolean = true) =
+        channelSourceLoader.setEmptyLiveChannelList(releasePlayer)
 
-            override fun error(msg: String?) {
-                mHandler.post {
-                    loadingLiveConfigOnEnter = false
-                    setEmptyLiveChannelList()
-                }
-            }
-
-            override fun notice(msg: String?) {
-                mHandler.post {
-                    Toast.makeText(this@LivePlayActivity, msg, Toast.LENGTH_SHORT).show()
-                }
-            }
-        })
-    }
-
-    private fun loadProxyLives(url: String) {
-        proxyLoader.load(url)
-    }
-
-    private fun applyLiveChannelGroups(groups: List<LiveChannelGroup>) {
-        liveChannelGroupList.clear()
-        liveChannelGroupList.addAll(groups)
-        pageState = PageState.READY
-        initLiveState()
-    }
-
-    private fun initLiveState() {
-        refreshingLiveChannelList = false
-        val lastChannelName = pendingLiveRefreshChannelName ?: KV.get(HawkConfig.LIVE_CHANNEL, "")
-        val sourceIndex = pendingLiveRefreshSourceIndex
-        pendingLiveRefreshChannelName = null
-        pendingLiveRefreshSourceIndex = -1
-
-        var lastChannelGroupIndex = -1
-        var lastLiveChannelIndex = -1
-        var lastLiveChannelItem: LiveChannelItem? = null
-        for (group in liveChannelGroupList) {
-            val groupChannels = group.liveChannels
-            if (groupChannels == null || groupChannels.isEmpty()) continue
-            for (item in groupChannels) {
-                if (item.channelName == lastChannelName) {
-                    lastChannelGroupIndex = group.groupIndex
-                    lastLiveChannelIndex = item.channelIndex
-                    lastLiveChannelItem = item
-                    break
-                }
-            }
-            if (lastChannelGroupIndex != -1) break
-        }
-        if (lastChannelGroupIndex == -1) {
-            val cctv1Channel = LiveChannelNavigator.firstChannelByName(
-                liveChannelGroupList, "CCTV1"
-            ) { groupIndex -> isNeedInputPassword(groupIndex) }
-            if (cctv1Channel != null) {
-                lastChannelGroupIndex = cctv1Channel[0]
-                lastLiveChannelIndex = cctv1Channel[1]
-            } else {
-                lastChannelGroupIndex = LiveChannelNavigator.firstUnlockedGroupIndex(liveChannelGroupList)
-                if (lastChannelGroupIndex == -1) lastChannelGroupIndex = 0
-                lastLiveChannelIndex = 0
-            }
-        }
-        if (lastLiveChannelItem != null && sourceIndex >= 0 && lastLiveChannelItem.sourceNum > 0) {
-            lastLiveChannelItem.sourceIndex = minOf(sourceIndex, lastLiveChannelItem.sourceNum - 1)
-        }
-
-        mVideoView?.let { livePlayerManager.init(it) }
-        overlay.showTime()
-        overlay.showNetSpeed()
-        currentLiveChannelIndex = -1
-        expandedGroups.clear()
-        channelVersion++
-        selectChannelGroup(lastChannelGroupIndex, lastLiveChannelIndex)
-    }
-
-    private fun refreshLiveChannelListAndPlay(channelName: String?, sourceIndex: Int) {
-        refreshingLiveChannelList = true
-        pendingLiveRefreshChannelName = channelName
-        pendingLiveRefreshSourceIndex = sourceIndex
-        currentLiveLookBackIndex = -1
-        currentLiveChangeSourceTimes = 0
-        channelGroupPasswordConfirmed.clear()
-        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun)
-        epgController.cancelPending()
-        overlay.hideSwitchChannelSnapshot()
-        expandedGroups.clear()
-        isBackState = false
-        overlayVisible = false
-        channelVersion++
-        epgVersion++
-        initLiveChannelList()
-        initLiveSettingGroupList()
-    }
-
-    private fun clearLiveChannelList(releasePlayer: Boolean) {
-        refreshingLiveChannelList = false
-        pendingLiveRefreshChannelName = null
-        pendingLiveRefreshSourceIndex = -1
-        currentLiveChannelItem = null
-        currentLiveChannelIndex = -1
-        currentLiveLookBackIndex = -1
-        currentLiveChangeSourceTimes = 0
-        liveChannelGroupList.clear()
-        ApiConfig.get().channelGroupList.clear()
-        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun)
-        epgController.cancelPending()
-        overlay.hideSwitchChannelSnapshot()
-        if (releasePlayer) releasePlayerKernel()
-        expandedGroups.clear()
-        selectedChannelGroupIndex = 0
-        channelName = null
-        epgdata = ArrayList()
-        channelInfoUi = ChannelInfoUi()
-        channelVersion++
-        epgVersion++
-        pageState = PageState.EMPTY
-    }
-
-    private fun setEmptyLiveChannelList(releasePlayer: Boolean = true) {
-        clearLiveChannelList(releasePlayer)
-    }
-
-    private fun initLiveSettingGroupList() {
+    internal fun initLiveSettingGroupList() {
         liveSettingGroupList = ApiConfig.get().liveSettingGroupList
     }
 
@@ -825,7 +657,7 @@ class LivePlayActivity : BaseActivity() {
         }
 
         override fun refreshChannelListAndPlay(channelName: String?, sourceIndex: Int) {
-            refreshLiveChannelListAndPlay(channelName, sourceIndex)
+            channelSourceLoader.refreshLiveChannelListAndPlay(channelName, sourceIndex)
         }
 
         override fun setEmptyChannelList(releasePlayer: Boolean) {
@@ -870,21 +702,7 @@ class LivePlayActivity : BaseActivity() {
 
     internal fun canCurrentChannelCatchup(): Boolean = catchupController.canCurrentChannelCatchup()
 
-    internal fun buildChannelRows(): List<LiveListRow> {
-        val rows = ArrayList<LiveListRow>()
-        for (group in liveChannelGroupList) {
-            rows.add(LiveListRow(group, null, -1, "g" + group.groupIndex))
-            if (expandedGroups.contains(group.groupIndex)) {
-                val channels = getLiveChannels(group.groupIndex)
-                if (channels != null) {
-                    for (i in channels.indices) {
-                        rows.add(LiveListRow(group, channels[i], i, "c" + group.groupIndex + "_" + channels[i].channelIndex))
-                    }
-                }
-            }
-        }
-        return rows
-    }
+    internal fun buildChannelRows(): List<LiveListRow> = channelSourceLoader.buildChannelRows()
 
     fun isPasswordConfirmedForUi(groupIndex: Int): Boolean = isPasswordConfirmed(groupIndex)
 
