@@ -332,6 +332,12 @@ requestScope.launch {                                   // 归属见 §4.4
   - 低(已修,`e652d70`):`SortLoader` 的 `RemoteTVBox.post` 桥里 `it.body.string()` 抛 `IOException` 时原本会**永不 resume**(协程永挂)。修复:`catch` 内 `cont.resumeWithException(e)`,由既有 `catch (Exception) → postSortFailure` 接手。
   - 低(既有,留 N3):`SearchViewModel.onCleared()` 未接 `searchCaller.cancelSearch()`(页面销毁后旧搜索仍跑完;结果只落无人订阅的通道,无功能后果)—— 与旧行为一致、非回归,N3 处理 SearchViewModel 时一并收口。
   - 修复后复跑 `:app:assembleDebug` + `:app:testDebugUnitTest` 绿,**678 用例 0 失败**(-0)。审查通过项(逐条核过、非问题):分支语义/E2·E4 判定、R12 放行全在、解析与 spider 调用全在 IO、取消链闭环(余 8 处 cancelTag 全属 N2/N3/N4)、`checkPush` 元素增删与失败标记语义守恒、`Main.immediate` 不阻塞(除已修项)、签名与调用点无漏改;顺带复核了 `DetailLoader` 失败分支沿用 `resultParser.json(detailResult, "", ...)`(与迁移前逐字一致,非本次改动)。
+- **第二轮审查(2026-10-06,换角度独立复核)**—— 结论:**未发现阻断/高/中**,前轮两处修复经逐条验证成立且完备(重试计数=总 4 次尝试 / 仅 `SocketTimeoutException` / 取消静默 / `getSync` 不受影响;BoundedCall 的 15s 硬上限与「解析失败标记」路径与迁移前一致)。新发现 3 条低危、全部当场修复:
+  - 低(已修,`81999ce`):重试范围宽于 okgo —— `body.string()` 原在重试 try 内,读体超时会重发整包(okgo 的读体失败属 E4 转换失败、不重试)。修复:重试只围绕 `execute`(请求阶段),读体在重试之外;单测 +1 例 `get_doesNotRetryBodyReadTimeout`。
+  - 低(已修,`b675a09`):`SortLoader` 的 `RemoteTVBox` 桥 `cont.resume` 写在 `response.use` 内,`close()` 抛 `IOException` 时二次 resume(okhttp 线程 `IllegalStateException`);改为先读出 body 再 resume。
+  - 低(已修,`b675a09`):`SubtitleViewModel.pagesTotal` 在 IO 块内写、Main 读(非 volatile);改为解析出的页数带回 caller(Main)再赋值。
+  - 既有低危登记(非本次引入、不修):`RemoteTVBox.post` 固定 1s 超时(与站点级 15s 口径不同,迁移前即如此);`SubtitleViewModel.getSubtitleUrlFromAssrt` 的裸 okhttp 请求无取消挂钩(VM 清除后仍回调)。
+  - 复跑绿,**679 用例 0 失败**。**两轮审查收敛:最新一轮无阻断/高/中、剩余全为既有低危 ⇒ 本片可收尾**。
 
 ### N2 `player` 簇 + `PlayLoader` —— play/json_jx/m3u8 链闭环
 
@@ -424,3 +430,4 @@ requestScope.launch {                                   // 归属见 §4.4
 | 2026-10-06 | **N0 实施回填**:await 层 + 纯策略层落地(见 §5 N0 实测登记);① 实施发现 okgo 默认头除 UA 外还有 `Accept-Language`,新增 **E10** 并同形复刻(§1.3/§4.2;G1 的保持条目由七条改八条);② `kotlinx-coroutines-android` 显式声明 1.10.2,依赖图零变化;③ 单测新增 3 类 22 例(fake client 注入点为 `internal Http.executeWithRetry(request, client)`),总量 677 用例 0 失败 |
 | 2026-10-06 | **N1 实施回填**:detail/search 链闭环落地(见 §5 N1 实测登记);① `siteGet` 转 suspend,PlayLoader 未迁调用点暂用 `siteGetRequest`(okgo 桥,N2 删除);② `SourceResultParser.xml/json` 随 `checkPush` 级联转 suspend,`xml/json` 的宽 catch 补 CancellationException 放行;③ `SourceViewModel.requestScope` 取 **lazy** 构造(JVM 单测直接 new,不能触碰 `Dispatchers.Main`);④ detail/search 取消入口 = 每链一个 `SupervisorJob` 作父 + cancel 后重建(cancel-all 且不连带其它链),暂不做「新请求取消旧请求」;⑤ `SearchViewModel:230` 的 search 取消随生产者提前收口(原排 N3);⑥ `SourceResultParserRoutingTest` 3 例包 `runBlocking`;总量 677 用例 0 失败 |
 | 2026-10-06 | **N1 收尾审查修复**:独立只读复核 + 作者复核发现 4 条(3 修 1 留),见 §5 N1「收尾审查轮」;① `9e66e73` 响应体读取移出 Main(引 1 条锁定单测);② `e652d70` 恢复 push 详情 spider 分支 15s 硬上限(`withTimeout` 打断不了阻塞调用,改 `BoundedCall`)、修 `RemoteTVBox` 桥的永不 resume;③ 复跑 678 用例 0 失败;**结论:可以收尾**(最新一轮无阻断/高/中) |
+| 2026-10-06 | **N1 第二轮审查修复**:换角度复核仅 3 条低危(全为本次引入、全当场修):① `81999ce` 重试范围收窄到请求阶段(读体超时不重试,回归 E4/E6;+1 单测);② `b675a09` 修 `RemoteTVBox` 桥 resume-inside-use 的二次 resume、`SubtitleViewModel.pagesTotal` 跨线程写的可见性;③ 另有 2 条既有低危登记不修;679 用例 0 失败。**两轮后收敛:本片可收尾** |
