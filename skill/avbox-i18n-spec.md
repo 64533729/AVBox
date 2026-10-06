@@ -58,7 +58,7 @@
 | `player/ui/SubtitleSheets.kt` | 19 | 字幕设置面板 |
 | `player/controller/ComposeVideoController.kt` | 19 | 播放器提示 |
 | `ui/page/ThemeSettingsPage.kt` | 19 | 主题设置页 |
-| `util/PlayerHelper.java` | 17 | 播放器名/缩放名 + 外链播放器提示 |
+| `player/PlayerHelper.kt` | 17 | 播放器名/缩放名 + 外链播放器提示 |
 
 通用词复用度高(去重收益明显):`返回` 9 / `取消` 6 / `播放` 6 / `默认` 5 / `重试` 5 / `全部` 5 / `直播` 5 …… ⇒ 资源 key 按「通用 / 域」两级拆分(§3.2)。
 

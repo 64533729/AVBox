@@ -554,9 +554,9 @@
 
 ### 6.16 观看进度记忆(2026-09-26 补,两批改造;违反会复发"垃圾痕迹 / 删不掉 / 误删")
 
-- ⚠️ **进度只有 `util/WatchProgressStore` 一个写入/清除出口**:`PlaybackEngine.progressManager`、`PlaybackController`(切集前落盘 / 换源继承 / 重播清理)、`PlayContainer.playNext`、`MusicPlayerActivity`(切歌 / 重播)全部经它。新增任何落盘点都必须走门面并**带上 owner**,否则阈值、无痕、片级索引三件事一起漏。
+- ⚠️ **进度只有 `data/WatchProgressStore` 一个写入/清除出口**:`PlaybackEngine`(经 `progressSink`)、`PlaybackController`(切集前落盘 / 换源继承 / 重播清理)、`PlayContainer.playNext`、`MusicPlayerActivity`(切歌 / 重播)全部经它。新增任何落盘点都必须走门面并**带上 owner**,否则阈值、无痕、片级索引三件事一起漏。
 - ⚠️ **owner(`源|片id`)与进度键必须同处更新**(`PlaybackController.setProgressKey` 里一起写):进度键是"源+片+线路+集+集名"无分隔符拼接后取 MD5,**反推不出归属**;若改成在落盘时按当前 `vod()` 推导,换片那一刻(先 `releasePlayer()` 落盘、后换键)会把**上一部片**的键记进新片的索引 ⇒ 日后删新片历史会误删旧片的续播点。`progressOwner()` 只在键变更时更新,且视图侧的键只能来自控制器。
-- ⚠️ **阈值只写一处**:`util/WatchProgressRules`(`MIN_RESUME_MS` = 30 秒、`MIN_RESUME_PERCENT` = 30、`FINISHED_PERCENT` = 95,时长未知按绝对值;取"30 秒与 30% 更小者"是为了让短视频也留得下续播点)。续播点、历史页百分比、"进历史"三通道共用它 —— 分开定阈值会出"卡片显示看过、点进去却从头"这类自相矛盾;边界由 `WatchProgressRulesTest` 锁定。`FINISHED_PERCENT` 自 2026-10-03 起只是"算看过"的判据(`decide` 不再返回清除结论,百分比照常留到 100%);**续播点的清除改由完播路径负责**(`VideoView.onCompletion` 把位置写 0 ⇒ 门面的 `positionMs <= 0 = 清除` 分支)。
+- ⚠️ **阈值只写一处**:`data/WatchProgressRules`(`MIN_RESUME_MS` = 30 秒、`MIN_RESUME_PERCENT` = 30、`FINISHED_PERCENT` = 95,时长未知按绝对值;取"30 秒与 30% 更小者"是为了让短视频也留得下续播点)。续播点、历史页百分比、"进历史"三通道共用它 —— 分开定阈值会出"卡片显示看过、点进去却从头"这类自相矛盾;边界由 `WatchProgressRulesTest` 锁定。`FINISHED_PERCENT` 自 2026-10-03 起只是"算看过"的判据(`decide` 不再返回清除结论,百分比照常留到 100%);**续播点的清除改由完播路径负责**(`VideoView.onCompletion` 把位置写 0 ⇒ 门面的 `positionMs <= 0 = 清除` 分支)。
 - ⚠️ **"释放内核"那条落盘路径读不到时长**:`VideoView.release()` 先置空 `mMediaPlayer` 再 `saveProgress()`,那一刻 `getDuration()` 恒为 0 ⇒ 判据退化成只剩绝对 30 秒,会把完播本已清除的续播点以片尾位置写回。门面用 `noteDuration`(`PlaybackProgress.onProgress` 每秒喂一次真实时长)兜底;**新增任何依赖 duration 的判据都要回来核这条**。
 - ⚠️ **无痕只拦"写新的",清除一律执行**:判据落在门面的写入分支上(`save` 的 `positionMs <= 0` 清除分支与 `clear()` 都不看无痕)。放错位置会让"看完了"也清不掉旧续播点,而百分比通道却清了 ⇒ "卡片没进度条、点开却跳片尾"。`TrackMemory`(轨道/字幕来源记忆)与字幕/歌词缓存**刻意不拦**(前者是用户显式选择,后者是缓存)。
 - ⚠️ **级联只在用户主动操作时发生**:删单条 / 清空历史(`HistoryPage`)、索引片数超 `WatchProgressIndex.MAX_TITLES`(= 100)的容量淘汰(按 `at` 淘汰最旧,且**排除 `justSavedOwner` 与当前正在看的片**)。**历史被条数上限自动裁掉(`RoomDataManger.reserver`)与历史合并去重都不级联** —— 两者都是常态,清了会把正常续播点误删。删单条的 owner 取自历史记录的 `sourceKey` —— 该字段在 `switchSource → loadDetail` 时与 `vodId` 一起同步成新源,故**与进度 owner 始终一致**,单条删除清这一份就够;换源**之前**那份(旧源 + 旧 id)的进度与索引会留成孤儿,属非用户主动操作,未级联(按 `vodId` 猜跨源级联有"跨源同 id 误删"风险,不做)。
@@ -644,7 +644,7 @@
 - **嗅探/代理观测到的头未过滤(2026-09-23 记录,低)**:`PlayUrlResolver` 把 WebView 实际请求头与 Cookie 收进 `loadFoundVideoUrlsHeader`,最终可能进 M3U8 净化的 OkGo 请求;这些头来自真实网络(非配置),正常不含非法字符,但理论上仍可让 `Headers.of` 抛 `IllegalArgumentException`。要闭环应在 `M3u8PurifyUseCase` 的出口兜一层 `HeaderGuard`。
 - **`sites[].header` 的播放兜底是"只补缺键"而非 fongmi 的"整块为空才兜底"**:结果自带任意一个头时仍会补齐站点声明的其余键(对"源只回了 UA、Referer 缺"的场景更实用)。若要严格对齐 fongmi 需改 `mergeSiteHeaders` 的判据,属口味问题。
 - **播放参数抽屉丢了两条可见性规则(2026-09-26 审查发现,待定)**:原底栏文字菜单行用 `PlayerUiState.ijkBtnVisible`(= `playerType == 1 || 2`)隐藏非 EXO/IJK 内核下的「解码」按钮、用 `liveButtonsVisible`(duration ≠ 0)隐藏直播源下的「倍速/片头尾」按钮;这两组控件移进抽屉后**两个字段都没有消费方了**(`ijkBtnVisible` 已随 IJK 内核移除删除、`liveButtonsVisible` 只剩写入),而抽屉里这两组**恒显示** —— 后果:①用外部内核(MX/VLC/Kodi)时抽屉仍会列出「解码方式」(现只剩 EXO 硬/软两档,点了会 `replay` 但对外部播放器无实际作用);②点播里 duration==0 的内容仍显示倍速/片头尾。**`liveButtonsVisible` 未删**(它编码的是规则、不是陈旧状态),收口 = 把「pl 是否为 2」的判据与 `liveButtonsVisible` 接进 `buildParamsSheet` 决定这两组是否下发(`ParamsSheetState` 的可空字段)。属观感/行为决策,等已确认。
-- **启动看门狗的崩溃栈白名单只覆盖平台 + `ui`/`base`(2026-09-23)**:栈里带 `com.github.tvbox.osc.util.` / `sourcedata`(原 `viewmodel`) / 播放器包装帧的**界面** bug 仍会被判"与源有关",连环崩 3 次仍可能停用正常源。收口 = 放宽白名单到全部 `com.github.tvbox.osc.`;代价是播放内核包装(`util/PlayerHelper`、`player/`)崩溃不再算源的问题。判据与当前口径见 §6.13。
+- **启动看门狗的崩溃栈白名单只覆盖平台 + `ui`/`base`(2026-09-23)**:栈里带 `com.github.tvbox.osc.util.` / `sourcedata`(原 `viewmodel`) / 播放器包装帧的**界面** bug 仍会被判"与源有关",连环崩 3 次仍可能停用正常源。收口 = 放宽白名单到全部 `com.github.tvbox.osc.`;代价是播放内核包装(`player/PlayerHelper`、`player/`)崩溃不再算源的问题。判据与当前口径见 §6.13。
 
 ## 8. 历史归档索引(`history/`,按需检索)
 
