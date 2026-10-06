@@ -5,117 +5,203 @@ import org.junit.Test
 
 class PlaybackStateMachineTest {
 
-    @Test
-    fun prepareSequence_reachesPlaying() {
-        val machine = PlaybackStateMachine()
-        assertEquals(PlayState.IDLE, machine.currentState)
-
-        machine.onPrepareRequested()
-        assertEquals(PlayState.PREPARING, machine.currentState)
-
-        machine.onPrepared()
-        assertEquals(PlayState.PREPARED, machine.currentState)
-
-        machine.onRenderingStart()
-        assertEquals(PlayState.PLAYING, machine.currentState)
-    }
+    private class Sequence(
+        val name: String,
+        val expected: PlayState,
+        val steps: List<PlaybackStateMachine.() -> Unit>,
+    )
 
     @Test
-    fun pauseAndResume() {
-        val machine = freshPlayingMachine()
+    fun actionAndEventSequencesReachExpectedStates() {
+        val cases = listOf(
+            Sequence("initial state", PlayState.IDLE, listOf()),
+            Sequence(
+                "prepare chain reaches playing",
+                PlayState.PLAYING,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }),
+            ),
+            Sequence(
+                "buffering start after playing",
+                PlayState.BUFFERING,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }, { onBufferingStart() }),
+            ),
+            Sequence(
+                "buffering end after buffering start",
+                PlayState.BUFFERED,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onBufferingStart() },
+                    { onBufferingEnd() },
+                ),
+            ),
+            Sequence(
+                "pause after playing",
+                PlayState.PAUSED,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }, { onPauseRequested() }),
+            ),
+            Sequence(
+                "play request resumes",
+                PlayState.PLAYING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onPlayRequested() },
+                ),
+            ),
+            Sequence(
+                "completion",
+                PlayState.COMPLETED,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }, { onCompletion() }),
+            ),
+            Sequence(
+                "error",
+                PlayState.ERROR,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }, { onError() }),
+            ),
+            Sequence(
+                "stop request goes idle",
+                PlayState.IDLE,
+                listOf({ onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }, { onStopRequested() }),
+            ),
+            Sequence(
+                "reset goes idle",
+                PlayState.IDLE,
+                listOf({ onPrepareRequested() }, { onReset() }),
+            ),
+            Sequence(
+                "start abort",
+                PlayState.START_ABORT,
+                listOf({ onStartAborted() }),
+            ),
+            Sequence(
+                "start abort then prepare recovers",
+                PlayState.PLAYING,
+                listOf({ onStartAborted() }, { onPrepareRequested() }, { onPrepared() }, { onRenderingStart() }),
+            ),
+            Sequence(
+                "paused seek keeps paused on buffering start",
+                PlayState.PAUSED,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onBufferingStart() },
+                ),
+            ),
+            Sequence(
+                "paused seek keeps paused on buffering end",
+                PlayState.PAUSED,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onBufferingEnd() },
+                ),
+            ),
+            Sequence(
+                "paused seek keeps paused on rendering start",
+                PlayState.PAUSED,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onRenderingStart() },
+                ),
+            ),
+            Sequence(
+                "play request clears pause memory",
+                PlayState.BUFFERING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onPlayRequested() },
+                    { onBufferingStart() },
+                ),
+            ),
+            Sequence(
+                "stop request clears pause memory",
+                PlayState.BUFFERING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onStopRequested() },
+                    { onBufferingStart() },
+                ),
+            ),
+            Sequence(
+                "reset clears pause memory",
+                PlayState.BUFFERING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onReset() },
+                    { onBufferingStart() },
+                ),
+            ),
+            Sequence(
+                "error wins over pause memory",
+                PlayState.ERROR,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onError() },
+                ),
+            ),
+            Sequence(
+                "content replacement clears pause memory",
+                PlayState.PLAYING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onContentReplaced() },
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                ),
+            ),
+            Sequence(
+                "prepare request clears pause memory",
+                PlayState.PREPARING,
+                listOf(
+                    { onPrepareRequested() },
+                    { onPrepared() },
+                    { onRenderingStart() },
+                    { onPauseRequested() },
+                    { onSeekWhilePaused() },
+                    { onPrepareRequested() },
+                ),
+            ),
+        )
 
-        machine.onPauseRequested()
-        assertEquals(PlayState.PAUSED, machine.currentState)
-
-        machine.onPlayRequested()
-        assertEquals(PlayState.PLAYING, machine.currentState)
-    }
-
-    @Test
-    fun bufferingPair() {
-        val machine = freshPlayingMachine()
-
-        machine.onBufferingStart()
-        assertEquals(PlayState.BUFFERING, machine.currentState)
-
-        machine.onBufferingEnd()
-        assertEquals(PlayState.BUFFERED, machine.currentState)
-    }
-
-    @Test
-    fun completionAndError() {
-        val machine = freshPlayingMachine()
-
-        machine.onCompletion()
-        assertEquals(PlayState.COMPLETED, machine.currentState)
-
-        machine.onError()
-        assertEquals(PlayState.ERROR, machine.currentState)
-    }
-
-    @Test
-    fun stopAndResetGoIdle() {
-        val machine = freshPlayingMachine()
-
-        machine.onStopRequested()
-        assertEquals(PlayState.IDLE, machine.currentState)
-
-        machine.onPrepareRequested()
-        machine.onReset()
-        assertEquals(PlayState.IDLE, machine.currentState)
-    }
-
-    @Test
-    fun pausedBeforeSeek_keepsPausedOnBufferingAndRenderingCallbacks() {
-        val machine = freshPlayingMachine()
-
-        machine.onPauseRequested()
-        assertEquals(PlayState.PAUSED, machine.currentState)
-
-        machine.onSeekWhilePaused()
-        machine.onBufferingStart()
-        assertEquals(PlayState.PAUSED, machine.currentState)
-
-        machine.onBufferingEnd()
-        assertEquals(PlayState.PAUSED, machine.currentState)
-
-        machine.onRenderingStart()
-        assertEquals(PlayState.PAUSED, machine.currentState)
-    }
-
-    @Test
-    fun playRequestClearsPauseMemory() {
-        val machine = freshPlayingMachine()
-
-        machine.onPauseRequested()
-        machine.onSeekWhilePaused()
-        machine.onPlayRequested()
-        assertEquals(PlayState.PLAYING, machine.currentState)
-
-        machine.onBufferingStart()
-        assertEquals(PlayState.BUFFERING, machine.currentState)
-    }
-
-    @Test
-    fun contentReplacedClearsPauseMemory() {
-        val machine = freshPlayingMachine()
-
-        machine.onPauseRequested()
-        machine.onContentReplaced()
-        machine.onPrepareRequested()
-        machine.onPrepared()
-        machine.onRenderingStart()
-        assertEquals(PlayState.PLAYING, machine.currentState)
-    }
-
-    @Test
-    fun forwardMigrationFromPlaying_toPausedViaSeekCallback() {
-        val machine = freshPlayingMachine()
-
-        machine.onPauseRequested()
-        machine.onSeekWhilePaused()
-        machine.onPrepareRequested()
-        assertEquals(PlayState.PREPARING, machine.currentState)
+        for (case in cases) {
+            val machine = PlaybackStateMachine()
+            for (step in case.steps) step(machine)
+            assertEquals(case.name, case.expected, machine.currentState)
+        }
     }
 
     @Test
@@ -126,14 +212,5 @@ class PlaybackStateMachineTest {
         machine.onPrepared()
 
         assertEquals(PlayState.PREPARED, machine.state.value)
-    }
-
-    private fun freshPlayingMachine(): PlaybackStateMachine {
-        val machine = PlaybackStateMachine()
-        machine.onPrepareRequested()
-        machine.onPrepared()
-        machine.onRenderingStart()
-        assertEquals(PlayState.PLAYING, machine.currentState)
-        return machine
     }
 }

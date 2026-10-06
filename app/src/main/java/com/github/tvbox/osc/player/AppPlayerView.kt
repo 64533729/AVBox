@@ -18,6 +18,7 @@ import com.github.tvbox.osc.player.host.PlayerRenderView
 import com.github.tvbox.osc.player.host.PlayerRenderViewFactory
 import com.github.tvbox.osc.player.host.PlayerAudioFocus
 import com.github.tvbox.osc.player.host.AudioFocusTarget
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
 
@@ -73,7 +74,7 @@ open class AppPlayerView @JvmOverloads constructor(
     protected val mCurrentPlayState: Int
         get() = mMediaPlayer?.playState?.toLegacy() ?: STATE_IDLE
 
-    private var mPausedBeforeSeek = false
+    private var mLastReportedPlayState = STATE_IDLE
 
     protected var mCurrentPlayerState = PLAYER_NORMAL
 
@@ -113,14 +114,15 @@ open class AppPlayerView @JvmOverloads constructor(
     open fun start() {
         if (isInIdleState() || isInStartAbortState()) {
             startPlay()
-        } else if (isInPlaybackState()) {
-            startInPlaybackState()
+            return
         }
+        startInPlaybackState()
     }
 
     protected open fun startPlay(): Boolean {
         if (showNetWarning()) {
-            setPlayState(STATE_START_ABORT)
+            mMediaPlayer?.abortStart()
+            dispatchPlayState(STATE_START_ABORT)
             return false
         }
         if (mEnableAudioFocus) {
@@ -191,7 +193,6 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     protected fun startPrepare(reset: Boolean, rebindRenderView: Boolean) {
-        mPausedBeforeSeek = false
         if (reset) {
             mMediaPlayer?.reset()
             setOptions()
@@ -204,7 +205,7 @@ open class AppPlayerView @JvmOverloads constructor(
                 player.setStartPosition(mCurrentPosition)
                 player.prepareAsync()
             }
-            setPlayState(STATE_PREPARING)
+            reportPlayState()
             setPlayerState(PLAYER_NORMAL)
         }
     }
@@ -219,9 +220,8 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     protected fun startInPlaybackState() {
-        mPausedBeforeSeek = false
-        mMediaPlayer?.start()
-        setPlayState(STATE_PLAYING)
+        if (mMediaPlayer?.start() != true) return
+        reportPlayState()
         if (!isMute()) {
             mAudioFocusHelper?.requestFocus()
         }
@@ -229,16 +229,12 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun pause() {
-        val player = mMediaPlayer
-        if (isInPlaybackState() && player?.isPlaying == true) {
-            mPausedBeforeSeek = true
-            player.pause()
-            setPlayState(STATE_PAUSED)
-            if (!isMute()) {
-                mAudioFocusHelper?.abandonFocus()
-            }
-            mPlayerContainer.keepScreenOn = false
+        if (mMediaPlayer?.pause() != true) return
+        reportPlayState()
+        if (!isMute()) {
+            mAudioFocusHelper?.abandonFocus()
         }
+        mPlayerContainer.keepScreenOn = false
     }
 
     open fun resume() {
@@ -248,9 +244,8 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     private fun resumePlay() {
-        mPausedBeforeSeek = false
-        mMediaPlayer?.start()
-        setPlayState(STATE_PLAYING)
+        if (mMediaPlayer?.start() != true) return
+        reportPlayState()
         if (!isMute()) {
             mAudioFocusHelper?.requestFocus()
         }
@@ -258,10 +253,8 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun stopPlaybackKeepPlayer() {
-        val player = mMediaPlayer ?: return
-        if (mCurrentPlayState == STATE_PAUSED) return
-        player.stop()
-        setPlayState(STATE_IDLE)
+        if (mMediaPlayer?.stop() != true) return
+        reportPlayState()
     }
 
     open fun saveCurrentProgress() {
@@ -270,7 +263,6 @@ open class AppPlayerView @JvmOverloads constructor(
 
     open fun release() {
         val hadActiveState = !isInIdleState()
-        mPausedBeforeSeek = false
         mAudioFocusHelper?.abandonFocus()
         mAudioFocusHelper = null
         mMediaPlayer?.release()
@@ -284,7 +276,7 @@ open class AppPlayerView @JvmOverloads constructor(
             mPlayerContainer.keepScreenOn = false
             saveProgress()
             mCurrentPosition = 0
-            setPlayState(STATE_IDLE)
+            reportPlayState()
         }
         mVideoSize[0] = 0
         mVideoSize[1] = 0
@@ -300,18 +292,13 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected fun progressKey(): String? = mProgressKey ?: mUrl
 
-    protected fun isInPlaybackState(): Boolean {
-        return mMediaPlayer != null &&
-            mCurrentPlayState != STATE_ERROR &&
-            mCurrentPlayState != STATE_IDLE &&
-            mCurrentPlayState != STATE_PREPARING &&
-            mCurrentPlayState != STATE_START_ABORT &&
-            mCurrentPlayState != STATE_PLAYBACK_COMPLETED
-    }
+    protected fun isInPlaybackState(): Boolean =
+        mMediaPlayer?.playState?.isInPlaybackState == true
 
-    protected fun isInIdleState(): Boolean = mCurrentPlayState == STATE_IDLE
+    protected fun isInIdleState(): Boolean =
+        (mMediaPlayer?.playState ?: PlayState.IDLE) == PlayState.IDLE
 
-    private fun isInStartAbortState(): Boolean = mCurrentPlayState == STATE_START_ABORT
+    private fun isInStartAbortState(): Boolean = mMediaPlayer?.playState == PlayState.START_ABORT
 
     private val kernelEventListener = object : KernelPlayer.Listener {
 
@@ -320,7 +307,7 @@ open class AppPlayerView @JvmOverloads constructor(
             if (mCurrentPosition > 0 && !player.isStartPositionApplied()) {
                 player.seekTo(mCurrentPosition)
             }
-            setPlayState(STATE_PREPARED)
+            dispatchPlayState(STATE_PREPARED)
             if (!isMute()) {
                 mAudioFocusHelper?.requestFocus()
             }
@@ -328,17 +315,16 @@ open class AppPlayerView @JvmOverloads constructor(
 
         override fun onInfo(what: Int, extra: Int) {
             when (what) {
-                KernelPlayer.MEDIA_INFO_BUFFERING_START ->
-                    if (!keepPausedStateAfterSeek()) setPlayState(STATE_BUFFERING)
+                KernelPlayer.MEDIA_INFO_BUFFERING_START -> reportPlayState()
 
-                KernelPlayer.MEDIA_INFO_BUFFERING_END ->
-                    if (!keepPausedStateAfterSeek()) setPlayState(STATE_BUFFERED)
+                KernelPlayer.MEDIA_INFO_BUFFERING_END -> reportPlayState()
 
-                KernelPlayer.MEDIA_INFO_RENDERING_START ->
-                    if (!keepPausedStateAfterSeek()) {
-                        setPlayState(STATE_PLAYING)
+                KernelPlayer.MEDIA_INFO_RENDERING_START -> {
+                    reportPlayState()
+                    if (mMediaPlayer?.playState == PlayState.PLAYING) {
                         mPlayerContainer.keepScreenOn = true
                     }
+                }
 
                 KernelPlayer.MEDIA_INFO_VIDEO_ROTATION_CHANGED ->
                     mRenderView?.setVideoRotation(extra)
@@ -347,14 +333,14 @@ open class AppPlayerView @JvmOverloads constructor(
 
         override fun onError() {
             mPlayerContainer.keepScreenOn = false
-            setPlayState(STATE_ERROR)
+            reportPlayState()
         }
 
         override fun onCompletion() {
             mPlayerContainer.keepScreenOn = false
             mCurrentPosition = 0
             mProgressSink?.saveProgress(progressKey(), 0L)
-            setPlayState(STATE_PLAYBACK_COMPLETED)
+            reportPlayState()
         }
 
         override fun onVideoSizeChanged(width: Int, height: Int) {
@@ -389,19 +375,8 @@ open class AppPlayerView @JvmOverloads constructor(
 
     open fun seekTo(pos: Long) {
         if (isInPlaybackState()) {
-            if (mCurrentPlayState == STATE_PAUSED) {
-                mPausedBeforeSeek = true
-            }
             mMediaPlayer?.seekTo(pos)
         }
-    }
-
-    private fun keepPausedStateAfterSeek(): Boolean {
-        if (!mPausedBeforeSeek) return false
-        if (mCurrentPlayState != STATE_PAUSED) {
-            setPlayState(STATE_PAUSED)
-        }
-        return true
     }
 
     open val isPlaying: Boolean
@@ -427,7 +402,6 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun setUrl(url: String, headers: Map<String, String>?) {
-        mPausedBeforeSeek = false
         mUrl = url
         mHeaders = headers
         mVideoSize[0] = 0
@@ -498,6 +472,17 @@ open class AppPlayerView @JvmOverloads constructor(
 
     @Suppress("UNUSED_PARAMETER")
     open fun setMute(isMute: Boolean) = Unit
+
+    private fun dispatchPlayState(playState: Int) {
+        mLastReportedPlayState = playState
+        setPlayState(playState)
+    }
+
+    private fun reportPlayState() {
+        val state = mCurrentPlayState
+        if (state == mLastReportedPlayState) return
+        dispatchPlayState(state)
+    }
 
     protected fun setPlayState(playState: Int) {
         mVideoController?.setPlayState(playState)

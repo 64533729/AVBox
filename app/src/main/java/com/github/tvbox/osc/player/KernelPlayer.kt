@@ -28,11 +28,13 @@ abstract class KernelPlayer {
 
     abstract fun setDataSource(path: String, headers: Map<String, String>?)
 
-    abstract fun start()
+    abstract fun start(): Boolean
 
-    abstract fun pause()
+    abstract fun pause(): Boolean
 
-    abstract fun stop()
+    abstract fun stop(): Boolean
+
+    open fun abortStart() {}
 
     abstract fun prepareAsync()
 

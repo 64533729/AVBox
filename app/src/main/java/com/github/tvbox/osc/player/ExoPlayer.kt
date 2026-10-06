@@ -92,19 +92,33 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         markStartPositionApplied()
     }
 
-    override fun start() {
-        engine?.start()
+    override fun start(): Boolean {
+        val current = engine ?: return false
+        if (!stateMachine.currentState.isInPlaybackState) return false
+        current.start()
         stateMachine.onPlayRequested()
+        return true
     }
 
-    override fun pause() {
-        engine?.pause()
+    override fun pause(): Boolean {
+        val current = engine ?: return false
+        if (!stateMachine.currentState.isInPlaybackState) return false
+        if (!current.isPlaying) return false
+        current.pause()
         stateMachine.onPauseRequested()
+        return true
     }
 
-    override fun stop() {
-        engine?.stop()
+    override fun stop(): Boolean {
+        val current = engine ?: return false
+        if (stateMachine.currentState == PlayState.PAUSED) return false
+        current.stop()
         stateMachine.onStopRequested()
+        return true
+    }
+
+    override fun abortStart() {
+        stateMachine.onStartAborted()
     }
 
     fun stopForFrameClear() {

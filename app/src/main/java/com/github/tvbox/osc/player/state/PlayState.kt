@@ -39,6 +39,12 @@ enum class PlayState {
         START_ABORT -> 8
     }
 
+    val isInPlaybackState: Boolean
+        get() = when (this) {
+            PREPARED, PLAYING, PAUSED, BUFFERING, BUFFERED -> true
+            IDLE, PREPARING, COMPLETED, ERROR, START_ABORT -> false
+        }
+
     companion object {
 
         fun fromLegacy(state: Int): PlayState = when (state) {
