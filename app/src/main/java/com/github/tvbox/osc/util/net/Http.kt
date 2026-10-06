@@ -31,19 +31,20 @@ object Http {
     }
 
     internal suspend fun executeWithRetry(request: Request, client: OkHttpClient): String {
-        var retryCount = 0
-        while (true) {
-            try {
-                return withContext(Dispatchers.IO) {
-                    execute(request, client).use { response ->
-                        if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
-                        response.body.string()
-                    }
-                }
-            } catch (e: SocketTimeoutException) {
-                if (!HttpPolicy.shouldRetry(retryCount, e)) throw e
-                retryCount++
+        return withContext(Dispatchers.IO) {
+            awaitResponse(request, client, 0).use { response ->
+                if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
+                response.body.string()
             }
+        }
+    }
+
+    private suspend fun awaitResponse(request: Request, client: OkHttpClient, retryCount: Int): Response {
+        return try {
+            execute(request, client)
+        } catch (e: SocketTimeoutException) {
+            if (!HttpPolicy.shouldRetry(retryCount, e)) throw e
+            awaitResponse(request, client, retryCount + 1)
         }
     }
 

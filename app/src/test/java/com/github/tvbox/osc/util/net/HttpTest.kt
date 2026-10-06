@@ -14,6 +14,9 @@ import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import okio.BufferedSource
+import okio.Source
+import okio.Timeout
+import okio.buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -86,6 +89,27 @@ class HttpTest {
     }
 
     @Test
+    fun get_doesNotRetryBodyReadTimeout() = runBlocking {
+        val attempts = AtomicInteger()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            attempts.incrementAndGet()
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("test")
+                .body(bodyFailingOnRead())
+                .build()
+        }.build()
+        try {
+            Http.executeWithRetry(request(), client)
+            fail("expected SocketTimeoutException")
+        } catch (e: SocketTimeoutException) {
+        }
+        assertEquals("读体超时属转换失败(E4),不进重试", 1, attempts.get())
+    }
+
+    @Test
     fun get_readsResponseBodyOffCallerThread() = runBlocking {
         val caller = Thread.currentThread()
         val readOn = AtomicReference<Thread>()
@@ -145,6 +169,22 @@ class HttpTest {
                 .body(body.toResponseBody(null))
                 .build()
         }.build()
+    }
+
+    private fun bodyFailingOnRead(): ResponseBody {
+        return object : ResponseBody() {
+            override fun contentType(): MediaType? = null
+
+            override fun contentLength(): Long = -1
+
+            override fun source(): BufferedSource = object : Source {
+                override fun read(sink: Buffer, byteCount: Long): Long = throw SocketTimeoutException("read timed out")
+
+                override fun timeout(): Timeout = Timeout.NONE
+
+                override fun close() = Unit
+            }.buffer()
+        }
     }
 
     private fun threadRecordingBody(text: String, readOn: AtomicReference<Thread>): ResponseBody {
