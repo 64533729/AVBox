@@ -262,7 +262,7 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun release() {
-        val hadActiveState = !isInIdleState()
+        val hadActiveState = mLastReportedPlayState != STATE_IDLE
         mAudioFocusHelper?.abandonFocus()
         mAudioFocusHelper = null
         mMediaPlayer?.release()
