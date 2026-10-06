@@ -1,11 +1,11 @@
 package com.github.tvbox.osc.api
 
 import com.github.tvbox.osc.bean.ParseBean
+import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.AdBlocker
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.M3u8
-import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.VideoParseRuler
 import com.google.gson.JsonObject
 

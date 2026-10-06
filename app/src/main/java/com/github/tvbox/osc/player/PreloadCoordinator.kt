@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.data.WatchProgressStore
+import com.github.tvbox.osc.net.Preconnect
 import com.github.tvbox.osc.sourcedata.SourceHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.DefaultConfig
@@ -13,11 +14,10 @@ import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
-import com.github.tvbox.osc.util.Preconnect
 import com.github.tvbox.osc.util.thunder.Jianpian
+import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.atomic.AtomicBoolean
 
 class PreloadCoordinator(
     private val sourceViewModel: SourceViewModel?,

@@ -3,11 +3,11 @@ package com.github.tvbox.osc.api
 import android.text.TextUtils
 
 import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.net.Proxy
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.Proxy
 
 import java.net.URLDecoder
 import java.util.HashMap

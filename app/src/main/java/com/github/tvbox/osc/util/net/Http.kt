@@ -1,6 +1,6 @@
 package com.github.tvbox.osc.util.net
 
-import com.github.tvbox.osc.util.OkGoHelper
+import com.github.tvbox.osc.net.OkGoHelper
 
 import java.io.IOException
 import java.net.SocketTimeoutException

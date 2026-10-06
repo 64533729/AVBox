@@ -5,13 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
+import com.github.tvbox.osc.io.removeLocalCopy
 import com.github.tvbox.osc.util.ApiLineSignal
 import com.github.tvbox.osc.util.BootGuard
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.removeLocalCopy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

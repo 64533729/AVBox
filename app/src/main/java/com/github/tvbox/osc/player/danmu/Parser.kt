@@ -3,26 +3,12 @@ package com.github.tvbox.osc.player.danmu
 import android.graphics.Color
 import android.text.TextUtils
 import com.github.tvbox.osc.bean.Danmu
+import com.github.tvbox.osc.io.FileUtils
+import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.DanmuHelper
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.SSL.SSLSocketFactoryCompat
-import master.flame.danmaku.danmaku.model.AlphaValue
-import master.flame.danmaku.danmaku.model.BaseDanmaku
-import master.flame.danmaku.danmaku.model.Duration
-import master.flame.danmaku.danmaku.model.IDanmakus
-import master.flame.danmaku.danmaku.model.IDisplayer
-import master.flame.danmaku.danmaku.model.SpecialDanmaku
-import master.flame.danmaku.danmaku.model.android.DanmakuFactory
-import master.flame.danmaku.danmaku.model.android.Danmakus
-import master.flame.danmaku.danmaku.parser.BaseDanmakuParser
-import master.flame.danmaku.danmaku.util.DanmakuUtils
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONArray
-import org.json.JSONException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -38,6 +24,20 @@ import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSession
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
+import master.flame.danmaku.danmaku.model.AlphaValue
+import master.flame.danmaku.danmaku.model.BaseDanmaku
+import master.flame.danmaku.danmaku.model.Duration
+import master.flame.danmaku.danmaku.model.IDanmakus
+import master.flame.danmaku.danmaku.model.IDisplayer
+import master.flame.danmaku.danmaku.model.SpecialDanmaku
+import master.flame.danmaku.danmaku.model.android.DanmakuFactory
+import master.flame.danmaku.danmaku.model.android.Danmakus
+import master.flame.danmaku.danmaku.parser.BaseDanmakuParser
+import master.flame.danmaku.danmaku.util.DanmakuUtils
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONException
 
 class Parser : BaseDanmakuParser {
 

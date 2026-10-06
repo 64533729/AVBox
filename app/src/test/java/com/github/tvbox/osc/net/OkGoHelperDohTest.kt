@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser

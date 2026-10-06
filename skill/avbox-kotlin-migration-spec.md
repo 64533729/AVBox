@@ -413,7 +413,7 @@ pwsh skill/scripts/verify-migration.ps1 -Action tierb
 6. **`object` 里引用自身类型、并用 `this` 赋值是合法的**：`object O { private var m: O? = null; fun init() { …; m = this } }`。这是 Java「`private static AppDataManager manager` + DCL `new AppDataManager()`」这类**纯旗标实例**的自然落法（`manager` 在本类内从不使用，只作「是否已 init」的判据）。
 7. **⚠️ `@Synchronized` 不等于 Java 的 `static synchronized`**：前者锁 `INSTANCE`，后者锁 `Class`。`AppDataManager` 的 `init()` 用 `synchronized(AppDataManager.class)`、`get()` 是 `static synchronized`，两者在 Java 里共用同一把 Class 锁 ⇒ Kotlin 侧**两侧都写成显式 `synchronized(AppDataManager::class.java)`**（与 §7.10 规则 12 同源）。
 8. **`object` 的私有属性编译出来仍是 `private static` 字段**（`javap` 实证：`manager`/`dbInstance`/`DB_FILE_VERSION`/`DB_NAME` 与 Java 逐字相同），不必担心"变成实例字段"带来的行为差异。
-9. **`File.getParentFile()` 在 Kotlin 侧是 `File?`**，直接 `.exists()` 只报 **warning**（不报 error）⇒ 沿用 `util/FileUtils.kt:526-527` 的既有处理，保留告警登记即可，不要"顺手"改成 `!!`。
+9. **`File.getParentFile()` 在 Kotlin 侧是 `File?`**，直接 `.exists()` 只报 **warning**（不报 error）⇒ 沿用 `io/FileUtils.kt:451-452` 的既有处理，保留告警登记即可，不要"顺手"改成 `!!`。
 10. **`text.split` / `toLowerCase(Locale)` / `Integer.valueOf(x.trim())`** 的 Kotlin 形态：`split("/", limit = 2)` / `lowercase(Locale.ROOT)` / `x.trim { it <= ' ' }.toInt()`（前两条同 §7.5 规则 16 / §7.10 规则 8）。
 11. **`OkGo` 的 `params(key, value)` 在 Kotlin 侧是平台类型参数**，传 `String?` 不需要 `!!`（`SearchLoader.kt` 已实证可传 null）；`params(key, int)` 有独立重载 ⇒ `.params("page", page)` 可直接写。
 12. **`builder.readTimeout(15, TimeUnit.SECONDS)` 的整数字面量会按 Long 推断**（`RemoteTVBox.kt:143` 先例），不必写 `15L`。

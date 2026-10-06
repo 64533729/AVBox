@@ -10,7 +10,7 @@
 OkGo(`com.lzy.net:okgo:3.0.4`,2018 年停更、按 okhttp3 3.x 编译)本身不提供网络能力,只提供调用形状。依赖形态:**项目在 `gradle/libs.versions.toml` 显式声明 okhttp 5.5.0(`app/build.gradle.kts:122`),okgo 传递的 okhttp 3.x 被版本仲裁压制**,okgo 实际运行在 5.5.0 之上:
 
 ```kotlin
-// app/src/main/java/com/github/tvbox/osc/util/OkGoHelper.kt
+// app/src/main/java/com/github/tvbox/osc/net/OkGoHelper.kt
 val okHttpClient = builder.build()
 okHttpClient.dispatcher.maxRequestsPerHost = 10
 OkGo.getInstance().setOkHttpClient(okHttpClient)
@@ -38,7 +38,7 @@ OkGo.getInstance().setOkHttpClient(okHttpClient)
 
 | # | 文件 | OkGo 用法 | 片 |
 |---|---|---|---|
-| 1 | `util/OkGoHelper.kt` | 初始化:`setOkHttpClient`×2(init/reloadDns)、`HttpHeaders.setUserAgent`×2(init/reloadDns)、`HttpsUtils.UnSafeHostnameVerifier`×1、okgo 版 `HttpLoggingInterceptor`**×4**(:87/:255 挂在 `initExoOkHttpClient()` 的 ExoPlayer client 上、:376/:417 挂在 default/reloadDns 上;均 `Level.NONE`/`ColorLevel.OFF`) | N5 |
+| 1 | `net/OkGoHelper.kt` | 初始化:`setOkHttpClient`×2(init/reloadDns)、`HttpHeaders.setUserAgent`×2(init/reloadDns)、`HttpsUtils.UnSafeHostnameVerifier`×1、okgo 版 `HttpLoggingInterceptor`**×4**(:87/:255 挂在 `initExoOkHttpClient()` 的 ExoPlayer client 上、:376/:417 挂在 default/reloadDns 上;均 `Level.NONE`/`ColorLevel.OFF`) | N5 |
 | 2 | `sourcedata/SourceHelper.kt` | `siteGet()` 枢纽:`OkGo.get<String>(api)` + 合并站点 header,返回 `GetRequest<String>` | N1 |
 | 3 | `sourcedata/ListLoader.kt` | `siteGet`×3 + `AbsCallback`×3;`.tag(api)`×2(无消费者)+ `.tag("detail")`×1;`onError` 读 `code()`/`exception` | N1 |
 | 4 | `sourcedata/DetailLoader.kt` | `siteGet`×1 + `AbsCallback`×1;`.tag("detail")`×1 | N1 |

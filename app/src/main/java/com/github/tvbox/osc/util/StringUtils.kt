@@ -218,5 +218,18 @@ class StringUtils {
             }
             return result
         }
+
+        private val BRACKET_PATTERN = Regex("[（(\\[【][^）)\\]】]*[）)\\]】]")
+
+        private val NOISE_PATTERN = Regex("[\\s\\p{Z}\\p{P}\\p{S}]")
+
+        @JvmStatic
+        fun normalizeTitle(text: String?): String {
+            if (text == null) return ""
+            return text
+                .replace(BRACKET_PATTERN, "")
+                .replace(NOISE_PATTERN, "")
+                .lowercase(java.util.Locale.ROOT)
+        }
     }
 }

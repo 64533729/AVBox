@@ -7,10 +7,10 @@ import android.util.Log
 
 import com.github.catvod.Proxy
 import com.github.catvod.net.OkHttp
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.server.RemoteServer
 import com.github.tvbox.osc.util.AppContextHolder
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils

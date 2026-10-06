@@ -15,18 +15,19 @@ import com.github.tvbox.osc.bean.LiveSettingItem
 import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.ProxyRule
 import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.io.FileUtils
+import com.github.tvbox.osc.net.OkGoHelper
+import com.github.tvbox.osc.net.SearchHelper
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.util.AES
 import com.github.tvbox.osc.util.AdBlocker
 import com.github.tvbox.osc.util.DefaultConfig
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HeaderGuard
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.VideoParseRuler
 import com.github.tvbox.osc.util.live.TxtSubscribe
@@ -91,6 +92,8 @@ class ApiConfig private constructor() {
         gson = Gson()
         KV.put(HawkConfig.LIVE_GROUP_LIST, JsonArray())
         loadDefaultConfig()
+        OkGoHelper.hostsProvider = { getMyHost() }
+        SearchHelper.liveSourcesProvider = { getSourceBeanList() }
     }
 
     fun loadConfig(useCache: Boolean, callback: LoadConfigCallback, activity: Activity?) {

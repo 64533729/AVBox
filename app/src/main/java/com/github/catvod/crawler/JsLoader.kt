@@ -3,8 +3,8 @@ package com.github.catvod.crawler
 import android.util.Log
 
 import com.github.catvod.crawler.js.JsSpider
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.util.AppContextHolder
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils

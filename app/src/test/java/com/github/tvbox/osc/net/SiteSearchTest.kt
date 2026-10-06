@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
 import com.github.tvbox.osc.bean.SourceBean
 import org.junit.Assert.assertEquals

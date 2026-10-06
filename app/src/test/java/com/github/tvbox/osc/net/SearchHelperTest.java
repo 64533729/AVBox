@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util;
+package com.github.tvbox.osc.net;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

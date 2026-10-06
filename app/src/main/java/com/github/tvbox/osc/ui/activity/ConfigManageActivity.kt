@@ -3,18 +3,18 @@ package com.github.tvbox.osc.ui.activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import com.github.tvbox.osc.ui.theme.enableTransparentEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.ComposeView
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.base.BaseActivity
+import com.github.tvbox.osc.io.handleLocalConfigResult
+import com.github.tvbox.osc.io.handleLocalSourceTreeResult
+import com.github.tvbox.osc.io.startLocalConfig
 import com.github.tvbox.osc.ui.components.SheetHostScaffold
 import com.github.tvbox.osc.ui.page.ConfigManageScreen
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
+import com.github.tvbox.osc.ui.theme.enableTransparentEdgeToEdge
 import com.github.tvbox.osc.util.PermissionHelper
-import com.github.tvbox.osc.util.handleLocalConfigResult
-import com.github.tvbox.osc.util.handleLocalSourceTreeResult
-import com.github.tvbox.osc.util.startLocalConfig
 
 class ConfigManageActivity : BaseActivity() {
 

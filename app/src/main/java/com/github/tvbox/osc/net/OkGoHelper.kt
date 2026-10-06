@@ -1,10 +1,13 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
-import com.github.tvbox.osc.api.ApiConfig
+import com.github.catvod.net.OkDns
+import com.github.catvod.net.OkHttp
 import com.github.tvbox.osc.bean.ProxyRule
-import com.github.tvbox.osc.player.danmu.Parser
-import com.github.tvbox.osc.util.net.OkProxySelector
-import com.github.tvbox.osc.util.net.ProxyAuthenticator
+import com.github.tvbox.osc.util.AppContextHolder
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.SSL.SSLSocketFactoryCompat
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
@@ -27,8 +30,6 @@ import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
-
-import com.github.tvbox.osc.player.engine.MediaSources
 
 object OkGoHelper {
     const val DEFAULT_MILLISECONDS = 10000L
@@ -72,7 +73,7 @@ object OkGoHelper {
     fun setProxyList(proxyRules: List<ProxyRule>?) {
         proxySelector().clear()
         if (proxyRules != null && !proxyRules.isEmpty()) proxySelector().addAll(proxyRules)
-        com.github.catvod.net.OkHttp.reset()
+        OkHttp.reset()
     }
 
     private fun initExoOkHttpClient() {
@@ -93,8 +94,6 @@ object OkGoHelper {
 
         builder.dns(CustomDns())
         ItvClient = builder.build()
-
-        MediaSources.getInstance(AppContextHolder.context()!!).setOkClient(ItvClient)
     }
 
     @JvmField
@@ -111,6 +110,9 @@ object OkGoHelper {
     @JvmField
     @Volatile
     var myHosts: Map<String, String>? = null
+
+    @JvmStatic
+    var hostsProvider: (() -> Map<String, String>?)? = null
 
     @JvmStatic
     fun getDohConfigArray(): JsonArray {
@@ -198,7 +200,7 @@ object OkGoHelper {
 
     @JvmStatic
     fun refreshHosts() {
-        myHosts = ApiConfig.get().getMyHost()
+        myHosts = hostsProvider?.invoke()
     }
 
     private fun DohIps(ips: JsonArray?): List<InetAddress> {
@@ -263,7 +265,7 @@ object OkGoHelper {
         override fun lookup(hostname: String): List<InetAddress> {
             val originalHost = hostname
             var hosts = myHosts
-            if (hosts == null) hosts = ApiConfig.get().getMyHost()
+            if (hosts == null) hosts = hostsProvider?.invoke()
             var hostname = hostname
             if (hosts != null && !hosts.isEmpty() && hosts.containsKey(hostname)) {
                 hostname = hosts.get(hostname)!!
@@ -384,40 +386,6 @@ object OkGoHelper {
         initExoOkHttpClient()
     }
 
-    @JvmStatic
-    @Synchronized
-    fun reloadDns() {
-        initDnsOverHttps()
-
-        val builder = OkHttpClient.Builder()
-
-        builder.readTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-        builder.writeTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-        builder.connectTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-
-        builder.dns(CustomDns())
-        builder.proxySelector(proxySelector())
-        builder.proxyAuthenticator(proxyAuthenticator())
-        try {
-            setOkHttpSsl(builder)
-        } catch (th: Throwable) {
-            LOG.e("OkGoHelper", th)
-        }
-
-        val okHttpClient = builder.build()
-        okHttpClient.dispatcher.maxRequestsPerHost = 10
-
-        defaultClient = okHttpClient
-
-        builder.followRedirects(false)
-        builder.followSslRedirects(false)
-        noRedirectClient = builder.build()
-
-        initExoOkHttpClient()
-        Parser.resetHttpClient()
-        com.github.catvod.net.OkHttp.resetClient()
-    }
-
     @Synchronized
     private fun setOkHttpSsl(builder: OkHttpClient.Builder) {
         try {
@@ -441,5 +409,13 @@ object OkGoHelper {
         } catch (e: Exception) {
             throw RuntimeException(e)
         }
+    }
+
+    init {
+        OkHttp.baseClientProvider = { getDefaultClient() }
+        OkHttp.noRedirectClientProvider = { getNoRedirectClient() }
+        OkHttp.proxySelectorProvider = { proxySelector() }
+        OkHttp.proxyAuthenticatorProvider = { proxyAuthenticator() }
+        OkDns.dnsOverHttpsProvider = { dnsOverHttps }
     }
 }

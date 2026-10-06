@@ -5,7 +5,7 @@ import android.text.TextUtils
 import android.util.Base64
 
 import com.github.catvod.crawler.Spider
-import com.github.tvbox.osc.util.FileUtils
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils

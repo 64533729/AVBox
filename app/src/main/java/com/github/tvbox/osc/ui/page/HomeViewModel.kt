@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
+import com.github.tvbox.osc.api.SortAdjuster
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.AbsXml
@@ -11,23 +12,23 @@ import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.event.RefreshEvent
-import com.github.tvbox.osc.util.DefaultConfig
-import com.github.tvbox.osc.util.HomeSettings
-import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.sourcedata.SourceRuntimeState
 import com.github.tvbox.osc.sourcedata.SourceViewModel
+import com.github.tvbox.osc.util.HomeSettings
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.LanguageManager
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -35,7 +36,6 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.json.JSONObject
-import kotlin.coroutines.resume
 
 class HomeViewModel : ViewModel() {
     private fun str(resId: Int, vararg args: Any): String {
@@ -286,9 +286,9 @@ class HomeViewModel : ViewModel() {
         LOG.i("echo--sort-result: src=$key hasClasses=${absXml?.classes?.sortList != null} sortSize=${absXml?.classes?.sortList?.size}")
         val sortList = absXml?.classes?.sortList
         val adjusted = if (sortList != null) {
-            DefaultConfig.adjustSort(key, sortList, true)
+            SortAdjuster.adjustSort(key, sortList, true)
         } else {
-            DefaultConfig.adjustSort(key, ArrayList(), true)
+            SortAdjuster.adjustSort(key, ArrayList(), true)
         }
         allSorts.value = adjusted
 

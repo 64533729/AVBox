@@ -6,7 +6,7 @@ import android.text.TextUtils
 
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.Movie
-import com.github.tvbox.osc.util.FileUtils
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
@@ -18,13 +18,13 @@ import com.xunlei.downloadlib.android.XLUtil
 import com.xunlei.downloadlib.parameter.TorrentFileInfo
 import com.xunlei.downloadlib.parameter.XLTaskInfo
 
+import com.github.tvbox.osc.util.AppContextHolder
 import java.io.File
 import java.util.ArrayList
 import java.util.HashMap
 import java.util.Random
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import com.github.tvbox.osc.util.AppContextHolder
 
 object Thunder {
 

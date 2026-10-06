@@ -1,11 +1,16 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.io
 
 import android.os.Environment
 import android.text.TextUtils
 import android.util.Base64
 
 import com.github.catvod.net.OkHttp
-import com.github.tvbox.osc.server.ControlManager
+import com.github.tvbox.osc.util.AppContextHolder
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.LocalAddress
+import com.github.tvbox.osc.util.MD5
+import com.github.tvbox.osc.util.StringUtils
+import com.github.tvbox.osc.util.UA
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 
@@ -488,12 +493,10 @@ object FileUtils {
             } else if (isAsFile(name, "js/lib")) {
                 rel = getAsOpen("js/lib/" + name)
             } else if (name.startsWith("file://")) {
-                rel = get(ControlManager.get()
-                        .getAddress(true) + "file/" + name.replace("file:///", "")
+                rel = get(LocalAddress.get() + "file/" + name.replace("file:///", "")
                         .replace("file://", ""))
             } else if (name.startsWith("clan://localhost/")) {
-                rel = get(ControlManager.get()
-                        .getAddress(true) + "file/" + name.replace("clan://localhost/", ""))
+                rel = get(LocalAddress.get() + "file/" + name.replace("clan://localhost/", ""))
             } else if (name.startsWith("clan://")) {
                 val substring = name.substring(7)
                 val indexOf = substring.indexOf('/')

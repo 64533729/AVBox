@@ -1,7 +1,8 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
 import com.github.catvod.crawler.SpiderDebug
-import com.github.tvbox.osc.server.ControlManager
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.LocalAddress
 import com.github.tvbox.osc.util.parser.SuperParse
 
 import java.io.ByteArrayInputStream
@@ -227,7 +228,7 @@ object Proxy {
             if (u.startsWith("data:") || u.startsWith("blob:")) return u
             val baseUri = URI(b.trim { it <= ' ' })
             val urlUri = URI(u)
-            val proxyUrl = ControlManager.get().getAddress(true) + "proxy?go=live&type=" + type + headerQuery(params) + "&url="
+            val proxyUrl = LocalAddress.get() + "proxy?go=live&type=" + type + headerQuery(params) + "&url="
             if (u.startsWith("http://") || u.startsWith("https://")) {
                 return proxyUrl + URLEncoder.encode(urlUri.toString(), "UTF-8")
             } else if (u.startsWith("://")) {
@@ -247,7 +248,7 @@ object Proxy {
     private fun fallbackUrl(url: String, type: String, params: Map<String, String>?): String {
         if (!url.startsWith("http://") && !url.startsWith("https://")) return url
         try {
-            return ControlManager.get().getAddress(true) + "proxy?go=live&type=" + type + headerQuery(params) + "&url=" + URLEncoder.encode(url, "UTF-8")
+            return LocalAddress.get() + "proxy?go=live&type=" + type + headerQuery(params) + "&url=" + URLEncoder.encode(url, "UTF-8")
         } catch (e: Exception) {
             SpiderDebug.log(e)
             return url

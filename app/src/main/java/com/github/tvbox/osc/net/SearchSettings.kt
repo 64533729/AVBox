@@ -1,4 +1,8 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
+
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.StringUtils
 
 object SearchSettings {
 
@@ -13,10 +17,6 @@ object SearchSettings {
     private const val VALUE_LAYOUT_VERTICAL = "vertical"
 
     private const val KEY_EMPTY_SOURCES = "search_sources_empty"
-
-    private val BRACKET_PATTERN = Regex("[（(\\[【][^）)\\]】]*[）)\\]】]")
-
-    private val NOISE_PATTERN = Regex("[\\s\\p{Z}\\p{P}\\p{S}]")
 
     fun isExactMatchEnabled(): Boolean = KV.get(KEY_EXACT_MATCH, false)
 
@@ -72,13 +72,7 @@ object SearchSettings {
         return normalized.isNotEmpty() && normalized == normalize(keyword)
     }
 
-    internal fun normalize(text: String?): String {
-        if (text == null) return ""
-        return text
-            .replace(BRACKET_PATTERN, "")
-            .replace(NOISE_PATTERN, "")
-            .lowercase(java.util.Locale.ROOT)
-    }
+    internal fun normalize(text: String?): String = StringUtils.normalizeTitle(text)
 
     private fun emptyApis(): Set<String> =
         KV.get(KEY_EMPTY_SOURCES, "").split('\n').filter { it.isNotEmpty() }.toSet()

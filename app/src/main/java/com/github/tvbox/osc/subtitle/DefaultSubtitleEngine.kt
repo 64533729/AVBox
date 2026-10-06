@@ -33,8 +33,8 @@ import android.util.Log
 
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.subtitle.model.Subtitle
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.SubtitleHelper

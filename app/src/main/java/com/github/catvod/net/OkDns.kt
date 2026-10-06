@@ -1,6 +1,5 @@
 package com.github.catvod.net
 
-import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.RegexUtils
 
 import java.net.InetAddress
@@ -37,7 +36,14 @@ class OkDns : Dns {
 
     @Throws(UnknownHostException::class)
     override fun lookup(hostname: String): List<InetAddress> {
-        val dns = if (OkGoHelper.dnsOverHttps != null) OkGoHelper.dnsOverHttps!! else Dns.SYSTEM
+        val dns = dnsOverHttpsProvider?.invoke() ?: Dns.SYSTEM
         return dns.lookup(get(hostname))
+    }
+
+    companion object {
+
+        @JvmStatic
+        @Volatile
+        var dnsOverHttpsProvider: (() -> Dns?)? = null
     }
 }

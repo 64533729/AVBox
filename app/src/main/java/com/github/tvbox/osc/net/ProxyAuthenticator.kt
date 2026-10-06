@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util.net
+package com.github.tvbox.osc.net
 
 import androidx.annotation.NonNull
 

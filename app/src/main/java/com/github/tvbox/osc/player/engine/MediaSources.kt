@@ -16,11 +16,11 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import com.github.tvbox.osc.util.OkGoHelper
-import okhttp3.OkHttpClient
+import com.github.tvbox.osc.net.OkGoHelper
 import java.util.HashMap
 import java.util.Locale
 import java.util.TreeMap
+import okhttp3.OkHttpClient
 
 class MediaSources(
     context: Context,

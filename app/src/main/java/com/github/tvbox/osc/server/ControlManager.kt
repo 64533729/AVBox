@@ -2,6 +2,8 @@ package com.github.tvbox.osc.server
 
 import android.content.Context
 
+import com.github.tvbox.osc.util.LocalAddress
+
 import java.io.IOException
 
 class ControlManager private constructor() {
@@ -63,6 +65,7 @@ class ControlManager private constructor() {
         @JvmStatic
         fun init(context: Context) {
             mContext = context
+            LocalAddress.provider = { get().getAddress(true) }
         }
     }
 }

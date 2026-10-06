@@ -4,26 +4,26 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 
+import com.github.catvod.crawler.JsLoader
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppDataManager
 import com.github.tvbox.osc.data.PlaybackPorts
+import com.github.tvbox.osc.io.FileUtils
+import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.AppManager
 import com.github.tvbox.osc.util.EpgUtil
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.OkGoHelper
-import com.github.catvod.crawler.JsLoader
 import com.p2p.P2PClass
 import com.whl.quickjs.android.QuickJSLoader
 
+import com.github.tvbox.osc.player.engine.PlayerCache
 import me.jessyan.autosize.AutoSizeConfig
 import me.jessyan.autosize.unit.Subunits
-import com.github.tvbox.osc.player.engine.PlayerCache
 
 class App : Application() {
     private var vodInfo: VodInfo? = null

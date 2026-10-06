@@ -11,7 +11,7 @@ object HistoryMerge {
         KV.put(KEY, enabled)
     }
 
-    fun normalize(title: String?): String = SearchSettings.normalize(title)
+    fun normalize(title: String?): String = StringUtils.normalizeTitle(title)
 
     fun yearOf(title: String?): String = YEAR_PATTERN.find(title.orEmpty())?.value ?: ""
 

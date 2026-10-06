@@ -1,8 +1,13 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
-import com.github.tvbox.osc.api.ApiConfig
+import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.KV
 
 object SearchHelper {
+
+    @JvmStatic
+    var liveSourcesProvider: (() -> List<SourceBean>?)? = null
 
     @JvmStatic
     fun getSourcesForSearch(): HashMap<String, String>? {
@@ -25,7 +30,7 @@ object SearchHelper {
     @JvmStatic
     fun isSelectionStale(checked: HashMap<String, String>?): Boolean {
         val liveKeys = HashSet<String>()
-        for (bean in ApiConfig.get().getSourceBeanList()) {
+        for (bean in liveSourcesProvider?.invoke().orEmpty()) {
             liveKeys.add(bean.key!!)
         }
         return isSelectionStale(checked, liveKeys)
@@ -43,7 +48,7 @@ object SearchHelper {
     @JvmStatic
     fun getSources(): HashMap<String, String> {
         val mCheckSources = HashMap<String, String>()
-        for (bean in ApiConfig.get().getSourceBeanList()) {
+        for (bean in liveSourcesProvider?.invoke().orEmpty()) {
             if (!bean.isSearchable()) {
                 continue
             }

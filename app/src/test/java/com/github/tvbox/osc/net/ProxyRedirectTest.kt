@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.net
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals

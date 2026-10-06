@@ -1,11 +1,12 @@
 package com.github.tvbox.osc.subtitle
 
-import com.github.tvbox.osc.util.LOG
 import android.net.Uri
 import android.text.TextUtils
 import android.util.Base64
 import android.util.Log
+import com.github.tvbox.osc.util.LOG
 
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.subtitle.exception.FatalParsingException
 import com.github.tvbox.osc.subtitle.format.FormatASS
 import com.github.tvbox.osc.subtitle.format.FormatSRT
@@ -14,7 +15,6 @@ import com.github.tvbox.osc.subtitle.format.FormatTTML
 import com.github.tvbox.osc.subtitle.format.TimedTextFileFormat
 import com.github.tvbox.osc.subtitle.model.TimedTextObject
 import com.github.tvbox.osc.subtitle.runtime.AppTaskExecutor
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.UnicodeReader
 import com.github.tvbox.osc.util.net.Http

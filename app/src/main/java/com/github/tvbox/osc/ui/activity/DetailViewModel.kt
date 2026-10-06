@@ -3,10 +3,9 @@ package com.github.tvbox.osc.ui.activity
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.R
+import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
-import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.VodInfo
@@ -14,11 +13,14 @@ import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.data.EpisodeTotals
 import com.github.tvbox.osc.data.HistoryWriter
 import com.github.tvbox.osc.event.RefreshEvent
+import com.github.tvbox.osc.net.SearchHelper
 import com.github.tvbox.osc.player.PlaybackSession
+import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.SearchHelper
-import com.github.tvbox.osc.sourcedata.SourceViewModel
+import com.github.tvbox.osc.util.LanguageManager
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,8 +39,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 
 class DetailViewModel : ViewModel() {
 

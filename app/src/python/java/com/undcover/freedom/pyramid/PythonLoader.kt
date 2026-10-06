@@ -10,8 +10,8 @@ import com.github.catvod.Proxy
 import com.github.catvod.crawler.Spider
 import com.github.catvod.crawler.SpiderNull
 import com.github.catvod.net.OkHttp
+import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.OkGoHelper
 
 import org.json.JSONException
 import org.json.JSONObject

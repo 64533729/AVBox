@@ -16,8 +16,6 @@ import coil3.asDrawable
 import coil3.request.Disposable
 import coil3.request.ImageRequest
 
-import com.github.tvbox.osc.api.ApiConfig
-
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -42,15 +40,15 @@ object ImgUtil {
     }
 
     @JvmStatic
-    fun initStyle(): Style? {
-        val bStyle = ApiConfig.get().getHomeSourceBean().style
-        if (!bStyle!!.isEmpty()) {
-            try {
-                val jsonObject = JSONObject(bStyle)
-                return Style(jsonObject.getDouble("ratio").toFloat(), jsonObject.getString("type"))
-            } catch (ignored: JSONException) {
-                LOG.d("ImgUtil", "home style json invalid, use default grid")
-            }
+    fun initStyle(styleJson: String?): Style? {
+        if (styleJson.isNullOrEmpty()) {
+            return null
+        }
+        try {
+            val jsonObject = JSONObject(styleJson)
+            return Style(jsonObject.getDouble("ratio").toFloat(), jsonObject.getString("type"))
+        } catch (ignored: JSONException) {
+            LOG.d("ImgUtil", "home style json invalid, use default grid")
         }
         return null
     }

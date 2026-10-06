@@ -4,14 +4,16 @@ import android.widget.Toast
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.event.RefreshEvent
+import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.ui.activity.SearchViewModel
 import com.github.tvbox.osc.util.BootGuard
-import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.MD5
+import java.io.File
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,8 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.greenrobot.eventbus.EventBus
-import java.io.File
-import kotlin.coroutines.resume
 
 object AppBootstrap {
 

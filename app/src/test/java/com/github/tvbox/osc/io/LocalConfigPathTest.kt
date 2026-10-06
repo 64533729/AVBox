@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.io
 
 import java.io.File
 import java.nio.file.Files

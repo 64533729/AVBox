@@ -3,14 +3,15 @@ package com.github.catvod.net
 import androidx.collection.ArrayMap
 
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.SSL.SSLSocketFactoryCompat
 
+import java.net.ProxySelector
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 
 import javax.net.ssl.X509TrustManager
 
+import okhttp3.Authenticator
 import okhttp3.Call
 import okhttp3.FormBody
 import okhttp3.Headers
@@ -30,6 +31,22 @@ class OkHttp {
         private var client: OkHttpClient? = null
 
         @JvmStatic
+        @Volatile
+        var baseClientProvider: (() -> OkHttpClient?)? = null
+
+        @JvmStatic
+        @Volatile
+        var noRedirectClientProvider: (() -> OkHttpClient?)? = null
+
+        @JvmStatic
+        @Volatile
+        var proxySelectorProvider: (() -> ProxySelector?)? = null
+
+        @JvmStatic
+        @Volatile
+        var proxyAuthenticatorProvider: (() -> Authenticator?)? = null
+
+        @JvmStatic
         fun dns(): OkDns {
             synchronized(OkHttp::class.java) {
                 if (dns == null) dns = OkDns()
@@ -41,9 +58,11 @@ class OkHttp {
         fun client(): OkHttpClient {
             synchronized(OkHttp::class.java) {
                 client?.let { return it }
-                val base = OkGoHelper.getDefaultClient()
+                val base = baseClientProvider?.invoke()
                 if (base != null) return base.newBuilder().dns(dns()).build().also { client = it }
-                val builder = OkHttpClient.Builder().dns(dns()).proxySelector(OkGoHelper.proxySelector()).proxyAuthenticator(OkGoHelper.proxyAuthenticator()).connectTimeout(TIMEOUT, TimeUnit.MILLISECONDS).readTimeout(TIMEOUT, TimeUnit.MILLISECONDS).writeTimeout(TIMEOUT, TimeUnit.MILLISECONDS)
+                val builder = OkHttpClient.Builder().dns(dns()).connectTimeout(TIMEOUT, TimeUnit.MILLISECONDS).readTimeout(TIMEOUT, TimeUnit.MILLISECONDS).writeTimeout(TIMEOUT, TimeUnit.MILLISECONDS)
+                proxySelectorProvider?.invoke()?.let { builder.proxySelector(it) }
+                proxyAuthenticatorProvider?.invoke()?.let { builder.proxyAuthenticator(it) }
                 setOkHttpSsl(builder)
                 return builder.build().also { client = it }
             }
@@ -66,7 +85,7 @@ class OkHttp {
 
         @JvmStatic
         fun noRedirect(timeout: Long): OkHttpClient {
-            val base = OkGoHelper.getNoRedirectClient() ?: client()
+            val base = noRedirectClientProvider?.invoke() ?: client()
             return base.newBuilder().dns(dns()).connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).followRedirects(false).followSslRedirects(false).build()
         }
 

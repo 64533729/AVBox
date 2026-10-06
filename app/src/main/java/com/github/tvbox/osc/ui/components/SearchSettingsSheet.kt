@@ -35,8 +35,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.net.SearchSettings
 import com.github.tvbox.osc.util.HomeSettings
-import com.github.tvbox.osc.util.SearchSettings
 
 private val SourceCardShapeLeft = RoundedCornerShape(
     topStart = 28.dp,
