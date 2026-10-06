@@ -24,10 +24,10 @@ import com.github.tvbox.osc.base.BaseActivity
 import com.github.tvbox.osc.bean.Epginfo
 import com.github.tvbox.osc.bean.LiveChannelGroup
 import com.github.tvbox.osc.bean.LiveChannelItem
-import com.github.tvbox.osc.bean.LivePlayerManager
 import com.github.tvbox.osc.bean.LiveSettingGroup
 import com.github.tvbox.osc.player.KernelDecision
 import com.github.tvbox.osc.player.KernelReusePolicy
+import com.github.tvbox.osc.player.LivePlayerManager
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.PlaybackService
 import com.github.tvbox.osc.player.PlaybackTimes
