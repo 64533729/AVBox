@@ -10,6 +10,7 @@ import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.server.ControlManager
+import com.github.tvbox.osc.sourcedata.SourceHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
@@ -20,7 +21,6 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.PlaybackProgress
-import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
@@ -989,7 +989,7 @@ class PlaybackController {
 
         @JvmStatic
         fun extractHeaders(playResult: JSONObject?): HashMap<String, String>? {
-            return PlayerHelper.extractPlayHeaders(playResult)
+            return SourceHelper.extractPlayHeaders(playResult)
         }
 
         @JvmStatic

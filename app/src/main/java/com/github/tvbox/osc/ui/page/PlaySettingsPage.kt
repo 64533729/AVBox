@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.PlaybackService
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.effect.anime4k.Anime4kTier
 import com.github.tvbox.osc.ui.components.AVBoxAlertDialog
 import com.github.tvbox.osc.ui.components.AppTopBarScaffold
@@ -36,7 +37,6 @@ import com.github.tvbox.osc.ui.components.SettingsSwitchRow
 import com.github.tvbox.osc.ui.components.TopBarActionBox
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.MusicSettings
-import com.github.tvbox.osc.util.PlayerHelper
 import kotlin.math.roundToInt
 import com.github.tvbox.osc.player.AppPlayerView
 

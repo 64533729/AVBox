@@ -28,6 +28,7 @@ import com.github.tvbox.osc.player.PlaybackPage
 import com.github.tvbox.osc.player.PlaybackService
 import com.github.tvbox.osc.player.PlaybackSession
 import com.github.tvbox.osc.player.PlaybackViewBridge
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.state.CastSheetState
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.ui.music.MusicLrc
@@ -42,7 +43,6 @@ import com.github.tvbox.osc.util.HistoryWriter
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MusicSettings
 import com.github.tvbox.osc.util.PermissionHelper
-import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

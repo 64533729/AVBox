@@ -32,6 +32,7 @@ import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.MyVideoView
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.state.LockVisibility
 import com.github.tvbox.osc.player.state.ParamsChoice
 import com.github.tvbox.osc.player.state.ParamsSheetState
@@ -53,7 +54,6 @@ import com.github.tvbox.osc.subtitle.widget.SimpleSubtitleView
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
 import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.HawkConfig
-import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.PlaybackProgress

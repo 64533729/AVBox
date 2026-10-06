@@ -8,7 +8,6 @@ import com.github.tvbox.osc.api.DanmakuApi
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.PlayerHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

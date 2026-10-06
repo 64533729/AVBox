@@ -1,12 +1,9 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.player
 
 import android.app.Activity
 import android.content.Context
 
 import com.github.tvbox.osc.R
-import com.github.tvbox.osc.player.AppPlayerView
-import com.github.tvbox.osc.player.ExoPlayer
-import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.engine.SourcePolicy
 import com.github.tvbox.osc.player.host.EngineSurfaceRenderViewFactory
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
@@ -14,9 +11,13 @@ import com.github.tvbox.osc.player.host.PlayerRenderViewFactory
 import com.github.tvbox.osc.player.thirdparty.Kodi
 import com.github.tvbox.osc.player.thirdparty.MXPlayer
 import com.github.tvbox.osc.player.thirdparty.ReexPlayer
+import com.github.tvbox.osc.player.thirdparty.RemoteTVBox
 import com.github.tvbox.osc.player.thirdparty.VlcPlayer
-
-import android.text.TextUtils
+import com.github.tvbox.osc.util.AppContextHolder
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.LanguageManager
 
 import org.json.JSONException
 import org.json.JSONObject
@@ -76,41 +77,6 @@ object PlayerHelper {
 
     @JvmStatic
     fun isLocalProxyUrl(url: String?): Boolean = SourcePolicy.isLocalProxyUrl(url)
-
-    @JvmStatic
-    fun extractPlayHeaders(playResult: JSONObject?): HashMap<String, String>? {
-        if (playResult == null) return null
-        val headers = HashMap<String, String>()
-        appendJsonHeaders(headers, playResult.opt("header"))
-        appendJsonHeaders(headers, playResult.opt("headers"))
-        return if (headers.isEmpty()) null else headers
-    }
-
-    @JvmStatic
-    fun appendJsonHeaders(headers: HashMap<String, String>?, rawHeaders: Any?) {
-        if (headers == null || rawHeaders == null || rawHeaders === JSONObject.NULL) return
-        try {
-            var json: JSONObject? = null
-            if (rawHeaders is JSONObject) {
-                json = rawHeaders
-            } else if (rawHeaders is String) {
-                val text = (rawHeaders as String).trim { it <= ' ' }
-                if (!TextUtils.isEmpty(text)) {
-                    json = JSONObject(text)
-                }
-            }
-            if (json == null) return
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                if (!TextUtils.isEmpty(key)) {
-                    headers[key] = json.optString(key, "")
-                }
-            }
-        } catch (th: Throwable) {
-            LOG.e("PlayerHelper", "play headers parse failed", th)
-        }
-    }
 
     @JvmStatic
     fun getPlayerName(playType: Int): String {

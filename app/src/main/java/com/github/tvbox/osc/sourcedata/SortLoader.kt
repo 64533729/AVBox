@@ -4,9 +4,9 @@ import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.player.thirdparty.RemoteTVBox
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.RemoteTVBox
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers

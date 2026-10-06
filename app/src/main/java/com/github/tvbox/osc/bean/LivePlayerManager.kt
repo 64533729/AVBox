@@ -1,9 +1,9 @@
 package com.github.tvbox.osc.bean
 
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.PlayerHelper
 import org.json.JSONException
 import org.json.JSONObject
 import com.github.tvbox.osc.player.MyVideoView

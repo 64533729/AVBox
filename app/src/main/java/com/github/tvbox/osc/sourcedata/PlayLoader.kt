@@ -8,7 +8,6 @@ import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.PlayerHelper
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -334,7 +333,7 @@ class PlayLoader(
         val siteHeader = sourceBean.header!!
         if (siteHeader.isEmpty()) return
         try {
-            val extracted: HashMap<String, String>? = PlayerHelper.extractPlayHeaders(result)
+            val extracted: HashMap<String, String>? = SourceHelper.extractPlayHeaders(result)
             val merged = extracted ?: HashMap()
             for ((key, value) in siteHeader) {
                 if (!merged.containsKey(key)) merged[key] = value

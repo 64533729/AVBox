@@ -11,11 +11,11 @@ import com.github.tvbox.osc.player.KernelReusePolicy
 import com.github.tvbox.osc.player.PreloadCoordinator
 import com.github.tvbox.osc.player.PlaybackHostApi
 import com.github.tvbox.osc.player.PlaybackViewBridge
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PermissionHelper
-import com.github.tvbox.osc.util.PlayerHelper
 import org.json.JSONObject
 import java.util.HashMap
 

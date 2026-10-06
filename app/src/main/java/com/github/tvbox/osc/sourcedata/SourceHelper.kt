@@ -15,8 +15,10 @@ import com.github.tvbox.osc.util.net.Http
 import com.github.tvbox.osc.util.net.HttpRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
+import org.json.JSONObject
 
 import java.util.ArrayList
+import java.util.HashMap
 import java.util.Locale
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
@@ -170,6 +172,41 @@ object SourceHelper {
             return extend
         }
         return result
+    }
+
+    @JvmStatic
+    fun extractPlayHeaders(playResult: JSONObject?): HashMap<String, String>? {
+        if (playResult == null) return null
+        val headers = HashMap<String, String>()
+        appendJsonHeaders(headers, playResult.opt("header"))
+        appendJsonHeaders(headers, playResult.opt("headers"))
+        return if (headers.isEmpty()) null else headers
+    }
+
+    @JvmStatic
+    fun appendJsonHeaders(headers: HashMap<String, String>?, rawHeaders: Any?) {
+        if (headers == null || rawHeaders == null || rawHeaders === JSONObject.NULL) return
+        try {
+            var json: JSONObject? = null
+            if (rawHeaders is JSONObject) {
+                json = rawHeaders
+            } else if (rawHeaders is String) {
+                val text = (rawHeaders as String).trim { it <= ' ' }
+                if (!TextUtils.isEmpty(text)) {
+                    json = JSONObject(text)
+                }
+            }
+            if (json == null) return
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                if (!TextUtils.isEmpty(key)) {
+                    headers[key] = json.optString(key, "")
+                }
+            }
+        } catch (th: Throwable) {
+            LOG.e("SourceHelper", "play headers parse failed", th)
+        }
     }
 
     private fun tryMinifyJson(gson: Gson, raw: String): String {

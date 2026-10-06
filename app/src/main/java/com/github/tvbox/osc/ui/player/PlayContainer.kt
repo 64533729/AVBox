@@ -37,6 +37,7 @@ import com.github.tvbox.osc.player.PlaybackPage
 import com.github.tvbox.osc.player.PlaybackService
 import com.github.tvbox.osc.player.PlaybackSession
 import com.github.tvbox.osc.player.PlaybackViewBridge
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.PreloadCoordinator
 import com.github.tvbox.osc.player.TrackInfo
 import com.github.tvbox.osc.player.TrackInfoBean
@@ -56,7 +57,6 @@ import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
-import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.TrackMemory
 import master.flame.danmaku.ui.widget.DanmakuView
