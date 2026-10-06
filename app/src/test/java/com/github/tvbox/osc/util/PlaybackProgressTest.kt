@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 观看历史落库判据:只累计平滑推进,回拖与 seek 跳变都不算在播(直播守卫在 markWatched,纯 JVM 覆盖不到) */
 class PlaybackProgressTest {
 
     @Test
@@ -16,13 +15,11 @@ class PlaybackProgressTest {
 
     @Test
     fun stepAdvance_ignoresStalledPosition() {
-        // 续播/片头跳过让位置在缓冲期就非 0
         assertEquals(0, PlaybackProgress.stepAdvanceMs(90_000, 90_000))
     }
 
     @Test
     fun stepAdvance_ignoresJumpAndRewind() {
-        // 起始位置迟到落位的 seek、手动跳转、回拖
         assertEquals(0, PlaybackProgress.stepAdvanceMs(90_000, 0))
         assertEquals(0, PlaybackProgress.stepAdvanceMs(0, 90_000))
     }

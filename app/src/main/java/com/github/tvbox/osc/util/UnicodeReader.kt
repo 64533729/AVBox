@@ -61,7 +61,6 @@ class UnicodeReader : Reader {
                         (bom[2].toInt() == 0) && (bom[3].toInt() == 0)) {
                     encoding = "UTF-32LE"
                     unread = n - 4
-                    //break label240;
                 }
             }
             if ((bom[0].toInt() == -17) && (bom[1].toInt() == -69) &&

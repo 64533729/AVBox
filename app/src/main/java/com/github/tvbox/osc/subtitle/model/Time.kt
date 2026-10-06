@@ -31,15 +31,8 @@ import com.github.tvbox.osc.util.RegexUtils
 
 class Time {
 
-    /**
-     * Constructor to create a time object.
-     *
-     * @param format supported formats: "hh:mm:ss,ms", "h:mm:ss.cs" and "h:m:s:f/fps"
-     * @param value  string in the correct format
-     */
     constructor(format: String, value: String) {
         if (format.equals("hh:mm:ss,ms", ignoreCase = true)) {
-            // this type of format:  01:02:22,501 (used in .SRT)
             val h: Int
             val m: Int
             val s: Int
@@ -51,7 +44,6 @@ class Time {
 
             mseconds = ms + s * 1000 + m * 60000 + h * 3600000
         } else if (format.equals("h:mm:ss.cs", ignoreCase = true)) {
-            // this type of format:  1:02:22.51 (used in .ASS/.SSA)
             val h: Int
             val m: Int
             val s: Int
@@ -80,22 +72,13 @@ class Time {
         }
     }
 
-    // in an integer we can store 24 days worth of milliseconds, no need for a long
     @JvmField
     var mseconds: Int = 0
 
-    /**
-     * Method to return a formatted value of the time stored
-     *
-     * @param  format supported formats: "hh:mm:ss,ms", "h:mm:ss.cs" and "hhmmssff/fps"
-     * @return formatted time in a string
-     */
     fun getTime(format: String): String {
-        //we use string builder for efficiency
         val time = StringBuilder()
         var aux: String
         if (format.equals("hh:mm:ss,ms", ignoreCase = true)) {
-            // this type of format:  01:02:22,501 (used in .SRT)
             val h: Int
             val m: Int
             val s: Int
@@ -121,7 +104,6 @@ class Time {
             else if (aux.length == 2) time.append('0')
             time.append(aux)
         } else if (format.equals("h:mm:ss.cs", ignoreCase = true)) {
-            // this type of format:  1:02:22.51 (used in .ASS/.SSA)
             val h: Int
             val m: Int
             val s: Int
@@ -146,7 +128,6 @@ class Time {
             if (aux.length == 1) time.append('0')
             time.append(aux)
         } else if (format.startsWith("hhmmssff/")) {
-            //this format is used in EBU's STL
             val h: Int
             val m: Int
             val s: Int
@@ -154,7 +135,6 @@ class Time {
             val fps: Float
             val args = RegexUtils.getPattern("/").split(format)
             fps = args[1].toFloat()
-            //now we concatenate time
             h = mseconds / 3600000
             aux = h.toString()
             if (aux.length == 1) time.append('0')
@@ -172,7 +152,6 @@ class Time {
             if (aux.length == 1) time.append('0')
             time.append(aux)
         } else if (format.startsWith("h:m:s:f/")) {
-            //this format is used in EBU's STL
             val h: Int
             val m: Int
             val s: Int
@@ -180,28 +159,22 @@ class Time {
             val fps: Float
             val args = RegexUtils.getPattern("/").split(format)
             fps = args[1].toFloat()
-            //now we concatenate time
             h = mseconds / 3600000
             aux = h.toString()
-            //if (aux.length()==1) time.append('0');
             time.append(aux)
             time.append(':')
             m = (mseconds / 60000) % 60
             aux = m.toString()
-            //if (aux.length()==1) time.append('0');
             time.append(aux)
             time.append(':')
             s = (mseconds / 1000) % 60
             aux = s.toString()
-            //if (aux.length()==1) time.append('0');
             time.append(aux)
             time.append(':')
             f = (mseconds % 1000) * fps.toInt() / 1000
             aux = f.toString()
-            //if (aux.length()==1) time.append('0');
             time.append(aux)
         } else if (format.startsWith("hh:mm:ss:ff/")) {
-            //this format is used in SCC
             val h: Int
             val m: Int
             val s: Int
@@ -209,7 +182,6 @@ class Time {
             val fps: Float
             val args = RegexUtils.getPattern("/").split(format)
             fps = args[1].toFloat()
-            //now we concatenate time
             h = mseconds / 3600000
             aux = h.toString()
             if (aux.length == 1) time.append('0')

@@ -25,10 +25,6 @@
 
 package com.github.tvbox.osc.subtitle.runtime
 
-/**
- * @author AveryZhong.
- */
-
 abstract class TaskExecutor {
 
     abstract fun executeOnDeskIO(task: Runnable)

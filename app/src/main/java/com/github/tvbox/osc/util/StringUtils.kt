@@ -43,12 +43,6 @@ class StringUtils {
         private val U2028 = String(byteArrayOf(0xE2.toByte(), 0x80.toByte(), 0xA8.toByte()))
         private val U2029 = String(byteArrayOf(0xE2.toByte(), 0x80.toByte(), 0xA9.toByte()))
 
-        /**
-         * Escape JavaString string
-         *
-         * @param line unescaped string
-         * @return escaped string
-         */
         @JvmStatic
         fun escapeJavaScriptString(line: String): String {
             val sb = StringBuilder()
@@ -79,7 +73,6 @@ class StringUtils {
                 return url
             }
             val baseUrls = url!!.replace("http://", "").replace("https://", "")
-            // Java 的 split("/") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
             val baseUrl2 = RegexUtils.getPattern("/").split(baseUrls)[0]
             val baseUrl: String
             if (url.startsWith("https")) {

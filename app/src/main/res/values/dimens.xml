@@ -1,5 +1,4 @@
 <resources>
-    <!-- ts_*:字号(mm,AutoSize 换算);vs_*:尺寸(mm)。仅保留 Compose 播放器 UI 与 view_play_container 实际引用项 -->
     <dimen name="ts_18">18mm</dimen>
     <dimen name="ts_19">19mm</dimen>
     <dimen name="ts_20">20mm</dimen>

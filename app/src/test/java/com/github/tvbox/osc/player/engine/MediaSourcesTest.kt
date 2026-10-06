@@ -6,17 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * MediaSources 单测:锁住「内容类型推断」与「headers 规范化/缓存 key 后缀」的真值表
- * (移植自 doikki ExoMediaSourceHelper 的两组纯函数)。
- *
- * <p>不可覆盖面(诚实标注):依赖 `android.net.Uri` 的路径提取分支(`/live.php`、`/live/` 判定与
- * BuildMediaItem/getHeadersFrom 的 Bundle 序列化)在 JVM 单测里是桩(returnDefaultValues),
- * 由真机走查覆盖;`TextUtils.isEmpty` 恒 false 同理。
- */
 class MediaSourcesTest {
-
-    // ==================== 内容类型推断 ====================
 
     @Test
     fun formatHeader_winsOverFileName() {
@@ -67,7 +57,6 @@ class MediaSourcesTest {
 
     @Test
     fun hlsUri_audioSuffixExcludedEvenWithKeyword() {
-        // 旧行为:先判音频后缀,音频地址即使含 m3u8 字样也不当 HLS
         assertFalse(MediaSources.isHlsUri("http://x/live.m3u8.mp3"))
         assertTrue(MediaSources.isHlsUri("http://x/live.m3u8"))
     }
@@ -85,8 +74,6 @@ class MediaSourcesTest {
         assertEquals("application/dash+xml", MediaSources.mimeTypeOf(C.TYPE_DASH))
         assertEquals(null, MediaSources.mimeTypeOf(C.TYPE_OTHER))
     }
-
-    // ==================== headers 规范化 ====================
 
     @Test
     fun toRequestHeaders_filtersFormatHeaderAndTrims() {
@@ -111,7 +98,6 @@ class MediaSourcesTest {
 
     @Test
     fun toRequestHeaders_trimOnlyAsciiControlChars() {
-        // Java trim 语义:只去 <= 0x20;NBSP(0xA0)必须保留(Kotlin trim() 会误删)
         val keepNbsp = MediaSources.toRequestHeaders(mapOf("K" to "v\u00A0"))
         assertEquals("v\u00A0", keepNbsp["K"])
         val control = MediaSources.toRequestHeaders(mapOf("K" to "\tv\u0001"))

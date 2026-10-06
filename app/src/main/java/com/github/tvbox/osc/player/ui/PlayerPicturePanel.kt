@@ -77,8 +77,6 @@ internal fun PictureParams(state: PictureParamsState) {
                 contentPadding = playerDim(R.dimen.vs_20),
                 modifier = Modifier.weight(1f),
             )
-            // 去模糊是 Anime4K 的子项:总开关关掉时链根本不挂、它不生效 ⇒ 一并收起(与下面的锐度滑条同一约定),
-            // 偏好值仍留着,下次开启超分会自动带回
             if (state.anime4kEnabled) {
                 SheetButton(
                     text = stringResource(R.string.player_anime4k_deblur),
@@ -90,7 +88,6 @@ internal fun PictureParams(state: PictureParamsState) {
             }
         }
         if (state.anime4kEnabled) {
-            // 链末锐化强度:改动即时生效(链每帧现读),不触发重播
             var sharpen by remember(state) { mutableStateOf(state.anime4kSharpen) }
             PictureSlider(R.string.player_anime4k_sharpen, sharpen, 0f..1f, "%.2f") {
                 sharpen = it

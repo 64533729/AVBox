@@ -17,23 +17,15 @@ import java.util.Hashtable
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * 直播 EPG 的取数与缓存:模板地址按频道名逐个试 → 回落内置地址 → 清空列表的三级降级,
- * 以及"切台后旧响应作废"的判断。Compose 状态与信息条刷新由 Host 负责。
- */
 internal class LiveEpgController(private val host: Host) {
 
     internal interface Host {
-        /** 当前频道;无频道返回 null */
         fun currentChannel(): LiveChannelItem?
 
-        /** 当前频道是否已有 logo(有则不再查内置频道表) */
         fun currentChannelHasLogo(): Boolean
 
-        /** EPG 列表变化(含清空):宿主负责刷新 Compose 状态 */
         fun onEpgListChanged(list: ArrayList<Epginfo>)
 
-        /** 列表已就绪:宿主负责刷新频道信息条 */
         fun onEpgSettled()
     }
 
@@ -52,9 +44,6 @@ internal class LiveEpgController(private val host: Host) {
         if (host.currentChannel() != null) getEpg(Date())
     }
 
-    // ---------- 宿主注入的配置 ----------
-
-    /** 从 KV 取用户配置的 EPG 地址,没配或太短就用内置地址 */
     fun reloadAddress() {
         val userEpgAddress: String = KV.get(HawkConfig.EPG_URL, "")
         epgStringAddress = if (userEpgAddress.trim { it <= ' ' }.length >= 5) {
@@ -64,27 +53,20 @@ internal class LiveEpgController(private val host: Host) {
         }
     }
 
-    /** 缓存键里的日期部分(MM-dd);跨天不刷新是既有行为 */
     fun setDayKey(dayKey: String) {
         epgDayPresented = dayKey
     }
 
-    /** 取某频道的当日 EPG 缓存(频道信息条与节目单共用) */
     fun cachedEpg(channelName: String): ArrayList<Epginfo>? = hsEpg[channelName + "_" + epgDayPresented]
 
-    /** 切源/清空频道时撤掉待触发的延迟取数 */
     fun cancelPending() {
         mHandler.removeCallbacks(mLoadEpgRun)
     }
 
-    /** 页面销毁时清掉全部待执行任务(含已入队的响应回调) */
     fun cancelAll() {
         mHandler.removeCallbacksAndMessages(null)
     }
 
-    // ---------- 取数入口 ----------
-
-    /** 起播后按需取 EPG:无地址清空;已有缓存不再请求;首次延迟(等播放器起来再打接口) */
     fun loadAfterChannelStarted() {
         mHandler.removeCallbacks(mLoadEpgRun)
         if (!hasEpgAddress()) {
@@ -132,8 +114,6 @@ internal class LiveEpgController(private val host: Host) {
         host.onEpgListChanged(ArrayList())
         requestEpg(url, date, channelNameReal, epgTagName, savedEpgKey, epgQueryNames, timeFormat, 0)
     }
-
-    // ---------- 请求与三级降级 ----------
 
     private fun requestEpg(
         url: String,
@@ -265,8 +245,6 @@ internal class LiveEpgController(private val host: Host) {
         return true
     }
 
-    // ---------- 内部小工具 ----------
-
     private fun showEpg(arrayList: ArrayList<Epginfo>?) {
         host.onEpgListChanged(if (arrayList != null && arrayList.isNotEmpty()) arrayList else ArrayList())
     }
@@ -280,7 +258,6 @@ internal class LiveEpgController(private val host: Host) {
         return hsEpg.containsKey(channel.channelName + "_" + epgDayPresented)
     }
 
-    /** 这一轮响应是否仍属于当前频道:切台后到达的旧响应必须丢弃 */
     private fun isCurrentEpgRequest(savedEpgKey: String): Boolean {
         val channel = host.currentChannel() ?: return false
         return savedEpgKey == channel.channelName + "_" + epgDayPresented

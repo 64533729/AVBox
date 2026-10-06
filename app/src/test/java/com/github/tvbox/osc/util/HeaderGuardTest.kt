@@ -4,13 +4,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * HeaderGuard 的边界回归。
- *
- * 存在理由:这些字符会让 OkHttp 在构造请求时抛 IllegalArgumentException,而站点请求分支没有
- * try/catch —— 一份带非法 header 的配置等于把 App 带崩。口径刻意取最严(名 0x21-0x7e、
- * 值 tab+0x20-0x7e):高字节区间的行为在各 OkHttp 版本间并不一致,不赌。
- */
 class HeaderGuardTest {
 
     @Test

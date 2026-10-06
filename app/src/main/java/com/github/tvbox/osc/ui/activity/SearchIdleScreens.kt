@@ -53,7 +53,6 @@ internal fun SearchIdleContent(
     onClearHistory: () -> Unit,
     onRemoveHistory: (String) -> Unit,
 ) {
-    // 无痕:搜索记录不展示(与历史页空态同口径;清空按钮保留,清的是已被隐藏的那份)
     val incognito = HistoryHelper.isIncognito()
     Column(
         modifier = Modifier

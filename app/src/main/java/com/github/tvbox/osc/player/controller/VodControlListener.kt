@@ -21,7 +21,6 @@ interface VodControlListener {
 
     fun selectSubtitle()
 
-    /** 长按字幕按钮:关闭全部字幕,并记住该片不再自动开字幕(持久意图,与"临时关弹幕"不同) */
     fun closeSubtitles()
 
     fun selectAudioTrack()
@@ -30,7 +29,6 @@ interface VodControlListener {
 
     fun showDanmuSetting()
 
-    /** 打开页面级选集面板：内容(线路/剧集/切集)归详情页，播放侧只转发入口点击 */
     fun showEpisodes()
 
     fun toggleDanmu(): Boolean
@@ -45,9 +43,5 @@ interface VodControlListener {
 
     fun setAllowSwitchPlayer(isAllow: Boolean)
 
-    /**
-     * 用户手动选过解码方式(播放器解码按钮):本次播放不再自动回退软解,且"自动软解"态作废
-     * (用户的选择要能落进播放记录;与 setAllowSwitchPlayer 同理)
-     */
     fun setAllowDecodeFallback(isAllow: Boolean)
 }

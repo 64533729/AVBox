@@ -3,9 +3,6 @@ package com.undcover.freedom.pyramid
 import android.content.Context
 import android.widget.Toast
 
-/**
- * Created by UndCover on 16/9/7.
- */
 class PyToast {
     companion object {
         private var innerToast: Toast? = null
@@ -17,11 +14,6 @@ class PyToast {
             mContext = context
         }
 
-        /**
-         * 在Application中 用于初始化
-         *
-         * @return
-         */
         @JvmStatic
         fun getInstance(): PyToast {
             if (sInstance == null) {
@@ -39,12 +31,6 @@ class PyToast {
             showCancelableToast(msg, Toast.LENGTH_SHORT)
         }
 
-        /**
-         * 快速显示Toast,无需排队等待
-         *
-         * @param msg
-         * @param duration
-         */
         @JvmStatic
         fun showCancelableToast(msg: String?, duration: Int) {
             innerToast?.cancel()

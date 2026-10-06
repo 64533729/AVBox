@@ -11,124 +11,57 @@ import androidx.compose.ui.unit.IntSize
 import com.github.tvbox.osc.util.LOG
 import kotlinx.coroutines.withTimeoutOrNull
 
-/**
- * 视频手势的判定状态机(纯 Kotlin、无 Compose/Android 依赖,可直接 JVM 单测)。
- *
- * <p>承接旧 `GestureController`(基于 `android.view.GestureDetector`)的语义,把**判定**与
- * **副作用**分离:指针事件由 [videoGestureLayer] 喂进来,状态机只决定"这一下算单击/双击/长按/
- * 横滑/竖滑"与"派发哪个动作";播放器副作用(控制条显隐、播放暂停、倍速、seek、亮度音量)
- * 由 [VideoGestureActions] 的宿主实现。
- *
- * <p>**两轮独立复核对旧 Compose 草稿指出的缺陷,在此逐条作为硬约束**:
- * 1. 子控件消费:接线层用 `awaitFirstDown(requireUnconsumed = true)` 取 DOWN —— 被控制条按钮/
- *    进度条消费的触摸**根本不会进来**。这是旧草稿"点按钮被处理两遍/拖进度条被二次 seek"的正解。
- * 2. 双击可达:抬手后等第二下,等到的 DOWN **不消费**,交给下一轮 `awaitEachGesture` 重新起会话,
- *    状态机按 [lastTapTime] 判定双击。旧草稿把第二下取走后直接 return,又被收尾排空 ⇒ 双击不可达。
- * 3. 单击恰好一次:只有"等到超时都没来第二下"才确认单击;判成双击时**不再**派发单击。
- * 4. ACTION_CANCEL 不当抬手:接线层识别 CANCEL 后传 `cancelled = true`,横滑走取消而**不提交**。
- * 5. 长按不依赖 MOVE:由接线层计时触发,手指完全静止也能到点;越过 slop 则取消计时。
- * 6. 屏幕几何不冻结:宽高由接线层每次 DOWN 现算后传入,不用组合期捕获的常量。
- */
 interface VideoGestureActions {
 
-    /** 目前是否可手势(起播中:播放/暂停/缓冲) */
     fun inPlayback(): Boolean
 
-    /** 单击确认(双击窗口超时后,恰好一次) */
     fun onSingleTap()
 
-    /** 双击 */
     fun onDoubleTapTogglePlay()
 
-    /** 长按开始(倍速) */
     fun onLongPressStart()
 
-    /** 长按结束(恢复倍速;CANCEL 也必须走到) */
     fun onLongPressEnd()
 
-    /** 横滑预览:totalDeltaX = 当前 x − 按下 x(>0 = 右滑 = 前进) */
     fun onSeekPreview(totalDeltaX: Float)
 
-    /** 横滑提交(正常抬手) */
     fun onSeekCommit()
 
-    /** 横滑取消(ACTION_CANCEL) */
     fun onSeekCancel()
 
-    /** 竖滑亮度:totalDeltaY = 当前 y − 按下 y */
     fun onBrightnessSlide(totalDeltaY: Float)
 
-    /** 竖滑音量:totalDeltaY = 当前 y − 按下 y */
     fun onVolumeSlide(totalDeltaY: Float)
 }
 
-/** 一次手势会话的快照。宽高与边缘判定由接线层**每次 DOWN 现算**,避免几何被冻结。 */
 data class VideoGestureSession(
     val inPlayback: Boolean,
-    /** 是否允许横滑调进度(旧 setCanChangePosition) */
     val canChangePosition: Boolean,
-    /** 普通态(非全屏)是否允许竖滑(旧 setEnableInNormal) */
     val enableInNormal: Boolean,
-    /** 当前是否全屏 */
     val fullScreen: Boolean,
-    /** 锁屏:旧实现吞掉一切手势、只在抬手唤锁屏钮 */
     val locked: Boolean,
-    /** 预览态:竖滑与长按不响应,单击/双击/横滑照常 */
     val previewMode: Boolean,
-    /** 是否暂停(旧实现显式排除暂停态的长按倍速) */
     val paused: Boolean,
-    /** 手势总开关(关闭后只有横滑 seek 放行) */
     val gestureEnabled: Boolean,
-    /** 宿主的"禁用手势控制"设置:只拦竖滑,不拦横滑 */
     val verticalSlidingDisabled: Boolean,
     val width: Int,
     val height: Int,
-    /** 半屏分侧用的屏幕宽度(px) */
     val screenWidth: Int,
-    /** 是否落在四边边缘带内 */
     val edge: Boolean,
-    /**
-     * 手势是否起于**屏幕顶端带**。
-     *
-     * <p>为什么单独一项:系统只把屏幕最顶端那一小条留给"下拉通知栏"。从那一带起手的竖滑
-     * 应当**整段不参与**亮度/音量(让系统顺利接管,而不是被我们先改一遍数值)。
-     * 从画面中部下拉则不会被系统接管 —— 那种情况本来就该正常调音量。
-     */
     val fromTopBand: Boolean = false,
 )
 
-/** DOWN 的归属判定:接线层据此决定要不要消费这次触摸 */
 enum class GestureVerdict {
-    /** 不归手势管:不消费、不派发任何动作,原样留给子控件/系统 */
     IGNORE,
 
-    /** 已认领:接线层继续喂事件并消费 */
     CLAIMED,
 }
 
-/**
- * 手势状态机。**非线程安全**,只在 pointerInput 的协程里使用。
- *
- * @param doubleTapTimeoutMs 双击窗口
- * @param doubleTapMinTimeMs 两次按下的最小间隔(防抖)
- */
 class VideoGestureHandler(
     private val actions: VideoGestureActions,
     val longPressTimeoutMs: Long = 500L,
     val doubleTapTimeoutMs: Long = 300L,
     val doubleTapMinTimeMs: Long = 40L,
-    /**
-     * 滑动**起判距离**:位移超过 `height * 该比例` 才算真正开始滑动。**横竖共用一个绝对距离**。
-     *
-     * <p>两条真机反馈都指向它:
-     * ① 竖滑 —— "下拉通知栏/上滑退出应用也会触发亮度音量"。系统手势抢走触摸前会先送来一串 MOVE,
-     *    等在系统取消时数值**已经被改过了**;加门槛后系统手势那点位移不足以越过。
-     * ② 横滑 —— "手指不小心滑动一下都会触发调节视频进度"。横滑原先只受 8px 的 slop 约束,
-     *    而竖滑已有本门槛,两者**不对称**;现在统一到同一距离。
-     *
-     * <p>取 `height` 的 10%(与方向无关,故横竖是同一段像素距离):真机手势区高 1260px 时约 **126px**。
-     * 明确要拖时很容易越过,而无意的手抖远达不到。要更灵敏/更钝改这一个数即可。
-     */
     private val commitFraction: Float = 0.10f,
 ) {
 
@@ -142,35 +75,18 @@ class VideoGestureHandler(
     private var moved = false
     private var longPressed = false
 
-    /** 上一次"点击成立"的时间戳(-1 = 无) */
     var lastTapTime: Long = -1L
         private set
 
-    /**
-     * 是否存在"待定单击"(已抬手、还没等到第二下)。
-     *
-     * <p>⚠️ 这是**必须由状态机持有**的状态:接线层抬手即返回,由宿主的定时器在双击窗口后补发单击;
-     * 若第二下先到,状态机会判成双击并清掉这个标记,宿主据此**不能再补一次单击** ——
-     * 否则"双击"会连带触发一次控制条显隐(真机实测:点一下暂停后,控制条再也收不回去)。
-     */
     var tapPending: Boolean = false
         private set
 
-    /** 当前模式(接线层判断 CANCEL 时该回退还是提交) */
     val currentMode: Mode get() = mode
 
-    /** 长按是否已触发 */
     val isLongPressing: Boolean get() = longPressed
 
-    /** 是否已越过 slop */
     val hasMoved: Boolean get() = moved
 
-    /**
-     * DOWN:决定本次触摸归不归手势管,并记下会话。
-     *
-     * @return [GestureVerdict.CLAIMED] = 认领(接线层继续喂并消费);
-     *         [GestureVerdict.IGNORE] = 不归手势管(原样放行)
-     */
     fun beginSession(session: VideoGestureSession, x: Float, y: Float): GestureVerdict {
         this.session = session
         this.downX = x
@@ -180,26 +96,14 @@ class VideoGestureHandler(
         this.moved = false
         this.longPressed = false
 
-        // 锁屏:旧实现认领并吞掉全部事件(抬手才唤锁屏钮)
         if (session.locked) return GestureVerdict.CLAIMED
-        // 非播放态不参与手势判定
         if (!session.inPlayback) return GestureVerdict.IGNORE
-        // 四边边缘带:旧 PlayerUtils.isEdge 直接不响应(由接线层现算后传入)
         if (session.edge) return GestureVerdict.IGNORE
-        // 顶端带起手:认领(避免事件冒泡去别处),但竖滑一律不生效 —— 见 decideMode
         return GestureVerdict.CLAIMED
     }
 
-    /**
-     * MOVE:更新位移并决定模式。
-     *
-     * @return true = 本次位移已被手势接管(接线层应 consume())
-     */
     fun onMove(x: Float, y: Float, slop: Float): Boolean {
         val s = session ?: return false
-        // ⚠️ 长按(倍速)期间**任何**位移都不再进入滑动分支:
-        // 真机反馈"长按时手指轻微移动就会调进度/音量"。倍速是一次独占会话,
-        // 直到抬手为止都不该被滑动改写。
         if (longPressed) {
             lastX = x
             return false
@@ -217,8 +121,6 @@ class VideoGestureHandler(
         }
 
         if (mode == Mode.UNDECIDED) {
-            // 横竖都必须越过**同一个绝对起判距离**才算开始滑动(见 commitFraction 说明)。
-            // 未越过时保持 UNDECIDED,继续跟手;越过的那一刻才定模式。
             val commitPx = s.height * commitFraction
             val adx = kotlin.math.abs(dx)
             val ady = kotlin.math.abs(dy)
@@ -242,7 +144,6 @@ class VideoGestureHandler(
                 actions.onVolumeSlide(dy)
                 true
             }
-            // NONE = 本次被判为不处理(总开关关闭下的竖滑、未启用竖滑的普通态)
             Mode.NONE, Mode.UNDECIDED -> false
         }
     }
@@ -251,28 +152,18 @@ class VideoGestureHandler(
         if (s.locked) return Mode.NONE
         val horizontal = kotlin.math.abs(dx) > kotlin.math.abs(dy)
         if (horizontal) {
-            // 横滑 seek:受 setCanChangePosition 约束;总开关关闭时旧实现仍放行横滑
             return if (s.canChangePosition) Mode.SEEK else Mode.NONE
         }
-        // 顶端带起手的竖滑:交给系统(下拉通知栏),我们不碰亮度/音量
         if (s.fromTopBand) return Mode.NONE
-        // 竖滑:预览态不响应;非全屏需 enableInNormal;"禁用手势控制"只拦竖滑
         if (s.previewMode) return Mode.NONE
         if (!s.fullScreen && !s.enableInNormal) return Mode.NONE
         if (s.verticalSlidingDisabled) return Mode.NONE
-        // 右半屏音量 / 左半屏亮度(按屏幕宽度的一半分侧)
         return if (lastX >= s.screenWidth / 2f) Mode.VOLUME else Mode.BRIGHTNESS
     }
 
-    /**
-     * 长按计时到点。**由接线层的定时器调用**,不依赖 MOVE 事件。
-     *
-     * @return true = 已触发长按
-     */
     fun maybeLongPress(): Boolean {
         val s = session ?: return false
         if (moved || longPressed) return false
-        // 旧实现显式排除暂停态;预览态与锁屏也不提速
         if (s.locked || s.previewMode || s.paused) return false
         if (!s.inPlayback) return false
         longPressed = true
@@ -280,20 +171,12 @@ class VideoGestureHandler(
         return true
     }
 
-    /**
-     * UP / CANCEL 收尾。
-     *
-     * @param cancelled true = ACTION_CANCEL
-     * @param nowMs 当前时间(注入便于单测)
-     */
     fun endSession(cancelled: Boolean, nowMs: Long): EndResult {
         val s = session ?: return EndResult.NONE
-        // 先把本次模式取出来再复位:否则下面的 seek 提交流程永远看不到 SEEK
         val endedMode = mode
         session = null
         mode = Mode.UNDECIDED
 
-        // 长按必须恢复(即便 CANCEL)
         if (longPressed) {
             longPressed = false
             tapPending = false
@@ -309,48 +192,32 @@ class VideoGestureHandler(
             return EndResult.NONE
         }
 
-        // 未移动 = 点击。锁屏抬手唤锁屏钮(旧实现语义)
         if (s.locked) {
             tapPending = false
             actions.onSingleTap()
             return EndResult.NONE
         }
 
-        // 双击判定:与上一次点击的时间差落在 [min, timeout] 内
         val last = lastTapTime
         if (last > 0 && nowMs - last in doubleTapMinTimeMs..doubleTapTimeoutMs) {
-            // 判成双击 ⇒ 取消待定单击,宿主不能再补发(否则会多显隐一次控制条)
             lastTapTime = -1L
             tapPending = false
             actions.onDoubleTapTogglePlay()
             return EndResult.DOUBLE_TAP
         }
-        // 单击待定:记基准 + 立标记;宿主在双击窗口后调 markSingleTapConfirmed
         lastTapTime = nowMs
         tapPending = true
         return EndResult.TAP_PENDING
     }
 
-    /** 一次会话的收尾结果(接线层据此决定"还要不要等第二下") */
     enum class EndResult {
-        /** 已派发双击 */
         DOUBLE_TAP,
 
-        /** 已成"待定单击":接线层需等第二下,超时后调 [markSingleTapConfirmed] */
         TAP_PENDING,
 
-        /** 长按结束 / 滑动 / 无需点击处理 */
         NONE,
     }
 
-    /**
-     * 单击确认(宿主在双击窗口后调用)。
-     *
-     * <p>**幂等**:若窗口内来了第二下,这里已经是双击,`tapPending` 已被清掉 ⇒ 直接返回,
-     * 不会再多派一次单击。
-     *
-     * @return true = 确实派发了单击
-     */
     fun markSingleTapConfirmed(): Boolean {
         if (!tapPending) return false
         tapPending = false
@@ -359,28 +226,15 @@ class VideoGestureHandler(
         return true
     }
 
-    /** 是否还在双击窗口内(接线层据此决定要不要等第二下) */
     fun withinDoubleTapWindow(nowMs: Long): Boolean {
         val last = lastTapTime
         return last > 0 && nowMs - last <= doubleTapTimeoutMs
     }
 }
 
-/**
- * 把视频手势挂到覆盖层根节点上。
- *
- * <p>**三条硬要求**(违反即复现复核阻断项):
- * 1. DOWN 必须 requireUnconsumed = true —— 子控件(控制条按钮、进度条)已消费的触摸不能认领;
- * 2. 判成单击/双击时才消费 UP;等第二下期间**不消费**取到的 DOWN,否则双击不可达;
- * 3. 长按用独立定时器分支,不靠 MOVE 事件。
- *
- * @param handler 状态机(应在组合间 remember)
- * @param sessionProvider 每次 DOWN 现算会话快照;返回 null = 本次不参与
- */
 fun Modifier.videoGestureLayer(
     handler: VideoGestureHandler,
     sessionProvider: (IntSize, downY: Float) -> VideoGestureSession?,
-    /** 出现"待定单击"(已抬手、等第二下中)⇒ 宿主应在双击窗口后调 `handler.markSingleTapConfirmed()` */
     onTapPending: () -> Unit = {},
 ): Modifier = composed {
     var size = IntSize.Zero
@@ -388,7 +242,6 @@ fun Modifier.videoGestureLayer(
         .onSizeChanged { size = it }
         .pointerInput(handler) {
             awaitEachGesture {
-                // 1. 子控件(控制条按钮、进度条)消费过的 DOWN 不认领 ⇒ 从不进入手势层
                 val down = awaitFirstDown(requireUnconsumed = true)
                 val snapshot = sessionProvider(size, down.position.y) ?: return@awaitEachGesture
                 if (handler.beginSession(snapshot, down.position.x, down.position.y) ==
@@ -397,8 +250,6 @@ fun Modifier.videoGestureLayer(
                     return@awaitEachGesture
                 }
 
-                // 2. "抬手"与"长按到点"赛跑。
-                //    长按靠这个窗口计时(手指静止也能到点);抬手通常就落在窗口内,必须一并处理。
                 var firstUp = false
                 var sawMove = false
                 var lastMoveAt = 0L
@@ -419,11 +270,9 @@ fun Modifier.videoGestureLayer(
                 }
 
                 if (longPressWon == null && !firstUp) {
-                    // 超时 = 长按成立(maybeLongPress 内部还会挡掉暂停/预览/锁屏)
                     handler.maybeLongPress()
                 }
 
-                // 3. 等抬手(首下已抬手则跳过)
                 if (!firstUp) {
                     while (true) {
                         val e = awaitPointerEvent(PointerEventPass.Final)
@@ -431,21 +280,15 @@ fun Modifier.videoGestureLayer(
                         if (!c.pressed) break
                         sawMove = true
                         lastMoveAt = System.currentTimeMillis()
-                        // 丢弃被子控件消费的位移
                         if (!c.isConsumed) {
                             if (handler.onMove(c.position.x, c.position.y, 8f)) c.consume()
                         }
                     }
                 }
 
-                // 4. CANCEL 判定:正常抬手会把手指的最终位置用 MOVE 报上来(与 UP 几乎同时),
-                //    而系统抢走手势(下拉通知栏、上滑退出、来电)会**先停掉 MOVE**,隔一小段才把指针置 up。
-                //    故判据 = "抬手前最近一次 MOVE 已经过去很久" 或 "全程没有 MOVE"。
-                //    ⚠️ 长按要排除:它本来就是静止的,收尾自己会恢复倍速。
                 val quietMs = System.currentTimeMillis() - lastMoveAt
                 val cancelled = !handler.isLongPressing && (!sawMove || quietMs > CANCEL_QUIET_MS)
                 if (VERBOSE_GESTURE_LOG) {
-                    // 核对系统是否真的把 CANCEL 送到了本层(而不是我们自己在改数值)
                     LOG.i(
                         "echo-gesture: sawMove=" + sawMove + " quietMs=" + quietMs +
                             " mode=" + handler.currentMode + " cancelled=" + cancelled +
@@ -455,11 +298,6 @@ fun Modifier.videoGestureLayer(
 
                 val result = handler.endSession(cancelled, System.currentTimeMillis())
 
-                // 5. 单击确认:**不在这里阻塞等第二下**。
-                //    若在此 awaitPointerEvent 等第二下,那一轮 awaitEachGesture 结束时的收尾会把
-                //    第二下吃掉,双击永远判不出来(实测:双击播放/暂停失效)。
-                //    改成"先返回 + 让状态机在下一个 DOWN 上按 lastTapTime 判双击":
-                //    单击由 [onTapConfirmed] 在宿主侧用定时器补发。
                 if (result == VideoGestureHandler.EndResult.TAP_PENDING) {
                     onTapPending()
                 }
@@ -467,22 +305,9 @@ fun Modifier.videoGestureLayer(
         }
 }
 
-/**
- * 手势诊断日志总开关(**编译期常量,默认关**)。
- *
- * <p>为什么默认关:一次拖动峰值可达 **109 个事件/秒**(真机实测),每个事件写一行日志 =
- * 3 次字符串拼接 + 一次日志写入系统调用,是单事件里最大的一笔开销。定为 `const val false`
- * 后整个 `if` 块(含字符串拼接)会被编译器消除,运行时**零成本**。
- * 需要排查手势问题时把这里改成 true,重新构建即可。
- */
 const val VERBOSE_GESTURE_LOG = false
 
-/**
- * 判定"系统抢走手势"的静默窗口(ms):正常抬手的 MOVE 与 UP 几乎同时到达;
- * 系统中断则先断流一段时间。50ms 足以区分且不会把正常慢抬手误判成中断。
- */
 private const val CANCEL_QUIET_MS = 50L
 
-/** 供接线层/宿主计算边缘带(基于手势区局部坐标,左上为原点) */
 internal fun isInEdgeBand(x: Float, y: Float, width: Int, height: Int, bandPx: Float): Boolean =
     x < bandPx || y < bandPx || x > width - bandPx || y > height - bandPx

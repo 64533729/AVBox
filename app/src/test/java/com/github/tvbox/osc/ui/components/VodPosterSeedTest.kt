@@ -5,7 +5,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 只锁"色位不越界"与"同首字同色",不锁具体抽到哪个色 */
 class VodPosterSeedTest {
 
     @Test
@@ -37,7 +36,6 @@ class VodPosterSeedTest {
         assertEquals(posterSeedColor("因果报应"), posterSeedColor(" 因果报应 "))
     }
 
-    /** 色位只看首字:同一部片在不同源的叫法后缀不同,不该换色 */
     @Test
     fun seedIgnoresNameTail() {
         assertEquals(posterSeedColor("因果报应"), posterSeedColor("因果报应 2024"))
@@ -57,7 +55,6 @@ class VodPosterSeedTest {
         }
     }
 
-    /** hashCode 恰好等于 Int.MIN_VALUE(取模前是负数):少了 `and Int.MAX_VALUE` 归一化就会负下标越界 */
     @Test
     fun negativeHashStaysInRange() {
         assertEquals(Int.MIN_VALUE, "polygenelubricants".hashCode())

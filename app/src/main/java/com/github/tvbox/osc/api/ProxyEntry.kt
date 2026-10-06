@@ -12,7 +12,6 @@ import com.github.tvbox.osc.util.Proxy
 import java.net.URLDecoder
 import java.util.HashMap
 
-/** /proxy 请求路由:按 do 类型分发到 jar/js/py 爬虫,直播源改走当前直播爬虫 */
 class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderLoader) {
     private var currentPlaySourceKey = ""
 
@@ -41,7 +40,6 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
             try {
                 val spider = owner.getCSP(source)
 
-                // spider.proxy 单独兜底:它抛异常不应吞掉下面的 jar/direct 兜底路径
                 var result: Array<Any?>? = null
                 try {
                     result = spider.proxy(param)

@@ -27,10 +27,6 @@ package com.github.tvbox.osc.subtitle
 
 import com.github.tvbox.osc.subtitle.model.Subtitle
 
-/**
- * @author AveryZhong.
- */
-
 object SubtitleFinder {
 
     @JvmStatic

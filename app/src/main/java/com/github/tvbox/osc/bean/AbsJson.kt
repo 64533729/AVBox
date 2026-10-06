@@ -4,10 +4,6 @@ import com.google.gson.JsonElement
 import java.io.Serializable
 import java.util.ArrayList
 
-/**
- * @author pj567
- * @date :2020/12/18
- */
 class AbsJson : Serializable {
 
     @JvmField
@@ -195,14 +191,12 @@ class AbsJson : Serializable {
         @JvmField
         var action: String? = null
 
-        /** 上游语义:提供 cate 的条目也视为目录(网盘),可为对象 */
         @JvmField
         var cate: JsonElement? = null
 
         fun toXmlVideo(): Movie.Video {
             val video = Movie.Video()
             video.tag = vod_tag
-            // cate 归一到 tag=folder,下游只需按 tag 判定目录(2026-09-11)
             if (video.tag.isNullOrEmpty() && cate != null && !cate!!.isJsonNull) video.tag = "folder"
             video.action = action
             video.last = vod_time
@@ -230,7 +224,6 @@ class AbsJson : Serializable {
             val playFrom = vod_play_from
             val playUrl = vod_play_url
             if (playFrom != null && playUrl != null) {
-                // Kotlin 的 split(String) 是字面量切分,Java 的是正则:必须显式给 Regex 才等价
                 val playFlags = playFrom.split(Regex("\\$\\$\\$"))
                 val playUrls = playUrl.split(Regex("\\$\\$\\$"))
                 val infoList = ArrayList<Movie.Video.UrlBean.UrlInfo>()

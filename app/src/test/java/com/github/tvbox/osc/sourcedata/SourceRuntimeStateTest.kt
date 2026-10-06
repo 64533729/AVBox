@@ -7,20 +7,6 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 门面搬出去的运行期状态:`sortCache` 的上限与 access-order 语义、`clearRuntimeCache` 的两条清空。
- *
- * 上限与 access-order 是 2026-09-13(`aa5b132`)定的语义 —— 换源清理和"连 get 都算访问"都靠它,
- * 搬位置时容易只搬字段、把 `removeEldestEntry` 或 access-order 参数丢了。
- *
- * "5 个 Loader 拿到的是同一个 map 实例"这条接线**已另有用例**:
- * `SourceViewModelWiringTest.loadersShareTheRuntimeStateCacheInstances`(M4a 审查轮补)。
- * 它需要 `new SourceViewModel()` —— 之前这条一直挂着"未覆盖",注释给的阻塞理由是"构造器初始化
- * `MutableLiveData`,纯 JVM 单测拿不到 Looper";**实测该理由不成立**(那两个 `MutableLiveData`
- * 只是字段装配,构造器可以实例化;真正拿不到 Looper 的是消费方 `observeForever` 的
- * `assertMainThread`,已随 M4a 把消费面换成 `flow` 而消失)。改动 `SourceViewModel` 构造器里
- * 那 5 行传参时仍请人工确认传的是 `SourceRuntimeState` 的字段本身。
- */
 class SourceRuntimeStateTest {
 
     private fun put(key: String) {
@@ -38,7 +24,7 @@ class SourceRuntimeStateTest {
         SourceRuntimeState.clearRuntimeCache()
         (1..5).forEach { put("src$it") }
         assertSize(5)
-        put("src6") // 第 6 条挤掉最早的一条(插入序 src1..src5 + src6 ⇒ src1 被淘汰)
+        put("src6")
         assertSize(5)
         assertNull(get("src1"))
         assertTrue(get("src6") != null)
@@ -48,9 +34,6 @@ class SourceRuntimeStateTest {
     fun sortCacheGetRefreshesRecency() {
         SourceRuntimeState.clearRuntimeCache()
         (1..5).forEach { put("src$it") }
-        // get 是访问:读过 src1 后它变成最近使用,被淘汰的应是 src2。
-        // 用 assertSame 而不是取值比对:LinkedHashMap 的 get 必须返回同一个对象引用,
-        // 顺带证明这里读到的就是那份共享 map(不是副本)
         assertSame(SourceRuntimeState.sortCache["src1"], get("src1"))
         put("src6")
         assertTrue(get("src1") != null)
@@ -64,7 +47,6 @@ class SourceRuntimeStateTest {
         SourceRuntimeState.clearRuntimeCache()
         assertSize(0)
         assertEquals(0, SourceRuntimeState.extendCache.size)
-        // 清空不是换新 map:实例同一,Loader 手里那份引用才跟着空
         assertTrue(mapInstanceStable())
     }
 

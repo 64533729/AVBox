@@ -12,12 +12,6 @@ import java.net.NetworkInterface
 import java.net.SocketException
 import java.util.regex.Pattern
 
-
-/**
- * 作者：By hdy
- * 日期：On 2018/11/1
- * 时间：At 19:17
- */
 object LocalIPAddress {
     @SuppressLint("DefaultLocale")
     @JvmStatic
@@ -52,7 +46,6 @@ object LocalIPAddress {
     fun getIP(context: Context): String {
         try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            //判断wifi是否开启
             var wifiInfo: WifiInfo? = null
             if (wifiManager != null) {
                 wifiInfo = wifiManager.getConnectionInfo()
@@ -82,9 +75,7 @@ object LocalIPAddress {
                 val enumIPAddr = intf.getInetAddresses()
                 while (enumIPAddr.hasMoreElements()) {
                     val inetAddress = enumIPAddr.nextElement()
-                    // 如果不是回环地址
                     if (!inetAddress.isLoopbackAddress()) {
-                        // 直接返回本地IP地址
                         return inetAddress.getHostAddress()
                     }
                 }
@@ -95,7 +86,6 @@ object LocalIPAddress {
         return "127.0.0.1"
     }
 
-
     private fun intToIp(i: Int): String {
         return (i and 0xFF).toString() + "." +
                 ((i shr 8) and 0xFF) + "." +
@@ -103,21 +93,12 @@ object LocalIPAddress {
                 (i shr 24 and 0xFF)
     }
 
-    /**
-     * Ipv4 address check.
-     */
     private val IPV4_PATTERN = Pattern.compile(
         "^(" + "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}" +
                 "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
     )
     private val IPV6_PATTERN = Pattern.compile("^\\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:)(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:)))(%.+)?\\s*$")
 
-    /**
-     * Check if valid IPV4 address.
-     *
-     * @param input the address string to check for validity.
-     * @return True if the input parameter is a valid IPv4 address.
-     */
     @JvmStatic
     fun isIPv4Address(input: String): Boolean {
         return IPV4_PATTERN.matcher(input).matches()

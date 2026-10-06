@@ -7,12 +7,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** PlayerEngine 错误分类与 HLS 重试判定单测(纯策略函数) */
 class PlayerEngineErrorTest {
 
     private fun error(code: Int): PlaybackException = PlaybackException("m", null, code, Bundle())
-
-    // ==================== classifyError ====================
 
     @Test
     fun classifyError_ioAndParsingAreNetwork() {
@@ -33,15 +30,12 @@ class PlayerEngineErrorTest {
         assertEquals(PlayerEngine.ERROR_KIND_UNKNOWN, PlayerEngine.classifyError(null))
     }
 
-    /** 错误分类数值是跨层契约(重试阶梯按 1/2 比较),钉死常量值本身 */
     @Test
     fun errorKindValues_areContract() {
         assertEquals(0, PlayerEngine.ERROR_KIND_UNKNOWN)
         assertEquals(1, PlayerEngine.ERROR_KIND_NETWORK)
         assertEquals(2, PlayerEngine.ERROR_KIND_DECODE)
     }
-
-    // ==================== isParsingError(HLS 重试触发条件) ====================
 
     @Test
     fun isParsingError_ioUnspecifiedAndParsingCodes() {
@@ -58,8 +52,6 @@ class PlayerEngineErrorTest {
         assertFalse(PlayerEngine.isParsingError(error(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)))
         assertFalse(PlayerEngine.isParsingError(null))
     }
-
-    // ==================== CodecPreferences(软解偏好真值源) ====================
 
     @Test
     fun codecPreferences_roundTrip() {

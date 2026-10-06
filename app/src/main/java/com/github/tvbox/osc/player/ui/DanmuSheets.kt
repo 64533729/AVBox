@@ -37,12 +37,6 @@ import com.github.tvbox.osc.player.state.DanmuSettingSheetState
 import com.github.tvbox.osc.util.DanmuHelper
 import org.greenrobot.eventbus.EventBus
 
-/** 弹幕面板:设置 + 搜索(入口 DanmuSettingSheet / DanmuSearchSheet) */
-
-// ---------------------------------------------------------------------------
-// 弹幕设置
-// ---------------------------------------------------------------------------
-
 private val DANMU_SPEEDS = listOf(2.4f, 1.8f, 1.5f, 1.0f)
 
 @Composable
@@ -74,7 +68,6 @@ fun DanmuSettingSheet(sheet: DanmuSettingSheetState, onDismiss: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(playerDim(R.dimen.vs_12)))
-            // TYPE_SET_DANMU_SETTINGS 第二参数:仅颜色行传 true
             val postSettings: (Boolean) -> Unit = { forColor ->
                 EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_SET_DANMU_SETTINGS, forColor))
             }
@@ -83,7 +76,6 @@ fun DanmuSettingSheet(sheet: DanmuSettingSheetState, onDismiss: () -> Unit) {
                 SheetButton(
                     text = stringResource(R.string.common_search),
                     onClick = {
-                        // 先播退场再换面板,两个面板窗口不重叠
                         dismissThen { sheet.onOpenSearch() }
                     },
                     modifier = Modifier.weight(1f),
@@ -179,10 +171,6 @@ fun DanmuSettingSheet(sheet: DanmuSettingSheetState, onDismiss: () -> Unit) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// 弹幕搜索
-// ---------------------------------------------------------------------------
-
 @Composable
 fun DanmuSearchSheet(sheet: DanmuSearchSheetState, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -220,7 +208,6 @@ fun DanmuSearchSheet(sheet: DanmuSearchSheetState, onDismiss: () -> Unit) {
         }
     }
 
-    // 进入即按初始词搜索(旧 setSearchWord);离开时取消在途请求(旧 onBackPressed)
     LaunchedEffect(Unit) {
         if (sheet.searchWord.isNotBlank()) search(sheet.searchWord)
     }

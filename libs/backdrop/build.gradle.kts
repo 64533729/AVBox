@@ -40,6 +40,5 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.annotation)
     compileOnly("org.jetbrains:annotations:26.1.0")
-    // lens 的圆角 SDF 形状(上游 backdrop 的运行时依赖)
     implementation(libs.kyant.shapes)
 }

@@ -135,7 +135,6 @@ object RemoteTVBox {
         post(url, params, null, callback)
     }
 
-    /** headers 非空时逐个加到请求上(站点级 header 的 POST 分支用) */
     @JvmStatic
     fun post(url: String?, params: Map<String, String>?, headers: Map<String, String>?, callback: okhttp3.Callback) {
         val base = OkGoHelper.getDefaultClient()
@@ -154,7 +153,6 @@ object RemoteTVBox {
         val requestBuilder = Request.Builder().url(url!!)
         if (headers != null) {
             for ((key, value) in headers) {
-                // 表单 POST 的 Content-Type/Content-Length 由请求体接管,配置里写了会破坏提交
                 if (isBodyManagedHeader(key)) {
                     LOG.i("echo-site-header-skip-body:" + key)
                     continue
@@ -165,7 +163,6 @@ object RemoteTVBox {
         client.newCall(requestBuilder.post(formBody).build()).enqueue(callback)
     }
 
-    /** 由请求体接管的头:配置里写进来只会让 body 与 header 不一致 */
     private fun isBodyManagedHeader(name: String): Boolean {
         return "content-type".equals(name, ignoreCase = true)
                 || "content-length".equals(name, ignoreCase = true)

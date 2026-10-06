@@ -29,7 +29,6 @@ class OkHttp {
         private var dns: OkDns? = null
         private var client: OkHttpClient? = null
 
-        // Java 的 static synchronized 锁的是 Class 对象,companion 的 @Synchronized 锁的是 INSTANCE,不可替换
         @JvmStatic
         fun dns(): OkDns {
             synchronized(OkHttp::class.java) {

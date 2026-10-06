@@ -11,12 +11,6 @@ import org.json.JSONObject
 import java.net.URLDecoder
 import java.util.HashMap
 
-/**
- * 推送源(push://)URL 的解析与相关结果合成。
- *
- * 推送链接把标记头(urlencoded 的 JSON)用 `@Headers=...@` 夹在 URL 里:摘出来、URL 还原干净。
- * 标记头同样要过 [HeaderGuard](会进 OkGo 与本地 m3u8 净化)。
- */
 object PushUrlParser {
 
     @JvmField
@@ -101,7 +95,6 @@ object PushUrlParser {
                 val key = keys.next()
                 val value = json.optString(key, "")
                 if (TextUtils.isEmpty(key)) continue
-                // push 标记头同样会进 OkGo 与本地 m3u8 净化:非法字符挡在入口
                 if (!HeaderGuard.isSendable(key, value)) {
                     LOG.i("echo-push-header-skip:$key")
                     continue

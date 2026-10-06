@@ -11,16 +11,6 @@ import java.nio.charset.Charset
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 
-/**
- * <b>类名称：</b> MD5 <br/>
- * <b>类描述：</b> MD5值计算<br/>
- * <b>创建人：</b> 林肯 <br/>
- * <b>修改人：</b> 编辑人 <br/>
- * <b>修改时间：</b> 2015年08月11日 下午2:41 <br/>
- * <b>修改备注：</b> <br/>
- *
- * @version 1.0.0 <br/>
- */
 class MD5 {
 
     companion object {
@@ -28,9 +18,6 @@ class MD5 {
         private val hexDigits = charArrayOf('0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
             'a', 'b', 'c', 'd', 'e', 'f')
 
-        /**
-         * 消息摘要非线程安全，禁止静态共享；改为每次调用创建局部实例（无锁竞争）.
-         */
         private fun newDigest(): MessageDigest? {
             try {
                 return MessageDigest.getInstance("MD5")
@@ -40,19 +27,6 @@ class MD5 {
             }
         }
 
-        /**
-         * MD5值计算
-         * MD5的算法在RFC1321 中定义:
-         * 在RFC 1321中，给出了Test suite用来检验你的实现是否正确：
-         * MD5 ("") = d41d8cd98f00b204e9800998ecf8427e
-         * MD5 ("a") = 0cc175b9c0f1b6a831c399e269772661
-         * MD5 ("abc") = 900150983cd24fb0d6963f7d28e17f72
-         * MD5 ("message digest") = f96b697d7cb7938d525a2f31aaf161d0
-         * MD5 ("abcdefghijklmnopqrstuvwxyz") = c3fcd3d76192e4007dfb496cca67e13b
-         *
-         * @param res 源字符串
-         * @return md5值
-         */
         @JvmStatic
         fun encode(res: String): String? {
             val strTemp = res.toByteArray(Charset.defaultCharset())
@@ -106,9 +80,6 @@ class MD5 {
             return sb.toString()
         }
 
-        /**
-         * MD5加码 生成32位md5码
-         */
         @JvmStatic
         fun string2MD5(inStr: String?): String? {
             val digest = newDigest()
@@ -137,12 +108,6 @@ class MD5 {
             return hexValue.toString()
         }
 
-        /**
-         * 先使用MD5进行加密，再使用Base64进行编码， 若不支持此类字符集合的加密，返回null.
-         *
-         * @param strSource 待加密的源字符串
-         * @return 加密后的字符串，不支持此类字符集合返回null
-         */
         @JvmStatic
         fun encrypt(strSource: String?): String? {
             val digest = newDigest()
@@ -157,7 +122,7 @@ class MD5 {
                 val md5Bytes = digest.digest(strSource!!.toByteArray(Charsets.UTF_8))
                 val encryptBytes = Base64.encode(md5Bytes, Base64.DEFAULT)
                 val strEncrypt = String(encryptBytes, Charsets.UTF_8)
-                return strEncrypt.substring(0, strEncrypt.length - 1) // 截断Base64产生的换行符
+                return strEncrypt.substring(0, strEncrypt.length - 1)
             } catch (e: UnsupportedEncodingException) {
                 Log.e("MD5", "加密模块暂不支持此字符集合$e")
             }

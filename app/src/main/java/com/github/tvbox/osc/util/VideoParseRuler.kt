@@ -77,7 +77,6 @@ object VideoParseRuler {
     @JvmStatic
     fun checkIsVideoForParse(webUrl: String?, url: String): Boolean {
         try {
-            // exclude 是否决项,优先级高于 rules 与内置嗅探正则(与 fongmi Sniffer 同序)
             if (isExcluded(webUrl, url)) {
                 return false
             }
@@ -212,7 +211,6 @@ object VideoParseRuler {
         return HOSTS_EXCLUDE[host]
     }
 
-    /** 命中任一排除条件即判为非视频;host 精确命中优先,否则退 "*" 兜底(与 HOSTS_RULE 一致) */
     private fun isExcluded(webUrl: String?, url: String): Boolean {
         if (HOSTS_EXCLUDE.isEmpty() || webUrl == null) return false
         val uri = Uri.parse(webUrl)
@@ -222,7 +220,6 @@ object VideoParseRuler {
         for (exclude in excludes) {
             if (exclude == null || exclude.isEmpty()) continue
             if (url.contains(exclude)) return true
-            // 单条正则写坏只作废这一条,不能让整个嗅探判定抛出去退化成"所有视频都不解析"
             try {
                 if (RegexUtils.getPattern(exclude).matcher(url).find()) return true
             } catch (th: Throwable) {

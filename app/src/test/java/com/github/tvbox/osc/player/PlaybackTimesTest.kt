@@ -3,7 +3,6 @@ package com.github.tvbox.osc.player
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 新栈时间工具单测(M7d):承接 doikki `PlayerUtils.safeTimeMs` 的边界语义 */
 class PlaybackTimesTest {
 
     @Test

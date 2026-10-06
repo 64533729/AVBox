@@ -59,31 +59,23 @@ internal fun posterSeedColor(name: String?): Int {
     return PosterPalette[(key.hashCode() and Int.MAX_VALUE) % PosterPalette.size]
 }
 
-/** 取单个 UTF-16 码元会把 emoji 切成高位代理,渲染成豆腐块 */
 internal fun posterFirstChar(name: String?): String {
     val text = name?.trim().orEmpty()
     if (text.isEmpty()) return UnnamedPosterKey
     return text.take(if (text[0].isHighSurrogate()) 2 else 1)
 }
 
-/**
- * 影视海报:有图就画图,无图(源没给 / 加载失败)则落成"片名首字大字"占位。
- *
- * ⚠️ 占位**只在确认没有图时才画**:常驻垫底 + 图片淡入会让每张卡先闪一下色底大字,别再改回去。
- */
 @Composable
 internal fun VodPoster(
     name: String?,
     pic: String?,
     modifier: Modifier = Modifier,
 ) {
-    // 初值必须"不画":列表项复用时状态会重置回 Empty,画了就是一滚一闪
     var showFallback by remember(pic) { mutableStateOf(false) }
     val context = LocalPlatformContext.current
     val request = remember(context, pic) {
         ImageRequest.Builder(context)
             .data(pic)
-            // 关掉淡入:淡入期间图片半透明,常驻的垫层会透出来
             .transitionFactory(Transition.Factory.NONE)
             .build()
     }
@@ -110,9 +102,7 @@ private fun PosterFallback(name: String?) {
             .background(Color(posterSeedColor(name))),
         contentAlignment = Alignment.Center,
     ) {
-        // 取短边而非宽:Hero 是 1.5 横版,按宽算字号在大屏上顶穿高度
         val charHeight = minOf(maxWidth, maxHeight) * POSTER_CHAR_WIDTH_RATIO
-        // 字号按 dp 语义钉在盒子上:写死字面 sp 会再叠一次系统字体缩放,字被放大到出框
         val charSize = with(LocalDensity.current) { charHeight.toSp() }
         Text(
             text = posterFirstChar(name),

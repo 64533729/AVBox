@@ -223,7 +223,6 @@ fun MusicPlayerScreen(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 isScrollable = false,
             ) {
-                // 每次弹出都新建状态,直接把正在播放的那首顶到可视区首行(队列很长时不用手动翻)
                 val queueListState = rememberLazyListState()
                 LaunchedEffect(Unit) {
                     if (state.queueIndex in state.queue.indices) {
@@ -441,7 +440,6 @@ private fun BottomActionItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    // 按压缩放 + 选中态配色渐变;未选中与选中态只差底色
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
         animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
@@ -474,7 +472,6 @@ private fun BottomActionItem(
     }
 }
 
-// 分段式圆角:组两端朝外的一侧走大圆角(50% = 与容器同心),相邻侧与中段走小圆角
 private val SegmentCornerLarge = CornerSize(percent = 50)
 
 private val SegmentCornerSmall = CornerSize(8.dp)
@@ -617,7 +614,6 @@ private fun MusicWaveProgress(
     val fraction = if (dragging) dragFraction else (positionMs.toFloat() / duration).coerceIn(0f, 1f)
 
     val phaseState = remember { mutableFloatStateOf(0f) }
-    // 频谱只是装饰,30Hz 足够;跟随刷新率会让整屏每帧重绘,把背景模糊和液态玻璃也一起拖下水
     LaunchedEffect(playing) {
         if (!playing) {
             phaseState.value = 0f
@@ -727,7 +723,6 @@ private val SkipToPlayGap = 20.dp
 
 private val PlayToSkipGap = 22.dp
 
-// 三个播放控件的总宽,底部胶囊按它对齐
 private val PlaybackControlsWidth = SkipButtonSize * 2 + PlayButtonWidth + SkipToPlayGap + PlayToSkipGap
 
 @Composable
@@ -841,7 +836,6 @@ private val ScallopIconShape: Shape = ScallopShape()
 
 private val TWO_PI = (2f * PI).toFloat()
 
-// 频谱相位循环周期与更新间隔(30Hz)
 private const val WAVE_PERIOD_NANOS = 2_000_000_000L
 
 private const val WAVE_FRAME_INTERVAL_NANOS = 1_000_000_000L / 30
@@ -873,7 +867,6 @@ private fun MusicTipOverlay() {
     }
 }
 
-// 柱高只与 (index, waveSeed) 有关,按柱数缓存,避免每帧对每根柱子重算哈希噪声
 private class WaveAmplitudeCache {
     private var seed = Int.MIN_VALUE
     private var count = -1

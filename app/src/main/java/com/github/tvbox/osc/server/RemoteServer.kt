@@ -41,11 +41,6 @@ import java.util.regex.Pattern
 import fi.iki.elonen.NanoHTTPD
 import okio.Buffer
 
-/**
- * @author pj567
- * @date :2021/1/5
- * @description:
- */
 class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
     private val mContext: Context = context
 
@@ -93,7 +88,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                 mime,
                 stream
             )
-            // 添加头部信息
             if (rs.size >= 4 && rs[3] is Map<*, *>) {
                 @Suppress("UNCHECKED_CAST")
                 val mapHeader = rs[3] as Map<String, String>
@@ -129,7 +123,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                 if (fileName.startsWith("/file/")) {
                     try {
                         val f = fileName.substring(6)
-                        // BugReview P3:路径遍历防护——拒绝含 ".." 的路径,防上溯读取 app 私有目录
                         if (f.contains("..")) {
                             return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden")
                         }
@@ -143,12 +136,9 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                             try {
                                 return NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "application/octet-stream", FileInputStream(localFile))
                             } catch (ignored: Throwable) {
-                                // 文件在但读不到(没开「所有文件访问」等)⇒ 交给下面的目录授权兜底
                                 LOG.d("RemoteServer", "file open failed, fallback to tree grant")
                             }
                         }
-                        // 本地源目录授权(SAF):应用自己读不到原目录时靠它直引原目录,副本不必搬。
-                        // 只服务回环请求 —— 应用读原目录走的就是 127.0.0.1,没必要把"应用都读不到的目录"再开给局域网客户端
                         val granted = if (isLocalRequest(session)) LocalSourceTree.open(AppContextHolder.context()!!, f) else null
                         if (granted != null) {
                             return NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "application/octet-stream", granted)
@@ -171,8 +161,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                     }
                     return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/dns-message", ByteArrayInputStream(rs), rs.size.toLong())
                 } else if (fileName.startsWith("/proxyM3u8")) {
-                    // 2026-09-13:按请求携带的键取内容;键缺失/不匹配(旧播放器的重试/重连)=404,
-                    // 让它走失败链路,而不是串到"最后一次净化"的新一集列表
                     val content = getM3u8Content(session.parms["k"])
                     if (content == null) {
                         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.NOT_FOUND, NanoHTTPD.MIME_PLAINTEXT, "m3u8 slot not found")
@@ -197,7 +185,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                     if (session.headers.containsKey("content-type")) {
                         val hd = session.headers["content-type"]
                         if (hd != null) {
-                            // cuke: 修正中文乱码问题
                             if (hd.lowercase().contains("multipart/form-data") && !hd.lowercase().contains("charset=")) {
                                 val matcher = RegexUtils.getPattern("[ |\t]*(boundary[ |\t]*=[ |\t]*['|\"]?[^\"^'^;^,]*['|\"]?)", Pattern.CASE_INSENSITIVE).matcher(hd)
                                 val boundary = if (matcher.find()) matcher.group(1) else null
@@ -230,8 +217,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
     }
 
     private fun handleProxy(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        // BugReview P3:请求头先并入、URL 参数后并入(URL 参数优先),防名为 do/go/url/header/siteKey
-        // 的请求头覆盖同名 query 参数改写代理路由
         val params = HashMap<String, String>(session.headers)
         params.putAll(session.parms)
         if (params.containsKey("do")) {
@@ -298,7 +283,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         return "http://127.0.0.1:" + RemoteServer.serverPort + "/"
     }
 
-    /** 请求是否来自应用本机(回环);局域网客户端不算 */
     private fun isLocalRequest(session: NanoHTTPD.IHTTPSession): Boolean {
         val address = session.remoteIpAddress
         return address != null && (address.startsWith("127.") || address == "::1")
@@ -355,13 +339,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         @JvmField
         var serverPort = 9978
 
-        /**
-         * 去广告 m3u8 内容槽位(key → 内容;2026-09-13 起带键,取代此前的无参单槽)。
-         * 背景:proxyUrl 原先不带任何身份参数、服务端直接吐"最后一次净化"的内容 ⇒ 切集后旧播放器的
-         * 重试/重连请求会拿到新一集的列表。现按请求 {@code ?k=} 取:键不匹配/缺失返 404,旧播放器走
-         * 失败链路而不是串集。保留最近 [M3U8_SLOT_LIMIT] 条(访问序 LRU)——在播集反复重拉不会被冲掉。
-         * 内容是小文本(几 KB),纯内存、无持久化;进程重启后重新净化即产生新键。
-         */
         private const val M3U8_SLOT_LIMIT = 4
 
         private val m3u8Seq = AtomicLong(0)
@@ -373,7 +350,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                 }
             })
 
-        /** 写入净化结果并返回本次的键(proxyUrl 用 {@code ?k=<key>} 取);仅在真正走代理播放时调用 */
         @JvmStatic
         fun putM3u8Content(content: String): String {
             val key = "${System.currentTimeMillis()}-${m3u8Seq.incrementAndGet()}"
@@ -381,7 +357,6 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
             return key
         }
 
-        /** 按键取净化结果;键缺失或已被 LRU 淘汰返回 null(调用方应答 404,不返回错误进度) */
         @JvmStatic
         fun getM3u8Content(key: String?): String? {
             return if (key == null) null else m3u8Slots[key]
@@ -422,10 +397,8 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
             return "0.0.0.0"
         }
 
-        /** 把 DoH 解析结果编码为合法的 DNS 应答报文(单条 question + 每条地址按自身地址族写 TYPE/RDLENGTH) */
         @JvmStatic
         fun buildDnsResponse(hostname: String, addresses: List<InetAddress>): ByteArray {
-            // 客户端只给 name、拿不到它请求的 QTYPE:非纯 IPv6(含无地址的 SERVFAIL)一律按 A 标
             var ipv6Only = addresses.isNotEmpty()
             for (address in addresses) {
                 if (address !is Inet6Address) {
@@ -433,32 +406,31 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                     break
                 }
             }
-            // 无地址时回 SERVFAIL(rCode=2),避免返回空报文
             val rCode = if (addresses.isEmpty()) 2 else 0
             val buffer = Buffer()
-            buffer.writeShort(0) // ID
-            buffer.writeShort(0x8180 or rCode) // 标准响应 + 递归可用
-            buffer.writeShort(1) // QDCOUNT
-            buffer.writeShort(addresses.size) // ANCOUNT
-            buffer.writeShort(0) // NSCOUNT
-            buffer.writeShort(0) // ARCOUNT
+            buffer.writeShort(0)
+            buffer.writeShort(0x8180 or rCode)
+            buffer.writeShort(1)
+            buffer.writeShort(addresses.size)
+            buffer.writeShort(0)
+            buffer.writeShort(0)
             for (label in RegexUtils.getPattern("\\.").split(hostname)) {
                 val raw = label.toByteArray(Charsets.UTF_8)
                 buffer.writeByte(raw.size)
                 buffer.write(raw)
             }
-            buffer.writeByte(0) // 名字结束
-            buffer.writeShort(if (ipv6Only) 0x001c else 0x0001) // QTYPE: A / AAAA
-            buffer.writeShort(1) // CLASS_IN
+            buffer.writeByte(0)
+            buffer.writeShort(if (ipv6Only) 0x001c else 0x0001)
+            buffer.writeShort(1)
             for (address in addresses) {
                 val ipv6 = address is Inet6Address
                 val raw = address.address
                 buffer.writeByte(0xc0)
-                buffer.writeByte(0x0c) // 名字指针 → 指向 question 中的名字
-                buffer.writeShort(if (ipv6) 0x001c else 0x0001) // TYPE: A / AAAA
-                buffer.writeShort(1) // CLASS_IN
-                buffer.writeInt(60) // TTL 60s
-                buffer.writeShort(raw.size) // RDLENGTH 必须等于实际写入的地址字节数
+                buffer.writeByte(0x0c)
+                buffer.writeShort(if (ipv6) 0x001c else 0x0001)
+                buffer.writeShort(1)
+                buffer.writeInt(60)
+                buffer.writeShort(raw.size)
                 buffer.write(raw)
             }
             return buffer.readByteString().toByteArray()

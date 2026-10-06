@@ -15,17 +15,11 @@ import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 
 object SuperParse {
-    // BugReview #21:loadHtml 仅读、parse 写,改并发容器防 HashMap 并发写损坏
     @JvmField
     val flagWebJx: ConcurrentHashMap<String, ArrayList<String>> = ConcurrentHashMap()
     private var configs: HashMap<String, ArrayList<String>>? = null
     private val configsLock = Any()
 
-    /**
-     * 一次解析会话的目标解析器。
-     * BugReview #21:原实现把 jsonJx/webJx 存静态字段、doJsonJx(url) 跨线程读取,
-     * 并发解析互相覆盖走错解析接口;改为构建后按调用传递(构建后只读,线程安全)。
-     */
     class ParseTargets(@JvmField val jsonJx: LinkedHashMap<String, String>, @JvmField val webJx: ArrayList<String>)
 
     private fun ensureConfigs(jx: LinkedHashMap<String, HashMap<String, String>>) {
@@ -65,7 +59,6 @@ object SuperParse {
         }
     }
 
-    /** 构建本次解析会话的目标解析器(json 聚合 + web 嗅探) */
     @JvmStatic
     fun buildTargets(jx: LinkedHashMap<String, HashMap<String, String>>, flag: String): ParseTargets {
         ensureConfigs(jx)

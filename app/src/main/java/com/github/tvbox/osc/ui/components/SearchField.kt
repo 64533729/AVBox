@@ -40,7 +40,6 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.ui.theme.cardContainer
 import com.kyant.capsule.ContinuousCapsule
 
-/** 取不到顶栏 backdrop 的场合(弹层)用空底档:两档都跟随液态玻璃开关,只是没有内容可折射 */
 @Composable
 fun SearchField(
     query: String,
@@ -65,9 +64,6 @@ fun SearchField(
     } else {
         Modifier.glassSurface(ContinuousCapsule, MaterialTheme.colorScheme.cardContainer, pressEffect = false)
     }
-    // 玻璃只作背景层,输入框必须与它分节点(即不能塞进玻璃里):玻璃会做按压放大,而输入框的几何一被
-    // 带动,Compose 就会反复重建编辑态的水滴手柄 Popup(判据落在输入框可见区域的边界上) ⇒ 水滴闪烁
-    // 居中:顶栏槽会给标题内容一个最小高度,外层被拉伸时内容得自己居中(否则贴顶)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier

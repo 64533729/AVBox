@@ -77,8 +77,6 @@ object TxtSubscribe {
             val groupObj = groupElement.asJsonObject
             var groupName = DefaultConfig.safeJsonString(groupObj, "group", "")
             if (groupName.isEmpty()) groupName = DefaultConfig.safeJsonString(groupObj, "name", DEFAULT_GROUP_NAME)
-            // 同名分组合并（与 TXT/M3U 解析的 findOrCreateGroup 行为一致）：
-            // 部分 JSON 源按频道拆成多个同名 group 条目，不合并会导致频道列表出现一排重复分组名
             val outGroup = findOrCreateGroup(result, groupName)
             var channels: JsonArray? = null
             if (groupObj.has("channels") && groupObj.get("channels").isJsonArray) {

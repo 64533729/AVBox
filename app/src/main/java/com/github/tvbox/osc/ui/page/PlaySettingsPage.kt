@@ -40,7 +40,6 @@ import com.github.tvbox.osc.util.PlayerHelper
 import kotlin.math.roundToInt
 import com.github.tvbox.osc.player.AppPlayerView
 
-// KV 持久化值(exo_decode),不能翻;显示走 player_decode_* 资源
 private const val DecodeHard = "硬解码" // i18n: keep
 private const val DecodeSoft = "软解码" // i18n: keep
 
@@ -119,8 +118,6 @@ fun PlaySettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel = viewM
                     )
                 }
                 SettingsCard(SettingsCardPosition.MIDDLE) {
-                    // 解码方式:软解 = 系统软件解码器 c2.android.*(仅视频渲染器);
-                    // 内核选外部播放器时该设置不生效,行置灰
                     val codec = state.exoDecode
                     val decodeLabels = listOf(
                         stringResource(R.string.player_decode_hard),

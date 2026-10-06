@@ -38,7 +38,6 @@ class MusicLrcTest {
 
     @Test
     fun parseLrcWithDialogueWordIsNotMistakenForAss() {
-        // ASS 判定只认"行首 Dialogue:",歌词正文里出现这个词不能被误判(误判 = 整首 0 行)
         val lines = MusicLrc.parse("[00:12.34]Dialogue: 一句歌词\n[00:15.00]第二句")
         assertEquals(2, lines.size)
         assertEquals("Dialogue: 一句歌词", lines[0].text)
@@ -67,7 +66,6 @@ class MusicLrcTest {
         assertEquals(12340L, lines[0].timeMs)
         assertEquals("第一句", lines[0].text)
         assertEquals(15000L, lines[1].timeMs)
-        // {\k50} 覆盖块被剥离、\N 还原为换行、Text 里的逗号保留
         assertEquals("第二句\n副歌,带逗号", lines[1].text)
     }
 }

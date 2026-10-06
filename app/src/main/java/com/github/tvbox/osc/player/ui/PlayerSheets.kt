@@ -64,44 +64,16 @@ import com.github.tvbox.osc.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * 播放器面板公共骨架:面板容器/标题/按钮/标签行/chips/步进/输入框/加载指示,以及弹窗壳 [PlayerDialog]。
- * 具体面板见 DanmuSheets / SubtitleSheets / CastSheet / PlayerSelectDialog,同为播放器 Dialog 形态。
- *
- * 视觉走 M3 语义色与形状:面板 `surfaceContainer` + 18dp 圆角 + 轻投影;
- * 选项 `surfaceBright`,选中 `primaryContainer`;提示文字 `onSurfaceVariant`。
- * 字号/尺寸仍用 AutoSize(mm) 档(playerDim/playerTextSize):覆盖层按屏宽等比缩放,
- * 换成 M3 固定 sp 会在小屏上明显偏小。
- * 交互:触摸点按。
- */
-
-/** M3 形状档:对话框面板 18dp、内部选项/输入框 12dp(medium) */
 private val PanelShape = RoundedCornerShape(18.dp)
 private val ItemShape = RoundedCornerShape(12.dp)
 
-/** 弹窗进出场:面板内容 0.92→1.0 缩放 + 淡入(时长与 app 内 AVBoxDialog 对齐) */
 private const val PANEL_ENTER_DURATION_MS = 220
 private const val PANEL_ENTER_SCALE = 0.92f
 
-/** 面板内容里的关闭入口:播完退场动画再关(与 app 内 LocalSheetDismiss 同款语义) */
 internal val LocalPlayerSheetDismiss = staticCompositionLocalOf<() -> Unit> { {} }
 
-/**
- * "先播退场,再执行动作,最后 onDismiss"的关闭入口 —— 给"关掉本面板并打开下一个面板"用
- * (例如弹幕设置 → 弹幕搜索),否则两个面板窗口会重叠出现。
- */
 internal val LocalPlayerSheetDismissThen = staticCompositionLocalOf<(action: () -> Unit) -> Unit> { { it() } }
 
-/**
- * 播放器弹窗壳:**保留平台 Dialog**(独立窗口 = 天然屏蔽播放器手势、返回键收起、独立于播放器容器坐标系),
- * 只在窗口内部给面板内容补"缩放 + 淡入",退场也先播完动画再回调。
- *
- * 用法:面板内容里的所有关闭入口(选项点击/取消按钮/异步回调)一律走
- * [LocalPlayerSheetDismiss](只关闭)或 [LocalPlayerSheetDismissThen](先执行动作再关闭),
- * 直接调 `onDismiss()` 会绕过退场动画。点面板外空白同样走退场动画(自己铺的遮罩收这个手势)。
- *
- * 注意:遮罩的**变暗**仍是平台 dialog 窗口的 dim(瞬现)—— Compose 拿不到窗口遮罩,这点与 app 内的 AVBoxDialog 不同。
- */
 @Composable
 internal fun PlayerDialog(
     onDismiss: () -> Unit,
@@ -116,15 +88,11 @@ internal fun PlayerDialog(
         progress.animateTo(1f, tween(PANEL_ENTER_DURATION_MS))
     }
 
-    // 兜底:退场这 220ms 里组合若被销毁(全屏 reparent 会重建 PlayerOverlay 的组合、Activity 重建同理),
-    // 协程被取消 ⇒ onDismiss() 永远不执行,而弹窗状态还挂在 PlayerUiState 上 —— 重建后面板会自己弹回来。
-    // 6 处 onDismiss 都是"置 null"的幂等操作,所以销毁时补一次是安全的。
     DisposableEffect(Unit) {
         onDispose { if (closing && !dismissed) onDismiss() }
     }
 
     val dismissAnimated: () -> Unit = {
-        // closing 兼作防重入:退场动画期间的重复关闭(连点两个选项)直接吞掉
         if (!closing) {
             closing = true
             scope.launch {
@@ -147,7 +115,6 @@ internal fun PlayerDialog(
     }
 
     Dialog(onDismissRequest = dismissAnimated, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        // 面板居中 ⇒ 整屏内容做缩放等价于面板就地缩放(与 AVBoxDialog 同款观感)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -160,10 +127,6 @@ internal fun PlayerDialog(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            // 点面板外空白关闭:平台 Dialog 的 dismissOnClickOutside 在这种"满屏内容"下永远不触发
-            // (Compose 判定"是否在内容内"用的就是这块整屏 Box 的实测尺寸,见 DialogLayout.isInsideContent),
-            // 所以自己铺一层遮罩收这个手势。面板本体是 M3 Surface(内部 pointerInput 挡穿透),
-            // 面板上的点击不会被这层吃掉。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -179,8 +142,6 @@ internal fun PlayerDialog(
                 LocalPlayerSheetDismissThen provides dismissThen,
                 content = content,
             )
-            // 退场这 220ms 里面板还挂着:不加一层吃触摸的盖子,连点两个选项会触发两次动作
-            // (旧实现 onDismiss 当场摘状态,没这个窗口)
             if (closing) {
                 Box(
                     modifier = Modifier
@@ -196,14 +157,8 @@ internal fun PlayerDialog(
     }
 }
 
-/** 聚焦描边宽度(M3 焦点提示:primary 描边 + 底色调档) */
 private val FocusStroke = 2.dp
 
-// ---------------------------------------------------------------------------
-// 公共骨架组件
-// ---------------------------------------------------------------------------
-
-/** 对话框面板:M3 dialog 形态 —— 18dp 圆角、`surfaceContainer` 底、无描边 + 6dp 阴影 */
 @Composable
 internal fun SheetPanel(
     width: Dp,
@@ -220,7 +175,6 @@ internal fun SheetPanel(
     }
 }
 
-/** 对话框标题(居中):`onSurface` + M3 Medium 字重 */
 @Composable
 internal fun SheetTitle(text: String) {
     Text(
@@ -237,9 +191,6 @@ internal fun SheetTitle(text: String) {
     )
 }
 
-/** 面板按钮:M3 选项样式 —— `surfaceBright` 底、选中 `primaryContainer`;触摸点按。
- *  [contentPadding] 给"宽度随内容"的 chips 用(默认 0 = 沿用调用方的宽度)。
- *  文字恒 `Medium`(500):播放器弹窗内字重一律 500,选中态只靠底色区分。 */
 @Composable
 internal fun SheetButton(
     text: String,
@@ -374,7 +325,6 @@ internal fun SheetActionButton(
     )
 }
 
-/** 左标签行:120mm 右对齐标签(`onSurfaceVariant`)+ 右侧 50mm 高控件区 */
 @Composable
 internal fun SheetLabelRow(label: String, content: @Composable RowScope.() -> Unit) {
     Row(
@@ -401,7 +351,6 @@ internal fun SheetLabelRow(label: String, content: @Composable RowScope.() -> Un
     }
 }
 
-/** 横排单选 chips,间距 vs_10 */
 @Composable
 internal fun SheetChipRow(
     options: List<String>,
@@ -421,7 +370,6 @@ internal fun SheetChipRow(
     }
 }
 
-/** 步进行(减 / 值 / 加;值居中 ts_26) */
 @Composable
 internal fun SheetStepper(
     valueText: String,
@@ -443,7 +391,6 @@ internal fun SheetStepper(
     }
 }
 
-/** 面板输入框:M3 输入框样式(`surfaceContainerHighest` 底 + outline 描边,聚焦 primary 描边);IME 搜索键提交 */
 @Composable
 internal fun SheetInput(
     value: String,
@@ -501,7 +448,6 @@ internal fun SheetInput(
     }
 }
 
-/** 对话框内加载指示 */
 @Composable
 internal fun SheetLoading(size: Dp, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

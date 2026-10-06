@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- GitHub 官方 logo;取自 示例文件/android 的 ic_github_repo.xml(其注释标注源自 .tubiao/访问GitHub仓库.svg),fillColor 统一为本项目其它设置图标的 #FF1F1F1F -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

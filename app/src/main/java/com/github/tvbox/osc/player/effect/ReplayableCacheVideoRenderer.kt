@@ -10,15 +10,8 @@ import com.github.tvbox.osc.player.PlayerCodecStats
 import com.github.tvbox.osc.player.engine.CodecPreferences
 import com.github.tvbox.osc.util.LOG
 
-/**
- * 打开「可重放帧缓存」的视频渲染器：media3 默认关闭它，于是暂停态既没有新帧、`VideoFrameProcessor.REDRAW`
- * 又会直接抛异常。开着它，暂停中的画面才能按新参数/新几何重绘一帧。
- *
- * 构建设置逐项照抄 media3 1.11.1 的 `createPlaybackVideoGraphWrapper`，升级 media3 时须回来对账。
- */
 class ReplayableCacheVideoRenderer(
     builder: MediaCodecVideoRenderer.Builder,
-    /** 必须与 builder 上的丢帧阈值同值：上游拿它的负值当 wrapper 的阈值 */
     private val lateThresholdToDropDecoderInputUs: Long,
 ) : MediaCodecVideoRenderer(builder) {
 
@@ -36,7 +29,6 @@ class ReplayableCacheVideoRenderer(
                 },
             )
             .setClock(clock)
-            // 与上游唯一差别：开缓存（代价 = media3 自述的更耗电、更耗算力）
             .setEnableReplayableCache(true)
             .build()
 

@@ -11,12 +11,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/**
- * 取数通道的行为锁(M4a 语义转换的回归网):取数侧只认 postValue/setValue、消费侧只认 flow。
- *
- * 两条不变量:①flow 是热流且回放最近一次值(等价 LiveData 粘性,新收集者不会空等已发生的结果);
- * ②null 也是合法载荷(取数失败就是投 null,不能被当成"没有回包")。
- */
 class SourceChannelTest {
 
     @Test
@@ -68,7 +62,6 @@ class SourceChannelTest {
         assertEquals("任意线程投递都必须送达活跃收集者", 42, pending.await())
     }
 
-    /** 与 LiveData 的差异:SharedFlow 不做"同帧合并",活跃收集者逐条收到（生产侧是逐次取流回包，不能丢中间态） */
     @Test
     fun rapidPostsAreNotConflatedForActiveCollector() = runBlocking {
         val channel = SourceChannel<Int?>()
@@ -78,7 +71,6 @@ class SourceChannelTest {
         assertEquals(listOf(1, 2, 3, 4, 5), pending.await())
     }
 
-    /** 溢出策略 DROP_OLDEST:生产者不被阻塞，迟到收集者仍能拿到最近一次值 */
     @Test
     fun latestValueSurvivesOverflowForLateCollector() = runBlocking {
         val channel = SourceChannel<Int?>()

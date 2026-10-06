@@ -5,14 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 手势状态机的行为用例(纯 JVM,无 Android 依赖)。
- *
- * <p>每条用例对应一个**用户可见的手势需求**,而不是实现细节;命名即需求。
- */
 class VideoGestureHandlerTest {
 
-    /** 记录派发了哪些动作,便于断言"恰好一次/一次都没有" */
     private class Recorder : VideoGestureActions {
         val calls = mutableListOf<String>()
         var playback = true
@@ -49,9 +43,6 @@ class VideoGestureHandlerTest {
         paused, gestureEnabled, verticalSlidingDisabled, width, height, screenWidth, edge, fromTopBand,
     )
 
-    // ---------- 单击 / 双击 ----------
-
-    /** 点一下画面:等过双击窗口后,恰好派发一次单击 */
     @Test
     fun singleTapFiresExactlyOnceAfterDoubleTapWindow() {
         val r = Recorder()
@@ -67,14 +58,12 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("singleTap"), r.calls)
     }
 
-    /** 快速双击:第二下判为双击,**不得**再派发单击 */
     @Test
     fun doubleTapTogglesPlayAndSuppressesSingleTap() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 500f, 300f)
         h.endSession(cancelled = false, nowMs = 1000L)
-        // 第二下在窗口内(间隔 120ms,落在 [40, 300])
         h.beginSession(session(), 505f, 302f)
         assertEquals(
             "第二下应判为双击",
@@ -82,11 +71,9 @@ class VideoGestureHandlerTest {
             h.endSession(cancelled = false, nowMs = 1120L),
         )
         assertEquals(listOf("doubleTap"), r.calls)
-        // 且双击基准被清掉,不会连着再判一次双击
         assertFalse(h.withinDoubleTapWindow(1120L))
     }
 
-    /** 第二下超出窗口:不得判双击 */
     @Test
     fun secondTapOutsideWindowIsNotDoubleTap() {
         val r = Recorder()
@@ -94,13 +81,10 @@ class VideoGestureHandlerTest {
         h.beginSession(session(), 500f, 300f)
         h.endSession(cancelled = false, nowMs = 1000L)
         h.beginSession(session(), 500f, 300f)
-        h.endSession(cancelled = false, nowMs = 1400L) // 400ms > 300ms 窗口
+        h.endSession(cancelled = false, nowMs = 1400L)
         assertEquals("超窗不该有双击", emptyList<String>(), r.calls)
     }
 
-    // ---------- 长按 ----------
-
-    /** 长按到点:派发倍速开始;抬手恢复 */
     @Test
     fun longPressBoostsAndRestoresOnRelease() {
         val r = Recorder()
@@ -111,7 +95,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
     }
 
-    /** 已滑动:长按不得触发(滑动与长按互斥) */
     @Test
     fun longPressDoesNotFireAfterMovement() {
         val r = Recorder()
@@ -122,7 +105,6 @@ class VideoGestureHandlerTest {
         assertTrue("没有 longPressStart", r.calls.none { it.startsWith("longPress") })
     }
 
-    /** 暂停态:旧实现显式排除,不得提速 */
     @Test
     fun longPressIgnoredWhilePaused() {
         val r = Recorder()
@@ -132,7 +114,6 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.isEmpty())
     }
 
-    /** 长按中 CANCEL:倍速也必须恢复 */
     @Test
     fun longPressRestoredEvenWhenCancelled() {
         val r = Recorder()
@@ -143,9 +124,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
     }
 
-    // ---------- 横滑 seek ----------
-
-    /** 右滑 = 前进,deltaX 为正;抬手提交 */
     @Test
     fun horizontalDragPreviewThenCommit() {
         val r = Recorder()
@@ -156,7 +134,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("seekPreview:100.0", "seekCommit"), r.calls)
     }
 
-    /** CANCEL:横滑必须走取消,**不得提交**(复核高危项 ④) */
     @Test
     fun cancelledSeekIsNotCommitted() {
         val r = Recorder()
@@ -168,7 +145,6 @@ class VideoGestureHandlerTest {
         assertTrue("绝不能提交", r.calls.none { it == "seekCommit" })
     }
 
-    /** 不允许改进度:横滑被拒 */
     @Test
     fun horizontalDragRejectedWhenPositionChangeDisabled() {
         val r = Recorder()
@@ -179,29 +155,24 @@ class VideoGestureHandlerTest {
         assertTrue("不该有 seek", r.calls.none { it.startsWith("seek") })
     }
 
-    // ---------- 竖滑亮度/音量 ----------
-
-    /** 左半屏下滑 = 亮度;deltaY 为正 */
     @Test
     fun leftHalfVerticalDragAdjustsBrightness() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
-        h.beginSession(session(), 200f, 300f) // x=200 < 500
+        h.beginSession(session(), 200f, 300f)
         assertTrue(h.onMove(200f, 400f, slop = 8f))
         assertEquals(listOf("brightness:100.0"), r.calls)
     }
 
-    /** 右半屏下滑 = 音量 */
     @Test
     fun rightHalfVerticalDragAdjustsVolume() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
-        h.beginSession(session(), 800f, 300f) // x=800 >= 500
+        h.beginSession(session(), 800f, 300f)
         assertTrue(h.onMove(800f, 400f, slop = 8f))
         assertEquals(listOf("volume:100.0"), r.calls)
     }
 
-    /** 普通态(非全屏)未开 enableInNormal:竖滑被拒 */
     @Test
     fun verticalDragRejectedInNormalStateWhenDisabled() {
         val r = Recorder()
@@ -211,7 +182,6 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.isEmpty())
     }
 
-    /** "禁用手势控制":只拦竖滑,**不拦横滑** */
     @Test
     fun verticalSlidingDisabledBlocksOnlyVertical() {
         val r = Recorder()
@@ -227,7 +197,6 @@ class VideoGestureHandlerTest {
         assertTrue(r2.calls.any { it.startsWith("seekPreview") })
     }
 
-    /** 预览态:竖滑不响应 */
     @Test
     fun previewModeRejectsVerticalDrag() {
         val r = Recorder()
@@ -237,9 +206,6 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.isEmpty())
     }
 
-    // ---------- 归属判定(不归手势管就不该有任何副作用) ----------
-
-    /** 非播放态:不认领 */
     @Test
     fun notInPlaybackIsIgnored() {
         val r = Recorder()
@@ -248,7 +214,6 @@ class VideoGestureHandlerTest {
         assertEquals(GestureVerdict.IGNORE, h.beginSession(session(inPlayback = false), 500f, 300f))
     }
 
-    /** 四边边缘带:不认领 */
     @Test
     fun edgeBandIsIgnored() {
         val r = Recorder()
@@ -256,7 +221,6 @@ class VideoGestureHandlerTest {
         assertEquals(GestureVerdict.IGNORE, h.beginSession(session(edge = true), 2f, 300f))
     }
 
-    /** 锁屏:认领(吞掉事件),抬手唤锁屏钮 */
     @Test
     fun lockedSessionClaimsAndCallsSingleTapOnRelease() {
         val r = Recorder()
@@ -266,7 +230,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("singleTap"), r.calls)
     }
 
-    /** 锁屏横滑:不得 seek */
     @Test
     fun lockedSessionDoesNotSeek() {
         val r = Recorder()
@@ -277,7 +240,6 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.none { it.startsWith("seek") })
     }
 
-    /** 小于 slop 的抖动不算滑动,也不取消点击 */
     @Test
     fun jitterBelowSlopStaysATap() {
         val r = Recorder()
@@ -292,12 +254,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("singleTap"), r.calls)
     }
 
-    // ---------- 真机反馈回归(2026-10-06) ----------
-
-    /**
-     * 真机反馈 ③:横滑到一半下拉通知栏,旧接线层会把系统中断当成正常抬手 ⇒ 提交 seek 或转去调音量。
-     * 状态机侧必须:被标为 cancelled 的横滑**只取消、不提交**。
-     */
     @Test
     fun systemInterruptedSeekOnlyCancels() {
         val r = Recorder()
@@ -310,7 +266,6 @@ class VideoGestureHandlerTest {
         assertTrue("中断绝不能转成竖滑", r.calls.none { it.startsWith("volume") || it.startsWith("brightness") })
     }
 
-    /** 长按态被系统中断:倍速必须恢复,且不该被当成点击 */
     @Test
     fun systemInterruptDuringLongPressRestoresSpeedOnly() {
         val r = Recorder()
@@ -321,7 +276,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
     }
 
-    /** 单击在双击窗口内不应被确认(宿主定时器据此判"是否已被双击消化") */
     @Test
     fun pendingTapIsStillInsideDoubleTapWindowShortlyAfter() {
         val r = Recorder()
@@ -332,34 +286,22 @@ class VideoGestureHandlerTest {
         assertFalse("超过窗口后不再是双击候选", h.withinDoubleTapWindow(1400L))
     }
 
-    // ---------- 真机反馈 ②(2026-10-06):双击不得遗留一次单击 ----------
-
-    /**
-     * 真机现象:点一下暂停后,控制条再也收不回去。
-     *
-     * <p>根因是双击的第二下**也走了单击路径**(以及第一下的单击确认定时器在双击之后才补发),
-     * 于是同一个手势序列里"显隐"与"播放暂停"互相踩。这里钉住:判成双击后,
-     * 待定标记必须被清掉,宿主再调 [VideoGestureHandler.markSingleTapConfirmed] 也**不能再派发**。
-     */
     @Test
     fun doubleTapLeavesNoStraySingleTap() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
-        // 第一下
         h.beginSession(session(), 300f, 300f)
         assertEquals(
             VideoGestureHandler.EndResult.TAP_PENDING,
             h.endSession(cancelled = false, nowMs = 1000L),
         )
         assertTrue("第一下后应存在待定单击", h.tapPending)
-        // 第二下(窗口内)⇒ 双击
         h.beginSession(session(), 300f, 300f)
         assertEquals(
             VideoGestureHandler.EndResult.DOUBLE_TAP,
             h.endSession(cancelled = false, nowMs = 1120L),
         )
         assertFalse("判成双击后不得再留待定单击", h.tapPending)
-        // 宿主(控制器)随后仍会调一次确认 ⇒ 必须是空操作
         assertFalse(
             "双击之后补发的单击确认必须无效",
             h.markSingleTapConfirmed(),
@@ -367,7 +309,6 @@ class VideoGestureHandlerTest {
         assertEquals("整个序列只应有双击", listOf("doubleTap"), r.calls)
     }
 
-    /** 纯单击:宿主确认后恰好一次 */
     @Test
     fun singleTapConfirmedOnceAndIdempotent() {
         val r = Recorder()
@@ -379,7 +320,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("singleTap"), r.calls)
     }
 
-    /** 锁屏是立即派发,不该再留下待定(否则会多唤一次锁屏钮) */
     @Test
     fun lockedTapDispatchesImmediatelyWithoutPending() {
         val r = Recorder()
@@ -391,20 +331,12 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("singleTap"), r.calls)
     }
 
-    // ---------- 真机反馈 ③(2026-10-06):长按倍速期间位移不得改成滑动 ----------
-
-    /**
-     * 真机现象:长按画面倍速时,手指只要有轻微移动就会变成调进度或调音量。
-     *
-     * <p>正确逻辑:长按是一次**独占**会话 —— 直到抬手为止,任何位移都不该进入 seek/亮度/音量。
-     */
     @Test
     fun longPressOwnsTheSessionUntilRelease() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
         assertTrue(h.maybeLongPress())
-        // 长按成立后的各种位移方向:都不该产生任何滑动动作
         assertFalse("横移不该 seek", h.onMove(600f, 300f, slop = 8f))
         assertFalse("竖移不该调亮度", h.onMove(300f, 500f, slop = 8f))
         assertFalse("右半屏竖移不该调音量", h.onMove(800f, 500f, slop = 8f))
@@ -417,7 +349,6 @@ class VideoGestureHandlerTest {
         )
     }
 
-    /** 长按 + 位移后抬手:倍速必须恢复(不能因为位移被当成滑动而丢掉恢复) */
     @Test
     fun longPressStillRestoresAfterMovement() {
         val r = Recorder()
@@ -429,7 +360,6 @@ class VideoGestureHandlerTest {
         assertEquals(listOf("longPressStart", "longPressEnd"), r.calls)
     }
 
-    /** 长按恢复后再抬手:不应被判成单击(不会多显隐一次控制条) */
     @Test
     fun longPressDoesNotBecomeATap() {
         val r = Recorder()
@@ -442,95 +372,65 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.none { it == "singleTap" })
     }
 
-    // ---------- 真机反馈 ④(2026-10-06):系统手势不得触发亮度/音量 ----------
-
-    /**
-     * 真机现象:下拉通知栏 / 上滑退出应用会触发亮度或音量。
-     *
-     * <p>系统手势抢走触摸前会先送来少量 MOVE,若竖滑"一动就生效",等在系统取消时数值已被改。
-     * 这里钉住:纵向位移未越过起判阈值(默认 height 的 12%)时**不得**产生任何亮度/音量动作。
-     */
     @Test
     fun smallVerticalMoveBelowCommitThresholdDoesNothing() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        // 12% of 600 = 72px;走 40px(系统手势的典型抖动量级)
         assertFalse(h.onMove(300f, 340f, slop = 8f))
         assertFalse(h.onMove(300f, 360f, slop = 8f))
         assertTrue("未越阈值不该改亮度", r.calls.none { it.startsWith("brightness") })
         assertTrue("未越阈值不该改音量", r.calls.none { it.startsWith("volume") })
     }
 
-    /** 越过阈值后才真正开始调 */
     @Test
     fun verticalMoveBeyondCommitThresholdStartsAdjusting() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        assertTrue(h.onMove(300f, 450f, slop = 8f)) // 150px > 72px
+        assertTrue(h.onMove(300f, 450f, slop = 8f))
         assertTrue(r.calls.any { it.startsWith("brightness") })
     }
 
-    /**
-     * 真机反馈 ⑤(2026-10-06):横滑太容易误触 —— "手指不小心滑动一下都会触发调节视频进度"。
-     *
-     * <p>原先横滑只受 8px 的 slop 约束,而竖滑已有起判阈值,两者不对称。现在横竖共用同一绝对
-     * 起判距离(手势区高度的 12%)。本用例钉住:小幅横移**不得**进入 seek。
-     */
     @Test
     fun smallHorizontalMoveDoesNotSeek() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        // h=600 ⇒ 起判 72px;走 40px(无意的横向抖动量级)
         assertFalse(h.onMove(340f, 302f, slop = 8f))
         assertTrue("小幅横移不该 seek,实际: ${r.calls}", r.calls.none { it.startsWith("seekPreview") })
     }
 
-    /** 越过起判距离后横滑照常生效(门槛不能把正常拖进度也挡掉) */
     @Test
     fun horizontalMoveBeyondCommitThresholdSeeks() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        assertTrue(h.onMove(460f, 302f, slop = 8f)) // 160px > 72px
+        assertTrue(h.onMove(460f, 302f, slop = 8f))
         assertTrue(r.calls.any { it.startsWith("seekPreview") })
     }
 
-    /** 门槛未越过的横移之后继续拖:一旦越过就应立刻开始 seek(不能因为一次早退就失效) */
     @Test
     fun horizontalSeekStartsOnceThresholdCrossed() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(), 300f, 300f)
-        assertFalse(h.onMove(340f, 302f, slop = 8f))   // 未越
-        assertTrue(h.onMove(500f, 302f, slop = 8f))    // 越过后立刻生效
+        assertFalse(h.onMove(340f, 302f, slop = 8f))
+        assertTrue(h.onMove(500f, 302f, slop = 8f))
         assertTrue(r.calls.any { it.startsWith("seekPreview") })
     }
 
-    // ---------- 真机反馈 ④(2026-10-06):顶端带起手不得触发亮度/音量 ----------
-
-    /**
-     * 真机现象:下拉通知栏仍会触发音量。
-     *
-     * <p>关键认识:系统只把**屏幕最顶端**那一带留给"下拉通知栏"。从那一带起手的竖滑,
-     * 应当在系统接管前就**整段不参与**亮度/音量(否则我们先把数值改了,系统再接管也晚了)。
-     * 从画面中部下拉则不会被系统接管,那种情况本来就该正常调音量。
-     */
     @Test
     fun topBandVerticalDragNeverAdjustsBrightnessOrVolume() {
         val r = Recorder()
         val h = VideoGestureHandler(r)
         h.beginSession(session(fromTopBand = true), 300f, 30f)
-        // 位移远超起判阈值,但因为是顶端带起手,仍不得改数值
         assertFalse(h.onMove(300f, 500f, slop = 8f))
         assertFalse(h.onMove(800f, 600f, slop = 8f))
         assertTrue("顶端带不该改亮度", r.calls.none { it.startsWith("brightness") })
         assertTrue("顶端带不该改音量", r.calls.none { it.startsWith("volume") })
     }
 
-    /** 顶端带起手仍允许横滑 seek(那是画面内的正常手势) */
     @Test
     fun topBandStillAllowsHorizontalSeek() {
         val r = Recorder()
@@ -540,7 +440,6 @@ class VideoGestureHandlerTest {
         assertTrue(r.calls.any { it.startsWith("seekPreview") })
     }
 
-    /** 画面中部起手:竖滑照常(不能被顶端带规则误伤) */
     @Test
     fun midScreenVerticalDragStillAdjusts() {
         val r = Recorder()

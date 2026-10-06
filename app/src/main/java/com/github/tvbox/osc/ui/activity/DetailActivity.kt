@@ -97,7 +97,6 @@ class DetailActivity : BaseActivity(), PageHost {
         vm.initFromIntent(intent)
         findViewById<androidx.compose.ui.platform.ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme(manageStatusBarIcons = false) {
-                // 独立 Activity 页面:套窗口根槽位,弹层无论写在哪都能全屏弹出(见 SheetHostScaffold)
                 SheetHostScaffold {
                     DetailScreen(activity = this, vm = vm)
                 }
@@ -105,7 +104,6 @@ class DetailActivity : BaseActivity(), PageHost {
         }
     }
 
-    /** 详情页已在栈顶时复用本实例:新片替换当前内容,不叠实例也不留返回链 */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -124,7 +122,6 @@ class DetailActivity : BaseActivity(), PageHost {
         return playContainer!!
     }
 
-    /** 进全屏/切清晰度所需的设备事实(页面是唯一同时拿得到窗口方向与视频是否竖屏的地方),当帧现算 */
     fun playbackFacts(): DetailPlaybackFacts = DetailPlaybackFacts(
         landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
         portraitVideo = playContainer?.isPortraitVideo() == true,
@@ -153,7 +150,6 @@ class DetailActivity : BaseActivity(), PageHost {
 
     override fun onPlaybackLinesExhausted(): Boolean = startDetailFallbackAfterLinesExhausted()
 
-    /** 入口可见性由播放侧判定(剧集/线路多于一个才显示按钮),这里只兜住详情数据尚未就绪的时序 */
     override fun showEpisodeSheet() {
         if (vm.vodInfo != null) vm.showEpisodeSheet()
     }
@@ -185,14 +181,12 @@ class DetailActivity : BaseActivity(), PageHost {
         return isAudioContent()
     }
 
-    /** 当前内容是否可判定为音频:URL 后缀或轨道确认(纯音频三态判定见 §4.4) */
     fun isAudioContent(): Boolean {
         val controller = PlaybackService.peek()?.controller() ?: return false
         val url = controller.webPlayUrl() ?: return false
         return PlaybackController.looksLikeAudioUrl(url) || controller.isConfirmedAudioOnly()
     }
 
-    /** 详情页手动进音乐播放页:会话还没建就先按当前集起播,再交接(影视内容交接后本页留在栈里) */
     fun openMusicPlayer() {
         if (vm.vodInfo == null) {
             Toast.makeText(this, getString(R.string.detail_content_not_ready), Toast.LENGTH_SHORT).show()
@@ -210,17 +204,11 @@ class DetailActivity : BaseActivity(), PageHost {
         val keepDetailPage = !isAudioContent()
         container.setExitingPreview(true)
         container.handOverToNextPage()
-        // 传 firstsourceKey:音乐页据此刷新历史,必须与 insertVod 落库用的 key 一致
         MusicPlayerActivity.start(this, vm.firstsourceKey)
-        // 影视内容保留本页在栈里(音乐页返回即回到竖屏详情页);纯音频没有回头路,直接收掉
         if (keepDetailPage) pendingEpisodeSync = true else finish()
         return true
     }
 
-    /**
-     * 音乐页可能切过歌,而它改的是 session.vod(预览副本),本页 vm.vodInfo 是另一个对象 ——
-     * 不同步回来,选集高亮会停在交接那一集,点播放还会跳回那一集。
-     */
     private fun syncEpisodeAfterMusicPage() {
         if (!pendingEpisodeSync) return
         pendingEpisodeSync = false
@@ -244,7 +232,6 @@ class DetailActivity : BaseActivity(), PageHost {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
         } else {
-            // 恢复窗口档策略值:大屏上硬写竖屏会把平板压回信箱模式
             orientationPolicyValue()
         }
         if (full) {
@@ -272,7 +259,6 @@ class DetailActivity : BaseActivity(), PageHost {
     }
 
     private fun syncFullBoxSideEffects() {
-        // 字幕字号随形态缩放(预览 0.6×)已收口到 PlayContainer.setPreviewMode,这里不再单独下发
         playContainer?.setPreviewMode(!isFullBox())
     }
 

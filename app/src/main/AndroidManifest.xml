@@ -10,31 +10,17 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <!-- 旧存储权限在 Android 13+ 对 targetSdk>=33 的应用会被系统忽略,故限制到 12 及以下 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <!-- Android 13+ 媒体权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <!-- Android 11+ 全部文件访问(浏览/备份/局域网共享任意路径,无系统弹窗,跳转设置页授权) -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <!--
-        REQUEST_INSTALL_PACKAGES 保留(全项目零引用,属上游 TVBox 的历史遗留):一旦将来做
-        "应用内更新"就必须用它,且它有实际风险(可触发安装未知来源应用),留着请知悉 —— 不需要就删本行。
-        ACCESS_FINE_LOCATION / GET_TASKS 已于 2026-09-13 移除:DLNA 组播锁不需要定位,
-        GET_TASKS 在 Android 5+ 已废弃,两者全项目零引用。
-    -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+ 带类型前台服务必需：mediaPlayback 类型服务的专用权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- PlaybackService 的 PARTIAL_WAKE_LOCK(原由 player 模块清单声明,M10 拆除后归位此处) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Android 13+ 通知为运行时权限:清单声明之外,还须 PermissionHelper.requestNotificationIfNeeded 显式申请 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Android 17(API 37)起,targetSdk 37+ 的应用访问局域网(投屏/DLNA、clan://<ip>)被默认屏蔽,
-         失败是静默超时(不抛异常);127.0.0.1 回环不受影响。运行时请求见 PermissionHelper -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" tools:node="remove" />
@@ -70,11 +56,6 @@
         android:theme="@style/AppTheme.NoActionBar"
         android:usesCleartextTraffic="true">
 
-        <!-- 方向策略见 BaseActivity.applyOrientationPolicy:sw<600dp 锁竖屏,>=600dp 放开。
-             在此写死 portrait 会让平板被信箱化,且 API 37 起系统在大屏本就会忽略它。 -->
-        <!-- Compose UI 测试(Robolectric,纯 JVM)的宿主 Activity:见
-             app/src/main/java/com/github/avbox/osc/ComposeTestActivity.kt 的说明。
-             无 intent-filter、exported=false,仅用于测试进程拉起。 -->
         <activity
             android:name="com.github.avbox.osc.ComposeTestActivity"
             android:exported="false"

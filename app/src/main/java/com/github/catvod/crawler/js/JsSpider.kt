@@ -61,8 +61,6 @@ class JsSpider : Spider {
         try {
             initializeJS()
         } catch (th: Throwable) {
-            // BugReview #19:构造失败时回收已创建的 QuickJSContext 与 executor,
-            // 防 native runtime 与线程泄漏(否则调用方拿不到对象引用,无人能 destroy)
             destroyed.set(true)
             try {
                 ctx?.destroy()
@@ -75,7 +73,6 @@ class JsSpider : Spider {
     }
 
     override fun cancelByTag() {
-        // BugReview #31:用本爬虫专属 tag 取消,不影响其他站点在途 JS 请求
         Connect.cancelByTag(global?.getHttpTag() ?: "js_okhttp_tag")
     }
 
@@ -142,10 +139,6 @@ class JsSpider : Spider {
         return executor.submit(callable)
     }
 
-    /**
-     * 提交到 JS 线程并带上限等待：JS 线程被死循环/挂死的原生调用占住时，
-     * 无上限的 get() 会把调用线程（含本机代理线程）一起拖死
-     */
     private fun <T> submitAndWait(task: Callable<T>): T? {
         try {
             return executor.submit(task).get(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -162,10 +155,6 @@ class JsSpider : Spider {
     private fun call(func: String, vararg args: Any?): Any? {
         if (destroyed.get() || jsObject == null) return null
         try {
-            // 关键修复：任务内仅启动 JS 调用并注册 Promise 回调，不得在 executor 线程内阻塞等待结果。
-            // Promise 的 resolve 依赖后续经 executor 排队的回调任务（http 完成/setTimeout），
-            // 若在本任务内同步 await 会占住唯一线程，回调永远排在后面无法执行，形成结构性死锁。
-            // 真正的等待发生在外部调用线程，executor 线程保持空闲可继续处理回调。
             val pending = executor.submit(Callable { Async.run(jsObject!!, func, args) })
             val result = pending.get(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             return result.get(CALL_TIMEOUT_MS)
@@ -288,7 +277,6 @@ class JsSpider : Spider {
 
     override fun destroy() {
         if (!destroyed.compareAndSet(false, true)) return
-        // 先停掉 setTimeout 的 Timer，防止销毁期间新回调再进队列
         if (global != null) {
             try {
                 global!!.destroy()
@@ -334,8 +322,6 @@ class JsSpider : Spider {
                     LOG.i("echo-bytecode-execute-error " + api + ", msg=" + th.message)
                     return@Callable null
                 }
-                //ctx.execute(byteFF(b), key + ".js","__jsEvalReturn");
-                //ctx.evaluate("globalThis." + key + " = __JS_SPIDER__;");
             } else {
                 if (content.contains("__JS_SPIDER__")) {
                     content = content.replace(Regex("__JS_SPIDER__\\s*="), "export default ")
@@ -352,8 +338,6 @@ class JsSpider : Spider {
                     LOG.i("echo-evaluateModule-error " + api + ", msg=" + th.message)
                     return@Callable null
                 }
-                //ctx.evaluateModule(content, api, moduleExtName);
-                //ctx.evaluate("globalThis." + key + " = __JS_SPIDER__;");
             }
             jsObject = get(ctx!!.globalObject, key) as JSObject?
             jsObject?.hold()
@@ -366,7 +350,6 @@ class JsSpider : Spider {
             if (cause is Exception) throw cause
             throw Exception(cause)
         } catch (e: TimeoutException) {
-            // 模块自身死循环/挂死时线程救不回来：构造函数不能跟着永久悬挂，放行为未就绪状态
             LOG.i("echo-js-init-timeout " + api)
             init.cancel(true)
         }
@@ -375,7 +358,6 @@ class JsSpider : Spider {
     private fun createCtx() {
         ctx = QuickJSContext.create()
         emptyModuleBytecode = ctx!!.compileModule(EMPTY_MODULE_CODE, "empty.js")
-        // quickjs-wrapper 3.x 起废弃 QuickJSContext.BytecodeModuleLoader,改为直接继承 ModuleLoader
         ctx!!.setModuleLoader(object : ModuleLoader() {
             override fun isBytecodeMode(): Boolean {
                 return true
@@ -471,7 +453,6 @@ class JsSpider : Spider {
 
     private fun isInvalidModuleContent(content: String?): Boolean {
         if (TextUtils.isEmpty(content)) return true
-        // Java 的 String.trim() 只裁 <= ' ' 的字符,Kotlin 的 trim() 按 Unicode 空白裁,语义不同
         var trim = content!!.trim { it <= ' ' }
         if (trim.startsWith("\uFEFF")) trim = trim.substring(1).trim { it <= ' ' }
         val lower = trim.lowercase(Locale.getDefault())
@@ -660,7 +641,6 @@ class JsSpider : Spider {
                     "export const encrypt = empty;\n" +
                     "export const decrypt = empty;"
 
-        /** JS 线程任务（启动/准备参数/Promise 结果）单次等待上限，防外部调用线程永久悬挂 */
         private const val CALL_TIMEOUT_MS: Long = 120_000
 
         private const val SPIDER_STRING_CODE: String = "import * as spider from '%s'\n\n" +

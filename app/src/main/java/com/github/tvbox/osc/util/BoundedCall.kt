@@ -5,12 +5,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-/**
- * 爬虫调用有界化:任务放到一次性线程上跑,超时就返回 null。
- *
- * 爬虫普遍不响应 interrupt,所以超时只作废本次结果,任务线程跑完自然回收;
- * 调用方必须把 null 当"无结果"处理,不能假定任务已停止。
- */
 object BoundedCall {
 
     @JvmStatic

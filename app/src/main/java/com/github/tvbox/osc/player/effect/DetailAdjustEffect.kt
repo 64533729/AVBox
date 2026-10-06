@@ -5,7 +5,6 @@ import androidx.media3.common.util.Size
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 
-/** 细节单 pass:锐化(带边缘掩码,不动平场噪声) + 暗部提升,两者共用一次采样 */
 internal class DetailAdjustEffect : GlEffect {
 
     @Volatile
@@ -28,7 +27,6 @@ private class DetailAdjustShaderProgram(
 ) : VideoAdjustShaderProgram(useHdr, FRAGMENT_SHADER) {
 
     override fun configure(inputWidth: Int, inputHeight: Int): Size {
-        // HDR 退化路径没有这些 uniform,缺名设值会抛(GlProgram 用 checkNotNull)
         glProgram.setFloatsUniformIfPresent("uTexelSize", floatArrayOf(1.0f / inputWidth, 1.0f / inputHeight))
         return super.configure(inputWidth, inputHeight)
     }

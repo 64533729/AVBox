@@ -460,7 +460,6 @@ private fun PresetSeedsRow(
     enabled: Boolean,
     onSeedSelected: (Int) -> Unit,
 ) {
-    // 色卡是 1:1 正方形:列数写死 4 会让卡片随窗口放大(平板单张 250dp、色条细如发丝),按宽度切 4/8 列
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val wideColumnsMinWidth = PresetSeedMinCardWidth * PresetSeedWideColumns +
             PresetSeedCardSpacing * (PresetSeedWideColumns - 1)
@@ -487,7 +486,6 @@ private fun PresetSeedsRow(
                             )
                         }
                     }
-                    // 不满一行时用等宽占位顶住,否则末行的卡片会被 weight 摊宽
                     repeat(columns - rowItems.size) {
                         Spacer(Modifier.weight(1f))
                     }
@@ -526,7 +524,6 @@ private fun PresetSeedCard(
         border = BorderStroke(2.dp, borderColor),
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // 色块尺寸按卡片边长取比例:卡片宽度在不同窗口档 / 列数下差别很大,固定 dp 的色条在大卡上细成发丝
             val unit = maxWidth
             val barHeight = unit * 0.14f
             val gap = unit * 0.05f

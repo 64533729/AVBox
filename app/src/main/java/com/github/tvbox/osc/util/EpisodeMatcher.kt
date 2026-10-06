@@ -5,12 +5,6 @@ import java.util.ArrayList
 import java.util.Locale
 import java.util.regex.Pattern
 
-/**
- * 线路与剧集匹配算法(由 EpisodeMatcherTest 锁行为)。
- *
- * 坑:不得改用 android.text.TextUtils —— 单测 unitTests.isReturnDefaultValues=true 会让它静默返 false,
- * 空判断走错分支(换回去时 lineFlagIndex(flags, null) 立刻 NPE)。
- */
 object EpisodeMatcher {
 
     private fun isEmpty(text: String?): Boolean {

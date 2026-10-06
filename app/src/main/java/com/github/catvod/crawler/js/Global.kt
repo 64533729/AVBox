@@ -13,7 +13,6 @@ import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.JSUtils
 import com.whl.quickjs.wrapper.QuickJSContext
 
-
 import java.io.IOException
 import java.net.URLEncoder
 import java.util.Timer
@@ -34,7 +33,6 @@ class Global {
 
     private val timer: Timer
 
-    /** BugReview #31:本爬虫专属取消 tag,按站点隔离,防 stopAll 误杀其他站点在途请求 */
     private val httpTag: String
 
     constructor(executor: ExecutorService) : this(executor, "default")
@@ -42,7 +40,6 @@ class Global {
     constructor(executor: ExecutorService, key: String) {
         this.executor = executor
         this.httpTag = "js_okhttp_tag_" + key
-        // 守护线程 + 命名：避免每个爬虫泄漏一条非守护线程
         this.timer = Timer("js-spider-timer", true)
     }
 
@@ -118,7 +115,6 @@ class Global {
     @Function
     fun aesX(mode: String?, encrypt: Boolean, input: String?, inBase64: Boolean, key: String?, iv: String?, outBase64: Boolean): String {
         val result = Crypto.aes(mode, encrypt, input, inBase64, key, iv, outBase64)
-        //LOG.e("aesX",String.format("mode:%s\nencrypt:%s\ninBase64:%s\noutBase64:%s\nkey:%s\niv:%s\ninput:\n%s\nresult:\n%s", mode, encrypt, inBase64, outBase64, key, iv, input, result));
         return result
     }
 
@@ -126,7 +122,6 @@ class Global {
     @Function
     fun rsaX(mode: String?, pub: Boolean, encrypt: Boolean, input: String?, inBase64: Boolean, key: String?, outBase64: Boolean): String {
         val result = Crypto.rsa(pub, encrypt, input, inBase64, key, outBase64)
-        //LOG.e("aesX",String.format("mode:%s\npub:%s\nencrypt:%s\ninBase64:%s\noutBase64:%s\nkey:\n%s\ninput:\n%s\nresult:\n%s", mode, pub, encrypt, inBase64, outBase64, key, input, result));
         return result
     }
 
@@ -135,19 +130,6 @@ class Global {
     fun rsaEncrypt(data: String?, key: String?): String? {
         return rsaEncrypt(data, key, null)
     }
-
-    /**
-     * RSA 加密
-     *
-     * @param data    要加密的数据
-     * @param key     密钥，type 为 1 则公钥，type 为 2 则私钥
-     * @param options 加密的选项，包含加密配置和类型：{ config: "RSA/ECB/PKCS1Padding", type: 1, long: 1 }
-     *                config 加密的配置，默认 RSA/ECB/PKCS1Padding （可选）
-     *                type 加密类型，1 公钥加密 私钥解密，2 私钥加密 公钥解密（可选，默认 1）
-     *                long 加密方式，1 普通，2 分段（可选，默认 1）
-     *                block 分段长度，false 固定117，true 自动（可选，默认 true ）
-     * @return 返回加密结果
-     */
 
     @Keep
     @Function
@@ -218,18 +200,6 @@ class Global {
         return rsaDecrypt(encryptBase64Data, key, null)
     }
 
-    /**
-     * RSA 解密
-     *
-     * @param encryptBase64Data 加密后的 Base64 字符串
-     * @param key               密钥，type 为 1 则私钥，type 为 2 则公钥
-     * @param options           解密的选项，包含解密配置和类型：{ config: "RSA/ECB/PKCS1Padding", type: 1, long: 1 }
-     *                          config 解密的配置，默认 RSA/ECB/PKCS1Padding （可选）
-     *                          type 解密类型，1 公钥加密 私钥解密，2 私钥加密 公钥解密（可选，默认 1）
-     *                          long 解密方式，1 普通，2 分段（可选，默认 1）
-     *                          block 分段长度，false 固定128，true 自动（可选，默认 true ）
-     * @return 返回解密结果
-     */
     @Keep
     @Function
     fun rsaDecrypt(encryptBase64Data: String?, key: String?, options: JSObject?): String? {
@@ -325,11 +295,10 @@ class Global {
                             try {
                                 func.call()
                             } finally {
-                                func.release() // hold 的配对释放，防 JNI 全局引用泄漏
+                                func.release()
                             }
                         })
                     } catch (e: RejectedExecutionException) {
-                        // isShutdown 检查与 submit 之间的竞态窗口兑底
                         func.release()
                     }
                 } else {
@@ -339,7 +308,6 @@ class Global {
         }, delay!!.toLong())
     }
 
-    /** 爬虫销毁时调用：停掉 Timer，释放线程 */
     fun destroy() {
         timer.cancel()
     }
@@ -347,7 +315,6 @@ class Global {
     private fun getCallback(complete: JSFunction, req: Req): Callback {
         return object : Callback {
             override fun onResponse(call: Call, res: Response) {
-                // 爬虫已销毁时不再向已 shutdown 的 executor 提交任务（防 RejectedExecutionException 崩溃）
                 if (executor.isShutdown) {
                     res.close()
                     return
@@ -357,8 +324,6 @@ class Global {
                         try {
                             complete.call(Connect.success(runtime!!, req, res))
                         } finally {
-                            // Connect.success 内部不一定关闭响应体，这里兑底防连接泄漏
-                            // 注：success 消费后 body 已读入内存，close 重复调用是安全的
                             try {
                                 res.close()
                             } catch (ignored: Throwable) {
@@ -383,7 +348,6 @@ class Global {
     }
 
     @Keep
-    // 声明用于依赖注入的 QuickJSContext
     @ContextSetter
     fun setJSContext(runtime: QuickJSContext) {
         this.runtime = runtime

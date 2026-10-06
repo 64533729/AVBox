@@ -31,7 +31,6 @@ class ProxyRule : Comparable<ProxyRule> {
     fun init() {
         wildcard = false
         for (host in getHosts()) {
-            // 同上:hosts 里混入 null(配置写成 [null])时 Java 版是跳过,判空不能被编译期判成恒真而省掉
             val hostItem: String? = host
             if (hostItem != null && hostItem.indexOf('*') >= 0) {
                 wildcard = true

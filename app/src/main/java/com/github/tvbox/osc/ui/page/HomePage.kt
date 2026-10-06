@@ -105,14 +105,12 @@ import com.github.tvbox.osc.ui.activity.SearchViewModel
 
 private val HomeSourceCapsuleMaxWidth = 240.dp
 
-// 自适应图标前景层在系统内的缩放系数，此处复刻以呈现与桌面图标一致的 logo 占比
 private const val CapsuleLogoZoom = 1.5f
 
 private val HomeTopBarControlSpacing = 8.dp
 
 @Composable
 fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.dp)) {
-    // 页面保持全出血(背景延伸到导航栏之下,玻璃才有内容可取),只把内容让开
     val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
     val navBottom = contentPadding.calculateBottomPadding()
     val context = LocalContext.current
@@ -423,7 +421,6 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                     item {
                         LoadStateBox(
                             state = LoadState.Empty,
-                            // 空词下为空 = 没配订阅,不是"没搜到"
                             emptyText = stringResource(
                                 if (query.isEmpty()) R.string.config_empty_subscribe else R.string.home_site_search_empty,
                             ),
@@ -436,7 +433,6 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                         )
                     }
                 }
-                // 源之间 2dp 只能随项带:统一 verticalArrangement 会连带放大"源列表 / 配置接口"的组间距
                 itemsIndexed(filtered) { index, bean ->
                     val selected = bean.key == currentSource?.key
                     SettingsCard(

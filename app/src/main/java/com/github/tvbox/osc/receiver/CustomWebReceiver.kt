@@ -10,19 +10,12 @@ class CustomWebReceiver : BroadcastReceiver() {
         if (action == intent.action && intent.extras != null) {
             val actionValue = intent.extras!!.getString("action")
             if (actionValue == REFRESH_PARSE) {
-                /*val name = intent.getExtras().getString("name");
-                val url = intent.getExtras().getString("url");*/
                 return
             } else if (actionValue == REFRESH_LIVE) {
                 return
             } else {
                 return
             }
-            /*if (callback != null) {
-                for (Call call in callback) {
-                    call.onChange(actionValue, refreshObj);
-                }
-            }*/
         }
     }
 

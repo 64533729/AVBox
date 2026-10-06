@@ -33,9 +33,9 @@ class HtmlParser {
         private var pdfh_html: String = ""
         private var pdfa_html: String = ""
         private val p: Pattern = Pattern.compile("url\\((.*?)\\)", Pattern.MULTILINE or Pattern.DOTALL)
-        private val NOADD_INDEX: Pattern = Pattern.compile(":eq|:lt|:gt|:first|:last|^body$|^#") // 不自动加eq下标索引
-        private val URLJOIN_ATTR: Pattern = Pattern.compile("(url|src|href|-original|-src|-play|-url|style)$", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE) // 需要自动urljoin的属性
-        private val SPECIAL_URL: Pattern = Pattern.compile("^(ftp|magnet|thunder|ws):", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE) // 过滤特殊链接,不走urlJoin
+        private val NOADD_INDEX: Pattern = Pattern.compile(":eq|:lt|:gt|:first|:last|^body$|^#")
+        private val URLJOIN_ATTR: Pattern = Pattern.compile("(url|src|href|-original|-src|-play|-url|style)$", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE)
+        private val SPECIAL_URL: Pattern = Pattern.compile("^(ftp|magnet|thunder|ws):", Pattern.MULTILINE or Pattern.CASE_INSENSITIVE)
         private var pdfh_doc: Document? = null
         private var pdfa_doc: Document? = null
 
@@ -52,21 +52,12 @@ class HtmlParser {
             } catch (e: MalformedURLException) {
                 LOG.e("HtmlParser", e)
             }
-            //        if (q.contains("#")) {
-            //            q = q.replaceAll("^(.+?)#.*?$", "$1");
-            //        }
             return q
         }
 
         private fun getParseInfo(nparse: String): Painfo {
-            /*
-         根据传入的单规则获取 parse规则，索引位置,排除列表  -- 可以用于剔除元素,支持多个，按标签剔除，按id剔除等操作
-         :param nparse:
-         :return:*/
             val painfo = Painfo()
-            //List<String> excludes = new ArrayList<>();  //定义排除列表默认值为空
-            //int nparse_index;  //定义位置索引默认值为0
-            painfo.nparse_rule = nparse //定义规则默认值为本身
+            painfo.nparse_rule = nparse
             if (nparse.contains(":eq")) {
                 painfo.nparse_rule = RegexUtils.getPattern(":").split(nparse)[0]
                 var nparse_pos = RegexUtils.getPattern(":").split(nparse)[1]
@@ -134,24 +125,16 @@ class HtmlParser {
         }
 
         private fun parseHikerToJq(parse: String, first: Boolean): String {
-            /*
-         海阔解析表达式转原生表达式,自动补eq,如果传了first就最后一个也取eq(0)
-        :param parse:
-        :param first:
-        :return:
-        */
-            // 不自动加eq下标索引
             var result = parse
             if (result.contains("&&")) {
-                val parses = RegexUtils.getPattern("&&").split(result) //带&&的重新拼接
-                val new_parses = ArrayList<String>() //构造新的解析表达式列表
+                val parses = RegexUtils.getPattern("&&").split(result)
+                val new_parses = ArrayList<String>()
                 for (i in parses.indices) {
                     val pss = RegexUtils.getPattern(" ").split(parses[i])
-                    val ps = pss[pss.size - 1] //如果分割&&后带空格就取最后一个元素
+                    val ps = pss[pss.size - 1]
                     val m = NOADD_INDEX.matcher(ps)
-                    //if (!isIndex(ps)) {
                     if (!m.find()) {
-                        if (!first && i >= parses.size - 1) { //不传first且遇到最后一个,不用补eq(0)
+                        if (!first && i >= parses.size - 1) {
                             new_parses.add(parses[i])
                         } else {
                             new_parses.add(parses[i] + ":eq(0)")
@@ -163,9 +146,8 @@ class HtmlParser {
                 result = TextUtils.join(" ", new_parses)
             } else {
                 val pss = RegexUtils.getPattern(" ").split(result)
-                val ps = pss[pss.size - 1] //如果分割&&后带空格就取最后一个元素
+                val ps = pss[pss.size - 1]
                 val m = NOADD_INDEX.matcher(ps)
-                //if (!isIndex(ps) && first) {
                 if (!m.find() && first) {
                     result += ":eq(0)"
                 }
@@ -221,10 +203,8 @@ class HtmlParser {
                         }
                     }
                     if (StringUtils.isNotEmpty(result) && StringUtils.isNotEmpty(add_url)) {
-                        // 需要自动urljoin的属性
                         val m = URLJOIN_ATTR.matcher(option)
                         val n = SPECIAL_URL.matcher(result)
-                        //if (isUrl(option)) {
                         if (m.find() && !n.find()) {
                             if (result.contains("http")) {
                                 result = result.substring(result.indexOf("http"))
@@ -284,7 +264,7 @@ class HtmlParser {
 
             val excludes = painfo.excludes
             if (excludes != null && !result.isEmpty()) {
-                result = result.clone() //克隆一个, 免得直接remove会影响doc的缓存
+                result = result.clone()
                 for (i in excludes.indices) {
                     result.select(excludes[i]).remove()
                 }

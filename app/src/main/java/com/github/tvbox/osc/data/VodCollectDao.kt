@@ -6,13 +6,6 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 
-/**
- * @author pj567
- * @date :2021/1/7
- * @description:
- *
- * 入参为空的语义同 [VodRecordDao]:null 匹配不到行,不做判空。
- */
 @Dao
 interface VodCollectDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)

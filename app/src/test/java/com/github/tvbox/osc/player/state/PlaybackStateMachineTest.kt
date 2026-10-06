@@ -3,7 +3,6 @@ package com.github.tvbox.osc.player.state
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 新栈播放状态机单测(M7b):迁移表逐条对齐旧 `VideoView.STATE_*` 语义 + 暂停记忆 */
 class PlaybackStateMachineTest {
 
     @Test

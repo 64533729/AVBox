@@ -2,14 +2,8 @@ package com.github.tvbox.osc.data
 
 import com.github.tvbox.osc.bean.VodInfo
 
-/**
- * 收藏(Room `vodCollect` 表)的访问接口;阻塞式理由见 [HistoryRepository]。
- *
- * `currentCid` 留在数据层:收藏按 cid 归属,列表全局显示、点击时按它路由回原订阅。
- */
 interface CollectRepository {
 
-    /** 当前订阅标识:普通源取生效地址,仓模式取仓地址 */
     fun currentCid(): String
 
     fun isVodCollect(sourceKey: String?, vodId: String?): Boolean
@@ -25,7 +19,6 @@ interface CollectRepository {
     fun deleteVodCollectAll()
 }
 
-/** Room 实现;DAO 由装配点传入的理由见 [RoomHistoryRepository] */
 internal class RoomCollectRepository(
     private val collects: () -> VodCollectDao,
 ) : CollectRepository {

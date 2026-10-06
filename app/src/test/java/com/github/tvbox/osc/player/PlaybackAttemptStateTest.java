@@ -5,10 +5,6 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-/**
- * PlaybackAttemptState 单测:锁住"起播前原样重播"额度的复位语义 —— 该额度排在"硬解→软解"之前,
- * 漏复位会让网络恢复后的起播失败直接落到软解,误改用户选的解码方式。
- */
 public class PlaybackAttemptStateTest {
 
     private static PlaybackAttemptState bootRetriedState() {

@@ -5,11 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 嵌套 Map 的两条读取路径:带裸 `HashMap<>()` 默认值时内层会退化成 Gson 的 LinkedTreeMap
- * (Java 侧 `mCheckSourcesForSearch` 强转 HashMap 抛异常并被 catch 成"读不到"),走登记表泛型才是 HashMap。
- * 搜索站点选择的读取因此必须走登记表那条(见 `util/SearchSettings.currentSelection`)。
- */
 class NestedMapDefaultValueTest {
 
     @Test

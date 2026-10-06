@@ -82,8 +82,6 @@ internal class Anime4kChainProgram(
                             try {
                                 program.setSamplerTexIdUniform("uTex${binding.name}", textureId, unit)
                             } catch (e: RuntimeException) {
-                                // 只用 _pos/_pt、没采样这张图 ⇒ 编译器把 sampler uniform 优化掉,media3 设它会抛;
-                                // 既然没被采样,跳过不改画面,标死后不再每帧撞(故意不留日志:属预期写法)。
                                 binding.sampler = false
                             }
                         }
@@ -97,7 +95,6 @@ internal class Anime4kChainProgram(
                         )
                     }
                     if (compiled.writesScreen) {
-                        // 收尾锐化强度:链每帧现读 ⇒ 面板滑条改完即时生效(不必重播);box 收尾没这个 uniform,自动跳过
                         program.setFloatsUniformIfPresent(
                             "uSharpen",
                             floatArrayOf(Anime4kSettings.sharpen()),
@@ -106,7 +103,6 @@ internal class Anime4kChainProgram(
                     program.bindAttributesAndUniforms()
                     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
                 } catch (e: RuntimeException) {
-                    // 落盘日志必须指出是第几个 pass:链内踩空时,没有它只能在黑盒里猜
                     LOG.e("Anime4kChain", "echo-anime4k draw failed at pass #${index + 1}/${passes.size}", e)
                     throw e
                 }
@@ -267,7 +263,6 @@ internal class Anime4kChainProgram(
         val width: Int,
         val height: Int,
     ) {
-        /** 这张图在着色器里真被采样吗;首次设 uniform 失败(= 被编译器优化掉)就标死跳过 */
         var sampler = true
     }
 

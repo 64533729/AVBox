@@ -4,16 +4,8 @@ import android.app.Activity
 
 import java.util.Stack
 
-/**
- * @author pj567
- * @date :2020/12/23
- * @description:
- */
 class AppManager private constructor() {
 
-    /**
-     * 添加Activity到堆栈
-     */
     fun addActivity(activity: Activity) {
         if (activityStack == null) {
             activityStack = Stack<Activity>()
@@ -21,9 +13,6 @@ class AppManager private constructor() {
         activityStack!!.add(activity)
     }
 
-    /**
-     * 是否有activity
-     */
     fun isActivity(): Boolean {
         if (activityStack != null) {
             return !activityStack!!.isEmpty()
@@ -31,17 +20,11 @@ class AppManager private constructor() {
         return false
     }
 
-    /**
-     * 获取当前Activity（堆栈中最后一个压入的）
-     */
     fun currentActivity(): Activity {
         val activity = activityStack!!.lastElement()
         return activity
     }
 
-    /**
-     * 结束当前Activity（堆栈中最后一个压入的）
-     */
     fun finishActivity() {
         val activity = activityStack!!.lastElement()
         if (!activity.isFinishing()) {
@@ -53,10 +36,6 @@ class AppManager private constructor() {
         activityStack!!.remove(activity)
     }
 
-
-    /**
-     * 结束指定类名的Activity
-     */
     fun finishActivity(cls: Class<*>) {
         for (activity in activityStack!!) {
             if (activity.javaClass.equals(cls)) {
@@ -80,9 +59,6 @@ class AppManager private constructor() {
         }
     }
 
-    /**
-     * 结束所有Activity
-     */
     fun finishAllActivity() {
         if (activityStack != null && activityStack!!.size > 0) {
             for (i in 0 until activityStack!!.size) {
@@ -97,9 +73,6 @@ class AppManager private constructor() {
         }
     }
 
-    /**
-     * 获取指定的Activity
-     */
     fun getActivity(cls: Class<*>): Activity? {
         if (activityStack != null) {
             for (activity in activityStack!!) {

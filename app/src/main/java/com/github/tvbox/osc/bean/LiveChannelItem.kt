@@ -5,19 +5,7 @@ import java.util.ArrayList
 import java.util.HashMap
 import java.util.Objects
 
-/**
- * @author pj567
- * @date :2021/1/12
- */
 class LiveChannelItem {
-    /**
-     * channelIndex : 频道索引号
-     * channelNum : 频道名称
-     * channelSourceNames : 频道源名称
-     * channelUrls : 频道源地址
-     * sourceIndex : 频道源索引
-     * sourceNum : 频道源总数
-     */
     var channelIndex: Int = 0
     var channelNum: Int = 0
     var channelName: String? = null

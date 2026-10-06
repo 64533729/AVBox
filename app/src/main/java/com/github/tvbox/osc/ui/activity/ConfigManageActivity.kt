@@ -24,7 +24,6 @@ class ConfigManageActivity : BaseActivity() {
         }
     }
 
-    /** 导入读盘在后台跑,收尾(权限页 / 目录选择器)由回调触发 */
     private val localConfigLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
@@ -37,12 +36,10 @@ class ConfigManageActivity : BaseActivity() {
             handleLocalSourceTreeResult(this, uri)
         }
 
-    /** 不预检存储权限:能不能直引由"应用此刻是否真读得到"决定,预检会让读得到的设备白跳一次设置页 */
     fun launchLocalConfig(onResult: (api: String) -> Unit) {
         startLocalConfig(localConfigLauncher) { api -> onResult(api) }
     }
 
-    /** 复制后还缺同目录引用:先争「所有文件访问」(拿到多半直接改成直引),拿不到再要目录授权;地址已可用,取消也照样完成导入 */
     private fun settleUnreachableSource(uri: Uri) {
         if (PermissionHelper.isStorageGranted(this)) {
             sourceTreeLauncher.launch(null)
@@ -68,7 +65,6 @@ class ConfigManageActivity : BaseActivity() {
         enableTransparentEdgeToEdge()
         findViewById<ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme {
-                // 独立 Activity 页面:套窗口根槽位,弹层无论写在哪都能全屏弹出(见 SheetHostScaffold)
                 SheetHostScaffold {
                     ConfigManageScreen(onNavigateBack = { finish() })
                 }

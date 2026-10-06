@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.navbar
 
-
 import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
@@ -77,7 +76,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
-/** 悬浮导航栏的轴向:Compact 用底部横条,Medium/Expanded 用侧边竖条(见 spec §4.11) */
 enum class NavAxis { Horizontal, Vertical }
 
 data class GlassTabItem(
@@ -87,31 +85,22 @@ data class GlassTabItem(
 
 private val LocalNavTabScale = staticCompositionLocalOf { { 1f } }
 
-/** 交叉轴长度:横条的交叉轴是高度,竖条是宽度 */
 private fun Modifier.crossAxisSize(axis: NavAxis, length: Dp): Modifier =
     if (axis == NavAxis.Horizontal) height(length) else width(length)
 
-/** 主轴长度:横条的主轴是宽度,竖条是高度 */
 private fun Modifier.mainAxisLength(axis: NavAxis, length: Dp): Modifier =
     if (axis == NavAxis.Horizontal) width(length) else height(length)
 
-/** 主轴铺满:横条铺宽,竖条铺高 */
 private fun Modifier.mainAxisFill(axis: NavAxis): Modifier =
     if (axis == NavAxis.Horizontal) fillMaxWidth() else fillMaxHeight()
 
-/** 主轴方向的内边距:横条用 horizontal,竖条用 vertical */
 private fun Modifier.mainAxisPadding(axis: NavAxis, value: Dp): Modifier =
     if (axis == NavAxis.Horizontal) padding(horizontal = value) else padding(vertical = value)
 
-/** 沿主轴平移:横条用 translationX,竖条用 translationY */
 private fun GraphicsLayerScope.setMainAxisTranslation(axis: NavAxis, value: Float) {
     if (axis == NavAxis.Horizontal) translationX = value else translationY = value
 }
 
-/**
- * 轴向无关的容器:横向走 Row、竖向走 Column,内容由两个作用域各自的 lambda 提供
- * (等宽分发要用 `weight`,而 `RowScope.weight` 与 `ColumnScope.weight` 不是同一个函数)
- */
 @Composable
 private fun NavContainer(
     axis: NavAxis,
@@ -149,7 +138,6 @@ fun FloatingNavBar(
     onActionClick: () -> Unit = {},
 ) {
     val tabsCount = tabs.size
-    // 槽位数≠页面数:动作槽占一格但不占页面,步长与胶囊定位都走槽位空间
     val actionSlot = actionItem?.let { NavMetrics.actionSlotFor(tabsCount) }
     val slotCount = tabsCount + if (actionItem != null) 1 else 0
     val isLightTheme = !isSystemInDarkTheme()
@@ -170,14 +158,11 @@ fun FloatingNavBar(
         modifier = modifier,
         contentAlignment = if (isHorizontal) Alignment.CenterStart else Alignment.TopCenter
     ) {
-        // 主轴长度取组合期的约束值(主轴都是 fillMax* ⇒ 约束即实测尺寸),别退回 onGloballyPositioned:
-        // 那是布局回调,选中胶囊要等第二帧才拿到 stride ⇒ 冷启动首帧"首页位置闪一下"
         val mainAxisConstraint = if (isHorizontal) constraints.maxWidth else constraints.maxHeight
         val totalStridePx =
             if (mainAxisConstraint == Constraints.Infinity) 0f else mainAxisConstraint.toFloat()
         val slotStridePx =
             if (totalStridePx > 0f) (totalStridePx - with(density) { 8f.dp.toPx() }) / slotCount else 0f
-        // 弹簧会冲过目标值,位置必须钳到槽位区间(否则末端的回弹会把胶囊顶出玻璃壳)
         val maxSlotPosition = (slotCount - 1).toFloat()
 
         val offsetAnimation = remember { Animatable(0f) }
@@ -279,7 +264,6 @@ fun FloatingNavBar(
                         animationScope = animationScope,
                         enabled = { currentInteractive() },
                         position = { size, _ ->
-                            // 位置 = value × 步长 的纯线性关系,胶囊才与手指 1:1;中间插值过会让它变速
                             val stride =
                                 (dampedDragAnimation.value.coerceIn(0f, maxSlotPosition) + 0.5f) *
                                     slotStridePx + panelOffset
@@ -487,7 +471,6 @@ fun FloatingNavBar(
                         scaleX = dampedDragAnimation.scaleX
                         scaleY = dampedDragAnimation.scaleY
                         val velocity = dampedDragAnimation.velocity / 10f
-                        // 甩动拉伸沿拖动方向:横条拉 x 压 y,竖条拉 y 压 x
                         val stretch = 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                         val squash = 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                         if (isHorizontal) {

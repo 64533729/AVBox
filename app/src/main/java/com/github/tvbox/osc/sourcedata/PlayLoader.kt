@@ -19,13 +19,6 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * 取流(playerContent)与取流结果的组装。
- *
- * <p>两条通道各自持有请求序号:`play` 与 `preload`(下一集预解析)互不作废 ——
- * 预载请求比真实播放先发、后到,共用一个序号会把真实播放的结果顶掉。
- * 序号在**调用线程**先占位(准备过程可能长时间阻塞),结果回投时比对序号丢弃过期响应。
- */
 class PlayLoader(
     private val gson: Gson,
     private val extendCache: ConcurrentHashMap<String, String>,
@@ -36,12 +29,10 @@ class PlayLoader(
     private val playRequestSeq = AtomicInteger()
     private val preloadRequestSeq = AtomicInteger()
 
-    // playerContent
     fun getPlay(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {
         getPlayInternal(playRequestSeq, playResult, "play", sourceKey, playFlag, progressKey, url, subtitleKey)
     }
 
-    /** 下一集预解析（预载方案）:结果走 preloadResult 通道,seq 独立于真实播放请求,互不作废 */
     fun getPlayForPreload(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {
         getPlayInternal(preloadRequestSeq, preloadResult, "playPreload", sourceKey, playFlag, progressKey, url, subtitleKey)
     }
@@ -57,8 +48,6 @@ class PlayLoader(
         subtitleKey: String?,
     ) {
         val requestSeq = seqHolder.incrementAndGet()
-        // 取流准备(t4 拉 extend、爬虫调度)可能长时间阻塞:序号先在调用线程占住,
-        // 保证随后到来的取消/切集能作废这次请求,实际准备挪到后台
         if (Looper.myLooper() === Looper.getMainLooper()) {
             SourceHelper.PREPARE_POOL.execute {
                 getPlayPrepared(seqHolder, resultChannel, requestSeq, requestTag, sourceKey, playFlag, progressKey, url, subtitleKey)
@@ -88,8 +77,6 @@ class PlayLoader(
             return
         }
         if (sourceBean == null) {
-            // 源已不存在(2026-09-13):与 getDetail 同因(切源窗口期/源被删);
-            // 走 null 结果 = 取流失败,播放器按"解析失败"处理,不再在下面 NPE
             LOG.i("echo--getPlay--source-null--$sourceKey")
             postPlayResult(seqHolder, resultChannel, requestSeq, null)
             return
@@ -106,7 +93,6 @@ class PlayLoader(
         }
     }
 
-    /** type 3:爬虫 playerContent;返回空或缺 url 时回退成直连(见 shouldDirectPlay) */
     private fun playFromSpider(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
@@ -156,7 +142,6 @@ class PlayLoader(
         }
     }
 
-    /** type 0/1:直接按地址起播或交给解析链(parse=0/1 由地址形态与站点 playerUrl 决定) */
     private fun playFromApi(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
@@ -172,7 +157,6 @@ class PlayLoader(
         val result = JSONObject()
         try {
             result.put("key", url)
-            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
             val playUrl = sourceBean.playerUrl!!.trim { it <= ' ' }
             if (DefaultConfig.isVideoFormat(requestUrl) && playUrl.isEmpty()) {
                 result.put("parse", 0)
@@ -194,7 +178,6 @@ class PlayLoader(
         }
     }
 
-    /** type 4:带 extend 的取流接口,结果走 normalizePlayerResult 归一 */
     private fun playFromExtendedApi(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
@@ -214,7 +197,6 @@ class PlayLoader(
             .tag(requestTag)
             .params("play", requestUrl)
             .params("flag", playFlag)
-        // 当 extend 不为空且非空字符串时添加参数
         if (extend != null && !extend.isEmpty()) {
             request.params("extend", extend)
         }
@@ -337,8 +319,6 @@ class PlayLoader(
         val siteHeader = sourceBean.header!!
         if (siteHeader.isEmpty()) return
         try {
-            // 必须先按播放侧的同一口径解析(兼容 header/headers 的对象与 JSON 文本两种形态):
-            // 直接看 optJSONObject 会把字符串形态当成"没有头",把源自带的头整块覆盖掉
             val extracted: HashMap<String, String>? = PlayerHelper.extractPlayHeaders(result)
             val merged = extracted ?: HashMap()
             for ((key, value) in siteHeader) {
@@ -347,7 +327,6 @@ class PlayLoader(
             val header = JSONObject()
             for ((key, value) in merged) header.put(key, value)
             result.put("header", header)
-            // 合并结果统一放 header 一个键,避免 header/headers 两份来源被重复抽取
             result.remove("headers")
         } catch (th: Throwable) {
             LOG.e("SourceViewModel", "merge site headers failed", th)
@@ -356,10 +335,6 @@ class PlayLoader(
 
     companion object {
 
-        /**
-         * 结果归属判定:序号已被后续请求(取消/切集/下一次预载)顶掉 ⇒ 这条结果作废。
-         * 抽成纯判定是为了让"双通道序号互不作废"这条不变量可被单测锁住(见 PlayLoaderSeqTest)。
-         */
         @JvmStatic
         fun isStaleResult(requestSeq: Int, seqHolder: AtomicInteger): Boolean {
             return requestSeq != seqHolder.get()

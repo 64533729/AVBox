@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 通透度派生量:默认值必须是恒等点 —— 这是"加了通透度但默认观感与改动前一致"的唯一保证 */
 class LiquidGlassConfigTest {
 
     private fun at(translucency: Float) = LiquidGlassConfig(
@@ -33,7 +32,6 @@ class LiquidGlassConfigTest {
 
     @Test
     fun translucency_compensatesContentReadability() {
-        // 底色越淡,采样内容压得越暗、对比抬得越高(补偿文字可读性)
         val opaque = at(0f)
         val clear = at(1f)
         assertTrue(clear.contentBrightness < opaque.contentBrightness)

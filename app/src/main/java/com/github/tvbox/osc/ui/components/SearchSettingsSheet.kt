@@ -53,7 +53,6 @@ private val SourceCardShapeRight = RoundedCornerShape(
 )
 
 @Composable
-/** @param onSelectionChanged 勾选落盘后的通知(调用方自己去刷新搜索结果用的选择缓存) */
 fun SearchSettingsSheet(onDismiss: () -> Unit, onSelectionChanged: () -> Unit) {
     val sources = remember { ApiConfig.get().getSourceBeanList().filter(SourceBean::isSearchable) }
     val allKeys = remember(sources) { sources.map { it.key.orEmpty() }.toSet() }

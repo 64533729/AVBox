@@ -146,15 +146,13 @@ class PythonLoader {
             return spiders.getValue(key)
         }
 
-        // 使用ExecutorService来管理线程
         val executor = Executors.newSingleThreadExecutor()
         var future: Future<*>? = null
-        var sp: PythonSpider? = null // 提到 try 外:TimeoutException 分支要引用它做后台入缓存
+        var sp: PythonSpider? = null
         try {
             sp = PythonSpider(key, cache)
-            val spider: PythonSpider = sp // lambda 捕获用(sp 提前声明后失去 effectively-final 资格)
+            val spider: PythonSpider = sp
 
-            // 提交初始化任务
             future = executor.submit {
                 try {
                     spider.init(app!!, url, ext)
@@ -163,17 +161,13 @@ class PythonLoader {
                 }
             }
 
-            // 等待线程完成，最多30秒
             future.get(30, TimeUnit.SECONDS)
 
-            // 任务成功，缓存并返回
             if (!spider.isLoadSuccess()) return SpiderNull()
             spiders[key] = spider
             return spider
         } catch (e: TimeoutException) {
             PyLog.e("echo-init方法执行超时")
-            // BugReview P3:init 深入 JNI,cancel(true) 无法中断;原实现丢弃实例但线程继续跑完,
-            // 重复调用成倍堆积初始化。改为登记后台完成回调:跑完后自行入缓存,下次调用可命中
             val pending = sp
             val initFuture = future
             executor.submit {
@@ -195,7 +189,6 @@ class PythonLoader {
             PyLog.e("echo-init:ExecutionException|InterruptedException")
             return SpiderNull()
         } finally {
-            // 关闭线程池(shutdown 允许已提交任务继续执行,超时分支的后续任务不受影响)
             executor.shutdown()
         }
     }
@@ -294,7 +287,6 @@ class PythonLoader {
     }
 
     companion object {
-        // BugReview P3:DCL 必须有 volatile,否则实例未完全初始化就可能被其他线程读到
         @Volatile
         private var sInstance: PythonLoader? = null
 

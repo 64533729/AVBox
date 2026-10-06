@@ -17,10 +17,6 @@ sealed interface VodCardTarget {
     data class Detail(val video: Movie.Video) : VodCardTarget
 }
 
-/**
- * 站点级 `indexs` 标记:索引型源的卡片只是关键词/分类入口,点进去没有可播详情,只该走搜索;
- * 普通站点才直接进详情。站点身份缺失时按搜索处理(进详情大概率失败)。
- */
 private fun isSearchOnlySource(sourceKey: String?): Boolean {
     if (sourceKey.isNullOrEmpty()) return true
     return ApiConfig.get().getSource(sourceKey)?.isIndexSource == true

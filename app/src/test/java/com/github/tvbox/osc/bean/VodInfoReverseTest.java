@@ -10,12 +10,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-/**
- * [VodInfo.reverse] 的空表回归(纯 JVM,无需 Robolectric)。
- *
- * <p>选点理由:seriesMap 只在"这部片有可播线路"时才由 setVideo 建立。历史里存过"倒序"的片子
- * 再次打开时源侧可能已经没线路(下架/抖动),详情页一句 info.reverse() 就会把整页崩掉。
- */
 public class VodInfoReverseTest {
 
     @Test

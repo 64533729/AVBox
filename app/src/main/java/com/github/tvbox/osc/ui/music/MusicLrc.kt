@@ -13,7 +13,6 @@ import kotlin.math.roundToLong
 
 data class LyricLine(val timeMs: Long, val text: String)
 
-/** 歌词文本格式:判定与分派共用一处,避免日志里报的格式和实际走的分支不一致 */
 private enum class LrcFormat { LRC, SRT, ASS }
 
 object MusicLrc {
@@ -41,8 +40,6 @@ object MusicLrc {
                 emptyList()
             } else {
                 val lines = parse(raw)
-                // 诊断:源给的歌词格式五花八门(标准 LRC / 增强 LRC / SRT / ASS),
-                // 解析出 0 行时只有靠它才能看出是"格式不认"还是"内容为空"。只打结构,不打歌词内容
                 LOG.i(
                     "echo-music lyric raw len=" + raw.length +
                         " format=" + formatOf(raw) + " lines=" + lines.size
@@ -64,10 +61,6 @@ object MusicLrc {
         else -> LrcFormat.LRC
     }
 
-    /**
-     * ASS 判定必须"行首",不能用 `raw.contains("Dialogue:")`:歌词正文里出现这个词的概率不为零,
-     * 一旦误判就会整首 0 行(正是这次要修的症状)。
-     */
     private fun isAss(raw: String): Boolean =
         raw.contains("[Script Info]", ignoreCase = true) || assDialogue.containsMatchIn(raw)
 
@@ -77,17 +70,11 @@ object MusicLrc {
         LrcFormat.LRC -> parseLrc(raw)
     }
 
-    /**
-     * ASS/SSA 字幕。源站常把歌词做成 ASS 内联在取流结果里(`[Script Info]` + `[Events]` 段的
-     * `Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text`),它既没有 `-->`
-     * 也没有 `[mm:ss]`,不单独认格式就会一行都解析不出来。
-     */
     private fun parseAss(raw: String): List<LyricLine> {
         val lines = ArrayList<LyricLine>()
         for (line in raw.lineSequence()) {
             val trimmed = line.trim()
             if (!trimmed.startsWith("Dialogue:", ignoreCase = true)) continue
-            // Text 字段本身可能含逗号,必须限制切分次数
             val fields = trimmed.substringAfter(':').split(",", limit = 10)
             if (fields.size < 10) continue
             val start = assTimeMs(fields[1]) ?: continue
@@ -103,8 +90,6 @@ object MusicLrc {
         return lines
     }
 
-    /** `H:MM:SS.cc`(ASS 用百分秒)。用 roundToLong 而非 toLong:`12.34 * 1000` 在 double 下可能是
-     *  12339.999…,截断会少 1ms */
     private fun assTimeMs(value: String): Long? {
         val parts = value.trim().split(':')
         if (parts.size < 3) return null

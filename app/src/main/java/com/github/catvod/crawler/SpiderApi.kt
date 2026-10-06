@@ -54,7 +54,6 @@ class SpiderApi {
         try {
             SpiderDebug.log(msg)
         } catch (ignored: Throwable) {
-            // 日志桥自身兜底:此处在日志通道内,不再调日志以免递归
         }
     }
 
@@ -135,7 +134,6 @@ class SpiderApi {
         private fun toResult(text: String?): JsonElement {
             if (text == null) return JsonPrimitive("")
             try {
-                // Java 的 String.trim() 只裁 <= ' ' 的字符,Kotlin 的 trim() 按 Unicode 空白裁,语义不同
                 val trim = text.trim { it <= ' ' }
                 if (trim.startsWith("{") || trim.startsWith("[")) {
                     return JsonParser.parseString(trim)

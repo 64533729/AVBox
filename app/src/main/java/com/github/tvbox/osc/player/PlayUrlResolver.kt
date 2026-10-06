@@ -49,15 +49,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * 解析/嗅探调度:WebView 嗅探 + json/聚合/超级解析 + 代际闸门;宿主能力见 [Host]。
- *
- * 坑:代际必须"发起时捕获值 vs 当前值"比较;写成当前值自比较即恒真闸门(等于没装)。
- * 解析超时由本类 Handler 管,与宿主 timeoutHandler 各自独立。
- *
- * 坑2:解析线程池里碰视图一律走 `view.runOnUi` —— 非主线程写视图会让 ViewGroup.mChildren
- * 出 null 洞,下次 traversal 必崩。
- */
 class PlayUrlResolver(private val host: Host) {
 
     interface Host {
@@ -74,10 +65,8 @@ class PlayUrlResolver(private val host: Host) {
 
         fun setWebUserAgent(userAgent: String?)
 
-        /** 嗅探命中:与回调同帧,不校验代际 */
         fun playUrl(url: String, headers: HashMap<String, String>?)
 
-        /** 解析产物:入口校验代际 */
         fun playUrl(gen: Int, url: String, headers: HashMap<String, String>?)
     }
 
@@ -92,8 +81,6 @@ class PlayUrlResolver(private val host: Host) {
             false
         }
     )
-
-    // ==================== 代际(宿主入口也用它) ====================
 
     fun nextGen(): Int = parseGeneration.incrementAndGet()
 
@@ -113,23 +100,16 @@ class PlayUrlResolver(private val host: Host) {
         autoRetryFromLoadFoundVideoUrls()
     }
 
-    // ==================== 字段与常量 ====================
-
     private var webUrl: String? = null
     private var parseFlag: String? = null
 
-    /** 解析/嗅探代际:发起时捕获、起播前比对,不一致即丢弃(旧集地址不得拉起新播放)。
-     *  stopParse 只能"不再新增",拦不住已在跑的爬虫/迟到 WebView 请求,故不可省;线程:主线程写、网络线程读 ⇒ AtomicInteger。 */
     private val parseGeneration = AtomicInteger(0)
 
-    /** 嗅探 WebView(1×1 挂在页面内容视图上,视图来自 host.view()) */
     private var mSysWebView: WebView? = null
 
-    /** 当前嗅探页所属代际(投递导航前赋值,网络线程读故 volatile;-1 = 无嗅探页):用于丢弃旧页在途请求 */
     @Volatile
     private var webSniffGeneration: Int = -1
 
-    // ⚠️ 非 UI 线程且不保证串行:以下集合必须并发安全
     private val loadedUrls: MutableMap<String, Boolean> = ConcurrentHashMap()
 
     @Volatile
@@ -140,9 +120,6 @@ class PlayUrlResolver(private val host: Host) {
     private val loadFoundCount = AtomicInteger(0)
     private var parseThreadPool: ExecutorService? = null
 
-    // ==================== 成员 ====================
-
-    /** 按解析规则发起解析(直链/json/聚合/超级解析) */
     fun initParse(flag: String?, useParse: Boolean, playUrl: String, url: String) {
         parseFlag = flag
         webUrl = url
@@ -213,13 +190,11 @@ class PlayUrlResolver(private val host: Host) {
         return taskResult
     }
 
-    /** 停止解析/嗅探:取消解析超时、停 WebView、取消 OkGo 请求(含 M3U8 净化)、关线程池 */
     fun stopParse() {
         parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
         stopLoadWebView(false)
         OkGo.getInstance().cancelTag("play")
         OkGo.getInstance().cancelTag("json_jx")
-        // M3U8 净化在途请求也要撤:结果被代际丢弃后没人取消会一直持网到超时
         OkGo.getInstance().cancelTag("m3u8-1")
         OkGo.getInstance().cancelTag("m3u8-2")
         val pool = parseThreadPool
@@ -233,26 +208,21 @@ class PlayUrlResolver(private val host: Host) {
         }
     }
 
-    /** 重置嗅探结果容器(整引用替换,不动旧对象) */
     fun initParseLoadFound() {
         loadFoundCount.set(0)
         loadFoundVideoUrls = ConcurrentLinkedQueue()
         loadFoundVideoUrlsHeader = ConcurrentHashMap()
     }
 
-    /** 消费一个嗅探到的地址并起播(取到 null 即放弃:队列可能被并发消费/重置) */
     fun autoRetryFromLoadFoundVideoUrls() {
         val videoUrl = loadFoundVideoUrls.poll() ?: return
         val header = loadFoundVideoUrlsHeader[videoUrl]
         if (host.view() != null) host.playUrl(videoUrl, header)
     }
 
-    /** 本轮解析是否仍有效(gen = 发起时捕获值;页面桥校验 M3U8 净化结果也用它)。
-     *  逐请求调用故不打日志,需要日志的调用方自行打。 */
     fun isParseResultCurrent(gen: Int): Boolean = gen == parseGeneration.get()
 
     fun doParse(pb: ParseBean) {
-        // 入口自增:作废上一轮解析;下面各回调统一捕获 gen
         val gen = parseGeneration.incrementAndGet()
         stopParse()
         initParseLoadFound()
@@ -270,7 +240,6 @@ class PlayUrlResolver(private val host: Host) {
                     if (headerMap != null) {
                         for (key in headerMap.keys) {
                             val value = headerMap[key]
-                            // 解析器的 ext 头来自配置,非法字符会让 okhttp 构造请求时抛异常
                             if (!HeaderGuard.isSendable(key, value)) {
                                 LOG.i("echo-ext-header-skip:$key")
                                 continue
@@ -288,7 +257,7 @@ class PlayUrlResolver(private val host: Host) {
                 }
             }
             loadWebView(pb.url + webUrl)
-        } else if (pb.type == 1) { // json 解析
+        } else if (pb.type == 1) {
             host.view()?.showTip(str(R.string.player_resolving_url), true, false)
             val reqHeaders = HttpHeaders()
             try {
@@ -316,7 +285,6 @@ class PlayUrlResolver(private val host: Host) {
                     }
 
                     override fun onSuccess(response: Response<String>) {
-                        // 旧请求(切集/换源/换解析后)的结果不得再驱动播放
                         if (!isParseResultCurrent(gen)) return
                         val json = response.body()
                         try {
@@ -343,7 +311,7 @@ class PlayUrlResolver(private val host: Host) {
                         errorWithRetry(str(R.string.player_parse_error), false)
                     }
                 })
-        } else if (pb.type == 2) { // json 扩展
+        } else if (pb.type == 2) {
             host.view()?.showTip(str(R.string.player_resolving_url), true, false)
             val pool = Executors.newSingleThreadExecutor()
             parseThreadPool = pool
@@ -352,12 +320,10 @@ class PlayUrlResolver(private val host: Host) {
                 if (p.type == 1) {
                     val name = p.name
                     val mixUrl = p.mixUrl()
-                    // 空名/null 混流 URL 在 Java 侧本就不可达:主键查表与请求构造都拿不到,等价跳过
                     if (name != null && mixUrl != null) jxs[name] = mixUrl
                 }
             }
             pool.execute {
-                // jsonExt 是阻塞爬虫(可跑数十秒):结果到达时先校验本轮
                 if (!isParseResultCurrent(gen)) return@execute
                 val rs = ApiConfig.get().jsonExt(pb.url!!, jxs, webUrl!!)
                 if (rs == null || !rs.has("url") || rs.optString("url").isEmpty()) {
@@ -380,7 +346,7 @@ class PlayUrlResolver(private val host: Host) {
                     }
                 }
             }
-        } else if (pb.type == 3) { // json 聚合
+        } else if (pb.type == 3) {
             parseMix(pb, false, gen)
         }
     }
@@ -389,7 +355,6 @@ class PlayUrlResolver(private val host: Host) {
         host.view()?.showErrorWithRetry(err, finish)
     }
 
-    /** 聚合解析(type 3/4):超级解析 = 嗅探与 json 并发;普通聚合 = jsonExtMix */
     private fun parseMix(pb: ParseBean, isSuper: Boolean, gen: Int) {
         host.view()?.showTip(str(R.string.player_resolving_url), true, false)
         val pool = Executors.newSingleThreadExecutor()
@@ -399,7 +364,6 @@ class PlayUrlResolver(private val host: Host) {
         var extendName = ""
         for (p in ApiConfig.get().parseBeanList) {
             val data = HashMap<String, String>()
-            // 缺键与 null 值在下游都是 get() 读到 null,故按"不可达等价"只放非空项(不可空 map 值类型)
             p.url?.let { data["url"] = it }
             if (p.url == pb.url) {
                 extendName = p.name ?: ""
@@ -415,10 +379,8 @@ class PlayUrlResolver(private val host: Host) {
             }
         }
         val finalExtendName = extendName
-        // 解析器按调用传递,不得改回静态字段跨线程读
         val parseTargets = SuperParse.buildTargets(jxs, parseFlag + "123")
         pool.execute {
-            // 阻塞爬虫(可跑数十秒):结果到达时先校验本轮
             if (!isParseResultCurrent(gen)) return@execute
             if (isSuper) {
                 val rs = SuperParse.parse(jxs, parseFlag + "123", webUrl!!, parseTargets)
@@ -439,7 +401,6 @@ class PlayUrlResolver(private val host: Host) {
                         val mixParseUrl = DefaultConfig.checkReplaceProxy(rs.optString("url", ""))
                         if (host.view() != null) {
                             host.view()!!.runOnUi {
-                                // 排队期可能已切集:旧页不得替换当前嗅探页、更不得带着旧超时
                                 if (!isParseResultCurrent(gen)) return@runOnUi
                                 stopParse()
                                 parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
@@ -470,7 +431,6 @@ class PlayUrlResolver(private val host: Host) {
                         val mixParseUrl = DefaultConfig.checkReplaceProxy(rs.optString("url", ""))
                         if (host.view() != null) {
                             host.view()!!.runOnUi {
-                                // 同上:排队期可能已切集
                                 if (!isParseResultCurrent(gen)) return@runOnUi
                                 stopParse()
                                 host.view()!!.showTip(str(R.string.player_sniffing_url), true, false)
@@ -488,7 +448,6 @@ class PlayUrlResolver(private val host: Host) {
     }
 
     private fun rsJsonJX(gen: Int, rs: JSONObject?, isSuper: Boolean) {
-        // 先校验本轮:否则切集后,上一轮遗留的 jsonJx 回调会关掉新集的嗅探页 / 起播旧地址
         if (!isParseResultCurrent(gen)) return
         if (isSuper) {
             if (rs == null || !rs.has("url")) return
@@ -512,14 +471,12 @@ class PlayUrlResolver(private val host: Host) {
     fun initWebView() {
         if (host.view() == null) return
         mSysWebView = host.view()!!.newSniffWebView()
-        // 无页面(仅引擎/服务)时没有内容视图:取流前的嗅探只有页面在时才有意义
         val web = mSysWebView ?: return
         configWebViewSys(web)
     }
 
     fun loadUrl(url: String?) {
         if (host.view() == null || !host.view()!!.isPageAlive()) return
-        // 本次导航所属代际(在投递前赋值,不能放 runnable 内:否则旧页请求与新一轮导航之间有窗口期)
         webSniffGeneration = parseGeneration.get()
         host.view()!!.runOnUi {
             mSysWebView?.let { web ->
@@ -535,7 +492,6 @@ class PlayUrlResolver(private val host: Host) {
         }
     }
 
-    /** 带代际的嗅探页导航:后台线程发起,排队期若已切集不得把新集嗅探页换掉 */
     private fun loadUrl(gen: Int, url: String) {
         if (host.view() == null || !host.view()!!.isPageAlive()) return
         webSniffGeneration = gen
@@ -545,8 +501,6 @@ class PlayUrlResolver(private val host: Host) {
         }
     }
 
-    /** 当前请求是否属于正在嗅探的页面(旧页迟到请求一律丢弃,否则会把上一集地址塞进新队列)。
-     *  ⚠️ 必须比"页面所属代际";写成 `isParseResultCurrent(parseGeneration.get())` 是恒真自比较,闸门等于没装。 */
     private fun isSniffRequestOfCurrentRound(): Boolean {
         return webSniffGeneration >= 0 && webSniffGeneration == parseGeneration.get()
     }
@@ -676,7 +630,6 @@ class PlayUrlResolver(private val host: Host) {
                 return null
             }
 
-            // 旧页迟到请求不得进入新一轮结果队列
             if (!isSniffRequestOfCurrentRound()) {
                 return null
             }
@@ -703,12 +656,10 @@ class PlayUrlResolver(private val host: Host) {
                         stopLoadWebView(false)
                         SuperParse.stopJsonJx()
                         val found = loadFoundVideoUrls.poll()
-                        // ⚠️ 队列可能已被并发消费或被新一轮重置(字段 volatile):
-                        // poll 为 null 时若继续走 getCookie/playUrl 会 NPE
                         if (found == null) return null
                         parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
                         val cookie = CookieManager.getInstance().getCookie(found)
-                        if (!TextUtils.isEmpty(cookie)) headers["Cookie"] = " $cookie"//携带cookie
+                        if (!TextUtils.isEmpty(cookie)) headers["Cookie"] = " $cookie"
                         if (host.view() != null) host.playUrl(found, headers)
                     }
                 }
@@ -743,7 +694,6 @@ class PlayUrlResolver(private val host: Host) {
         private const val MSG_PARSE_TIMEOUT = 100
         private const val PARSE_TIMEOUT_MS = 20 * 1000L
 
-        /** 资源文案:Application 的 base 只在进程启动时挂一次,切语言后直接用 app.getString 会停在旧语言 */
         @JvmStatic
         private fun str(resId: Int, vararg args: Any?): String {
             val app = App.getInstance() ?: return ""

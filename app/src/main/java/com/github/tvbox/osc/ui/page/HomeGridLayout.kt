@@ -83,20 +83,14 @@ private val HomeFilterChipFitSlack = 2.dp
 
 private val HomeFilterChipPadding = 14.dp
 
-/** 超过此宽度不再等宽铺满:宽屏下会把每个 chip 拉成一大条,不如保持自然宽度左对齐 */
 private val HomeFilterChipEqualWidthMaxWidth = 600.dp
 
 private val HomeGridItemSpacing = 16.dp
 
-/**
- * 栅格顶部留白 = 分类 tab 行下方分隔线到首行卡片的距离,必须取到 HomeGridItemSpacing:
- * 没有筛选 chips 的分类首行会紧贴分隔线。有 chips 时由 chips 自己补差(见下),两档间距一致。
- */
 private val HomeGridContentTopPadding = 16.dp
 
 private const val HomeGridSkeletonCount = 18
 
-/** 末尾"加载更多"哨兵压在视口外时不会组合 ⇒ 首屏末行右侧会空一格,离末尾不足一行就先取下一页 */
 internal fun shouldPrefetchNextPage(
     lastVisibleIndex: Int,
     totalItemsCount: Int,
@@ -139,7 +133,6 @@ fun HomeGridLayout(
 
     val partition = partitions.firstOrNull { it.sort.id == selectedSortId }
     val sort = partition?.sort ?: sorts.firstOrNull { it.id == selectedSortId }
-    // 分类 tab 行不在滚动容器里,拿不到栅格的内容内边距,得单独让开侧边导航
     val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -278,8 +271,6 @@ fun HomeGridLayout(
             }
             if (tabPartition?.state == HomeViewModel.PartitionState.Ready) {
                 LaunchedEffect(tabGridState, tabId, tabPartition.videos.size) {
-                    // 用 first 而不是 collect:每次内容变长只预取一次。源报 maxPage=0 且翻到空页时
-                    // hasMore 永远为真,collect 会被"响应→重组→重新布局→再触发"的回路套成连环请求
                     snapshotFlow { tabGridState.layoutInfo }
                         .first { info ->
                             val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@first false

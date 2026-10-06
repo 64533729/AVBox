@@ -86,11 +86,6 @@ class Async private constructor() {
             return get(0)
         }
 
-        /**
-         * 等待结果，带超时防永久悬挂。
-         *
-         * @param timeoutMs 超时毫秒数，<= 0 表示无限等待
-         */
         @Throws(Exception::class)
         fun get(timeoutMs: Long): Any? {
             if (timeoutMs > 0) {

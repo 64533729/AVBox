@@ -49,7 +49,6 @@ import com.github.tvbox.osc.ui.components.LoadStateBox
 import com.github.tvbox.osc.util.EpisodeTotals
 import com.github.tvbox.osc.util.PlaybackProgress
 
-// 退出动画期间旧内容仍按旧快照渲染:进度/集数快照已清空时,淡出中的卡片不会丢进度条
 private data class HistoryContent(
     val items: List<VodInfo>,
     val episodeTotals: Map<String, Int>,
@@ -62,7 +61,6 @@ fun HistoryPage(
     vm: HistoryViewModel = viewModel(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-    // 页面保持全出血(背景延伸到导航栏之下,玻璃才有内容可取),只把内容让开
     val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
     val navBottom = contentPadding.calculateBottomPadding()
     val context = LocalContext.current

@@ -24,9 +24,6 @@ class Kodi {
 
         private val PACKAGES = arrayOf(KodiPackageInfo(PACKAGE_NAME, PLAYBACK_ACTIVITY))
 
-        /**
-         * @return null if any Kodi packages not exist.
-         */
         @JvmStatic
         fun getPackageInfo(): KodiPackageInfo? {
             for (pkg in PACKAGES) {

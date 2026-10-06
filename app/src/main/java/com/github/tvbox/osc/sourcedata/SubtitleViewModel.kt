@@ -27,12 +27,10 @@ import okhttp3.Response
 
 class SubtitleViewModel : ViewModel() {
 
-    /** 字幕直链回调(供 Compose 版 SubtitleSearchSheet 调用) */
     fun interface SubtitleLoader {
         fun loadSubtitle(subtitle: Subtitle)
     }
 
-    /** 发布页文件列表回调(记忆还原路径用;error = 网络/解析失败) */
     private fun interface FilesCallback {
         fun onFiles(files: List<Subtitle>?, error: Boolean)
     }
@@ -51,7 +49,6 @@ class SubtitleViewModel : ViewModel() {
         getSubtitleUrlFromAssrt(subtitle, subtitleLoader, null)
     }
 
-    /** 记忆还原路径:挑出"本集"文件并解析直链;不走 searchResult,否则会覆盖用户正在浏览的面板列表。 */
     fun pickEpisodeSubtitle(releaseUrl: String?, episodeName: String?, fileNameHint: String?,
                             onPicked: SubtitleLoader?, onFailed: Runnable?) {
         if (TextUtils.isEmpty(releaseUrl) || onPicked == null) {
@@ -97,7 +94,7 @@ class SubtitleViewModel : ViewModel() {
                 setSearchListData(ArrayList(), page <= 1, true)
                 return
             }
-            if (page == 1) pagesTotal = -1 //第一页时 重置页大小
+            if (page == 1) pagesTotal = -1
             val searchApiUrl = "https://secure.assrt.net/sub/"
             OkGo.get<String>(searchApiUrl)
                 .params("searchword", title)
@@ -166,7 +163,7 @@ class SubtitleViewModel : ViewModel() {
                         val data = ArrayList<Subtitle>()
                         val doc = Jsoup.parse(content)
                         val items = doc.select("#detail-filelist .waves-effect")
-                        if (items.size > 0) { //压缩包里面的字幕
+                        if (items.size > 0) {
                             for (item in items) {
                                 val onclick = item.attr("onclick")
                                 if (TextUtils.isEmpty(onclick)) continue
@@ -184,7 +181,7 @@ class SubtitleViewModel : ViewModel() {
                                 }
                             }
                             callback.onFiles(data, false)
-                        } else { //有的字幕 不一定是压缩包
+                        } else {
                             val item = doc.selectFirst(".download a#btn_download")
                             if (item == null) {
                                 callback.onFiles(null, false)
@@ -243,7 +240,6 @@ class SubtitleViewModel : ViewModel() {
             lower.endsWith(".ttml")
     }
 
-    /** 解析字幕直链(assrt 下载链是 302,直链在 Location 头);onFailed 只有记忆还原路径传,用于回落。 */
     private fun getSubtitleUrlFromAssrt(subtitle: Subtitle, subtitleLoader: SubtitleLoader, onFailed: Runnable?) {
         val ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36"
         val request = Request.Builder()

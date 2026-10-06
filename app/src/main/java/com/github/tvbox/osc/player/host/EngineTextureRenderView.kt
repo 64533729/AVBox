@@ -9,16 +9,6 @@ import android.view.TextureView
 import android.view.View
 import com.github.tvbox.osc.player.KernelPlayer
 
-/**
- * 新栈表面宿主(Texture 模式,M7b):逐行为等价移植 doikki `TextureRenderView`。
- *
- * <p>承重细节一个不丢:输出缓冲尺寸(`setDefaultBufferSize`,TextureView 会把缓冲尺寸改回视图尺寸、
- * 这里改回去)、换面时旧 Surface 延后释放(先放会让 EGL 卡在已释放的 BufferQueue 上)、
- * `onSurfaceTextureDestroyed` 返回 false(面不销毁,供复用)、交面回调([setOnSurfaceReadyListener])。
- *
- * <p>去 doikki(M7e 起):渲染契约由 [PlayerRenderView] 承担、内核形参由 doikki `AbstractPlayer`
- * 换成 app 侧 [KernelPlayer]。
- */
 @SuppressLint("ViewConstructor")
 class EngineTextureRenderView(
     context: Context,
@@ -30,7 +20,6 @@ class EngineTextureRenderView(
 
     private var surface: Surface? = null
 
-    /** 上一代 Surface:必须等输出 EGL 面切走之后再 release */
     private var retiredSurface: Surface? = null
 
     private var surfaceReadyListener: Runnable? = null
@@ -64,7 +53,6 @@ class EngineTextureRenderView(
         refreshSurface()
     }
 
-    /** TextureView 自己会把默认缓冲尺寸改成视图尺寸(onSizeChanged / 建层时),这里改回输出尺寸 */
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         applyOutputBufferSize()
@@ -76,7 +64,6 @@ class EngineTextureRenderView(
         surfaceTexture.setDefaultBufferSize(outputWidth, outputHeight)
     }
 
-    /** 换一个新 Surface(同一个 SurfaceTexture):输出 EGL 面只在交面/清面/尺寸变化时重建 */
     fun refreshSurface(): Boolean {
         val surfaceTexture = texture ?: return false
         val player = mediaPlayer ?: return false

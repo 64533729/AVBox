@@ -1,14 +1,11 @@
 package com.github.tvbox.osc.player.effect
 
-/** 画质预设(顺序即面板顺序;Original = 不套效果) */
 enum class PicturePreset {
     Original, Natural, Vivid, Clear, Bright, Cinema, Soft, Warm, Cool, Comfort, Anime, Sport, Game, Custom;
 
-    /** 只有「自定义」展开 8 个滑条 */
     val adjustable: Boolean get() = this == Custom
 }
 
-/** 画质参数(不可变)。取值语义:倍率类为 1 恒等、偏移类为 0 恒等;量程见伴生对象常量 */
 data class PictureProfile(
     val saturation: Float = 1f,
     val contrast: Float = 1f,
@@ -21,7 +18,6 @@ data class PictureProfile(
     val threshold: Float = DEFAULT_THRESHOLD,
 ) {
 
-    /** 色温折算的红/蓝增益(暖色抬红压蓝,冷色反向) */
     val redGain: Float
         get() = if (temperature >= 0f) 1f + temperature * WARM_GAIN else 1f + temperature * COOL_GAIN
 
@@ -35,10 +31,8 @@ data class PictureProfile(
 
     val isDetailNoOp: Boolean get() = sharpness == 0f && shadowLift == 0f
 
-    /** 全恒等(「原始」/「按住对比」):不必把效果链挂上内核 */
     val isNoOp: Boolean get() = isColorNoOp && isToneNoOp && isDetailNoOp
 
-    /** KV 读回时钳到量程(NaN 与越界落默认) */
     fun clamped(): PictureProfile = copy(
         saturation = saturation.sane(MIN_SATURATION, MAX_SATURATION, 1f),
         contrast = contrast.sane(MIN_CONTRAST, MAX_CONTRAST, 1f),
@@ -52,14 +46,11 @@ data class PictureProfile(
 
     companion object {
 
-        /** 锐化/暗部提升的边缘掩码阈值 */
         const val DEFAULT_THRESHOLD = 0.03f
 
-        /** 色温增益斜率:暖色侧红升蓝降,冷色侧反向 */
         private const val WARM_GAIN = 0.0015f
         private const val COOL_GAIN = 0.0012f
 
-        // 滑条量程(面板与 KV 读回共用)
         const val MIN_SATURATION = 0.5f
         const val MAX_SATURATION = 2.0f
         const val MIN_CONTRAST = 0.5f
@@ -77,7 +68,6 @@ data class PictureProfile(
         const val MIN_SHADOW_LIFT = 0f
         const val MAX_SHADOW_LIFT = 0.6f
 
-        /** 归一(不套效果) */
         val OFF = PictureProfile()
 
         fun of(preset: PicturePreset): PictureProfile = when (preset) {
@@ -96,7 +86,6 @@ data class PictureProfile(
             PicturePreset.Original, PicturePreset.Custom -> OFF
         }
 
-        /** 只调饱和度/对比度/亮度/锐度/暗部的预设 */
         private fun basic(
             saturation: Float,
             contrast: Float,
@@ -113,7 +102,6 @@ data class PictureProfile(
             shadowLift = shadowLift,
         )
 
-        /** 带伽马/色温的预设 */
         private fun style(
             saturation: Float,
             contrast: Float,

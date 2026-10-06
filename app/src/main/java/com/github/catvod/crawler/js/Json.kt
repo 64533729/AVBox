@@ -52,7 +52,6 @@ class Json {
             return result
         }
 
-        // 入参可空:调用方(Req/Res 的 getHeader)会把 null 传进来,Java 版靠解引用抛 NPE 后落 catch 兜底
         @JvmStatic
         fun safeObject(element: JsonElement?): JsonObject {
             try {

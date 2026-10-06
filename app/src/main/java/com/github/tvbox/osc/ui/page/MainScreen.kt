@@ -111,8 +111,6 @@ fun MainScreen() {
 private fun BootErrorDialog(msg: String) {
     AVBoxAlertDialog(
         onDismissRequest = {},
-        // 启动失败必须重试/离线二选一,不允许点空白关掉(旧平台 Dialog 传空 onDismissRequest 就是这个效果;
-        // 改成弹层后若走退场动画而不清状态,面板会隐身留场并把整屏触摸吃掉)
         dismissible = false,
         title = { Text(stringResource(R.string.config_load_failed)) },
         text = { Text(msg) },
@@ -143,7 +141,6 @@ private fun MainContent() {
         AppBootstrap.state.collect { boot ->
             if (boot is AppBootstrap.Boot.Ready && !homeViewModel.defaultLiveLaunched) {
                 homeViewModel.defaultLiveLaunched = true
-                // 上次启动被看门狗自动停用的源(有值才提示);默认源不会自动跳到别的源,需用户去配置管理重选
                 val disabled = BootGuard.takeSafeDisabledNotice()
                 if (disabled.isNotEmpty()) {
                     Toast.makeText(context, context.getString(R.string.toast_source_auto_disabled), Toast.LENGTH_LONG).show()
@@ -155,8 +152,6 @@ private fun MainContent() {
         }
     }
 
-    // 冷启动后第一次切页,pager 滚动 → 页面测量 → 玻璃源层重录整条链路都是首次执行(ART 现场编译);
-    // 先滚 1px 再滚回来走完同一套路径,位移不到 0.3dp,肉眼看不到
     LaunchedEffect(pagerState) {
         withFrameNanos { }
         withFrameNanos { }
@@ -212,9 +207,7 @@ private fun MainContent() {
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
 
-    // 导航形态:Compact 用底部横条,Medium/Expanded 用侧边竖条(判据集中在 NavMetrics,见 spec §4.11)
     val navAxis = NavMetrics.axisFor(currentWindowWidthClass())
-    // 形态由窗口档决定、玻璃由用户配置决定,两者正交:关掉玻璃是回退到 M3 surface 导航,不是取消竖条
     val railMode = navAxis == NavAxis.Vertical
     val surfaceNavVisible = !liquidGlassEnabled
     val navBarsPadding = WindowInsets.navigationBars.asPaddingValues()
@@ -229,8 +222,6 @@ private fun MainContent() {
             }
         }
     }
-    // 作为"内容内边距"下发,不用容器 padding:页面必须保持全出血,
-    // 否则背景被缩到导航栏之上,玻璃就取不到内容、退化成一块纯色
     val navReserve = NavMetrics.reserveDp(liquidGlassEnabled, navAxis).dp
     val pageContentPadding: PaddingValues = when {
         railMode -> PaddingValues(
@@ -248,7 +239,6 @@ private fun MainContent() {
     val glassTabs = remember(tabLabels) {
         AppTab.entries.mapIndexed { index, tab -> GlassTabItem(tab.icon, tabLabels[index]) }
     }
-    // 直播是动作不是目的地:插在导航栏正中,进独立 Activity,不占 pager 页也不参与选中态
     val liveActionLabel = stringResource(R.string.common_live)
     val liveActionItem = remember(liveActionLabel) { GlassTabItem(R.drawable.ic_live_fab, liveActionLabel) }
     val openLive: () -> Unit = remember(context) {
@@ -268,7 +258,6 @@ private fun MainContent() {
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ) {
                             AppTab.entries.forEachIndexed { index, tab ->
-                                // 动作槽插在中间,外观就是普通未选中项(不占 pager 页,故恒 selected = false)
                                 if (!navLiveHidden && index == NavMetrics.actionSlotFor(AppTab.entries.size)) {
                                     ShortNavigationBarItem(
                                         selected = false,
@@ -330,8 +319,6 @@ private fun MainContent() {
                             }
                         )
                         CompositionLocalProvider(LocalLifecycleOwner provides pageLifecycleOwner) {
-                            // 作为"内容内边距"下发,不用容器 padding:页面必须保持全出血,
-                            // 否则背景被缩到导航栏之上,玻璃就取不到内容、退化成一块纯色
                             when (AppTab.entries[page]) {
                                 AppTab.HOME -> HomePage(homeViewModel, pageContentPadding)
                                 AppTab.HISTORY -> HistoryPage(contentPadding = pageContentPadding)
@@ -343,11 +330,7 @@ private fun MainContent() {
                 }
             }
             if (liquidGlassEnabled) {
-                // 遮罩要"贴屏幕边缘那侧不透明、往内容侧渐隐"。横向别照抄竖向的 0f/1f 顺序,
-                // 反了会在内容侧糊出一块半透明白(真机确认过的回归)
                 val scrimColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.9f)
-                // 不透明端必须贴屏幕边缘:横条贴底(终点)、竖条贴左(起点)。方向由 NavMetrics 决定,
-                // 别再手写 0f/1f —— 抄错会在内容侧糊出一块半透明白(真机确认过的回归)
                 val (scrimStart, scrimEnd) = if (NavMetrics.scrimOpaqueAtStart(navAxis)) {
                     scrimColor to Color.Transparent
                 } else {
@@ -388,7 +371,6 @@ private fun MainContent() {
                         Modifier
                             .align(Alignment.CenterStart)
                             .fillMaxHeight()
-                            // 竖条是满高的,上下都要让:只用 navigationBars 会顶到状态栏里
                             .windowInsetsPadding(WindowInsets.systemBars)
                             .padding(vertical = 16.dp)
                             .padding(start = NavMetrics.MARGIN_DP.dp)
@@ -408,7 +390,6 @@ private fun MainContent() {
                 }
             }
             if (surfaceNavVisible && railMode) {
-                // 关掉玻璃是回退到 M3 标准竖条(surface 模式),不是继续用悬浮胶囊
                 NavigationRail(
                     modifier = Modifier
                         .align(Alignment.CenterStart)

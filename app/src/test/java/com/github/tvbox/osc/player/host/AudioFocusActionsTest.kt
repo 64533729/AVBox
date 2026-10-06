@@ -6,7 +6,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 新栈音频焦点语义单测(M7b):逐条对照旧 doikki `AudioFocusHelper` */
 class AudioFocusActionsTest {
 
     private class Recorder(

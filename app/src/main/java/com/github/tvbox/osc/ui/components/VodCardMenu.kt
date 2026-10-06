@@ -46,7 +46,6 @@ fun VodCardMenu(state: VodCardMenuState, onSearchSimilar: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     state.menu?.let { (video, collected) ->
-        // 文案既是显示值也是分发键:统一取资源,否则会出现"显示英文、分支键仍是中文"而整条菜单失效
         val collectLabel = stringResource(R.string.detail_collect)
         val uncollectLabel = stringResource(R.string.detail_uncollect)
         val searchSimilarLabel = stringResource(R.string.vodcard_search_similar)

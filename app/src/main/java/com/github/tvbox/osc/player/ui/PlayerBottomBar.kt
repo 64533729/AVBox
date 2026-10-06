@@ -46,10 +46,8 @@ import com.github.tvbox.osc.player.state.PlayerActions
 import com.github.tvbox.osc.player.state.PlayerUiState
 import com.github.tvbox.osc.util.PlayerUtils.stringForTime
 
-/** SeekBar max 照搬旧布局 android:max="1000" */
 private const val SEEK_MAX = 1000
 
-/** 预览态（竖屏详情页）进度行播放/暂停钮的触摸盒尺寸：与详情页右下角全屏入口同款 40dp 盒 / 22dp 图形 */
 private val PreviewPlayPauseBox = 40.dp
 
 @Composable
@@ -60,13 +58,8 @@ fun PlayerBottomBar(
     modifier: Modifier = Modifier,
 ) {
     if (!state.controlsVisible) return
-    // 左右边距按窗口宽度分档（竖屏预览 16dp / 横屏全屏与平板 48dp，见 playerEdgePadding）
     val edge = playerEdgePadding()
-    // 预览态进度行左侧多了播放/暂停钮（40dp 触摸盒，行高因此变高）：底距改成
-    // `16dp + vs_30/2 - 40dp/2`（与详情页右下角全屏入口的 bottom 偏移同一式子，见 DetailActivity 注释），
-    // 使「暂停钮 / 进度条 / 全屏钮」共用同一水平中心线，且进度条中心线位置与改动前一致。
     val bottomPad = if (state.previewMode) {
-        // vs_30 太小时该式子会变负(Compose 的 padding 要求非负)，钳到 0
         (16.dp + playerDim(R.dimen.vs_30) / 2 - PreviewPlayPauseBox / 2).coerceAtLeast(0.dp)
     } else {
         6.dp
@@ -74,7 +67,6 @@ fun PlayerBottomBar(
     Column(
         modifier
             .fillMaxWidth()
-            // 轻量化：实底面板改为自下而上的渐变 scrim
             .background(
                 Brush.verticalGradient(
                     0f to Color.Transparent,
@@ -94,8 +86,6 @@ fun PlayerBottomBar(
             }
         }
 
-        // —— 进度行（预览态 = 播放/暂停钮 + 时间 - 进度条 - 总时长；全屏态 = 进度条整行） ——
-        // 预览态右侧预留 44dp 给详情页右下角全屏入口图标，进度行与其融合不重叠
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = if (state.previewMode) 44.dp else 0.dp),
@@ -103,7 +93,7 @@ fun PlayerBottomBar(
             if (state.previewMode) {
                 PreviewPlayPauseButton(state, actions)
             }
-           
+
             if (state.previewMode) {
                 CurrentTimeText(state)
             }
@@ -126,7 +116,6 @@ fun PlayerBottomBar(
             }
         }
 
-        // —— 菜单行；预览态不显示，避免抬高进度条 ——
         if (!state.previewMode) {
             PlayerActionPill(
                 actions = actions,
@@ -135,7 +124,6 @@ fun PlayerBottomBar(
             )
         }
 
-        // —— 解析行（旧 parse_root + mGridParseView）；预览态不显示，与菜单行同规则 ——
         if (state.showParseRow && !state.previewMode) {
             val parseList = remember(state.parseListVersion) { ApiConfig.get().parseBeanList.toList() }
             Row(
@@ -165,8 +153,6 @@ fun PlayerBottomBar(
     }
 }
 
-/** 覆盖层胶囊底色的不透明度。底栏时间胶囊与手势提示药丸（`PlayerLayers.HintPill`）共用同一值，
- *  避免两处各写一个数后慢慢漂开（手势提示要与左下角进度胶囊同值）。 */
 internal const val OVERLAY_PILL_ALPHA = 0.2f
 
 private const val PILL_DIVIDER_ALPHA = 0.3f
@@ -290,7 +276,6 @@ private fun VideoSizePill(state: PlayerUiState, modifier: Modifier = Modifier) {
     }
 }
 
-/** 与 [CurrentTimeText] 同理单独成 scope：拖拽期 seekPreviewPositionMs 每帧写入时只重组本 Text */
 @Composable
 private fun TimeRangeText(state: PlayerUiState) {
     Text(
@@ -346,13 +331,11 @@ private fun PlayerSeekRow(
     var draggingLocal by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableStateOf(0f) }
 
-    // thumbActive 随拖拽起止翻转，低频，组合期读取无妨
     val thumbActive = draggingLocal || state.dragging
 
     var seekModifier = modifier
         .height(playerDim(R.dimen.vs_30))
         .pointerInput(Unit) {
-            // 鼠标滚轮步进（旧 onGenericMotionEvent ACTION_SCROLL）
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent()
@@ -370,7 +353,6 @@ private fun PlayerSeekRow(
             }
         }
         .pointerInput(Unit) {
-            // 点按跳转（旧 SeekBar 点按：start → change → stop）
             detectTapGestures { offset ->
                 if (state.duration <= 0) return@detectTapGestures
                 val target = (offset.x / size.width * SEEK_MAX).toInt().coerceIn(0, SEEK_MAX)
@@ -380,7 +362,6 @@ private fun PlayerSeekRow(
             }
         }
         .pointerInput(Unit) {
-            // 横向拖拽（旧 onStartTrackingTouch/onProgressChanged/onStopTrackingTouch）
             detectHorizontalDragGestures(
                 onDragStart = { offset ->
                     if (state.duration > 0) {
@@ -413,9 +394,6 @@ private fun PlayerSeekRow(
         }
 
     Canvas(seekModifier) {
-        // progress/buffered 计算移入绘制块：拖拽期间
-        // seekPreviewPositionMs 每帧写入、播放期间 position 每秒写入，绘制期读取
-        // 只触发本 Canvas 重绘；组合期求值会令 PlayerSeekRow 每帧/每秒重组
         val progress: Float = when {
             state.dragging && state.duration > 0 ->
                 state.seekPreviewPositionMs.toFloat() / state.duration * SEEK_MAX
@@ -427,14 +405,12 @@ private fun PlayerSeekRow(
         val trackHeight = 3.dp.toPx()
         val centerY = size.height / 2
         val corner = CornerRadius(2.dp.toPx())
-        // 背景
         drawRoundRect(
             color = Color(0x4DFFFFFF),
             topLeft = Offset(0f, centerY - trackHeight / 2),
             size = androidx.compose.ui.geometry.Size(size.width, trackHeight),
             cornerRadius = corner,
         )
-        // 缓冲
         if (buffered > 0f) {
             drawRoundRect(
                 color = Color(0x66FFFFFF),
@@ -443,7 +419,6 @@ private fun PlayerSeekRow(
                 cornerRadius = corner,
             )
         }
-        // 进度
         if (progress > 0f) {
             drawRoundRect(
                 color = Color.White.copy(alpha = 0.95f),
@@ -452,7 +427,6 @@ private fun PlayerSeekRow(
                 cornerRadius = corner,
             )
         }
-        // 圆形 thumb（激活时放大；轻量化配色：白圆 + 半透明白描边）
         val thumbRadius = (if (thumbActive) 8.dp else 6.dp).toPx()
         val thumbCenter = Offset(size.width * (progress / SEEK_MAX), centerY)
         drawCircle(Color.White, radius = thumbRadius, center = thumbCenter)

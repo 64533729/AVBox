@@ -5,12 +5,6 @@ import androidx.media3.common.util.UriUtil
 import java.math.BigDecimal
 import java.util.regex.Pattern
 
-
-/**
- * @author asdfgh, FongMi
- * Based on FongMi/TV.
- * https://github.com/FongMi/TV
- */
 object M3u8 {
     private const val TAG_DISCONTINUITY = "#EXT-X-DISCONTINUITY"
     private const val TAG_MEDIA_DURATION = "#EXTINF"
@@ -25,10 +19,8 @@ object M3u8 {
     private val REGEX_MEDIA_DURATION = Pattern.compile(TAG_MEDIA_DURATION + ":([\\d\\.]+)\\b")
     private val REGEX_URI = Pattern.compile("URI=\"(.+?)\"")
 
-    // 增强：广告片段 URL 特征识别（去广告接口常用规则）
     private val REGEX_AD_SEGMENT_URI = Pattern.compile("(?i)(^|[/?&=_.-])(ads?|adv|advert(ise(ment)?)?|commercial|preroll|pre-roll|midroll|mid-roll|postroll|post-roll|sponsor|scte|vast|vmap|interstitial|bumper)([/?&=_.-]|$)")
 
-    // 增强：广告域名特征（常见广告CDN）
     private val AD_DOMAIN_KEYWORDS = arrayOf(
         "adservice", "adserver", "adsystem", "doubleclick", "googlesyndication",
         "advertising", "2mdn.net", "moatads", "scorecardresearch", "quantserve"
@@ -47,7 +39,6 @@ object M3u8 {
 
     @JvmStatic
     fun purify(tsUrlPre: String, m3u8content: String?): String? {
-//        LOG.i("echo-fixAdM3u8 m3u8content: " +m3u8content);
         val start = System.currentTimeMillis()
         currentAdCount = 0
         var m3u8content = m3u8content
@@ -55,7 +46,6 @@ object M3u8 {
         if (m3u8content.startsWith("\ufeff")) m3u8content = m3u8content.substring(1)
         if (!m3u8content.startsWith("#EXTM3U")) return null
 
-        // Count total segments for final safety check
         var totalSegments = 0
         val lines = RegexUtils.getPattern(if (m3u8content.contains("\r\n")) "\r\n" else "\n").split(m3u8content)
         for (line in lines) {
@@ -69,7 +59,6 @@ object M3u8 {
         else result = get(tsUrlPre, m3u8content)
         result = keepVodEndList(m3u8content, result)
 
-        // Final safety check: if too many segments removed, return original content
         if (totalSegments > 0 && currentAdCount > totalSegments * 0.5) {
             LOG.e("echo-fixAdM3u8 ERROR: removed too many segments " + currentAdCount + "/" + totalSegments + ", using original content")
             currentAdCount = 0
@@ -83,7 +72,6 @@ object M3u8 {
 
         val cost = System.currentTimeMillis() - start
         LOG.i("echo-fixAdM3u8 cost: " + cost + "ms, removed: " + currentAdCount + " segments")
-//        LOG.i("echo-fixAdM3u8 result: " + result );
         return result
     }
 
@@ -107,7 +95,6 @@ object M3u8 {
             linesplit = "\r\n"
         val lines = RegexUtils.getPattern(linesplit).split(m3u8content)
 
-        // Count total segments for safety check
         var totalSegments = 0
         for (line in lines) {
             if (line.length > 0 && line[0] != '#') {
@@ -115,7 +102,6 @@ object M3u8 {
             }
         }
 
-        // First pass: count normalized media path prefixes.
         val preUrlMap = HashMap<String, Int>()
         for (line in lines) {
             if (line.length == 0 || line[0] == '#') {
@@ -137,7 +123,6 @@ object M3u8 {
         if (preUrlMap.size <= 1) return null
         var domainFiltering = false
         if (maxPercent(preUrlMap) < 0.8) {
-            // Fallback to dominant host filtering.
             preUrlMap.clear()
             for (line in lines) {
                 if (line.length == 0 || line[0] == '#') {
@@ -174,7 +159,6 @@ object M3u8 {
             domainFiltering = true
         }
 
-        // Keep the most common media prefix or host.
         var maxTimes = 0
         var maxTimesPreUrl = ""
         for (entry in preUrlMap.entries) {
@@ -185,7 +169,6 @@ object M3u8 {
         }
         if (maxTimes == 0) return null
 
-        // Diagnostic logging
         LOG.i("echo-fixAdM3u8 URL pattern count: " + preUrlMap.size + ", maxTimes: " + maxTimes + ", total: " + totalSegments)
 
         val filtered = StringBuilder()
@@ -217,11 +200,10 @@ object M3u8 {
             }
         }
 
-        // Safety check: if removal ratio is too high, likely a false positive
         if (totalSegments > 0 && currentAdCount > totalSegments * 0.3) {
             LOG.i("echo-fixAdM3u8 suspicious ad count: " + currentAdCount + "/" + totalSegments + ", skipping URL filtering")
-            currentAdCount = 0  // Reset to avoid affecting subsequent filters
-            return null  // Skip this filtering method
+            currentAdCount = 0
+            return null
         }
 
         return normalizeMediaPlaylist(filtered.toString())
@@ -239,10 +221,6 @@ object M3u8 {
         return cleanDiscontinuityGroups(line)
     }
 
-    /**
-     * 正片切片的 EXTINF 小数位数通常稳定，广告素材拼接后经常出现另一种精度。
-     * 只删除精度完全不同的短块，不处理块内混合精度，避免误删正常切片。
-     */
     private fun cleanDecimalPrecisionGroups(m3u8Content: String): String {
         val groups = buildDiscontinuityGroups(RegexUtils.getPattern("\\n").split(m3u8Content))
         if (groups.size < 2) return m3u8Content
@@ -319,10 +297,6 @@ object M3u8 {
         return if (dot < 0 || dot >= end) 0 else end - dot - 1
     }
 
-    /**
-     * 广告通常由不同素材拼接，切片时长的小数部分会呈现不同的帧率特征。
-     * 仅对点播播放列表中的短不连续块执行，避免影响直播和正常长片段。
-     */
     private fun cleanFrameRateGroups(m3u8Content: String): String {
         val groups = buildDiscontinuityGroups(RegexUtils.getPattern("\\n").split(m3u8Content))
         if (groups.size < 2) return m3u8Content
@@ -567,7 +541,6 @@ object M3u8 {
                 continue
             }
 
-            // 增强：检查 URL 特征和域名特征
             if (inAdBreak || hasAdSignal(pending) || isAdSegmentUri(item) || hasAdDomain(item)) {
                 pending.clear()
                 currentAdCount += 1
@@ -608,15 +581,14 @@ object M3u8 {
     }
 
     private fun isAdSignalTag(line: String): Boolean {
-        // 增强：支持更多广告信号标记
         if (line.startsWith("#EXT-OATCLS-SCTE35")) return true
         if (line.startsWith("#EXT-X-SCTE35")) return true
         if (line.startsWith("#EXT-X-SPLICEPOINT-SCTE35")) return true
-        if (line.startsWith("#EXT-X-CUE")) return true  // 新增
+        if (line.startsWith("#EXT-X-CUE")) return true
         if (line.startsWith("#EXT-X-ASSET")) return true
         if (line.startsWith("#EXT-X-VMAP-AD-BREAK")) return true
-        if (line.startsWith("#EXT-X-AD")) return true  // 新增
-        if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) return false  // 排除正常标记
+        if (line.startsWith("#EXT-X-AD")) return true
+        if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) return false
         return false
     }
 
@@ -636,14 +608,13 @@ object M3u8 {
                lower.contains("vmap") || lower.contains("vast") || lower.contains("advert") ||
                lower.contains("commercial") || lower.contains("ad-") || lower.contains("ad_") ||
                lower.contains("ad.") || lower.contains("preroll") || lower.contains("midroll") ||
-               lower.contains("postroll") || lower.contains("bumper");  // 增强
+               lower.contains("postroll") || lower.contains("bumper");
     }
 
     private fun isAdSegmentUri(line: String): Boolean {
         return REGEX_AD_SEGMENT_URI.matcher(line).find()
     }
 
-    // 增强：检查是否包含广告域名特征
     private fun hasAdDomain(url: String): Boolean {
         val lower = url.lowercase()
         for (keyword in AD_DOMAIN_KEYWORDS) {
@@ -701,7 +672,6 @@ object M3u8 {
     private fun shouldDropGroup(group: Group, main: Group): Boolean {
         if (group === main || group.segmentCount == 0) return false
 
-        // 增强：更严格的广告识别条件
         val shortGroup = group.segmentCount <= 2 ||
                        (main.totalDuration > 0 && group.totalDuration > 0 &&
                         group.totalDuration < main.totalDuration * 0.18)
@@ -712,7 +682,6 @@ object M3u8 {
         val differentPath = main.pathPrefix.length > 0 && group.pathPrefix.length > 0 &&
                            main.pathPrefix != group.pathPrefix
 
-        // 增强：检查广告域名和URL特征
         val hasAdFeature = group.adLikeCount > 0 || hasAdDomain(group.host) ||
                           isAdSegmentUri(group.pathPrefix)
 
@@ -854,7 +823,7 @@ object M3u8 {
                 return
             }
             segmentCount += 1
-            if (isAdSegmentUri(line) || hasAdDomain(line)) adLikeCount += 1  // 增强
+            if (isAdSegmentUri(line) || hasAdDomain(line)) adLikeCount += 1
             if (host.length == 0) host = hostOf(line)
             if (pathPrefix.length == 0) pathPrefix = pathPrefixOf(line)
         }
@@ -917,14 +886,12 @@ object M3u8 {
             for (ad in ads) {
                 if (ad.startsWith("-")) {
                     val adClean = ad.substring(1)
-                    // Match the last segment duration.
                     if (ltStr.startsWith(adClean)) {
                         needRemoveAd.add(groupCleaned)
                         currentAdCount += tCount
                         break
                     }
                 } else {
-                    // Match the first segment duration or total ad duration.
                     if (ftStr.startsWith(ad) || tStr.startsWith(ad)) {
                         needRemoveAd.add(groupCleaned)
                         currentAdCount += tCount

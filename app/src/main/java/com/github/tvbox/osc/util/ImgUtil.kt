@@ -27,8 +27,6 @@ import android.util.LruCache
 import me.jessyan.autosize.utils.AutoSizeUtils
 
 object ImgUtil {
-    // BugReview #25:无界静态缓存,每张占位图约 170KB(180x240 ARGB_8888),长列表浏览累积数百 MB;
-    // 改 LruCache 限流,仅手动"清理缓存"才释放的问题同步消除
     private const val DRAWABLE_CACHE_MAX = 64
     private val drawableCache = LruCache<String, Drawable>(DRAWABLE_CACHE_MAX)
     @JvmField
@@ -87,22 +85,6 @@ object ImgUtil {
         return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
     }
 
-    /**
-     * 播放器封面专用加载入口:与 {@link #load} 的区别是 **①不画占位图/错误图、②把请求句柄交回调用方**。
-     *
-     * <p>① 为什么不画占位/错误图:那些 drawable 是给**卡片**(180×240)设计的,而播放器封面是
-     * MATCH_PARENT 的整块画面区 —— 一旦被 `FIT_CENTER` 放大铺到全屏,就会呈现为一块与视频无关的
-     * 浅色/白色矩形(真机实测:纯音频退到多任务时画面区变白、回前台又闪成透明)。
-     * 播放器区只认「真正加载成功的图」,加载期间保持黑底(与视频未起播时一致)。
-     *
-     * <p>② 为什么要句柄:Coil 3 的 {@code ImageViewTarget} 走内部 {@code ViewTargetRequestManager},
-     * 该管理器只认识自己注册过的请求、不暴露取消入口;而播放器封面每换集/换线都要换图,
-     * 旧请求的迟到回调会把过期海报盖到新画面上。返回 {@link Disposable} 由
-     * {@code MyVideoView.clearArtwork()} 负责 {@code dispose()}(Coil 的 dispose 会同步把
-     * {@code isDisposed} 置真并取消 job,晚到的 onSuccess 不再落地)。
-     *
-     * @return 请求句柄;地址无效时返回 null(此时已直接设兜底图,无需取消)
-     */
     @JvmStatic
     fun loadPlayerArtwork(url: String, view: ImageView): Disposable? {
         view.setScaleType(ImageView.ScaleType.FIT_CENTER)
@@ -117,12 +99,6 @@ object ImgUtil {
         return SingletonImageLoader.get(AppContextHolder.context()!!).enqueue(request)
     }
 
-    /**
-     * 播放器封面的 Target:**只有 onSuccess 才落地**,onStart(占位)/onError 一律不改视图。
-     * 视图保持自身黑底 → 永远不会出现"加载中/加载失败的浅色矩形盖住视频"。
-     * 失败也不落错误图:播放器区的正确兜底是黑底,而不是一张与内容无关的图。
-     * (与 {@code PlaybackService.updateArtwork} 里取通知封面用的是同一种写法)
-     */
     private class ArtworkTarget(private val view: ImageView) : coil3.target.Target {
         override fun onSuccess(image: coil3.Image) {
             view.setImageDrawable(image.asDrawable(view.resources))

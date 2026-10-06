@@ -31,7 +31,6 @@ class VodCollect : Serializable {
     @ColumnInfo(name = "pic")
     var pic: String? = null
 
-    /** 订阅标识(收藏时的配置地址):列表全局显示,点击时按它路由回原订阅 */
     @JvmField
     @ColumnInfo(name = "cid")
     var cid: String? = null

@@ -42,8 +42,6 @@ class ControlManager private constructor() {
     }
 
     companion object {
-        // volatile:DCL 单例必须(2026-09-12 修复 Bug)。jar 加载线程(JarLoader.injectProxyPort)与主线程
-        // (AppBootstrap/MainScreen)都会调 get()
         @Volatile
         private var instance: ControlManager? = null
 

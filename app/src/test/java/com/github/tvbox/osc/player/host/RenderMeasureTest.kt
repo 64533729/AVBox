@@ -3,7 +3,6 @@ package com.github.tvbox.osc.player.host
 import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 
-/** 渲染宿主测量算法单测(M7b):逐条对照旧 doikki `MeasureHelper.doMeasure` 行为 */
 class RenderMeasureTest {
 
     private fun measure(
@@ -80,7 +79,6 @@ class RenderMeasureTest {
 
     @Test
     fun rotation90_swapsContainerSizeBeforeRatioMath() {
-        // 交换后按 500x1000 的可用尺寸计算:1080x1920 竖屏视频内缩到 (500, 888)
         assertArrayEquals(
             intArrayOf(500, 888),
             measure(width = 1000, height = 500, rotation = 90, videoWidth = 1080, videoHeight = 1920),

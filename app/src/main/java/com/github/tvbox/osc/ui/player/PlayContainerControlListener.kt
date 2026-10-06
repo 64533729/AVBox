@@ -13,15 +13,6 @@ import com.github.tvbox.osc.util.WatchProgressStore
 import org.greenrobot.eventbus.EventBus
 import java.util.HashMap
 
-/**
- * 播放器控制层的业务回调(M7e 起为 Kotlin):把控制器的按钮/生命周期意图转发给 [PlayContainer]。
- *
- * <p>移植口径 = 纯语言迁移,逐行等价。Kotlin 侧的几点形态差异:
- * ① `kotlin.Unit.INSTANCE` 的 Java 匿名 lambda 换成 Kotlin lambda(同一 `Function0<Unit>`);
- * ② 容器字段在 Kotlin 侧是平台类型,故按 Java 侧的实参口径补 `?.`/`?: ""`
- *   (`scheduler.vod()` 的判空在 Java 里写了三遍,这里用局部量收敛但**判定次数与早退点逐条保留**);
- * ③ 可见性由"Java 包私有"改为 Kotlin 默认 public —— 跨语言调用(Java 持有者)需要它可见。
- */
 class PlayContainerControlListener(private val container: PlayContainer) : VodControlListener {
 
     override fun showDanmuSetting() {
@@ -53,7 +44,6 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
             container.scheduler.currentSeries(vod.playFlag, vod.playIndex)
         }
         ApiConfig.get().searchDanmuUi(
-            // Java 侧是平台类型直传(未判空);Kotlin 声明为非空 ⇒ 用 !! 复刻"直接解引用"的既有约定
             if (vod == null) "" else vod.name!!,
             series?.name ?: "",
             longClick,
@@ -64,7 +54,6 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
         val preProgressKey = container.scheduler.progressKey()
         val preOwner = container.scheduler.progressOwner()
         container.playNext(rmProgress)
-        // 与 Java 侧同口径:仅当拿到父进度键时才清理(owner 与 key 同源、同时有值)
         if (rmProgress && preProgressKey != null) {
             WatchProgressStore.clear(preOwner ?: "", preProgressKey)
         }

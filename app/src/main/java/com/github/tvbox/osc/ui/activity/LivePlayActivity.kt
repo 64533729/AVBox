@@ -71,7 +71,6 @@ class LivePlayActivity : BaseActivity() {
         private val FORMAT_DATE1 = SimpleDateFormat("MM-dd", Locale.getDefault())
     }
 
-    /** 界面状态与设置项分发都在 ViewModel;同名转发使调用点不用改,转发仍走 snapshot state,Compose 订阅不变 */
     private val vm: LivePlayViewModel by viewModels()
 
     internal var pageState by VmVar(LivePlayViewModel::pageState)
@@ -101,10 +100,6 @@ class LivePlayActivity : BaseActivity() {
     internal var channelInfoUi by VmVar(LivePlayViewModel::channelInfoUi)
     internal val expandedGroups by VmVal(LivePlayViewModel::expandedGroups)
 
-    /**
-     * 转发属性读写到 ViewModel。
-     * 不能写成 `by vm::x`:绑定属性引用会在 Activity 构造期求值 vm,此时未 attach,getViewModelStore 会抛。
-     */
     private inner class VmVar<T>(private val ref: KMutableProperty1<LivePlayViewModel, T>) : ReadWriteProperty<Any?, T> {
         override fun getValue(thisRef: Any?, property: KProperty<*>): T = ref.get(vm)
 
@@ -142,7 +137,6 @@ class LivePlayActivity : BaseActivity() {
     private var liveSettingGroupList: List<LiveSettingGroup> = ArrayList()
     private var nowday = Date()
 
-    /** EPG 取数与缓存;列表状态仍由本 Activity 持有,控制器只回调通知 */
     internal val epgController = LiveEpgController(object : LiveEpgController.Host {
         override fun currentChannel(): LiveChannelItem? = channelName
 
@@ -160,7 +154,6 @@ class LivePlayActivity : BaseActivity() {
 
     private val overlay = LiveOverlayController(this, mHandler)
 
-    /** 代理直播源加载 */
     private val proxyLoader = LiveProxyLoader(object : LiveProxyLoader.Host {
         override fun isRefreshing(): Boolean = refreshingLiveChannelList
 
@@ -208,7 +201,6 @@ class LivePlayActivity : BaseActivity() {
         initVideoView()
         findViewById<ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme(manageStatusBarIcons = false) {
-                // 独立 Activity 页面:套窗口根槽位,弹层无论写在哪都能全屏弹出(见 SheetHostScaffold)
                 SheetHostScaffold {
                     LiveScreen(activity = this)
                 }
@@ -227,7 +219,6 @@ class LivePlayActivity : BaseActivity() {
         if (takenOverByVod) {
             replayCurrentChannelAfterTakeover()
         } else {
-            // 这里只可能恢复直播流:进入直播时 enterLive() 已把旧内核停死(点播/音乐不留 PAUSED 残留)
             mVideoView?.resume()
         }
     }
@@ -243,7 +234,6 @@ class LivePlayActivity : BaseActivity() {
         PlaybackService.peek()?.exitLive()
         mVideoView = null
         mHandler.removeCallbacksAndMessages(null)
-        // 这两个自带 Handler:延迟任务不再挂在 mHandler 上,必须显式取消,否则销毁后仍会回调到已销毁的界面
         epgController.cancelAll()
         proxyLoader.cancelAll()
     }
@@ -352,7 +342,6 @@ class LivePlayActivity : BaseActivity() {
         requestedOrientation = if (full) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
-            // 恢复窗口档策略值:大屏上硬写竖屏会把平板压回信箱模式
             orientationPolicyValue()
         }
         if (full) {
@@ -420,7 +409,6 @@ class LivePlayActivity : BaseActivity() {
         overlay.updateChannelInfoUi()
         val videoView = mVideoView
         if (videoView != null) {
-            // 复用内核不会重选解码器:标记必须消费,切台才能按新解码方式重建
             val rebuildKernel = videoView.consumeKernelRebuildRequired()
             val reusePlayer = KernelReusePolicy.decide(videoView.mediaPlayer != null, rebuildKernel, false,
                     canReusePlayer(previousLivePlayerType)) == KernelDecision.REUSE
@@ -485,7 +473,6 @@ class LivePlayActivity : BaseActivity() {
         }
     }
 
-    /** 上/下一台:索引计算在 LiveChannelNavigator,这里只注入当前状态(跨组开关 + 密码可见性) */
     private fun getNextChannel(direction: Int): IntArray {
         return LiveChannelNavigator.nextPosition(
             groups = liveChannelGroupList,
@@ -773,11 +760,9 @@ class LivePlayActivity : BaseActivity() {
         }
     }
 
-    /** 「配置切换」列的是仓列表还是配置历史 —— UI 据此决定标题要不要带"长按可删除" */
     internal fun isLiveApiLineMode(): Boolean = ApiConfig.get().isLiveApiLineMode()
 
     fun removeLiveConfigHistory(itemIndex: Int) {
-        // 仓列表由仓地址推导,删单行既改不了仓内容、又会让下标与仓列表错位
         if (ApiConfig.get().isLiveApiLineMode()) {
             Toast.makeText(this, getString(R.string.live_repo_entry_not_deletable), Toast.LENGTH_SHORT).show()
             return
@@ -817,7 +802,6 @@ class LivePlayActivity : BaseActivity() {
         vm.onSettingClicked(groupIndex, position, settingHost)
     }
 
-    /** 设置项分发里"要动播放器/频道列表"的动作实现(判定与 KV 写在 ViewModel) */
     private val settingHost = object : LivePlayViewModel.Host {
         override fun currentChannelItem(): LiveChannelItem? = currentLiveChannelItem
 

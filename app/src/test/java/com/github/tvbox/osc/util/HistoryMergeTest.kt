@@ -21,7 +21,6 @@ class HistoryMergeTest {
 
     @Test
     fun dedupe_keepsFirstOccurrence() {
-        // 输入按时间倒序,保留最新一条
         assertEquals(listOf("庆余年", "斗罗大陆"), dedupe("庆余年", "斗罗大陆", "庆余年"))
     }
 
@@ -33,7 +32,6 @@ class HistoryMergeTest {
 
     @Test
     fun dedupe_distinguishesTitleBody() {
-        // 括号外的差异(季数/续集)必须区分,否则「庆余年」会把全系列合并成一条
         assertEquals(
             listOf("庆余年", "庆余年 第二季", "庆余年2"),
             dedupe("庆余年", "庆余年 第二季", "庆余年2"),

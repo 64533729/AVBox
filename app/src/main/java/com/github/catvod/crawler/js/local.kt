@@ -24,7 +24,6 @@ class local {
         try {
             return KV.get("jsRuntime_" + str + "_" + str2, "")
         } catch (e: Exception) {
-            // BugReview P3:原实现删的是 str,坏数据残留;应删完整 key
             KV.delete("jsRuntime_" + str + "_" + str2)
             return str2
         }

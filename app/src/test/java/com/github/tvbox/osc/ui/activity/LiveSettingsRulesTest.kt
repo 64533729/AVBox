@@ -7,12 +7,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * [LiveSettingsRules] 的纯函数单测(纯 JVM,无需 Robolectric)。
- *
- * 选点理由:这些下标判定错了不会崩,只会"设置面板少一项""高亮停在别的项上""线路列表空白",
- * 真机上很难判断是数据问题还是算错,只能靠单测把规则固定下来。
- */
 class LiveSettingsRulesTest {
 
     private fun group(index: Int): LiveSettingGroup {
@@ -32,8 +26,6 @@ class LiveSettingsRulesTest {
         return item
     }
 
-    // ---------- 设置组可见性 ----------
-
     @Test
     fun visibleGroups_hidesChannelGroupsWithoutSwitchableSource() {
         val groups = (0..6).map { group(it) }
@@ -52,20 +44,15 @@ class LiveSettingsRulesTest {
         assertTrue(LiveSettingsRules.visibleGroups(emptyList(), hasChannelSource = false).isEmpty())
     }
 
-    // ---------- 线路可切换性 ----------
-
     @Test
     fun hasChannelSource_requiresUrlsAndIndexInRange() {
         assertFalse(LiveSettingsRules.hasChannelSource(null))
         assertFalse(LiveSettingsRules.hasChannelSource(channel(null, 0)))
         assertFalse(LiveSettingsRules.hasChannelSource(channel(emptyList(), 0)))
-        // 下标越界(切线路后源列表被换掉时的中间态)
         assertFalse(LiveSettingsRules.hasChannelSource(channel(listOf("http://a/1"), 1)))
         assertFalse(LiveSettingsRules.hasChannelSource(channel(listOf("http://a/1"), -1)))
         assertTrue(LiveSettingsRules.hasChannelSource(channel(listOf("http://a/1"), 0)))
     }
-
-    // ---------- 配置切换的下标 ----------
 
     @Test
     fun currentConfigIndex_followVodIsSyntheticFirstItem() {
@@ -75,7 +62,6 @@ class LiveSettingsRulesTest {
     @Test
     fun currentConfigIndex_offsetsHistoryBySyntheticItem() {
         val history = listOf("http://a/config.json", "http://b/config.json")
-        // 第 0 项是"跟随点播源",历史项从 1 开始
         assertEquals(2, LiveSettingsRules.currentConfigIndex(false, history, "http://b/config.json"))
     }
 
@@ -84,8 +70,6 @@ class LiveSettingsRulesTest {
         assertEquals(-1, LiveSettingsRules.currentConfigIndex(false, emptyList(), "http://a/config.json"))
         assertEquals(-1, LiveSettingsRules.currentConfigIndex(false, listOf("http://a/config.json"), "http://c/config.json"))
     }
-
-    // ---------- 线路名转设置项 ----------
 
     @Test
     fun sourceItems_mapsNamesToIndexedItems() {

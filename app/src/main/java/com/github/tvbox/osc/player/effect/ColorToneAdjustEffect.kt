@@ -4,10 +4,8 @@ import android.content.Context
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 
-/** 色彩/色调单 pass:饱和度·对比度·亮度·色温(合成颜色矩阵) + 伽马 + 色相 */
 internal class ColorToneAdjustEffect : GlEffect {
 
-    /** 整体替换为不可变快照(volatile),着色器每帧现读 */
     @Volatile
     var parameters: Parameters = Parameters(PictureProfile.OFF, colorMatrixOf(PictureProfile.OFF))
         private set
@@ -33,7 +31,6 @@ internal class ColorToneAdjustEffect : GlEffect {
         const val LUMA_G = 0.7152f
         const val LUMA_B = 0.0722f
 
-        /** 亮度/对比度/饱和度/色温合成颜色矩阵(列主序,与 GLSL mat4 对齐) */
         fun colorMatrixOf(profile: PictureProfile): FloatArray {
             val saturation = profile.saturation
             val contrast = profile.contrast

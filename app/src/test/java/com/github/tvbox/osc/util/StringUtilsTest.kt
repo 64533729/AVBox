@@ -7,13 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.ArrayList
 
-/**
- * StringUtils 迁 Kotlin 后的叶子行为锁。
- *
- * 重点不是"功能对不对",而是三件容易在迁移里静默走样的事:重载解析(CharSequence / Object 两个重载
- * 都被 Java 调过)、trim 的全角空格口径、以及旧实现**能返回 null** 的几个出口(listToString/
- * arrayToString/trimBlanks)不能在 Kotlin 侧被插上非空断言。
- */
 class StringUtilsTest {
 
     @Test

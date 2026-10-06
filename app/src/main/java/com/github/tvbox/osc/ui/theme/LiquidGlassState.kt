@@ -59,7 +59,6 @@ object LiquidGlassState {
         current = current.copy(dispersion = enabled)
     }
 
-    /** 只重置效果参数,不动两个启用开关 */
     fun restoreDefaults() {
         setBlurDp(DEFAULT_BLUR_DP)
         setDistortionDp(DEFAULT_DISTORTION_DP)

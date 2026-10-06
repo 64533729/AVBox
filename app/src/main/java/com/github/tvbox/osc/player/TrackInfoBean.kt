@@ -28,11 +28,9 @@ class TrackInfoBean {
     @JvmField
     var bitmapSubtitle: Boolean = false
 
-    /** 轨道类型(media3 C.TRACK_TYPE_*) */
     @JvmField
     var type: Int = 0
 
-    /** 轨道指纹(见 TrackMemory):跨集定位只认它 */
     @JvmField
     var formatKey: String? = null
 }

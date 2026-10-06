@@ -100,9 +100,7 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
     val activeUrl by vm.activeUrl.collectAsState()
     val liveActiveUrl by vm.liveActiveUrl.collectAsState()
     val liveFollow by vm.liveFollow.collectAsState()
-    /** 被看门狗停用过的源地址(黑名单):只随页内增删变化 */
     val disabledUrls by vm.disabledUrls.collectAsState()
-    /** 点到黑名单里的源时先挂起,由二次确认对话框决定是否放行 */
     val pendingSwitch by vm.pendingSwitch.collectAsState()
     val selected by vm.selected.collectAsState()
     val manageMode by vm.manageMode.collectAsState()
@@ -121,29 +119,19 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
 
     LaunchedEffect(mode) {
         vm.onModeChanged()
-        // 换仓 sheet 也关掉:它列的是"当前模式"那份仓列表,切模式后台面下的列表已经换了,
-        // 留着会出现"点的是直播的子源、实际按点播语义切"的错配(分段按钮在遮罩之下点不到,
-        // 但系统返回键/手势能先关 sheet,防的是这一类时序)
         repoSheetOpen = false
     }
 
     BackHandler(enabled = manageMode) { vm.exitManageMode() }
 
-    // ---------- 换仓(2026-09-21) ----------
-    // 多仓生效后启动地址被改写成仓里某个子源,订阅卡与"使用中"都不再指向用户填的仓地址,
-    // 故需要独立入口:右上角图标 → bottom sheet。列表取与「配置切换」同一份数据,不另建状态。
-
-    /** 当前源是否来自多仓 —— 不是仓源就没有可换的子源,入口整体隐藏 */
     val canSwitchRepo = if (isVod) {
         HistoryHelper.isApiLineUrl(activeUrl)
     } else {
         ApiConfig.get().isLiveApiLineMode() && HistoryHelper.isLiveApiLineUrl(liveActiveUrl)
     }
 
-    /** 仓里的子源条目("名字\t链接") */
     val repoEntries = if (isVod) HistoryHelper.getApiLines() else HistoryHelper.getLiveApiLines()
 
-    /** 当前生效的子源地址:换仓列表据此打选中标记 */
     val repoActiveUrl = if (isVod) activeUrl else liveActiveUrl
 
     val noSourceText = stringResource(R.string.config_no_source)
@@ -216,8 +204,6 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // 「换仓」入口(2026-09-21):仅在**当前源来自多仓**时出现 ——
-                        // 不是仓源时没有可换的子源,按钮出现只会让人白点一次。
                         if (canSwitchRepo) {
                             TopBarActionBox(
                                 iconRes = R.drawable.ic_switch_repo,
@@ -271,14 +257,9 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
             ) { m ->
                 val mIsVod = m == ConfigMode.Vod
                 val mItems = if (mIsVod) vodItems else liveItems
-                // 空态统一走这一支(点播/直播一致):LoadStateBox 内部已是 Center 对齐,
-                // 这里用 fillMaxSize/weight 给它**可用整块空间**才会真正居中。
-                // ⚠️ 直播的空态原先塞在 LazyColumn 的 item 里、高度写死 220dp ⇒ 紧贴「跟随点播源」卡
-                // 下方、再往下空一大片,视觉上并不居中(真机反馈)。
                 if (mItems.isEmpty()) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         if (!mIsVod) {
-                            // 直播无源时「跟随点播源」仍有意义(可直接切成跟随点播),故保留在空态之上
                             FollowVodCard(
                                 checked = liveFollow,
                                 subtitle = if (activeUrl.isEmpty()) {
@@ -299,7 +280,6 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
                             errorText = "",
                             retryText = "",
                             emptyIconRes = R.drawable.ic_empty_record,
-                            // weight(1f) = 占满剩余空间,空态即在其中居中
                             modifier = Modifier.fillMaxWidth().weight(1f),
                         )
                     }
@@ -337,9 +317,6 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
                         }
                         items(mOrdered, key = { "${m.name}#$it" }) { value ->
                             val item = parseSubscribe(value)
-                            // 2026-09-21 多仓:与上面 isInUse 同一套判定 —— 之前只比地址本身,
-                            // 点了带"使用中"标记的仓卡会因为 activeUrl(仓地址)与 API_URL(仓里首条)
-                            // 不等而误判成"未使用",再点一次又白跑一遍完整换源流程
                             val inUse = if (mIsVod) {
                                 item.url == activeUrl || HistoryHelper.isApiLineSourceOf(item.url, activeUrl)
                             } else {
@@ -436,23 +413,13 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
                 val name = HistoryHelper.getApiLineName(
                     repoEntries.firstOrNull { HistoryHelper.getApiLineUrl(it) == url }.orEmpty(),
                 )
-                // 与在订阅列表里点同一条源等价 —— switchToVod 里已经处理了"是否落在仓里"的仓列表保留判定,
-                // 所以换完仓后入口仍在。统一走 requestSwitch:仓里藏着的坏子源同样要过二次确认
                 vm.requestSwitch(SubscribeSource(name, url), isVod)
-                // 命中"源已停用"时 requestSwitch 会立刻弹确认对话框,而覆盖层槽位只有一个(面板会被顶掉)。
-                // 这里同步收掉面板状态:否则面板的可见性标志还是 true,对话框关掉后它会被重新提交而"复活"。
                 if (vm.pendingSwitch.value != null) repoSheetOpen = false
             },
         )
     }
 }
 
-/**
- * 「换仓」bottom sheet:列出当前仓里的全部子源,点一条即切换。
- *
- * <p>样式同 `AVBoxOptionSheet`,但每条多带一行地址 —— 仓里常有同名子源,只给名字分不清。
- * 被看门狗停用过的子源额外打「已禁用」标记(坏子源通常就藏在仓里,不标出来用户只会觉得"点了没反应")。
- */
 @Composable
 private fun RepoSwitchSheet(
     entries: List<String>,
@@ -462,7 +429,6 @@ private fun RepoSwitchSheet(
     onSelect: (String) -> Unit,
 ) {
     val dismissAnimated = LocalSheetDismiss.current
-    // 防连点(与 AVBoxOptionSheet 同款)
     var accepted by remember { mutableStateOf(false) }
     AVBoxBottomSheet(
         onDismissRequest = onDismiss,
@@ -488,12 +454,9 @@ private fun RepoSwitchSheet(
                         title = HistoryHelper.getApiLineName(entry),
                         selected = url == activeUrl,
                         onClick = onClick@{
-                            // 先吃掉点击并关面板:点"当前已选中"那条时切换逻辑会直接返回,
-                            // 把关闭放进守卫里会让面板卡住关不掉。
                             if (accepted) return@onClick
                             accepted = true
                             if (url.isNotEmpty() && url != activeUrl) onSelect(url)
-                            // 只走动画关闭(它播完才回调 onDismiss);这里再置 repoSheetOpen=false 会把面板先拆掉
                             dismissAnimated()
                         },
                         trailing = {
@@ -608,7 +571,6 @@ private fun SubscribeCard(
     }
 }
 
-/** 被看门狗停用过的源标记:红底小圆角,贴在源名(或换仓条目的地址)旁边 */
 @Composable
 private fun DisabledSourceTag() {
     Surface(

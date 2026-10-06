@@ -9,7 +9,6 @@ class SpiderDebug {
             try {
                 android.util.Log.d("SpiderLog", "" + th!!.message, th)
             } catch (th1: Throwable) {
-                // 日志通道自身兜底:Log 失败不再上报,防递归
             }
         }
 
@@ -18,7 +17,6 @@ class SpiderDebug {
             try {
                 android.util.Log.d("SpiderLog", "" + msg)
             } catch (th1: Throwable) {
-                // 日志通道自身兜底:Log 失败不再上报,防递归
             }
         }
 

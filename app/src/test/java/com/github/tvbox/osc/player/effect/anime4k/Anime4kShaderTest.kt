@@ -180,7 +180,6 @@ class Anime4kShaderTest {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         val upscale = asset("Anime4K_Upscale_CNN_x2_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null)
-        // 1080p 源 + 2240x1260 画布(同为 16:9):链末出到画布,管线不再把链内 2x 抹一遍
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText(), upscale!!.readText()),
             1920,
@@ -193,7 +192,6 @@ class Anime4kShaderTest {
         assertEquals(2240, present.width)
         assertEquals(1260, present.height)
         assertTrue(present.writesScreen)
-        // 链内 2x(3840x2160)比画布大 ⇒ 收尾用 2×2 box
         assertEquals(3840, present.bindings.first { it.name == "MAIN" }.width)
         assertTrue(present.pass.fragmentShader.contains("vec2(-0.5, -0.5)"))
         assertTrue(planned.dropLast(1).none { it.writesScreen })
@@ -204,8 +202,6 @@ class Anime4kShaderTest {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         val upscale = asset("Anime4K_Upscale_CNN_x2_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null)
-        // 720p 源 + 2240x1260 画布:链内 2x(2560x1440) 只比画布大 14%
-        // 2026-09-30 真机 A/B:这种比例下 2×2 box 收尾比"关闭超分"还柔(边缘能量 -7.4%)⇒ 轻微缩小要用双线性
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText(), upscale!!.readText()),
             1280,
@@ -227,7 +223,6 @@ class Anime4kShaderTest {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         val upscale = asset("Anime4K_Upscale_CNN_x2_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null)
-        // 2800x1260 = 2.22:1,与源不同比例:出到画布会被拉伸 ⇒ 必须回落源尺寸(交给管线等比适应)
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText(), upscale!!.readText()),
             1920,
@@ -243,7 +238,6 @@ class Anime4kShaderTest {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         val upscale = asset("Anime4K_Upscale_CNN_x2_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null)
-        // 竖屏小窗:画布比源还小,出到画布等于自己把分辨率砍了
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText(), upscale!!.readText()),
             1920,
@@ -258,7 +252,6 @@ class Anime4kShaderTest {
     fun plan_uses_canvas_for_one_to_one_tier_too() {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null)
-        // 1x 档(轻量)也出画布:源已接近画布时不再做 2x,改由收尾的"只亮度锐化"直接放大到画布
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText()),
             1920,
@@ -278,8 +271,6 @@ class Anime4kShaderTest {
     fun generated_shader_drops_bindings_the_body_never_uses() {
         val clamp = passesOf("Anime4K_Clamp_Highlights.glsl")
         assumeTrue("未找到资产文件,跳过", clamp != null)
-        // 第二个统计 pass:声明了 BIND HOOKED,函数体只读 STATSMAX ⇒ HOOKED 必须丢掉,
-        // 否则它的 sampler uniform 会被编译器优化掉、media3 设置时抛 NPE(2026-10-01 真机首帧崩溃根因)
         val stats = clamp!![1]
         assertFalse("未用到的 BIND 不该留", stats.binds.contains(Anime4kShader.HOOKED))
         assertTrue(stats.binds.contains("STATSMAX"))
@@ -291,7 +282,6 @@ class Anime4kShaderTest {
     fun generated_shader_aliases_hooked_and_main() {
         val clamp = passesOf("Anime4K_Clamp_Highlights.glsl")
         assumeTrue("未找到资产文件,跳过", clamp != null)
-        // 官方文件里 BIND HOOKED 但函数体用 MAIN_texOff ⇒ 两套宏都得发(2026-10-01 真机编译失败的根因)
         val stats = clamp!!.first()
         assertTrue(stats.fragmentShader.contains("#define HOOKED_texOff(off)"))
         assertTrue(stats.fragmentShader.contains("#define MAIN_texOff(off)"))
@@ -306,7 +296,6 @@ class Anime4kShaderTest {
         val upscale = passesOf("Anime4K_Upscale_CNN_x2_S.glsl")
         val deblur = passesOf("Anime4K_Deblur_DoG.glsl")
         assumeTrue("未找到资产文件,跳过", clamp != null && restore != null && upscale != null && deblur != null)
-        // 720p 源 + 2240 画布 = 1.75 倍 ⇒ 一段放大
         val composed = Anime4kShader.compose(
             restore!!,
             upscale!!,
@@ -337,7 +326,6 @@ class Anime4kShaderTest {
         val upscale = passesOf("Anime4K_Upscale_CNN_x2_S.glsl")
         val clamp = passesOf("Anime4K_Clamp_Highlights.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null && clamp != null)
-        // 1080p 源 + 2240 画布 = 1.17 倍:2x 的细节大半会被收尾丢掉 ⇒ 不做放大
         val composed = Anime4kShader.compose(
             restore!!,
             upscale!!,
@@ -357,7 +345,6 @@ class Anime4kShaderTest {
         val upscale = passesOf("Anime4K_Upscale_CNN_x2_S.glsl")
         val clamp = passesOf("Anime4K_Clamp_Highlights.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null && clamp != null)
-        // 480p 源 + 2240 画布 ≈ 2.6 倍 ⇒ 两段(共 4x)
         val composed = Anime4kShader.compose(
             restore!!,
             upscale!!,
@@ -376,7 +363,6 @@ class Anime4kShaderTest {
         val upscale = passesOf("Anime4K_Upscale_CNN_x2_S.glsl")
         val clamp = passesOf("Anime4K_Clamp_Highlights.glsl")
         assumeTrue("未找到资产文件,跳过", upscale != null && clamp != null)
-        // 纯放大档:近画布时若直接跳过就整条链没有 pass ⇒ 退回一段(宁可白做,也别退化成纯拷贝)
         val composed = Anime4kShader.compose(
             emptyList(),
             upscale!!,
@@ -417,7 +403,6 @@ class Anime4kShaderTest {
         val restore = asset("Anime4K_Restore_CNN_S.glsl")
         val upscale = asset("Anime4K_Upscale_CNN_x2_S.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null)
-        // 低分辨率源:链内 2x 仍小于画布 ⇒ 收尾要双线性(box 平均在放大场景只会糊)
         val planned = Anime4kShader.plan(
             listOf(restore!!.readText(), upscale!!.readText()),
             640,
@@ -506,11 +491,9 @@ class Anime4kShaderTest {
         val hooked = apply.bindings.first { it.name == Anime4kShader.HOOKED }
         val luma = apply.bindings.first { it.name == "LINELUMA" }
         val kernel = apply.bindings.first { it.name == "MMKERNEL" }
-        // 2026-10-01 真机:HOOKED 被 SAVE LINELUMA/MMKERNEL 一路挪走 ⇒ Apply 拿 DoG 内核当图像读(黑底亮边紫调)
         assertEquals(Anime4kShader.INPUT_BINDING, hooked.target)
         assertTrue("LINELUMA 是辅助纹理,不能顶替图像", luma.target != hooked.target)
         assertTrue("MMKERNEL 是辅助纹理,不能顶替图像", kernel.target != hooked.target)
-        // 内核本身仍要双缓冲:Kernel-Y 读 Kernel-X 的结果,不能读自己的输出
         assertEquals(io[1].outputTarget, io[2].bindings.first { it.name == "MMKERNEL" }.target)
         assertTrue(io[2].outputTarget != io[1].outputTarget)
         assertEquals(io[2].outputTarget, kernel.target)
@@ -522,7 +505,6 @@ class Anime4kShaderTest {
         val upscale = passesOf("Anime4K_Upscale_CNN_x2_S.glsl")
         val deblur = passesOf("Anime4K_Deblur_DoG.glsl")
         assumeTrue("未找到资产文件,跳过", restore != null && upscale != null && deblur != null)
-        // 去模糊跑在链内 2x 之后:没写 //!WIDTH/HEIGHT 的 pass 继承「当前图像」尺寸(mpv 语义),不是回落到源尺寸
         val planned = Anime4kShader.planPasses(restore!! + upscale!! + deblur!!, 1280, 720, null)
         val luma = planned.first { it.pass.name.contains("Deblur-DoG-(HQ)-Luma") }
         assertEquals(2560, luma.width)

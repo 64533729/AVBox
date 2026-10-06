@@ -33,8 +33,6 @@ internal val LocalTopBarGlassBackdrop = compositionLocalOf<LayerBackdrop?> { nul
 
 internal val LocalGlassPauseRecording = compositionLocalOf { { false } }
 
-
-/** [pressEffect] = false 时不做按压缩放与按压光斑:含输入框的控件必须选这档,见 `SearchField` */
 @Composable
 fun Modifier.glassTopBarSurface(
     shape: Shape,
@@ -42,7 +40,6 @@ fun Modifier.glassTopBarSurface(
     pressEffect: Boolean = true,
 ): Modifier = glassSurface(LocalTopBarGlassBackdrop.current, shape, fallbackColor, pressEffect)
 
-/** [pressEffect] = false 时不做按压缩放与按压光斑:含输入框的控件必须选这档,见 `SearchField` */
 @Composable
 fun Modifier.glassSurface(
     shape: Shape,
@@ -110,7 +107,6 @@ private fun Modifier.glassSurface(
         .then(interactiveHighlight?.gestureModifier ?: Modifier)
 }
 
-/** 按压放大:竖向 4dp,横向按最长边算 ⇒ 圆钮两轴同增保持正圆,宽控件只增高、几乎不变宽 */
 private fun pressGrowthLayerBlock(
     interactiveHighlight: InteractiveHighlight,
 ): GraphicsLayerScope.() -> Unit = {

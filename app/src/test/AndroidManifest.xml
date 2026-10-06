@@ -1,9 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  测试源集清单。
-  宿主 Activity 现由**主清单**声明(见 app/src/main/AndroidManifest.xml),
-  原因是本工程 applicationId(com.github.avbox.osc) != namespace(com.github.tvbox.osc),
-  放主源集才能让"清单合并"与"Robolectric 规范化"两侧的名字一致。
-  这里保留一个空清单,便于后续加测试专用声明。
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />

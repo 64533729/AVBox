@@ -158,7 +158,6 @@ class PythonSpider : Spider {
     }
 
     override fun proxyLocal(params: Map<String, String>?): Array<Any?>? {
-//        Log.i("PyLoader","echo-proxyLocal:param"+params.toString());
         val proxyResult = app!!.callAttr("localProxy", pySpider, map2json(params).toString())
         if (proxyResult == null) return null
         val list = proxyResult.asList()
@@ -170,7 +169,6 @@ class PythonSpider : Spider {
         result[1] = list[1].toString()
         result[2] = getStream(list[2], base64)
         result[3] = if (headerAvailable) getHeader(list[3]) else null
-//        result[3] = null;
         return result
     }
 
@@ -178,7 +176,6 @@ class PythonSpider : Spider {
         if (headerObj == null) {
             return null
         }
-        // 处理 headerObj
         val headerMap = HashMap<String, String>()
         for (key in headerObj.asMap().keys) {
             headerMap[key.toString()] = Objects.requireNonNull(headerObj.asMap()[key]).toString()
@@ -201,12 +198,6 @@ class PythonSpider : Spider {
         return content.replace("http://127.0.0.1:UndCover/proxy", PythonLoader.getInstance().localProxyUrl())
     }
 
-    /**
-     * 首页数据内容
-     *
-     * @param filter 是否开启筛选
-     * @return
-     */
     override fun homeContent(filter: Boolean): String {
         if (pySpider == null) return "{}"
         PyLog.nw("homeContent-$name", paramLog(filter))
@@ -216,11 +207,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 首页最近更新数据 如果上面的homeContent中不包含首页最近更新视频的数据 可以使用这个接口返回
-     *
-     * @return
-     */
     override fun homeVideoContent(): String {
         PyLog.nw("homeVideoContent-$name", "")
         val po = app!!.callAttr("homeVideoContent", pySpider)
@@ -229,15 +215,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 分类数据
-     *
-     * @param tid
-     * @param pg
-     * @param filter
-     * @param extend
-     * @return
-     */
     override fun categoryContent(tid: String?, pg: String, filter: Boolean, extend: HashMap<String, String>?): String {
         PyLog.nw("categoryContent-$name", paramLog(tid, pg, filter, map2json(extend).toString()))
         val po = app!!.callAttr("categoryContent", pySpider, tid, pg, filter, map2json(extend).toString())
@@ -246,12 +223,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 详情数据
-     *
-     * @param ids
-     * @return
-     */
     override fun detailContent(ids: List<String>?): String {
         PyLog.nw("detailContent-$name", paramLog(list2json(ids).toString()))
         val po = app!!.callAttr("detailContent", pySpider, list2json(ids).toString())
@@ -260,13 +231,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 搜索数据内容
-     *
-     * @param key
-     * @param quick
-     * @return
-     */
     override fun searchContent(key: String?, quick: Boolean): String {
         PyLog.nw("searchContent-$name", paramLog(key, quick))
         val po = app!!.callAttr("searchContent", pySpider, key, quick)
@@ -275,13 +239,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 播放信息
-     *
-     * @param flag
-     * @param id
-     * @return
-     */
     override fun playerContent(flag: String?, id: String, vipFlags: List<String>?): String {
         PyLog.nw("playerContent-$name", paramLog(flag, id, list2json(vipFlags).toString()))
         val po = app!!.callAttr("playerContent", pySpider, flag, id, list2json(vipFlags).toString())
@@ -290,10 +247,6 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * 直播列表数据
-     * @return
-     */
     override fun liveContent(url: String?): String {
         PyLog.nw("liveContent-$name", "")
         val po = app!!.callAttr("liveContent", pySpider, url)
@@ -302,21 +255,10 @@ class PythonSpider : Spider {
         return rsp
     }
 
-    /**
-     * webview解析时使用 可自定义判断当前加载的 url 是否是视频
-     *
-     * @param url
-     * @return
-     */
     override fun isVideoFormat(url: String?): Boolean {
         return false
     }
 
-    /**
-     * 是否手动检测webview中加载的url
-     *
-     * @return
-     */
     override fun manualVideoCheck(): Boolean {
         return false
     }

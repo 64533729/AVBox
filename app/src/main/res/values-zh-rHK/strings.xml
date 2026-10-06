@@ -1,5 +1,4 @@
 <resources>
-    <!-- 香港差異層:只放港台用詞不同的條目,其餘回落 values-b+zh+Hant(台灣基礎層) -->
     <string name="subtitle_local">選擇本地字幕</string>
     <string name="common_vod">點播</string>
     <string name="common_load_failed_network">載入失敗，請檢查網絡</string>

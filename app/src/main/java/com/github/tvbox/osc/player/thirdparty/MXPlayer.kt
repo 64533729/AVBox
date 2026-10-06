@@ -30,9 +30,6 @@ class MXPlayer {
             MXPackageInfo(PACKAGE_NAME_AD, PLAYBACK_ACTIVITY_AD),
         )
 
-        /**
-         * @return null if any MX Player packages not exist.
-         */
         @JvmStatic
         fun getPackageInfo(): MXPackageInfo? {
             for (pkg in PACKAGES) {

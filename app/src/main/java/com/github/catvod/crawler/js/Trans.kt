@@ -40,13 +40,11 @@ class Trans private constructor(private val trans: Boolean) {
         @Volatile
         private var INSTANCE: Trans? = null
 
-        /** 繁体档位跟随应用语言;KV 未就绪时按"跟随系统"处理,不抛异常 */
         @JvmStatic
         private fun wantTraditional(): Boolean {
             return LanguageManager.isTraditional()
         }
 
-        /** 按语言签名懒重建:语言变了不能留旧方向的实例(档位就存在实例字段上,避免两处状态不一致) */
         @JvmStatic
         private fun get(): Trans {
             val want = wantTraditional()

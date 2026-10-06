@@ -82,7 +82,6 @@ internal fun EpisodeRow(
                     .padding(start = 8.dp),
             )
             PillAction(
-                // 图标与文案同向:都表达"点一下会切到什么" —— 正序=向上箭头,倒序=向下箭头
                 iconRes = if (info.reverseSort) {
                     R.drawable.ic_episode_order_asc
                 } else {
@@ -166,7 +165,6 @@ private fun PillAction(iconRes: Int, text: String, onClick: () -> Unit) {
 internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Boolean) {
     @Suppress("UNUSED_EXPRESSION") revision
     val show by vm.episodeSheet.collectAsState()
-    // 面板在屏时冻结底栏自动收起（见 PlayerUiState.overlayPanelOpen）:投影随开合指令下发到播放层
     if (!show) return
     val info = vm.vodInfo ?: return
     val flags = info.seriesFlags.orEmpty()
@@ -210,12 +208,10 @@ internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Bool
                 stringResource(R.string.detail_episodes_of, info.name.orEmpty())
             },
         isScrollable = false,
-        // 横屏全屏播放时改成右侧滑出（竖屏详情页仍是贴底弹层）
         slideFromEnd = slideFromEnd,
     ) {
         val dismissAnimated = LocalSheetDismiss.current
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 侧滑面板只要剧集:线路切换归详情页的 chips 行
             if (flags.size > 1 && !slideFromEnd) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
@@ -254,14 +250,12 @@ internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Bool
                 Spacer(modifier = Modifier.height(8.dp))
             }
             val maxNameLength = episodes.maxOfOrNull { it.name?.length ?: 0 } ?: 0
-            // 侧滑面板宽度只有窗口 40% 出头,按名字长度取到的 4 列会挤成小方块,上限压到 2 列
             val gridColumnCount = when {
                 maxNameLength <= 4 -> if (slideFromEnd) 2 else 4
                 maxNameLength <= 12 -> 2
                 else -> 1
             }
             val gridModifier = if (slideFromEnd) {
-                // 全高面板:网格直接撑满标题/线路行之外的剩余高度
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -280,7 +274,6 @@ internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Bool
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    // 底部避开手势条/导航栏：面板底色仍铺到屏幕最底(沉浸不变),只把收尾行抬起来
                     bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp,
                 ),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -36,21 +36,15 @@ class DanmuLoadController(
     private var pendingPrepare: Boolean = false
     private var temporarilyClosed: Boolean = false
 
-    /** 加载/错误遮罩在屏:弹幕视图位置在控制器之上(PlayContainer 里 surfaceSlot 的兄弟且在其后),必须收起 */
     private var overlayHidden: Boolean = false
     private var loadCallback: LoadCallback? = null
 
     init {
-        // 不能用库默认的 updateMethod=0(时钟跟屏幕刷新率走):它把每帧推进下限写死 16ms,面板 120Hz 时弹幕会跑到 ~1.9x
         danmakuContext.updateMethod = 2
         videoView?.setDanmuView(danmuView)
         applySettings(false)
     }
 
-    /**
-     * 换绑播放器实例(空闲 TTL 释放后页面重建引擎时用,见 `PlaybackEngine.IDLE_RELEASE_DELAY_MS`)。
-     * 弹幕视图属于页面,但必须挂到**当前**播放器上才会被驱动 —— 否则重建后弹幕静默失效。
-     */
     fun setVideoView(videoView: MyVideoView?) {
         this.videoView = videoView
         if (videoView != null && danmuView != null) {
@@ -162,9 +156,6 @@ class DanmuLoadController(
         pendingPrepare = !TextUtils.isEmpty(danmuText) && DanmuHelper.isOpen()
     }
 
-    /**
-     * 加载/错误遮罩在屏(离屏)时调用:遮罩画在控制器层,而弹幕视图在其之上,不收起就是"黑遮罩上飘弹幕"。
-     */
     fun setOverlayHidden(hidden: Boolean) {
         if (overlayHidden == hidden) return
         overlayHidden = hidden
@@ -175,7 +166,6 @@ class DanmuLoadController(
         }
     }
 
-    /** 揭开遮罩后按既有规则恢复：有弹幕文本 / 待 prepare / 已 prepare，开关打开且未被临时关闭 */
     private fun applyVisibility() {
         if (danmuView == null) return
         setViewVisible(
@@ -185,7 +175,6 @@ class DanmuLoadController(
         )
     }
 
-    /** 弹幕视图可见性的唯一出口：遮罩在屏时一律 GONE（否则遮罩期间任何路径都会把它重新显示出来） */
     private fun setViewVisible(visible: Boolean) {
         val view = danmuView ?: return
         view.visibility = if (visible && !overlayHidden) View.VISIBLE else View.GONE

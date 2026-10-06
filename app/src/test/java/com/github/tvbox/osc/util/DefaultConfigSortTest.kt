@@ -4,11 +4,6 @@ import com.github.tvbox.osc.bean.MovieSort
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * 分类白名单分流的口径回归。
- *
- * 存在理由:一个都没匹配上时若产出空列表,首页会整页"暂无内容"(源改分类名即触发) ⇒ 口径 = 退化为全量。
- */
 class DefaultConfigSortTest {
 
     private fun sort(name: String) = MovieSort.SortData(name, name)

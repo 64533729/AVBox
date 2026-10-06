@@ -61,7 +61,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     companion object {
         private const val EXTRA_HISTORY_SOURCE_KEY = "historySourceKey"
 
-        /** [historySourceKey] 必须是详情页写历史用的那个 key(firstsourceKey),否则换过源会写出第二条记录 */
         fun start(context: Context, historySourceKey: String? = null) {
             context.startActivity(
                 Intent(context, MusicPlayerActivity::class.java)
@@ -116,7 +115,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         player.addOnStateChangeListener(stateListener)
         findViewById<ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme {
-                // 独立 Activity 页面:套窗口根槽位,弹层无论写在哪都能全屏弹出(见 SheetHostScaffold)
                 SheetHostScaffold {
                     MusicPlayerScreen(
                         state = ui,
@@ -175,7 +173,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         if (ready) {
             player.removeOnStateChangeListener(stateListener)
             PlayerTipBridge.hide()
-            // 退出页面时再落一次:刷新 updateTime(历史列表按时间排序)并记下最后播到哪首
             syncHistory()
             engine.detach(this)
         }
@@ -247,7 +244,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     private fun playAt(index: Int, removeProgress: Boolean) {
         val list = queueList()
         if (index < 0 || index >= list.size || index == vod.playIndex) return
-        // 必须在 engine.play() 之前(见 PlaybackController.beginSwitchPlayback)
         controller.beginSwitchPlayback()
         if (removeProgress) {
             controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it) }
@@ -262,13 +258,8 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         syncHistory()
     }
 
-    /**
-     * 刷新观看历史。音乐页不走详情页的 preparePlaySession,而 HistoryRepository.insertVodRecord 是历史的
-     * 唯一落库点 —— 不在这里补,历史会永远停在详情页交接那一刻(集数/备注/时间都不再更新)。
-     */
     private fun syncHistory() {
         vod.playNote = queueList().getOrNull(vod.playIndex)?.name.orEmpty()
-        // 音乐页是另一条历史落库路径,集数快照必须跟着一起写(否则纯音频片丢"X/Y 集")
         EpisodeTotals.putFromVod(vod)
         HistoryWriter.write(historySourceKey, vod)
     }
@@ -287,7 +278,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     }
 
     private fun replayCurrent() {
-        // 同 playAt:必须在 engine.play() 之前
         controller.beginSwitchPlayback()
         controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it) }
         controller.clearTriedLines()
@@ -312,7 +302,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
     }
 
-    // 与 PlayContainer.showCastDialog 同一套取数口径:可播地址 + 头部 + 当前位置,标题 = 影片名 + 集名
     private fun showCast() {
         val url = controller.webPlayUrl()
         if (url.isNullOrEmpty()) {
@@ -369,8 +358,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         lyricJob?.cancel()
         lyricJob = scope.launch {
             val result = runCatching { MusicLrc.load(source) }
-            // 禁止静默吞错:MusicLrc 类初始化失败(标签正则被 ICU 拒绝)与"解析出 0 行"症状完全一样
-            // (界面无歌词、无任何提示),不打日志根本分不清是哪一种
             result.exceptionOrNull()?.let { LOG.i("echo-music lyric parse failed: $it") }
             val lines = result.getOrDefault(emptyList())
             LOG.i("echo-music lyric parsed: ${lines.size} lines")
@@ -389,7 +376,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
 
     private fun startPlayback(url: String, headers: HashMap<String, String>?, forceExoPlayer: Boolean) {
         PlayerTipBridge.hide()
-        // 纯音频会话的视图最终总会热切 Texture(见 ensureAudioOnlyRender),按用户设置重建只会白断一次声音
         if (player.mediaPlayer != null
             && !controller.isConfirmedAudioOnly()
             && player.needsRenderRebuild(player.factoryRenderType())
@@ -397,7 +383,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
             player.requireKernelRebuild()
             LOG.i("echo-render-changed: rebuild kernel on next start")
         }
-        // 许可放行后内核仍可能报错:坏内核不能接着 reset 用(与点播页同一口径)
         if (player.isKernelErrored()) {
             player.requireKernelRebuild()
             LOG.i("echo-kernel-error: rebuild errored kernel on start")
@@ -406,9 +391,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         val kernelPresent = player.mediaPlayer != null
         val reusePlayer = KernelReusePolicy.decide(kernelPresent, rebuildKernel, forceExoPlayer, true) == KernelDecision.REUSE
         if (!reusePlayer && kernelPresent) engine.releasePlayer()
-        // 换歌一律是换内容(进度键每首不同),上一首的落盘由 PlaybackController.play() 在键易主前统一做
         player.setProgressKey(controller.progressKey())
-        // 记忆键随内核作废(MyVideoView.release),复用别页留下的内核时必须显式清,否则会沿用上一部片的字幕记忆
         player.setTrackMemoryKey("")
         controller.markContentStarted()
         if (headers != null) player.setUrl(url, headers) else player.setUrl(url)
@@ -476,7 +459,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         override fun hostPause() {
             if (!controller.isConfirmedAudioOnly()) {
                 lifecyclePaused = player.isPlaying
-                // 与"通知消失"同判据:留痕才能区分音频轨读不到与真判成影视
                 LOG.i("echo-music hostPause -> pause player (lifecyclePaused=$lifecyclePaused)")
                 player.pause()
             }

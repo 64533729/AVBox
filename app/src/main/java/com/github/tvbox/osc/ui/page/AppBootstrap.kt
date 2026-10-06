@@ -42,9 +42,6 @@ object AppBootstrap {
     fun start() {
         if (started) return
         started = true
-        // 必须在装载任何爬虫 jar 之前:①清掉私有目录里"假的原生库";②若同一源反复把应用崩掉,
-        // 停用它的启动指针,否则用户连换源都进不去(详见 FileUtils/BootGuard 注释)。
-        // 同步执行(几毫秒):异步会让首轮 jar 装载先跑起来,两道自检都白做。
         FileUtils.repairBogusNativeLibs()
         BootGuard.disableBootLoopingSource()
         ControlManager.get().startServer()
@@ -72,12 +69,6 @@ object AppBootstrap {
         retry()
     }
 
-    /**
-     * 切到指定订阅:与配置管理页同一套语义(收藏跨订阅打开也走这里,避免两处分叉)。
-     * 跟随态直播不单独记地址;换源后旧的多仓列表只在地址确实变了时作废。
-     *
-     * @return 是否处于"直播跟随点播"模式(调用方 UI 用)
-     */
     fun switchVodSubscription(url: String): Boolean {
         val followLive = ApiConfig.isLiveFollowVod()
         val oldApi = KV.get(HawkConfig.API_URL, "")
@@ -86,7 +77,6 @@ object AppBootstrap {
         KV.put(HawkConfig.API_URL, url)
         if (followLive) {
             KV.put(HawkConfig.LIVE_API_URL, "")
-            // 只在直播确实被改动时才清:否则"独立直播仓 + 点播换源"会误清用户的直播仓列表
             if (url != oldFollowTarget) HistoryHelper.clearLiveApiLineList()
         }
         if (!HistoryHelper.isApiLineHistory(url)) HistoryHelper.clearApiLineList()
@@ -98,7 +88,6 @@ object AppBootstrap {
         return followLive
     }
 
-    /** forceFresh = 用户主动重载(换源/改地址/失败重试):必须走网络,否则"重选同一个源"会拿旧快照,看起来像没生效 */
     private fun startInit(forceFresh: Boolean) {
         scope.launch {
             if (!dataInitOk) {
@@ -128,10 +117,8 @@ object AppBootstrap {
         }
     }
 
-    /** 快照有效期:过期即走网络刷新并把新快照写回,避免"一次缓存永久冻结源更新" */
     private const val CONFIG_CACHE_TTL_MS = 12 * 60 * 60 * 1000L
 
-    /** 只有远程源吃快照:本地/局域网配置的改动必须立即生效,不能被快照挡住 */
     private fun useCachedConfig(): Boolean {
         val apiUrl = KV.get(HawkConfig.API_URL, "")
         if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) return false

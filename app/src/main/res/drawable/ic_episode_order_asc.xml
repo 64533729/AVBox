@@ -3,8 +3,6 @@
     android:height="24dp"
     android:viewportWidth="960"
     android:viewportHeight="960">
-    <!-- 正序(.tubiao/正序.svg)：viewBox 0 -960 960 960 → translateY 960 校正；与 ic_episode_reverse(倒序)互为上下镜像。
-         源 SVG 的 "M440-647 244-451" 是 M 后的隐式 lineto，这里显式补 L，避免各家 path 解析器对隐式命令处理不一致 -->
     <group android:translateY="960">
         <path
             android:fillColor="#FF1F1F1F"

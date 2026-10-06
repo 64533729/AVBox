@@ -11,17 +11,14 @@ import com.google.gson.JsonObject
 
 import java.util.ArrayList
 
-/** 把配置 JSON 的规则段物化到全局表:嗅探规则/广告拦截/DNS/解析器列表 */
 object ConfigApplier {
 
-    /** 嗅探规则(rules):host 规则/过滤、广告正则、click 脚本与 exclude 排除 */
     @JvmStatic
     fun applyHostRules(infoJson: JsonObject) {
         if (infoJson.has("rules")) {
             VideoParseRuler.clearRule()
             for (oneHostRule in infoJson.getAsJsonArray("rules")) {
                 val obj = oneHostRule as JsonObject
-                //嗅探过滤规则
                 if (obj.has("host")) {
                     val host = obj.get("host").asString
                     if (obj.has("rule")) {
@@ -47,7 +44,6 @@ object ConfigApplier {
                         }
                     }
                 }
-                //广告过滤规则
                 if (obj.has("hosts") && obj.has("regex")) {
                     val rule = ArrayList<String>()
                     val ads = ArrayList<String>()
@@ -63,7 +59,6 @@ object ConfigApplier {
                         VideoParseRuler.addHostRegex(host, ads)
                     }
                 }
-                //嗅探脚本规则 如 click
                 if (obj.has("hosts") && obj.has("script")) {
                     val scripts = ArrayList<String>()
                     val scriptArray = obj.getAsJsonArray("script")
@@ -77,8 +72,6 @@ object ConfigApplier {
                         VideoParseRuler.addHostScript(host, scripts)
                     }
                 }
-                //排除不嗅探的 URL 条件(fongmi 规则的 exclude):命中即否决,优先于内置嗅探正则
-                //字段类型写错时忽略该条,不能让整份配置解析失败(同 doh 的兜底态度)
                 if (obj.has("hosts") && obj.has("exclude")
                         && obj.get("hosts").isJsonArray && obj.get("exclude").isJsonArray) {
                     val excludes = ArrayList<String>()
@@ -95,12 +88,10 @@ object ConfigApplier {
         }
     }
 
-    /** DNS over HTTPS(doh):接口把它写成非数组或格式异常时视为未提供,退回内置列表 */
     @JvmStatic
     fun applyDoh(infoJson: JsonObject) {
         var dohJson = ""
         if (infoJson.has("doh")) {
-            // 接口可能把 doh 写成非数组(或格式异常):此时视为未提供,退回内置列表,不让整个配置加载挂掉
             try {
                 dohJson = infoJson.getAsJsonArray("doh").toString()
             } catch (e: Exception) {
@@ -110,7 +101,6 @@ object ConfigApplier {
         OkGoHelper.applyDohConfig(dohJson)
     }
 
-    /** 追加的广告拦截(ads) */
     @JvmStatic
     fun applyAds(infoJson: JsonObject) {
         if (infoJson.has("ads")) {
@@ -122,7 +112,6 @@ object ConfigApplier {
         }
     }
 
-    /** 解析地址(parses):只做构造,超级解析与默认解析的选择由调用方负责 */
     @JvmStatic
     fun parseParseBeans(infoJson: JsonObject): List<ParseBean> {
         val parseBeans: MutableList<ParseBean> = ArrayList()

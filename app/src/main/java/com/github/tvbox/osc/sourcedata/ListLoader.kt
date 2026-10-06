@@ -20,11 +20,6 @@ import java.util.ArrayList
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 列表类取数:分类列表(categoryContent)与首页推荐(homeVideoContent)。
- *
- * <p>首页推荐是 sort 的附属请求(拿到分类后再补一次推荐位),由 [SortLoader] 调用。
- */
 class ListLoader(
     private val gson: Gson,
     private val extendCache: ConcurrentHashMap<String, String>,
@@ -32,10 +27,8 @@ class ListLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    // categoryContent
     fun getList(sortData: MovieSort.SortData?, page: Int) {
         if (Looper.myLooper() === Looper.getMainLooper()) {
-            // 同 getSort:t4 源的 extend 拉取是阻塞动作
             SourceHelper.PREPARE_POOL.execute {
                 getList(sortData, page)
             }
@@ -59,7 +52,6 @@ class ListLoader(
         }
     }
 
-    /** type 3:爬虫 categoryContent */
     private fun getListFromSpider(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
 
         SourceHelper.SPIDER_POOL.execute {
@@ -67,7 +59,6 @@ class ListLoader(
                 val sp = ApiConfig.get().getCSP(homeSourceBean)
                 sp.categoryContent(sortData.id, page.toString(), true, sortData.filterSelect)
             }, homeSourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getList--" + homeSourceBean.key)
-//                    LOG.i("echo-categoryContent:"+json);
             if (json != null) {
                 resultParser.json(listResult, json, homeSourceBean.key)
             } else {
@@ -77,9 +68,7 @@ class ListLoader(
         }
     }
 
-    /** type 0/1:站点 XML / JSON 接口 */
     private fun getListFromApi(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
-        // 回调里要按 type 分流 xml/json,值语义与调用点一致(原为捕获上层局部量)
         val type = homeSourceBean.type
 
         SourceHelper.siteGet(homeSourceBean)
@@ -121,7 +110,6 @@ class ListLoader(
             })
     }
 
-    /** type 4:带 extend 的接口(filter 走 Base64 的 ext 参数) */
     private fun getListFromExtendedApi(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
 
         var ext = ""
@@ -145,7 +133,6 @@ class ListLoader(
             .params("t", sortData.id)
             .params("pg", page)
             .params("ext", ext)
-        // 当 extend 不为空且非空字符串时添加参数
         if (extend != null && !extend.isEmpty()) {
             request.params("extend", extend)
         }
@@ -157,13 +144,12 @@ class ListLoader(
                     else throw IllegalStateException(SourceHelper.ERR_NETWORK + "，response body 为 null") // i18n: keep
                 } catch (e: Exception) {
                     LOG.i("echo-list: convertResponse error" + e.message)
-                    throw e // 重新抛出异常
+                    throw e
                 }
             }
 
             override fun onSuccess(response: Response<String>) {
                 val json = response.body()
-//                            LOG.i("echo-list: " + json);
                 resultParser.json(listResult, json, homeSourceBean.key)
             }
 
@@ -182,7 +168,6 @@ class ListLoader(
         fun done(videos: MutableList<Movie.Video>?)
     }
 
-    //    homeVideoContent
     fun getHomeRecList(sourceBean: SourceBean, ids: ArrayList<String?>?, callback: HomeRecCallback) {
         val type = sourceBean.type
         if (type == 3) {
@@ -190,7 +175,6 @@ class ListLoader(
                 val sortJson = BoundedCall.call(Callable<String> {
                     val sp = ApiConfig.get().getCSP(sourceBean)
                     val json = sp.homeVideoContent()
-//                            LOG.i("echo--getHomeRecList :" + json);
                     json
                 }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getHomeRecList--" + sourceBean.key)
                 if (sortJson != null) {

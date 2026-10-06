@@ -6,10 +6,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 下发列表形态:media3 不消费 isNoOp(列表里的 effect 一定会被实例化) ⇒ 超分关闭时必须
- * 从列表里摘掉,否则会以默认档重建整条超分链(2026-10-01 真机 bug)。
- */
 class PictureEffectsEffectListTest {
 
     @Test

@@ -11,25 +11,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.LinkedHashMap
 
-/**
- * M1(Java→Kotlin) 的反序列化回归:bean 迁 Kotlin 后,序列化契约的唯一真实判据是
- * "拿同一份报文解析出来的字段值不变"。
- *
- * <p>两条通道各自钉住:
- * - XStream(`AbsXml`/`AbsSortXml`/`Movie`/`MovieSort`):字段名 + `@XStreamAlias`/`@XStreamAsAttribute`/
- *   `@XStreamImplicit`/`@XStreamConverter` 必须仍落在**字段**上(Kotlin 属性化后注解很容易跑偏);
- * - Gson(`AbsJson`/`AbsSortJson`/`Movie.Video`/`MovieSort.SortData`/`VodInfo`/`ProxyRule`):字段名即契约,
- *   其中 `VodInfo` 的 `seriesFlags`/`seriesMap` 是 `RoomHistoryRepository` 用字符串比对排除的字段名。
- */
 class BeanSerializationRegressionTest {
 
     private val gson = Gson()
 
-    /**
-     * 与 SourceResultParser 的 listXStream 同配置;唯一多出来的是 [AnyTypePermission.ANY]:
-     * XStream 1.4 在 JVM 上默认安全框架会拒绝未放行类型(抛 ForbiddenClassException),
-     * 而生产代码没有放行 —— 本用例只用来验证「字段名 + 注解仍落在字段上」这条序列化契约。
-     */
     private fun listXStream(): XStream {
         val xstream = XStream(DomDriver())
         xstream.addPermission(AnyTypePermission.ANY)
@@ -47,8 +32,6 @@ class BeanSerializationRegressionTest {
         xstream.ignoreUnknownElements()
         return xstream
     }
-
-
 
     @Test
     fun absXml_xstream_deserializesEveryMappedField() {
@@ -173,7 +156,6 @@ class BeanSerializationRegressionTest {
         assertEquals(2021, video.year)
         assertEquals("剧情", video.type)
         assertEquals("全2集", video.note)
-        // 上游约定:cate 存在且 tag 为空时归一成 folder,下游按 tag 判目录
         assertEquals("folder", video.tag)
 
         val infoList = video.urlBean!!.infoList!!
@@ -216,8 +198,6 @@ class BeanSerializationRegressionTest {
 
     @Test
     fun absSortJson_skipsNullClassEntries() {
-        // Gson 会把 JSON 数组里的 null 也塞进表:Java 版逐个跳过。
-        // (list 那一侧 Java 同样会 NPE,故只钉 class 这一侧)
         val json = """{"class":[null,{"type_id":"1","type_name":"电影"},{"type_id":null,"type_name":"x"}]}"""
 
         val absSortXml = gson.fromJson(json, AbsSortJson::class.java).toAbsSortXml()
@@ -283,7 +263,6 @@ class BeanSerializationRegressionTest {
         assertEquals(1, back.filters.size)
         assertEquals("地区", back.filters[0].name)
         assertEquals("大陆", back.filters[0].values!!["cn"])
-        // 默认 sort 是 -1,compareTo 即 this.sort - other.sort
         assertEquals(4, back.compareTo(MovieSort.SortData("2", "x")))
         assertTrue(back.toString().startsWith("SortData{id='1', name='电影', sort=3"))
     }
@@ -315,7 +294,6 @@ class BeanSerializationRegressionTest {
         }
 
         val json = gson.toJson(info)
-        // RoomHistoryRepository 的 ExclusionStrategy 是按这两个**字段名**字符串排除的
         assertTrue(json.contains("\"seriesFlags\""))
         assertTrue(json.contains("\"seriesMap\""))
         assertTrue(json.contains("\"playFlag\""))
@@ -359,7 +337,6 @@ class BeanSerializationRegressionTest {
         assertEquals(2021, info.year)
         assertEquals(1, info.seriesFlags!!.size)
         assertEquals("线路甲", info.seriesFlags!![0].name)
-        // 倒序集数会被 isReverse 识别并翻正(单线路 -> flags.size <= 5)
         val series = info.seriesMap!!["线路甲"]!!
         assertEquals(3, series.size)
         assertEquals("第1集", series[0].name)
@@ -381,12 +358,6 @@ class BeanSerializationRegressionTest {
         assertNull(info.seriesMap)
     }
 
-    /**
-     * `ProxyRule.arrayFrom` 的整对象 Gson 解析在 **JVM 单测里本来就跑不通**(Java 基线同样如此):
-     * 它有 `List<java.net.Proxy>` 字段,Gson 会顺带为 `java.net.Proxy` 建反射适配器,
-     * JDK 17+ 上 `java.net.Proxy#type` 不可访问 -> JsonIOException(真机 Android 无此限制)。
-     * 所以这里改为直接钉住"字段名 + @SerializedName 仍在字段上"这条契约。
-     */
     @Test
     fun proxyRule_keepsFieldNamesAndSerializedNamesOnFields() {
         val fields = ProxyRule::class.java.declaredFields.associateBy { it.name }
@@ -398,13 +369,11 @@ class BeanSerializationRegressionTest {
         assertEquals("urls", fields.getValue("urls").getAnnotation(SerializedName::class.java).value)
 
         val rule = ProxyRule()
-        // 未 init / 未配置时的兜底:返回空表而不是 null
         assertTrue(rule.getHosts().isEmpty())
         assertTrue(rule.getUrls().isEmpty())
         assertTrue(rule.getProxies().isEmpty())
 
         rule.init()
-        // 单测环境下 android.net.Uri 是桩(parse 返回 null),非法 URI 一律不进 proxies
         assertTrue(rule.getProxies().isEmpty())
     }
 
@@ -415,7 +384,6 @@ class BeanSerializationRegressionTest {
 
     @Test
     fun proxyRule_init_skipsNullHostEntries() {
-        // 本条不能走 Gson(见上),只能反射塞字段;判空被优化掉的话这里会 NPE
         val wildcardRule = ProxyRule()
         val hosts = ProxyRule::class.java.getDeclaredField("hosts")
         hosts.isAccessible = true
@@ -425,7 +393,6 @@ class BeanSerializationRegressionTest {
         wildcardRule.init()
         plainRule.init()
 
-        // wildcard 是私有字段,用 compareTo(Boolean.compare) 间接判定
         assertTrue(wildcardRule.compareTo(plainRule) > 0)
         assertTrue(plainRule.compareTo(wildcardRule) < 0)
     }

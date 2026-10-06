@@ -27,10 +27,6 @@ package com.github.tvbox.osc.subtitle.runtime
 
 import java.util.concurrent.Executor
 
-/**
- * @author AveryZhong.
- */
-
 class AppTaskExecutor private constructor() : TaskExecutor() {
 
     private var mDelegate: TaskExecutor

@@ -19,16 +19,6 @@ import com.github.tvbox.osc.util.PlayerHelper
 import org.json.JSONObject
 import java.util.HashMap
 
-/**
- * 页面侧的视图桥实现(M7e 起为 Kotlin):把调度层的"视图动作"落到 [PlayContainer]。
- *
- * <p>移植口径 = 纯语言迁移,逐行等价。Kotlin 侧的形态差异只在"平台类型显式化":
- * ① Java 的 `if (x != null) x.m()` 在 Kotlin 侧写成 `x?.m()`(判空分支与早退点不变);
- * ② `x == null ? a : b` 这类三元改写成 `?.` + `?:`(回落值与原值一致);
- * ③ [PlaybackViewBridge] 的 Kotlin 声明已收窄可空性(`WebView?`/`String?`/`HashMap?`),
- *    按实现要求补齐 —— 这几处原先靠 Java 平台类型宽松通过;
- * ④ `container.new MyWebView(...)`(Java 内部类实例化)在 Kotlin 侧是 `container.MyWebView(...)`。
- */
 class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackViewBridge {
 
     override fun isPageAlive(): Boolean = container.isAttached()
@@ -131,9 +121,6 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
 
     override fun applyPlayerConfigToView(forceKernel: Int) {
         val view = container.mVideoView ?: return
-        // Java 侧是平台类型直传(`playerCfg()` 在 Kotlin 声明为 `JSONObject?`、`updateCfg` 第二参非空):
-        // 这里用 !! 复刻"无配置时由 callee 抛 NPE"的既有行为,**不要**补 `?: JSONObject()`
-        // —— 那会从"中断本段下发"变成"按默认值重配视图",属行为变更而非迁移
         PlayerHelper.updateCfg(view, container.scheduler.playerCfg()!!)
     }
 
@@ -150,7 +137,6 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         progress: Long,
     ): Boolean {
         val activity = container.mActivity ?: return false
-        // 接口已放宽 subtitle 可空(parseSubtitle 可能未产出):直传非空 Kotlin 形参会 NPE,与音乐页实现同一兜底口径
         return PlayerHelper.runExternalPlayer(
             playerType,
             activity,
@@ -171,7 +157,6 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
             LOG.i("echo-ignore stale m3u8 result")
             return
         }
-        // 与 Java 侧一致:此处不补 headers 默认值(调用方保证非空)
         playM3u8(url, headers!!)
     }
 
@@ -182,17 +167,14 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
     ) {
         val view = container.mVideoView ?: return
         container.mController?.hidePauseRoot()
-        // 渲染方式变更:复用内核不会重建渲染视图,必须走非复用路径
         if (view.mediaPlayer != null && view.needsRenderRebuild(view.factoryRenderType())) {
             view.requireKernelRebuild()
             LOG.i("echo-render-changed: rebuild kernel on next start")
         }
-        // 错误态兜底:许可放行后内核仍可能在本轮取流期间才报错,到这里必须补强结论,不能把坏内核接着 reset 用
         if (view.isKernelErrored()) {
             view.requireKernelRebuild()
             LOG.i("echo-kernel-error: rebuild errored kernel on start")
         }
-        // 复用内核不会重选解码器:标记无条件消费一次,避免残留到下一次无关起播
         val rebuildKernel = view.consumeKernelRebuildRequired()
         val kernelPresent = view.mediaPlayer != null
         val reusePlayer =
@@ -201,12 +183,9 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         if (!reusePlayer && kernelPresent) {
             container.releasePlayerKernel()
         } else if (reusePlayer && container.scheduler.isSameStartedContent()) {
-            // 同内容重播走 replay、不经 release(该方法内部才有 saveProgress 兜底),位置在此补落一次;
-            // 换内容不能在此落盘:键与起点都已属新内容,落盘会把新内容的起点写进旧键
             view.saveCurrentProgress()
         }
         view.setProgressKey(container.scheduler.progressKey())
-        // 记忆键与进度键同处下发:内核重建后是新实例,起播前必须推给它
         view.setTrackMemoryKey(container.trackMemoryKey())
         container.scheduler.markContentStarted()
         if (headers != null) {

@@ -38,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap
 class DLNACastManager : DefaultRegistryListener(), ServiceConnection {
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    // cling 回调线程直接增删，主线程 getDevices() 复制遍历，必须用并发容器防 CME
     private val devices = ConcurrentHashMap<String, CastDevice>()
     private var upnpService: AndroidUpnpService? = null
     private var deviceListener: DeviceListener? = null
@@ -104,7 +103,6 @@ class DLNACastManager : DefaultRegistryListener(), ServiceConnection {
 
     fun getDevices(): List<CastDevice> {
         val list = ArrayList(devices.values)
-        // ConcurrentHashMap 无序，按名称排序保证设备列表显示稳定
         list.sortWith(compareBy(nullsLast<String>()) { it.name })
         return list
     }
@@ -280,7 +278,6 @@ class DLNACastManager : DefaultRegistryListener(), ServiceConnection {
     }
 
     companion object {
-        /** 资源文案:Application 的 base 只在进程启动时挂一次,切语言后直接用 app.getString 会停在旧语言 */
         private fun str(resId: Int, vararg args: Any?): String {
             val app = App.getInstance()
             return if (app == null) "" else LanguageManager.localized(app).getString(resId, *args)

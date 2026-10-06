@@ -19,18 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/**
- * [ConfigParser] 的纯函数单测(纯 JVM,无需 Robolectric)。
- *
- * 选点理由:这些都是"错了不报错、只是源加载不出来/图片不显示"的分支 —— 接口正文前面多一行注释、
- * 地址少了 http://、clan:// 地址没换成本机服务地址、m3u 头部的 EPG 写在 tvg-url 而不是 x-tvg-url,
- * 真机上只能看到"配置加载失败"或者"EPG 空白",没有堆栈可查。
- */
 public class ConfigParserTest {
 
     private static final Gson gson = new Gson();
 
-    /** 本机服务基址;用抛异常的实现证明"只有 clan://localhost/ 才会去取" */
     private static final Supplier<String> LOCAL = () -> "http://192.168.1.9:9978/";
     private static final Supplier<String> NEVER = () -> {
         throw new AssertionError("非 clan://localhost/ 地址不应该去取本机服务基址");
@@ -44,8 +36,6 @@ public class ConfigParserTest {
         return gson.fromJson(text, JsonArray.class);
     }
 
-    // ---------- JSON 正文裁剪与形状判断 ----------
-
     @Test
     public void trimJsonObject_keepsOnlyObjectBody() {
         assertEquals("{\"a\":1}", ConfigParser.trimJsonObject("// 版权说明\n{\"a\":1}\n// 尾巴"));
@@ -56,7 +46,6 @@ public class ConfigParserTest {
 
     @Test
     public void trimJsonObject_keepsRawTextWhenBracesReversed() {
-        // "}" 在 "{" 之前:不能截,否则会把正文截成空串
         assertEquals("} {", ConfigParser.trimJsonObject("} {"));
     }
 
@@ -69,8 +58,6 @@ public class ConfigParserTest {
         assertFalse(ConfigParser.isLiveJsonContent(null));
     }
 
-    // ---------- m3u 头部 EPG 地址 ----------
-
     @Test
     public void extractQuotedAttr_readsValueAndToleratesMalformed() {
         String line = "#EXTM3U url-tvg=\" http://a/e.xml \" tvg-url=\"http://b/e.xml\"";
@@ -82,8 +69,6 @@ public class ConfigParserTest {
 
     @Test
     public void extractQuotedAttr_tvgUrlAlsoMatchesInsideXTvgUrl() {
-        // "tvg-url=" 是 "x-tvg-url=" 的子串:单独找 tvg-url 会命中前面的 x-tvg-url ——
-        // 这正是 extractLiveTextEpg 必须先试 x-tvg-url、再试 tvg-url 的原因
         String line = "#EXTM3U x-tvg-url=\"http://a/e.xml\" tvg-url=\"http://b/e.xml\"";
         assertEquals("http://a/e.xml", ConfigParser.extractQuotedAttr(line, "tvg-url"));
     }
@@ -106,8 +91,6 @@ public class ConfigParserTest {
         assertEquals("", ConfigParser.extractLiveTextEpg("#EXTM3U\nCCTV1,http://a/1"));
         assertEquals("", ConfigParser.extractLiveTextEpg(null));
     }
-
-    // ---------- 站点列表 ----------
 
     @Test
     public void parseSites_buildsBeansAndSkipsIncomplete() {
@@ -137,12 +120,10 @@ public class ConfigParserTest {
 
         assertEquals(1, sites.size());
         SourceBean b = sites.get(0);
-        // 没写 name 的站点用 key 兜底,否则首页会出现空名字的图标
         assertEquals("py_B", b.getName());
         assertTrue(b.isSearchable());
         assertTrue(b.isQuickSearch());
         assertTrue(b.isChangeable());
-        // py_ 前缀强制可筛选,不看配置
         assertEquals(1, b.getFilterable());
         assertEquals(-1, b.getPlayerType());
         assertEquals(0, b.getTimeout());
@@ -160,7 +141,6 @@ public class ConfigParserTest {
         assertEquals("a", sites.get(1).getKey());
     }
 
-    /** 站点级扩展字段:hide/indexs/danmaku 与 header 对象(type 0/1 的接口请求要带上) */
     @Test
     public void parseSites_readsHideIndexsDanmakuAndHeader() {
         List<SourceBean> sites = ConfigParser.parseSites(json("{\"sites\":["
@@ -174,21 +154,15 @@ public class ConfigParserTest {
         assertFalse(a.isDanmakuEnabled());
         assertEquals(3, a.getHeader().size());
         assertEquals("ua", a.getHeader().get("User-Agent"));
-        // 数字型 header 值也要取到字符串
         assertEquals("5", a.getHeader().get("num"));
 
         SourceBean b = sites.get(1);
         assertFalse(b.isHidden());
         assertFalse(b.isIndexSource());
         assertTrue(b.isDanmakuEnabled());
-        // header 写成字符串时忽略该字段,不能让整份配置解析失败
         assertTrue(b.getHeader().isEmpty());
     }
 
-    /**
-     * 非法 header 名/值必须被丢掉:它们会让 OkHttp 在构造请求时抛 IllegalArgumentException,
-     * 而多数站点请求分支没有 try/catch,等于"一份配置让某个源直接把 App 带崩"。
-     */
     @Test
     public void parseSites_dropsIllegalHeaders() {
         List<SourceBean> sites = ConfigParser.parseSites(json("{\"sites\":[{\"key\":\"a\",\"type\":1,\"api\":\"http://a\","
@@ -199,8 +173,6 @@ public class ConfigParserTest {
         assertEquals("http://a/", header.get("Referer"));
     }
 
-    // ---------- 线路合集 ----------
-
     @Test
     public void parseApiCollection_acceptsObjectsAndPrimitives() {
         ArrayList<String> lines = ConfigParser.parseApiCollection(
@@ -208,7 +180,6 @@ public class ConfigParserTest {
 
         assertEquals(3, lines.size());
         assertEquals("线路1\thttp://a/1", lines.get(0));
-        // 没写 name 的用 url 兜底当名字
         assertEquals("http://b/2\thttp://b/2", lines.get(1));
         assertEquals("http://c/3\thttp://c/3", lines.get(2));
     }
@@ -231,36 +202,23 @@ public class ConfigParserTest {
 
     @Test
     public void parseApiCollection_rejectsNormalConfigAndGarbage() {
-        // 带 sites 的是正常点播配置,不是合集
         assertTrue(ConfigParser.parseApiCollection("{\"sites\":[],\"urls\":[\"http://a/1\"]}").isEmpty());
         assertTrue(ConfigParser.parseApiCollection("{\"urls\":\"http://a/1\"}").isEmpty());
         assertTrue(ConfigParser.parseApiCollection("这不是 JSON").isEmpty());
         assertTrue(ConfigParser.parseApiCollection(null).isEmpty());
     }
 
-    /**
-     * 2026-09-21 直播多仓:直播与点播共用同一条多仓判定。
-     *
-     * <p>存在理由:直播侧补 {@code urls} 分流后,"哪些正文算仓库"变成两条加载路径的公共前提 ——
-     * 判宽了会把用户带 sites 的正常直播配置整段换成仓里的第一条,判窄了仓地址继续报"解析失败"。
-     * 同时锁住"仓库正文里不能带 sites"这条边界。
-     */
     @Test
     public void isDepotJson_matchesOnlyUrlsWithoutSites() {
         assertTrue(ConfigParser.isDepotJson(json("{\"urls\":[{\"name\":\"仓A\",\"url\":\"http://a/1\"}]}")));
-        // 空 urls 不算仓库:进去只会切到不存在的子源
         assertFalse(ConfigParser.isDepotJson(json("{\"urls\":[]}")));
-        // urls 不是数组(字符串/对象)都不算
         assertFalse(ConfigParser.isDepotJson(json("{\"urls\":\"http://a/1\"}")));
         assertFalse(ConfigParser.isDepotJson(json("{\"urls\":{\"url\":\"http://a/1\"}}")));
-        // 带 sites 的正常配置优先,即使同时带 urls
         assertFalse(ConfigParser.isDepotJson(json("{\"sites\":[],\"urls\":[\"http://a/1\"]}")));
-        // 直播正常配置
         assertFalse(ConfigParser.isDepotJson(json("{\"lives\":[]}")));
         assertFalse(ConfigParser.isDepotJson(null));
     }
 
-    /** 仓库里 {@code name} 缺失/类型不对时用 url 兜底当显示名,不能让整条源丢掉 */
     @Test
     public void parseApiCollection_toleratesBadNameAndEmptyEntries() {
         ArrayList<String> lines = ConfigParser.parseApiCollection(
@@ -269,8 +227,6 @@ public class ConfigParserTest {
         assertEquals("http://a/1\thttp://a/1", lines.get(0));
         assertEquals("http://c/3\thttp://c/3", lines.get(1));
     }
-
-    // ---------- 直播多源与 hosts ----------
 
     @Test
     public void parseLiveSettingItems_namesAndIndexes() {
@@ -282,7 +238,6 @@ public class ConfigParserTest {
         assertEquals("线路A", items.get(0).getItemName());
         assertEquals(1, items.get(1).getItemIndex());
         assertEquals("线路2", items.get(1).getItemName());
-        // 显式给了空名字就保留空名字,不再兜底
         assertEquals("", items.get(2).getItemName());
     }
 
@@ -296,10 +251,6 @@ public class ConfigParserTest {
         assertEquals("2.3.4.5=x", hosts.get("b.com"));
     }
 
-    /**
-     * 频道显示名:name 优先,缺失/null/非标量一律回落到首条非空地址(与 Depot/parseApiCollection 同口径)。
-     * 不兜底的话:加载链路会在主线程 NPE,或列表里出现认不出的空行(频道名还是"上次看过的台"的匹配键)。
-     */
     @Test
     public void parseLiveChannelName_prefersNameThenFirstUrl() {
         ArrayList<String> urls = new ArrayList<>(Arrays.asList("http://a/1", "http://a/2"));
@@ -309,17 +260,13 @@ public class ConfigParserTest {
         assertEquals("http://a/1", ConfigParser.parseLiveChannelName(json("{\"name\":null}"), urls));
         assertEquals("http://a/1", ConfigParser.parseLiveChannelName(json("{\"name\":[\"CCTV1\"]}"), urls));
         assertEquals("http://a/1", ConfigParser.parseLiveChannelName(json("{\"name\":{\"id\":1}}"), urls));
-        // 数字/布尔是标量,按字符串取
         assertEquals("3", ConfigParser.parseLiveChannelName(json("{\"name\":3}"), urls));
-        // 首条地址是空串时继续找下一条非空地址
         assertEquals("http://a/2",
                 ConfigParser.parseLiveChannelName(json("{}"), new ArrayList<>(Arrays.asList("", "http://a/2"))));
-        // 名字与地址都空 → 空串,调用方据此整条丢弃
         assertEquals("", ConfigParser.parseLiveChannelName(json("{}"), new ArrayList<>()));
         assertEquals("", ConfigParser.parseLiveChannelName(null, new ArrayList<>()));
     }
 
-    /** catchup:对象原样用、标量转 type 带上 source/replace、null 与数组算"未配"(以前这三种各抛一种异常) */
     @Test
     public void parseLiveCatchup_shapesAndBadValues() {
         JsonObject asObject = ConfigParser.parseLiveCatchup(
@@ -337,8 +284,6 @@ public class ConfigParserTest {
         assertNull(ConfigParser.parseLiveCatchup(json("{\"name\":\"CCTV1\"}")));
         assertNull(ConfigParser.parseLiveCatchup(json("{\"catchup\":[\"default\"]}")));
     }
-
-    // ---------- clan:// 地址改写 ----------
 
     @Test
     public void clanToAddress_localhostUsesLocalBase() {
@@ -370,7 +315,6 @@ public class ConfigParserTest {
     public void fixContentPath_resolvesRelativePathsAgainstConfigUrl() {
         assertEquals("{\"a\":\"http://h/dir/pic.jpg\"}",
                 ConfigParser.fixContentPath("http://h/dir/config.json", "{\"a\":\"./pic.jpg\"}", NEVER));
-        // 没有 scheme 的地址按 http:// 补
         assertEquals("{\"a\":\"http://h/pic.jpg\"}",
                 ConfigParser.fixContentPath("h/dir/config.json", "{\"a\":\"../pic.jpg\"}", NEVER));
     }
@@ -380,8 +324,6 @@ public class ConfigParserTest {
         assertEquals("{\"a\":\"http://192.168.1.9:9978/file/pic.jpg\"}",
                 ConfigParser.fixContentPath("clan://localhost/config.json", "{\"a\":\"./pic.jpg\"}", LOCAL));
     }
-
-    // ---------- 配置地址与密钥 ----------
 
     @Test
     public void configUrl_keepsHttpAndAddsScheme() {
@@ -398,7 +340,6 @@ public class ConfigParserTest {
         assertEquals("http://a/config.json", withKey.url);
         assertEquals("1234", withKey.key);
 
-        // 没写 scheme 时补 http://,密钥照旧取出
         ConfigParser.ConfigUrl noScheme = ConfigParser.configUrl("a/config.json;pk;k", NEVER);
         assertEquals("http://a/config.json", noScheme.url);
         assertEquals("k", noScheme.key);
@@ -410,7 +351,6 @@ public class ConfigParserTest {
                 ConfigParser.configUrl("clan://localhost/config.json", LOCAL).url);
         assertEquals("http://tvbox.example.com/file/c.json",
                 ConfigParser.configUrl("clan://tvbox.example.com/c.json;pk;k", NEVER).url);
-        // file:// 先被改写成 clan://localhost/,再换成本机服务地址(注意双斜杠是原样保留的)
         assertEquals("http://192.168.1.9:9978/file//sdcard/c.json",
                 ConfigParser.configUrl("file:///sdcard/c.json", LOCAL).url);
     }

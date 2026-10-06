@@ -119,12 +119,6 @@ class SettingsViewModel : ViewModel() {
         refreshCacheSize()
     }
 
-    /**
-     * 只重读 KV 状态,不重算缓存大小。
-     *
-     * <p>{@code getCacheSize()} 是整棵缓存目录的递归遍历,绑到"每次配置变化"上会白跑;
-     * 各行的值(播放内核/默认启动页/历史条数/弹幕 API 等)在别的二级页也能改,回本页时重读一次即可。
-     */
     fun refreshState() {
         _state.value = loadState()
     }
@@ -204,12 +198,9 @@ fun SettingsPage(
     vm: SettingsViewModel = viewModel(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-    // 页面保持全出血(背景延伸到导航栏之下,玻璃才有内容可取),只把内容让开
     val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
     val navBottom = contentPadding.calculateBottomPadding()
     val state by vm.state
-    // 各行的值都来自 KV,loadState() 只在 ViewModel 构造时读一次,而二级页也能改同一批 KV ⇒ 本页 resume 重读一次。
-    // 缓存大小是整棵缓存目录的递归遍历,距上次计算不足 CACHE_SIZE_REFRESH_MIN_INTERVAL_MS 时不重算。
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         vm.refreshState()
         vm.refreshCacheSizeIfStale()
@@ -347,7 +338,7 @@ fun SettingsPage(
                         onClick = { aboutSheet = true },
                     )
                 }
-            
+
                 SettingsCard(SettingsCardPosition.LAST) {
                     SettingsRow(
                         title = stringResource(R.string.settings_github),

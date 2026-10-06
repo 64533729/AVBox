@@ -19,12 +19,6 @@ import java.util.HashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 首页取数:站点分类(sort/分类列表)与首页推荐位。
- *
- * <p>带 homeContent 缓存(最多 5 个源),命中的判定与写入条件都在这里;缓存本体归
- * [SourceRuntimeState],这里只拿引用,便于统一清理。
- */
 class SortLoader(
     private val gson: Gson,
     private val extendCache: ConcurrentHashMap<String, String>,
@@ -62,7 +56,6 @@ class SortLoader(
         sortResult.postValue(attachSortSource(sourceKey, data))
     }
 
-    /** 分类取数失败出口:空包 + loadFailed 标记,由 HomeViewModel 决定重试/错误态 */
     private fun postSortFailure(sourceKey: String?) {
         val sortXml = AbsSortXml()
         sortXml.loadFailed = true
@@ -93,15 +86,12 @@ class SortLoader(
         return SourceHelper.isHomeSource(sourceKey) && SourceHelper.isDoubanSource(sourceBean)
     }
 
-    // homeContent
     fun getSort(sourceKey: String?) {
         getSort(sourceKey, true)
     }
 
-    /** withRec=false 跳过首页推荐那一次额外请求(豆瓣类 videolist / spider homeVideoContent),sorts 不必等它 */
     fun getSort(sourceKey: String?, withRec: Boolean) {
         if (Looper.myLooper() === Looper.getMainLooper()) {
-            // t4 源要联网拉 extend 才能发 sort 请求,不能占着主线程等它
             SourceHelper.PREPARE_POOL.execute {
                 getSort(sourceKey, withRec)
             }
@@ -112,7 +102,6 @@ class SortLoader(
             return
         }
 
-        // 优先检查缓存
         val sourceBean = ApiConfig.get().getSource(sourceKey)
         if (sourceBean == null) {
             LOG.i("echo--getSort-source-null--$sourceKey")
@@ -151,13 +140,11 @@ class SortLoader(
         }
     }
 
-    /** type 3:爬虫 homeContent,拿到 sorts 后再补一次首页推荐(推荐走 [ListLoader]) */
     private fun getSortFromSpider(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
         val waitResponse = Runnable {
             val sortJson = BoundedCall.call(Callable<String> {
                 val sp = ApiConfig.get().getCSP(sourceBean)
                 val json = sp.homeContent(true)
-//                            LOG.i("echo--getSort :" + json);
                 json
             }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getSort--" + sourceBean.key)
             if (sortJson != null) {
@@ -174,7 +161,6 @@ class SortLoader(
                         postSortResult(sourceKey, sortXml)
                         cacheSort(sourceKey, sortXml)
                     } else if (sortXml.classes != null) {
-                        // homeContent 解析成功却没带推荐视频是常态(分类够用),不能当取数失败
                         postSortResult(sourceKey, sortXml)
                         cacheSort(sourceKey, sortXml)
                     } else {
@@ -197,9 +183,7 @@ class SortLoader(
         SourceHelper.PREPARE_POOL.execute(waitResponse)
     }
 
-    /** type 0/1:站点 XML / JSON 接口,带站点级 header */
     private fun getSortFromApi(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
-        // 回调里要按 type 分流 xml/json,值语义与调用点一致(原为捕获 getSort 的局部量)
         val type = sourceBean.type
         SourceHelper.siteGet(sourceBean)
             .tag(sourceBean.key + "_sort")
@@ -235,7 +219,6 @@ class SortLoader(
                                 }
                             })
                         } else if (sortXml.classes != null) {
-                            // 分类已解析出来,推荐位缺失不影响首页可用性;postSortFailure 只留给真没解析出响应的情况
                             postSortResult(sourceKey, sortXml)
                             cacheSort(sourceKey, sortXml)
                         } else {
@@ -257,7 +240,6 @@ class SortLoader(
             })
     }
 
-    /** type 4:带 extend 的接口;extend 过长时改走 RemoteTVBox 的 POST(URL 长度限制) */
     private fun getSortFromExtendedApi(sourceKey: String, sourceBean: SourceBean) {
         var extend = sourceBean.ext
         extend = SourceHelper.getFixUrl(extendCache, gson, extend, sourceBean.getPlayTimeoutSeconds().toLong())
@@ -265,7 +247,6 @@ class SortLoader(
             val request = SourceHelper.siteGet(sourceBean)
                 .tag(sourceBean.key + "_sort")
                 .params("filter", "true")
-            // 当 extend 不为空且非空字符串时添加参数
             if (extend != null && !extend.isEmpty()) {
                 request.params("extend", extend)
             }
@@ -340,7 +321,6 @@ class SortLoader(
                                 postSortResult(sourceKey, sortXml)
                                 cacheSort(sourceKey, sortXml)
                             } else if (sortXml.classes != null) {
-                                // 同上:解析成功但无推荐要走成功出口,否则这条分支全程无回包、只能等超时
                                 postSortResult(sourceKey, sortXml)
                                 cacheSort(sourceKey, sortXml)
                             } else {

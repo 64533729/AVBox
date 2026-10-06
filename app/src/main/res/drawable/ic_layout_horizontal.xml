@@ -3,7 +3,6 @@
     android:height="24dp"
     android:viewportWidth="960"
     android:viewportHeight="960">
-    <!-- 横屏展示(.tubiao/横屏展示.svg)：viewBox 0 -960 960 960 → translateY 960 校正 -->
     <group android:translateY="960">
         <path
             android:fillColor="#FF1F1F1F"

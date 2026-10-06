@@ -29,10 +29,6 @@ import java.io.InputStream
 import java.net.URLDecoder
 import java.nio.charset.Charset
 
-/**
- * @author AveryZhong.
- */
-
 object SubtitleLoader {
     private const val TAG = "SubtitleLoader"
 
@@ -223,7 +219,6 @@ object SubtitleLoader {
             return null
         }
         val bytes = FileUtils.readSimple(file)
-        // BugReview #11:readSimple 失败返回 null 时 bytes.length 会 NPE
         if (bytes == null || bytes.isEmpty()) {
             return null
         }
@@ -231,7 +226,6 @@ object SubtitleLoader {
         detector.handleData(bytes, 0, bytes.size)
         detector.dataEnd()
         var encoding: String? = detector.detectedCharset
-        // BugReview #11:getDetectedCharset 可能返回 null,补与 loadFromRemote 一致的 UTF-8 兜底
         if (TextUtils.isEmpty(encoding)) encoding = "UTF-8"
         val content = String(bytes, Charset.forName(encoding))
         val newInputStream = ByteArrayInputStream(content.toByteArray(Charset.defaultCharset()))
@@ -252,7 +246,7 @@ object SubtitleLoader {
             ext = fileName.substring(fileName.lastIndexOf("."))
         }
         Log.d(TAG, "parse: name = $fileName, ext = $ext")
-        val reader = UnicodeReader(`is`) //处理有BOM头的utf8
+        val reader = UnicodeReader(`is`)
         val newInputStream = ReaderInputStream(reader, Charset.defaultCharset())
         if (".srt".equals(ext, ignoreCase = true)) {
             return FormatSRT().parseFile(fileName, newInputStream)
@@ -263,8 +257,6 @@ object SubtitleLoader {
         } else if (".ttml".equals(ext, ignoreCase = true)) {
             return FormatTTML().parseFile(fileName, newInputStream)
         }
-        // BugReview #12:fallback 依次尝试 SRT/ASS/STL/TTML;每次尝试必须重新打开流,
-        // 否则第一次解析吃掉流后其余只能读到残余数据全部失败(.vtt 等扩展名即走此路径)
         val arr = arrayOf<TimedTextFileFormat>(FormatSRT(), FormatASS(), FormatSTL(), FormatTTML())
         for (oneFormat in arr) {
             try {
@@ -277,16 +269,11 @@ object SubtitleLoader {
         return null
     }
 
-    /**
-     * 每次 fallback 尝试重新生成流:先重置原始流(ByteArrayInputStream 可重置),
-     * 再经 UnicodeReader 去 BOM 后转回 InputStream。
-     */
     @Throws(IOException::class)
     private fun openBomAwareStream(`is`: InputStream, filePath: String): InputStream {
         try {
             `is`.reset()
         } catch (e: IOException) {
-            // 流不可重置时只能放弃后续 fallback
             throw e
         }
         val reader = UnicodeReader(`is`)

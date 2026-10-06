@@ -89,16 +89,13 @@ class CollectViewModel(
     val loading = MutableStateFlow(true)
     val items = MutableStateFlow<List<VodCollect>>(emptyList())
 
-    /** 收藏页栅格列数(设置页「收藏页布局」;默认 3) */
     val columns = MutableStateFlow(KV.get(HawkConfig.COLLECT_COLUMNS, 3))
 
-    /** 站点不在当前订阅的收藏源 key(收藏不落站名,可用性只能按当前订阅现判,切订阅后要重算) */
     val unavailableKeys = MutableStateFlow<Set<String>>(emptySet())
 
     init {
         EventBus.getDefault().register(this)
         refresh()
-        // 站点可用性要等配置就绪才有意义:换订阅后的重算挂在这里,挂 TYPE_API_URL_CHANGE 时新配置还没解析
         viewModelScope.launch {
             AppBootstrap.state.collect { boot ->
                 if (boot is AppBootstrap.Boot.Ready) {
@@ -127,13 +124,11 @@ class CollectViewModel(
         }
     }
 
-    /** 配置未就绪时 getSource 全为空,此刻判定会把所有收藏误标成不可用 —— 直接跳过,等 Ready 再算 */
     private fun recomputeUnavailableNow() {
         if (AppBootstrap.state.value !is AppBootstrap.Boot.Ready) return
         unavailableKeys.value = computeUnavailable(items.value)
     }
 
-    /** 订阅已不在列表、或当前订阅里站点没了,都算打不开(其他订阅的收藏要先切回去才知道) */
     private fun computeUnavailable(list: List<VodCollect>): Set<String> {
         val current = collect.currentCid()
         val known = SubscribeList.vodUrls()
@@ -167,7 +162,6 @@ class CollectViewModel(
         }
     }
 
-  
     fun deleteAll() {
         viewModelScope.launch(Dispatchers.IO) {
             collect.deleteVodCollectAll()
@@ -182,7 +176,6 @@ fun CollectPage(
     vm: CollectViewModel = viewModel(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-    // 页面保持全出血(背景延伸到导航栏之下,玻璃才有内容可取),只把内容让开
     val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
     val navBottom = contentPadding.calculateBottomPadding()
     val context = LocalContext.current
@@ -417,10 +410,6 @@ private fun CollectCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    // 标题移到**海报正下方居中**,字体/字重与首页一致:
-    // 首页 HomeGridLayout 用的是 VodCard(style = VodCardStyle.Stacked),其标题为
-    // titleSmall + onSurface + 居中 + padding(top = 6.dp) —— 这里逐项对齐。
-    // 原先标题叠在海报上并配一层底部渐变做可读性底衬;标题移出后那层渐变已无作用,一并去掉。
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -469,7 +458,6 @@ private fun CollectCard(
 
 private const val SWITCH_SUBSCRIBE_TIMEOUT_MS = 20_000L
 
-/** 收藏属于别的订阅:切回原订阅、等配置就绪再进详情;订阅已失效则退回按片名搜索 */
 private suspend fun reopenViaSubscription(context: Context, item: VodCollect) {
     Toast.makeText(context, context.getString(R.string.detail_switching_source), Toast.LENGTH_SHORT).show()
     AppBootstrap.switchVodSubscription(item.cid.orEmpty())

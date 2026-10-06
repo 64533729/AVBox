@@ -35,15 +35,10 @@ class LivePlayerManager {
         }
     }
 
-    /**
-     * BugReview:异步回调(如代理配置加载)可能在 mVideoView 已释放(init 未执行)时触达播放链路,
-     * currentPlayerConfig 此时为 null;统一回落到 defaultPlayerConfig,杜绝 NPE(2026-09-10 22:34 崩溃)
-     */
     private fun currentOrDefaultConfig(): JSONObject {
         return currentPlayerConfig ?: defaultPlayerConfig
     }
 
-    /** 直播「播放解码」档位下标:0=硬解 1=软解(取值"直播配置 → 缺省全局 EXO_DECODE") */
     val livePlayerType: Int
         get() {
             val decode = currentOrDefaultConfig().optString("exo", KV.get(HawkConfig.EXO_DECODE, "硬解码")) // i18n: keep

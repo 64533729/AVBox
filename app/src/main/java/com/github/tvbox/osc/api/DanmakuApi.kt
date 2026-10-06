@@ -59,14 +59,12 @@ class DanmakuApi {
 
     companion object {
 
-        /** 资源文案:Application 的 base 只在进程启动时挂一次,切语言后直接用 app.getString 会停在旧语言 */
         private fun str(resId: Int, vararg args: Any?): String {
             val app = App.getInstance()
             return if (app == null) "" else LanguageManager.localized(app).getString(resId, *args)
         }
 
         private val TAG = DanmakuApi::class.java.simpleName
-//    private static final String BUILTIN_API = "https://saas-oa.shyeguang.cn";
         private const val BUILTIN_API = "https://logvardanmu.konfan.cn/87654321"
         private const val USE_DEFAULT_KEY = "danmu_api_use_default"
         private val BUILTIN_TIMEOUT = TimeUnit.SECONDS.toMillis(20)
@@ -76,7 +74,6 @@ class DanmakuApi {
         private val handler = Handler(Looper.getMainLooper())
         private val searchSeq = AtomicInteger()
 
-        /** 站点可标 `danmaku:0` 关掉本站的自动搜弹幕;手动搜索不受此限 */
         @JvmStatic
         fun canSearch(sourceBean: SourceBean?): Boolean {
             if (sourceBean != null && !sourceBean.isDanmakuEnabled()) return false
@@ -103,12 +100,10 @@ class DanmakuApi {
         @JvmStatic
         fun search(name: String?, episode: String?, callback: SearchCallback?) {
             val apiUrl = getApiUrl()
-//        LOG.i("echo-danmaku search apiUrl: " + apiUrl);
             if (TextUtils.isEmpty(apiUrl) || callback == null) return
             try {
                 OkHttp.cancel(TAG)
                 val seq = searchSeq.incrementAndGet()
-//            LOG.i("echo-danmaku search title: " + safeLog(name) + ", episode: " + safeLog(episode));
                 if (!hasPlaceholder(apiUrl) && !isDanmakuSearchApi(apiUrl)) {
                     searchBuiltin(apiUrl, name, episode, callback, 0, seq)
                     return
@@ -254,7 +249,6 @@ class DanmakuApi {
             val episodeQuery = getEpisodeQuery(simpleEpisode, queryMode)
             val searchUrl = baseUrl + "/api/v2/search/episodes?anime=" + encode(simpleName) +
                     (if (TextUtils.isEmpty(episodeQuery)) "" else "&episode=" + encode(episodeQuery))
-//        LOG.i("echo-danmaku builtin search episodes: " + searchUrl + ", retry=" + retry + ", mode=" + queryMode);
             OkHttp.newCall(OkHttp.client(BUILTIN_TIMEOUT), searchUrl, TAG).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     if (!isCurrentSearch(seq)) return
@@ -298,7 +292,6 @@ class DanmakuApi {
         private fun tryNextEpisodeQuery(apiUrl: String, name: String?, episode: String?, callback: SearchCallback?, seq: Int, queryMode: Int): Boolean {
             val nextMode = getNextEpisodeQueryMode(Trans.t2s(episode ?: "") ?: "", queryMode)
             if (nextMode < 0) return false
-//        LOG.i("echo-danmaku builtin retry episodes query mode: " + queryMode + " -> " + nextMode);
             searchBuiltin(apiUrl, name, episode, callback, 0, seq, nextMode)
             return true
         }
@@ -333,7 +326,6 @@ class DanmakuApi {
 
         private fun loadBuiltinBangumi(baseUrl: String, animeId: String, episode: String, callback: SearchCallback?, seq: Int) {
             val bangumiUrl = baseUrl + "/api/v2/bangumi/" + animeId
-//        LOG.i("echo-danmaku builtin bangumi: " + bangumiUrl);
             OkHttp.newCall(OkHttp.client(BUILTIN_TIMEOUT), bangumiUrl, TAG).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     if (!isCurrentSearch(seq)) return
@@ -349,7 +341,6 @@ class DanmakuApi {
                         if (episodeMatch != null && !TextUtils.isEmpty(episodeMatch.id)) {
                             loadBuiltinComment(baseUrl, "", episode, episodeMatch, callback, seq)
                         } else {
-//                        LOG.i("echo-danmaku builtin bangumi episode not matched, episode: " + safeLog(episode));
                             notifyNotFound(callback, seq)
                         }
                     } catch (th: Throwable) {
@@ -418,13 +409,11 @@ class DanmakuApi {
             return OkHttp.newCall(apiUrl, OkHttp.toBody(params), TAG)
         }
 
-        /** 占位符替换前必须编码:剧名里的 & 会被当成额外参数、# 之后整段变 fragment */
         @JvmStatic
         fun fillPlaceholders(apiUrl: String, name: String, episode: String): String {
             return apiUrl.replace("{name}", encodePlaceholder(name)).replace("{episode}", encodePlaceholder(episode))
         }
 
-        /** 占位符可能落在 path 上:空格编成 %20(+ 在 path 里是字面量;在 query 里两种写法都表示空格) */
         private fun encodePlaceholder(text: String): String {
             return encode(text).replace("+", "%20")
         }

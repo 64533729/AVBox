@@ -5,10 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * [isFolderCard] 单测:判错的后果是"点目录条目进详情页却永远空"(列目录要 `t=<id>&filter=true`,
- * 详情页发 `ids=<id>`),而搜索链路三个入口全靠它决定是否下钻。
- */
 class VodCardActionTest {
 
     private fun video(tag: String?): Movie.Video {

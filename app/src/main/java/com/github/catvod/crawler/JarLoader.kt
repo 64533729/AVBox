@@ -102,7 +102,6 @@ class JarLoader {
         }
     }
 
-    // init 异常不阻塞加载:是否放行由 jar 自己的闸门决定,宿主侧不做识别
     private fun invokeInit(loader: DexClassLoader) {
         try {
             val clz = loader.loadClass("com.github.catvod.spider.Init")
@@ -206,8 +205,6 @@ class JarLoader {
             return cached
         }
 
-        // BugReview #18:per-key 锁消除 check-then-act 竞态(主线程/搜索线程池/代理线程
-        // 并发时重复初始化并互相覆盖,被覆盖的实例无人 destroy)。双检 + 锁内重检。
         val lock = locks.computeIfAbsent(spKey) { Any() }
         synchronized(lock) {
             val cachedAgain = spiders[spKey]
@@ -289,8 +286,6 @@ class JarLoader {
     private fun proxyInvoke(method: Method?, params: Map<String, String>?): Array<Any?>? {
         if (method == null) return null
         try {
-            // jar 会把残余 params 当 HTTP header 透传给直链请求;siteKey 是本端路由专用参数
-            // (jar 自身不读), 中文值(如"虎斑")会被 okhttp 以 Unexpected char 拒绝并冒泡成 500
             val args = if (params == null) null else HashMap(params)
             args?.remove("siteKey")
             return method.invoke(null, args) as Array<Any?>?

@@ -10,17 +10,6 @@ import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
 import org.json.JSONObject
 
-/**
- * 站点取数门面:对外只暴露通道 + 入口方法,取数实现按职责分在同包 Loader 里。
- *
- * <p>门面自己只保留跨 Loader 共享的东西:7 个结果通道;homeContent/extend 缓存归
- * [SourceRuntimeState],换源清理因此仍有唯一出口(线程池仍在 [SourceHelper])。
- *
- * <p>7 个通道已由裸 `MutableLiveData` 换成 [SourceChannel]:消费侧(Kotlin 页面 VM)收 Flow,
- * 播放层(Java)在 M7 迁移前走通道的 LiveData 兼容面。
- *
- * @author pj567
- */
 class SourceViewModel : ViewModel() {
 
     @JvmField
@@ -41,7 +30,6 @@ class SourceViewModel : ViewModel() {
     @JvmField
     val playResult = SourceChannel<JSONObject?>()
 
-    /** 下一集预解析专用通道（预载方案,与 playResult 独立 seq 防串扰,规格 §5.2） */
     @JvmField
     val preloadResult = SourceChannel<JSONObject?>()
 
@@ -74,9 +62,6 @@ class SourceViewModel : ViewModel() {
         detailLoader.getDetail(sourceKey, urlid, fallback)
     }
 
-    /**
-     * V4:详情回包带代次(原"换实例"隔离迟到回包的替代)。`requestToken=null` 表示不判代次(老调用点)。
-     */
     fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean, requestToken: Int?) {
         detailLoader.getDetail(sourceKey, urlid, fallback, requestToken)
     }
@@ -115,7 +100,6 @@ class SourceViewModel : ViewModel() {
         playLoader.getPlay(sourceKey, playFlag, progressKey, url, subtitleKey)
     }
 
-    /** 下一集预解析（预载方案）:结果走 preloadResult 通道,seq 独立于真实播放请求,互不作废 */
     fun getPlayForPreload(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {
         playLoader.getPlayForPreload(sourceKey, playFlag, progressKey, url, subtitleKey)
     }
@@ -124,7 +108,6 @@ class SourceViewModel : ViewModel() {
         playLoader.cancelPlayRequest()
     }
 
-    /** 磁力链接交给迅雷解析改写,结果回投 detailResult */
     fun checkThunder(data: AbsXml, index: Int) {
         pushDetailResolver.checkThunder(data, index)
     }

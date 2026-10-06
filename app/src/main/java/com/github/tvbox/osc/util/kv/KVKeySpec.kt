@@ -15,7 +15,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
     }
 
     companion object {
-        /** 动态键族前缀(键名带变量后缀,无法逐键登记) */
         @JvmField
         val JS_RUNTIME_PREFIX = "jsRuntime_"
         @JvmField
@@ -23,10 +22,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
 
         private val TYPES: MutableMap<String, Type> = HashMap()
 
-        /**
-         * 动态键族的类型:`live_group_index[_<直播源地址>]` → int;`jsRuntime_*` / `cache_*` → String。
-         * 这些键名带变量后缀,无法逐键登记,只能按前缀归类。
-         */
         @JvmStatic
         fun typeOfDynamic(key: String): Type? {
             if (key.startsWith(HawkConfig.LIVE_GROUP_INDEX)) return TYPES[HawkConfig.LIVE_GROUP_INDEX]
@@ -34,7 +29,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             return null
         }
 
-        /** 静态登记的键数量(自检用) */
         @JvmStatic
         fun registeredCount(): Int {
             return TYPES.size
@@ -49,7 +43,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
         }
 
         init {
-            // ---- String ----
             register(HawkConfig.API_URL, "")
             register(HawkConfig.EPG_URL, "")
             register(HawkConfig.API_LINE_SOURCE, "")
@@ -62,19 +55,15 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             register(HawkConfig.REMOTE_TVBOX, "")
             register(HawkConfig.DANMU_API, "")
             register(HawkConfig.THEME_PALETTE_STYLE, "")
-            // 画质参数(调色)预置名(PicturePreset 枚举名)
             register(HawkConfig.PICTURE_PRESET, "")
             register(HawkConfig.ANIME4K_TIER, "")
-            // Anime4K 链末锐化强度(0~1,默认见 Anime4kSettings.DEFAULT_SHARPEN)
             register(HawkConfig.ANIME4K_SHARPEN, 1.0f)
             register(HawkConfig.ANIME4K_DEBLUR, false)
             register(HawkConfig.HOME_HOT, "")
             register(HawkConfig.HOME_HOT_DAY, "")
-            // 迅雷伪造设备标识(2026-09-15 由独立 SP `rand_thunder_id` 迁入;调用侧带 "" 默认值,登记用于类型自检)
             register(HawkConfig.THUNDER_IMEI, "")
             register(HawkConfig.THUNDER_MAC, "")
 
-            // ---- int ----
             register(HawkConfig.PLAY_TYPE, 0)
             register(HawkConfig.PLAY_RENDER, 0)
             register(HawkConfig.PLAY_SCALE, 0)
@@ -100,7 +89,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             register(HawkConfig.LIQUID_GLASS_DISTORTION, 0)
             register(HawkConfig.COLLECT_COLUMNS, 0)
 
-            // ---- boolean ----
             register(HawkConfig.PLAYER_IS_LIVE, false)
             register(HawkConfig.LIVE_CHANNEL_REVERSE, false)
             register(HawkConfig.LIVE_CROSS_GROUP, false)
@@ -128,7 +116,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             register(HawkConfig.LIQUID_GLASS_DISPERSION, false)
             register(HawkConfig.THEME_PURE_BLACK, false)
 
-            // ---- float ----
             register(HawkConfig.LIQUID_GLASS_BLUR, 0f)
             register(HawkConfig.LIQUID_GLASS_DISTORTION, 0f)
             register(HawkConfig.LIQUID_GLASS_TRANSLUCENCY, 0f)
@@ -136,7 +123,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             register(HawkConfig.DANMU_ALPHA, 0f)
             register(HawkConfig.DANMU_SIZE_SCALE, 0f)
             register(HawkConfig.SUBTITLE_EXO_POSITION, 0f)
-            // 画质参数(调色):预置名 + 8 项滑条值
             register(HawkConfig.PICTURE_SATURATION, 0f)
             register(HawkConfig.PICTURE_CONTRAST, 0f)
             register(HawkConfig.PICTURE_BRIGHTNESS, 0f)
@@ -146,7 +132,6 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             register(HawkConfig.PICTURE_SHARPNESS, 0f)
             register(HawkConfig.PICTURE_SHADOW_LIFT, 0f)
 
-            // ---- 集合(元素类型必须显式声明,否则退化为 LinkedTreeMap)----
             register(HawkConfig.SEARCH_HISTORY, object : TypeToken<ArrayList<String>>() {
             })
             register(HawkConfig.API_HISTORY, object : TypeToken<ArrayList<String>>() {
@@ -155,42 +140,29 @@ class KVKeySpec : KVDecoder.TypeRegistry {
             })
             register(HawkConfig.API_LINE_LIST, object : TypeToken<ArrayList<String>>() {
             })
-            // 直播侧多仓列表:与点播同一个 "名字\t链接" 行格式,但独立键,元素类型必须同样显式登记
             register(HawkConfig.LIVE_API_LINE_LIST, object : TypeToken<ArrayList<String>>() {
             })
-            // 启动看门狗标记:boot_loading_jar 是当前加载中的 jar 地址(可能带 "直播" 前缀,故按 String 存)
             register(HawkConfig.BOOT_LOADING_JAR, "")
             register(HawkConfig.BOOT_SAFE_DISABLED, "")
-            // 风险源黑名单:元素类型必须显式登记,否则读回来退化成 LinkedTreeMap(见本文件末的教训)
             register(HawkConfig.BOOT_DISABLED_SOURCES, object : TypeToken<ArrayList<String>>() {
             })
             register(HawkConfig.BOOT_VOD_SOURCE, "")
             register(HawkConfig.BOOT_LIVE_SOURCE, "")
-            // 0L 是 Long 哨兵:尝试次数与加载时刻必须按 long 解码,否则读回来对不上类型
             register(HawkConfig.BOOT_LOADING_COUNT, 0L)
             register(HawkConfig.BOOT_LAST_ATTEMPT_AT, 0L)
             register(HawkConfig.BOOT_LOAD_START_ELAPSED, 0L)
-            // 配置管理订阅源:每项 "名字\t链接"
             register(HawkConfig.SUBSCRIBE_LIST, object : TypeToken<ArrayList<String>>() {
             })
             register(HawkConfig.LIVE_SUBSCRIBE_LIST, object : TypeToken<ArrayList<String>>() {
             })
-            // 本地源目录授权:tree uri 字符串列表
             register(HawkConfig.LOCAL_SOURCE_TREES, object : TypeToken<ArrayList<String>>() {
             })
-            // 直播分组是 Gson 节点树,不能按 List 处理
             register(HawkConfig.LIVE_GROUP_LIST, TypeToken.get(JsonArray::class.java))
 
-            // ---- 映射 ----
-            // 直播源配置的 header/ua:ApiConfig 写入的就是 HashMap<String,String>(KV.put),
-            // 这里必须登记同一类型 —— 此前登记成 String,读取侧 Gson 用 String 解析对象原文直接抛错,
-            // 又被 KV.get(key)(quiet 副本)静默吞成 null,症状=直播源配置的 UA/Referer/header 全部失效
             register(HawkConfig.LIVE_WEB_HEADER, object : TypeToken<HashMap<String, String>>() {
             })
-            // 嵌套泛型:HashMap<点播源地址, HashMap<sourceKey, "1">>,读侧必须显式 Type
             register(HawkConfig.SOURCES_FOR_SEARCH, object : TypeToken<HashMap<String, HashMap<String, String>>>() {
             })
-            // 源名快照:HashMap<sourceKey, 源显示名>,写入值实际类型必须与登记一致(教训 LIVE_WEB_HEADER)
             register(HawkConfig.SOURCE_NAME_CACHE, object : TypeToken<HashMap<String, String>>() {
             })
         }

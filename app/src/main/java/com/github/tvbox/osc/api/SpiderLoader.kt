@@ -33,13 +33,8 @@ import java.util.HashSet
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * 爬虫装载:jar / js / py 三个加载器 + jar 下载与重试链路 + 点播/直播的 spider 获取。
- * 源列表、代理分发时的"当前源"、KV 读写留在 ApiConfig。
- */
 class SpiderLoader {
 
-    /** 资源文案:Application 的 base 只在进程启动时挂一次,切语言后直接用 app.getString 会停在旧语言 */
     private fun str(resId: Int, vararg args: Any?): String {
         val app = App.getInstance()
         return if (app == null) "" else LanguageManager.localized(app).getString(resId, *args)
@@ -54,22 +49,14 @@ class SpiderLoader {
     private val warmedSearchSpiderKeys: MutableSet<String> = HashSet()
     private val userAgent = "okhttp/3.15"
 
-    /** 配置级 jar(接口 JSON 顶层 "spider") */
     var spider: String? = null
-    /** 直播配置级 jar(直播接口 JSON 顶层 "spider") */
     private var liveSpider: String = ""
-    /** 当前生效的直播 spider 地址:py/js 为接口地址,否则为 jar 地址 */
     var currentLiveSpider: String? = null
         private set
     var currentPyKey: String? = ""
     var currentLivePyKey: String? = ""
         private set
-    /** 接口 JSON 顶层 "jarCache":允许直接用一周内的 jar 缓存 */
     private var jarCache: String = "true"
-
-    // ---------- 配置注入 ----------
-
-    // setSpider/getSpider/setCurrentPyKey/getCurrentPyKey 由对应属性自身的访问器提供(Java 调用点不变)
 
     fun setLiveSpider(liveSpider: String) {
         this.liveSpider = liveSpider
@@ -78,8 +65,6 @@ class SpiderLoader {
     fun setJarCache(jarCache: String) {
         this.jarCache = jarCache
     }
-
-    // ---------- jar 下载与装载 ----------
 
     fun loadJar(useCache: Boolean, spider: String, callback: ApiConfig.LoadConfigCallback) {
         loadJar(useCache, spider, callback, 0)
@@ -95,9 +80,6 @@ class SpiderLoader {
 
     private fun loadJarAsync(file: File?, callback: JarLoadCallback) {
         jarLoadExecutor.execute(Runnable {
-            // 启动看门狗(2026-09-21):这里是所有 jar 装载的唯一收口(缓存命中与下载成功都走它),
-            // 所以只需要在这里记一次"正在加载谁"—— 爬虫在自己的线程上闪退时,我们靠这个标记
-            // 知道是哪个源把应用崩掉的(详见 BootGuard 注释里的自锁场景)。
             if (file != null) BootGuard.onJarLoadStart(file.absolutePath)
             var success = false
             try {
@@ -105,9 +87,6 @@ class SpiderLoader {
             } catch (th: Throwable) {
                 LOG.e("echo---jar Loader threw exception: " + th.message)
             }
-            // 装载成功**不**清计数(2026-09-21):爬虫的 <clinit> 跑在自己的线程上,
-            // 这里报成功之后 28ms 它才崩 —— 早清等于擦掉唯一证据。改由 BootGuard
-            // 在"连续存活满 STABLE_RUN_MS(10 分钟)"后清(那时才真的算稳定源)。
             if (success) BootGuard.scheduleStableRunReset()
             val result = success
             mainHandler.post(Runnable {
@@ -310,8 +289,6 @@ class SpiderLoader {
         })
     }
 
-    // ---------- spider 获取(点播) ----------
-
     fun getCSP(sourceBean: SourceBean): Spider {
         if (sourceBean.api!!.endsWith(".js") || sourceBean.api!!.contains(".js?")) {
             currentPyKey = ""
@@ -326,16 +303,11 @@ class SpiderLoader {
         }
     }
 
-    /** 按 key 装载 py spider(代理分发时按"当前源"重新装载) */
     fun pySpider(key: String?, api: String?, ext: String?): Spider {
         val result = pyLoader.getSpider(key!!, api, ext)
         pyLoader.setRecentPyKey(key)
         return result
     }
-
-    // getCurrentPyKey/setCurrentPyKey 由 currentPyKey 属性自身的访问器提供
-
-    // ---------- spider 获取(直播) ----------
 
     fun setLiveJar(liveJar: String) {
         if (liveJar.contains(".py")) {
@@ -366,7 +338,6 @@ class SpiderLoader {
         return if (url.contains(".js")) getJsCSP(url) else getPyCSP(url)
     }
 
-    /** 直播接口(type=3)的 spider 装载:py/js 走接口地址,否则按 jar 地址装载 */
     fun loadLiveSpider(api: String, jarUrl: String, livesOBJ: JsonObject) {
         LOG.i("echo-liveApi1" + api)
         if (api.contains(".py")) {
@@ -401,24 +372,16 @@ class SpiderLoader {
         return DefaultConfig.safeJsonString(livesOBJ, "ext", "")
     }
 
-    /** 进入新一轮直播配置解析时清空"当前生效"标记 */
     fun resetCurrentLiveSpider() {
         currentLiveSpider = ""
         currentLivePyKey = ""
     }
 
-    // getCurrentLiveSpider/getCurrentLivePyKey 由上面属性自身的访问器提供
-
-    // ---------- 预热 ----------
-
-    /** 登记"已预热";返回 false 表示这次之前已经登记过(调用方跳过) */
     fun markWarmed(warmKey: String): Boolean {
         synchronized(warmedSearchSpiderKeys) {
             return warmedSearchSpiderKeys.add(warmKey)
         }
     }
-
-    // ---------- 代理与扩展 ----------
 
     fun proxyInvokeJar(param: Map<String, String>): Array<Any?>? {
         return jarLoader.proxyInvoke(param)
@@ -455,8 +418,6 @@ class SpiderLoader {
         return jarLoader.hasDanmuSearchUi()
     }
 
-    // ---------- 清理 ----------
-
     fun clearJarLoader() {
         jarLoader.clear()
     }
@@ -480,7 +441,6 @@ class SpiderLoader {
     companion object {
         private const val LOAD_JAR_MAX_RETRY = 1
 
-        /** 关闭失败即忽略;ApiConfig 拉配置时复用同一份实现 */
         @JvmStatic
         fun closeQuietly(closeable: Closeable?) {
             try {

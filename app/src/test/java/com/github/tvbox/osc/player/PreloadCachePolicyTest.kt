@@ -4,7 +4,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** PreloadCachePolicy 单测:锁住预解析直链缓存的有效期/容量口径(含边界值) */
 class PreloadCachePolicyTest {
 
     @Test

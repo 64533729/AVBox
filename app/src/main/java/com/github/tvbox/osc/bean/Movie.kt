@@ -7,10 +7,6 @@ import com.thoughtworks.xstream.annotations.XStreamImplicit
 import com.thoughtworks.xstream.converters.extended.ToAttributedValueConverter
 import java.io.Serializable
 
-/**
- * @author pj567
- * @date :2020/12/18
- */
 @XStreamAlias("list")
 class Movie : Serializable {
     @JvmField
@@ -31,47 +27,38 @@ class Movie : Serializable {
 
     @XStreamAlias("video")
     class Video : Serializable {
-        /** 时间 */
         @JvmField
         @XStreamAlias("last")
         var last: String? = null
 
-        /** 内容id */
         @JvmField
         @XStreamAlias("id")
         var id: String? = null
 
-        /** 父级id */
         @JvmField
         @XStreamAlias("tid")
         var tid: Int = 0
 
-        /** 影片名称 <![CDATA[老爸当家]]> */
         @JvmField
         @XStreamAlias("name")
         var name: String? = null
 
-        /** 类型名称 */
         @JvmField
         @XStreamAlias("type")
         var type: String? = null
 
-        /** 图片 */
         @JvmField
         @XStreamAlias("pic")
         var pic: String? = null
 
-        /** 语言 */
         @JvmField
         @XStreamAlias("lang")
         var lang: String? = null
 
-        /** 地区 */
         @JvmField
         @XStreamAlias("area")
         var area: String? = null
 
-        /** 年份 */
         @JvmField
         @XStreamAlias("year")
         var year: Int = 0
@@ -80,17 +67,14 @@ class Movie : Serializable {
         @XStreamAlias("state")
         var state: String? = null
 
-        /** 描述集数或者影片信息<![CDATA[共40集]]> */
         @JvmField
         @XStreamAlias("note")
         var note: String? = null
 
-        /** 演员<![CDATA[张国立,蒋欣,高鑫,曹艳艳,王维维,韩丹彤,孟秀,王新]]> */
         @JvmField
         @XStreamAlias("actor")
         var actor: String? = null
 
-        /** 导演<![CDATA[陈国星]]> */
         @JvmField
         @XStreamAlias("director")
         var director: String? = null
@@ -99,7 +83,6 @@ class Movie : Serializable {
         @XStreamAlias("dl")
         var urlBean: UrlBean? = null
 
-        /** <![CDATA[权来] */
         @JvmField
         @XStreamAlias("des")
         var des: String? = null
@@ -124,12 +107,10 @@ class Movie : Serializable {
             @XStreamAlias("dd")
             @XStreamConverter(value = ToAttributedValueConverter::class, strings = ["urls"])
             class UrlInfo : Serializable {
-                /** zuidam3u8,zuidall(MP4) */
                 @JvmField
                 @XStreamAsAttribute
                 var flag: String? = null
 
-                /** <![CDATA[第01集$http://...]]> */
                 @JvmField
                 var urls: String? = null
 

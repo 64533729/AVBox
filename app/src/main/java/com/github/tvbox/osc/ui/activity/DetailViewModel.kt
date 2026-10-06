@@ -43,7 +43,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 class DetailViewModel : ViewModel() {
 
-    /** 资源文案:ViewModel 无 Context,走 LanguageManager(Application 的 base 切语言不会重挂) */
     private fun str(resId: Int, vararg args: Any): String {
         val app = App.getInstance() ?: return ""
         return LanguageManager.localized(app).getString(resId, *args)
@@ -72,11 +71,6 @@ class DetailViewModel : ViewModel() {
     val toastEvent = MutableStateFlow<String?>(null)
     val finishEvent = MutableStateFlow(false)
 
-    /**
-     * 播放层下行指令(V2 起 VM 不再持 `PlayContainer` 引用)。用带缓冲的 Channel 而非 SharedFlow:
-     * `initFromIntent` 里的首条 `applyTarget` 早于 `setContent`,缓冲才不丢且保持旧直调顺序。
-     * 单消费者,勿加第二个;`StopForSourceSwitch` 无自守卫(安全性来自"发出点必是用户点击换源")。
-     */
     private val playbackCommandChannel = Channel<PlaybackCommand>(Channel.BUFFERED)
     val playbackCommands: Flow<PlaybackCommand> = playbackCommandChannel.receiveAsFlow()
 
@@ -98,11 +92,6 @@ class DetailViewModel : ViewModel() {
     private var searchJob: Job? = null
     private var detailBuildToken = 0
 
-    /**
-     * 详情请求代次(V4),替代原「换 `SourceViewModel` 实例」的迟到回包隔离:每次发起新的内容请求
-     * (换片/换源/重试)自增并随请求下传,回包代次不符即丢。**fallback 换站不自增** ——
-     * 同一代内的候选站谁先回都算当前。
-     */
     private var detailRequestToken = 0
 
     private val fallbackCandidates = ArrayList<Movie.Video>()
@@ -136,7 +125,6 @@ class DetailViewModel : ViewModel() {
 
     init {
         EventBus.getDefault().register(this)
-        // 单实例 + 代次(D2/V4):不再换 SourceViewModel 实例,迟到回包由回包自带的代次丢弃
         viewModelScope.launch {
             sourceViewModel.detailResult.flow.collect { data ->
                 if (DetailResponseGuard.isCurrent(detailRequestToken, data?.detailToken)) onDetailResult(data)
@@ -151,14 +139,12 @@ class DetailViewModel : ViewModel() {
         applyTarget(target)
     }
 
-    /** 复用实例进入新片(详情页推荐卡片):入栈并加载;重复点同一部不重载 */
     fun pushTargetFromIntent(intent: Intent?) {
         val target = parseTarget(intent) ?: return
         if (!navStack.push(target)) return
         applyTarget(target)
     }
 
-    /** 返回上一部;栈上限为单部时恒为 false,调用方据此走退出页面 */
     fun backToPreviousTarget(): Boolean {
         val previous = navStack.pop() ?: return false
         applyTarget(previous)
@@ -189,7 +175,6 @@ class DetailViewModel : ViewModel() {
         if (vodName.isNotEmpty()) startSourceSearch()
     }
 
-    /** 换片时收掉上一部在途的聚合搜索,并让旧 token 立即失效(搜索回包仍靠 token 失配兜底) */
     private fun cancelInFlightContent() {
         searchJob?.cancel()
         searchJob = null
@@ -199,7 +184,6 @@ class DetailViewModel : ViewModel() {
         searchToken = SEARCH_SEQ.incrementAndGet()
     }
 
-    /** 内容级状态随片走:不清会串味(推荐位/换源候选/清晰度/换源快照都属上一部) */
     private fun resetContentState() {
         vodInfo = null
         previewVodInfo = null
@@ -209,7 +193,6 @@ class DetailViewModel : ViewModel() {
         manualLineSwitchPending = false
         collected.value = false
         relatedVideos.value = emptyList()
-        // 旧协程被取消后不会回写,不清会永远停在"搜索中"
         sourcesSearching.value = false
         qualityOptions.value = emptyList()
         qualitySelected.value = 0
@@ -223,7 +206,6 @@ class DetailViewModel : ViewModel() {
         resetEngineState(keepChips = false)
     }
 
-    /** 进/退全屏。事实当帧由 UI 传入(见 `DetailPlaybackFacts`);退全屏也走这里:`rotating` 要按目标方向重算 */
     fun onFullScreenToggleRequested(requested: Boolean, facts: DetailPlaybackFacts) {
         if (requested) {
             val reason = DetailFullScreenGate.refusalReason(
@@ -255,7 +237,6 @@ class DetailViewModel : ViewModel() {
         return pending
     }
 
-    /** 面板开合同时投影给播放底栏(冻结自动收起,见 `PlayerUiState.overlayPanelOpen`) */
     fun showEpisodeSheet() {
         episodeSheet.value = true
         sendCommand(PlaybackCommand.SetEpisodeSheetOpen(true))
@@ -275,8 +256,6 @@ class DetailViewModel : ViewModel() {
     }
 
     private fun loadDetail(vid: String, key: String) {
-        // 代次必须在任何早退之前开新的一代:否则"源不在订阅/id 不可播"这类换片只改了内容没换代,
-        // 上一代的迟到回包会被守卫判成"当前",把旧片顶到新页上(V4 审查轮抓到的回归)
         val requestToken = nextDetailRequestToken()
         vodId = vid.orEmpty()
         sourceKey = key.orEmpty()
@@ -291,10 +270,6 @@ class DetailViewModel : ViewModel() {
         sourceViewModel.getDetail(sourceKey, vodId, false, requestToken)
     }
 
-    /**
-     * 开新的一代并返回它。只有"发起新的内容请求"才自增:换片、换源、重试(含 [loadDetail] 的早退分支);
-     * fallback 候选站(见 [loadDetailInternal])沿用当前代次。
-     */
     private fun nextDetailRequestToken(): Int = ++detailRequestToken
 
     fun retry() {
@@ -309,7 +284,6 @@ class DetailViewModel : ViewModel() {
             loadNextFallbackCandidate()
             return
         }
-        // 兜底候选只能来自聚合搜索,而它排在 loadDetail 之后启动:不先补这一下,"无候选即收尾"会把自动接管清掉
         if (vodName.isNotEmpty() && !sourcesSearching.value) startSourceSearch()
         if (!startFallbackIfNeeded(auto = true)) {
             if (!rollbackManualSwitch()) enterEmpty()
@@ -350,7 +324,6 @@ class DetailViewModel : ViewModel() {
             info.sourceKey = mVideo.sourceKey
             sourceKey = mVideo.sourceKey ?: sourceKey
 
-            // 无痕:旧记录连读都不读 —— 它只剩"看到第几集/哪条线路/该片播放配置"这些痕迹,读了等于没隐身
             val recordKey = sourceKey
             val recordId = vodId
             viewModelScope.launch {
@@ -409,7 +382,6 @@ class DetailViewModel : ViewModel() {
 
     private fun handleEmptyDetail(data: AbsXml?) {
         val msg = data?.msg.orEmpty()
-        // 空详情一律留页(空态带换源列表),只有源侧真的报错才提示并退出 —— 源抖动不该表现为"闪退"
         if (isSourceErrorMsg(msg)) {
             if (rollbackManualSwitch(msg)) return
             if (fallbackToPreviousTarget(msg)) return
@@ -427,7 +399,6 @@ class DetailViewModel : ViewModel() {
         }
     }
 
-    /** 这一部彻底取不到而栈里还有上一部:退回去并保留报错提示,别把整页关掉 */
     private fun fallbackToPreviousTarget(reason: String?): Boolean {
         val previous = navStack.pop() ?: return false
         applyTarget(previous)
@@ -547,9 +518,6 @@ class DetailViewModel : ViewModel() {
         val snapshot = switchSnapshot ?: return false
         if (snapshot.vodInfo.seriesMap?.get(snapshot.vodInfo.playFlag).isNullOrEmpty()) return false
         switchSnapshot = null
-        // 换代次:内容标识从"被弃源"换回"上一部",被弃源的在途回包必须就此作废。
-        // 今天即使不换也拦得住(回包 sourceKey 是被弃源,而这里刚恢复成上一部的 key,第 322 行会拦),
-        // 但那是"靠两个字段恰好不相等"的巧合 —— 内容改写就得换代,与 loadDetail 同一条协议。
         nextDetailRequestToken()
         vodInfo = snapshot.vodInfo
         vodId = snapshot.vodId
@@ -580,7 +548,6 @@ class DetailViewModel : ViewModel() {
 
     private fun startFallbackIfNeeded(auto: Boolean, fromLinesExhausted: Boolean = false): Boolean {
         val currentSource = ApiConfig.get().getSource(sourceKey)
-        // 站点不在当前订阅(切源后残留的历史/收藏条目)时没有"当前源"可换,但同名片仍能靠聚合搜索接管
         if (currentSource != null && !currentSource.isChangeable()) return false
         if (fallbackActive) return true
         val title = (if (vodInfo?.name.isNullOrEmpty()) vodName else vodInfo?.name).orEmpty().trim()
@@ -611,7 +578,6 @@ class DetailViewModel : ViewModel() {
             vodPicture = video.pic ?: vodPicture
             publishSourceChips()
             scheduleDetailTimeout()
-            // 传 field 而不是捕获一次:候选站与发起请求同属一代(这一代由 loadDetail 或 rollback 定下)
             loadDetailInternal(video.id.orEmpty(), video.sourceKey.orEmpty(), detailRequestToken)
             return
         }
@@ -619,12 +585,6 @@ class DetailViewModel : ViewModel() {
         if (!sourcesSearching.value) finishFallbackWithoutResult()
     }
 
-    /**
-     * fallback 换候选站:沿用**当前这一代**(同一代内多个候选,谁先回都算当前)。
-     *
-     * token 由调用方显式传入而不是在这里读字段:若将来有人在这中间插入换代(例如把 rollback 也接进 fallback),
-     * 读字段会把"发起时那一代"悄悄改掉,而显式传参会在编译期逼调用方表态。
-     */
     private fun loadDetailInternal(vid: String, key: String, requestToken: Int) {
         vodId = vid
         sourceKey = key
@@ -796,7 +756,6 @@ class DetailViewModel : ViewModel() {
         qualitySelected.value = 0
     }
 
-    /** 已选中项再点 = 进全屏;换一项则下发指令,选中态等容器确认回写(能否切取决于控制器清晰度表) */
     fun onQualityClick(position: Int, facts: DetailPlaybackFacts) {
         if (position == qualitySelected.value) {
             onFullScreenToggleRequested(true, facts)
@@ -805,12 +764,10 @@ class DetailViewModel : ViewModel() {
         sendCommand(PlaybackCommand.SelectQuality(position))
     }
 
-    /** 容器侧确认清晰度切换已受理:选中态落地的时刻(旧实现读 `selectQuality` 的同步返回值) */
     fun onQualitySelectionAccepted(position: Int) {
         qualitySelected.value = position
     }
 
-    /** 通道不 close():`close()` 会让仍在收集的页面拿 `ClosedReceiveChannelException`,而"组合先销毁"只是时序巧合 */
     private fun sendCommand(command: PlaybackCommand) {
         playbackCommandChannel.trySend(command)
     }
@@ -840,7 +797,6 @@ class DetailViewModel : ViewModel() {
         }
     }
 
-    /** 播放器真的播起来才落库;校验在播内容与本页一致(含集/线路:音乐页接管后改的是同一份 session) */
     private fun onPlaybackStarted() {
         val info = vodInfo ?: return
         val playing = App.getInstance()!!.getVodInfo() ?: return
@@ -851,7 +807,6 @@ class DetailViewModel : ViewModel() {
 
     private fun syncPlayingVodInfo(playing: VodInfo) {
         val info = vodInfo ?: return
-        // EventBus 是全局的:换片后旧片内核的迟到广播同样会打进来,内容对不上就丢
         if (playing.id != info.id || playing.sourceKey != info.sourceKey) return
         val newFlag = playing.playFlag
         if (newFlag.isNullOrEmpty() || info.seriesMap?.containsKey(newFlag) != true) return
@@ -866,7 +821,6 @@ class DetailViewModel : ViewModel() {
         info.seriesFlags.orEmpty().forEach { it.selected = it.name == newFlag }
         info.seriesMap?.values?.forEach { list -> list.forEach { it.selected = false } }
         newList[newIndex].selected = true
-        // "真看过"落库要过观看门槛,短看即退会让库里的集号停在上一集(卡片与续播都跟着错),故同步集号即落库
         insertVod()
         bumpRevision()
         LOG.i("echo-detail sync -> $newFlag/$newIndex")
@@ -875,12 +829,10 @@ class DetailViewModel : ViewModel() {
     private fun insertVod() {
         val info = vodInfo ?: return
         refreshPlayNote(info)
-        // 集数快照随"真看过"落库:只浏览详情页不再写,历史卡片才不会出现没看过的片
         EpisodeTotals.putFromVod(info)
         HistoryWriter.write(firstsourceKey, info)
     }
 
-    /** 集名要随会话进播放器(字幕搜索默认词读它),不能只在落库时才刷 */
     private fun refreshPlayNote(info: VodInfo) {
         try {
             info.playNote = info.seriesMap?.get(info.playFlag)?.get(info.playIndex)?.name ?: ""
@@ -977,7 +929,6 @@ class DetailViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        // 收集器不手工摘:onCleared 返回后框架才取消 viewModelScope,收集协程随之结束
         EventBus.getDefault().unregister(this)
         destroyEngine()
         super.onCleared()

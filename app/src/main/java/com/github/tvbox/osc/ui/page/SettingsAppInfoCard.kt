@@ -34,13 +34,8 @@ private val VersionPillShape = RoundedCornerShape(24.dp)
 
 private val AppBadgeSize = 76.dp
 
-/** ic_launcher_foreground 的图形只占画布 48.5%,放大到这个倍率后图形约占徽章直径 60%(与设计稿一致) */
 private const val AppIconGlyphScale = 1.26f
 
-/**
- * 设置页顶部的应用信息卡:徽章 + App 名/标语 + 版本胶囊。
- * 内层胶囊与徽章取 surface 色而非 primaryContainer 色 —— 两者要在卡片底色上"浮起来",深浅主题下都成立。
- */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun AppInfoHeaderCard(versionName: String) {

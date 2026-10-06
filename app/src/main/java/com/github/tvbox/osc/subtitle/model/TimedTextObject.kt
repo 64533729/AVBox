@@ -38,11 +38,6 @@ import java.util.TreeMap
 
 class TimedTextObject {
 
-    /*
-     * Attributes
-     *
-     */
-    //meta info
     @JvmField
     var title: String? = ""
 
@@ -61,39 +56,27 @@ class TimedTextObject {
     @JvmField
     var language: String? = ""
 
-    //list of styles (id, reference)
     @JvmField
     var styling: Hashtable<String, Style>? = null
 
-    //list of layouts (id, reference)
     @JvmField
     var layout: Hashtable<String, Region>? = null
 
-    //list of captions (begin time, reference)
-    //represented by a tree map to maintain order
     @JvmField
     var captions: TreeMap<Int, Subtitle>? = null
 
-    //to store non fatal errors produced during parsing
     @JvmField
     var warnings: String? = null
 
-    //**** OPTIONS *****
-    //to know whether file should be saved as .ASS or .SSA
     @JvmField
     var useASSInsteadOfSSA: Boolean = true
 
-    //to delay or advance the subtitles, parsed into +/- milliseconds
     @JvmField
     var offset: Int = 0
 
-    //to know if a parsing method has been applied
     @JvmField
     var built: Boolean = false
 
-    /**
-     * Protected constructor so it can't be created from outside
-     */
     constructor() {
         styling = Hashtable<String, Style>()
         layout = Hashtable<String, Region>()
@@ -102,79 +85,37 @@ class TimedTextObject {
         warnings = "List of non fatal errors produced during parsing:\n\n"
     }
 
-    /*
-     * Writing Methods
-     *
-     */
-    /**
-     * Method to generate the .SRT file
-     *
-     * @return an array of strings where each String represents a line
-     */
     fun toSRT(): Array<String>? {
         return FormatSRT().toFile(this)
     }
 
-    /**
-     * Method to generate the .ASS file
-     *
-     * @return an array of strings where each String represents a line
-     */
     fun toASS(): Array<String>? {
         return FormatASS().toFile(this)
     }
 
-    /**
-     * Method to generate the .STL file
-     */
     fun toSTL(): ByteArray? {
         return FormatSTL().toFile(this)
     }
 
-    /**
-     * Method to generate the .SCC file
-     * @return
-     */
     fun toSCC(): Array<String>? {
         return FormatSCC().toFile(this)
     }
 
-    /**
-     * Method to generate the .XML file
-     * @return
-     */
     fun toTTML(): Array<String>? {
         return FormatTTML().toFile(this)
     }
 
-    /*
-     * PROTECTED METHODS
-     *
-     */
-
-    /**
-     * This method simply checks the style list and eliminate any style not referenced by any caption
-     * This might come useful when default styles get created and cover too much.
-     * It require a unique iteration through all captions.
-     *
-     */
     fun cleanUnusedStyles() {
-        //here all used styles will be stored
         val usedStyles = Hashtable<String, Style>()
-        //we iterate over the captions
         val itrC = captions!!.values.iterator()
         while (itrC.hasNext()) {
-            //new caption
             val current = itrC.next()
-            //if it has a style
             val style = current.style
             if (style != null) {
                 val iD = style.iD!!
-                //if we haven't saved it yet
                 if (!usedStyles.containsKey(iD)) usedStyles.put(iD, style)
             }
         }
-        //we saved the used styles
         this.styling = usedStyles
     }
 }

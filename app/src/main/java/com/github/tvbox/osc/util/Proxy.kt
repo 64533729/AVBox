@@ -33,7 +33,6 @@ object Proxy {
             } else if (what == "bom") {
                 return removeBOMFromM3U8(params)
             } else if (what == "ad") {
-                //TODO
                 return null
             } else if (what == "SuperParse") {
                 return SuperParse.loadHtml(params["flag"], params["url"])
@@ -105,14 +104,12 @@ object Proxy {
 
             val client = OkGoHelper.getItvClient()!!
             val redirectUrl = getRedirectedUrl(url)
-//                LOG.i("echo-url"+redirectUrl);
 
             val request = Request.Builder().url(redirectUrl).build()
             executeRequest(client, request).use { response ->
                 if (response.isSuccessful) {
                     assert(response.body != null)
                     var m3u8Content = response.body.string()
-                    // 检查并去除 UTF-8 BOM 头（BOM 为 \uFEFF）
                     if (m3u8Content.startsWith("\ufeff")) {
                         m3u8Content = m3u8Content.substring(1)
                     }
@@ -163,7 +160,7 @@ object Proxy {
             return client.newCall(request).execute()
         } catch (e: IOException) {
             System.err.println("网络请求异常：" + e.message) // i18n: keep(异常消息,只进日志)
-            throw e // 重新抛出异常，让外层处理
+            throw e
         }
     }
 
@@ -243,12 +240,10 @@ object Proxy {
             }
         } catch (e: Exception) {
             LOG.e("Proxy", e)
-            // 野站分片常带未编码非法字符(空格/CJK)导致 URI 解析失败:绝不能返回 null —— 字面量 null 会写进播放列表
             return fallbackUrl(u, type, params)
         }
     }
 
-    /** URI 解析失败时的兜底:绝对地址按原样编码仍走代理(保留防盗链头),其余原样返回 */
     private fun fallbackUrl(url: String, type: String, params: Map<String, String>?): String {
         if (!url.startsWith("http://") && !url.startsWith("https://")) return url
         try {
@@ -327,7 +322,7 @@ object Proxy {
     fun getRedirectedUrl(url: String): String {
         val base = OkGoHelper.getDefaultClient()
         val client = (if (base != null) base.newBuilder() else OkHttpClient.Builder().proxySelector(OkGoHelper.proxySelector()).proxyAuthenticator(OkGoHelper.proxyAuthenticator()))
-                .followRedirects(false) // 不自动跟随重定向
+                .followRedirects(false)
                 .build()
 
         val request = Request.Builder()
@@ -343,7 +338,6 @@ object Proxy {
         }
     }
 
-    /** Location 允许相对地址(RFC 7231),必须按请求 URL 解析;缺失或非法时返回 null,由调用方回落原 URL */
     @JvmStatic
     fun resolveRedirectLocation(requestUrl: HttpUrl?, location: String?): String? {
         if (requestUrl == null || location == null || location.length == 0) return null
@@ -366,7 +360,7 @@ object Proxy {
         val client = OkGoHelper.getItvClient()!!
         client.newCall(request).execute().use { response ->
             if (response.isSuccessful) {
-                return response.body.string() // 获取 m3u8 文件内容
+                return response.body.string()
             } else {
                 throw IOException("请求失败，HTTP 状态码: " + response.code) // i18n: keep(异常消息,只进日志)
             }

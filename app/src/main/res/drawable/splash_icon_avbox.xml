@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 启动画面图标静态矢量(Android 12+ splash 用):
-     图形与 ic_launcher_foreground 同源(柱阵 + 蓝色渐变),
-     但按启动图标规范放大到画布 2/3(288dp 画布 / 192dp 内容区),故不用启动器前景那套 0.8123 安全区缩放;
-     四根柱子各自独立 group(pivot 在柱底边),保留分组便于将来做生长动画;
-     当前刻意不做动画:系统在应用首帧就绪后立即撤掉启动画面,避免任何等待感 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="288dp"
     android:height="288dp"
     android:viewportWidth="1024"
     android:viewportHeight="1024">
-  <!-- 外层:整体放大 1.116(柱阵宽 612→683 = 画布 2/3)并居中到 (512,512) -->
   <group
       android:scaleX="1.116"
       android:scaleY="1.116"

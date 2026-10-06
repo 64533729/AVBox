@@ -22,30 +22,18 @@ import java.util.HashMap
 import java.util.Locale
 import java.util.TreeMap
 
-/**
- * MediaSource 构建(移植自 doikki `ExoMediaSourceHelper`):
- * content type 推断(TVBox-Format 头 > 文件名)、headers 规范化与 MediaItem 携带、
- * 磁盘缓存数据源(headers 后缀 key 防跨线路串缓存)、预载目标专用源(media3 默认 key)。
- *
- * @param context 任意上下文(构造即归一为 application)
- * @param client 注入的 OkHttpClient(DoH/hosts/代理/SSL 都在 client 上);
- *   null = 回落 `OkGoHelper.getItvClient()`(旧栈全局注入的同一 client),仍未就绪再用类持有式兜底单例
- * @param cache 显式覆盖磁盘缓存;null = 用进程级共享缓存 [PlayerCache.getSharedCache]
- */
 class MediaSources(
     context: Context,
     private var client: OkHttpClient? = null,
     private var cache: Cache? = null,
 ) {
 
-    /** 构造即归一 application 上下文(旧 helper 单例同款;避免 Activity 被 DataSource/SimpleCache 长期持有) */
     private val appContext: Context = context.applicationContext
 
     fun setOkClient(client: OkHttpClient?) {
         this.client = client
     }
 
-    /** 显式覆盖缓存实例(测试/多实例场景);默认走 [PlayerCache.getSharedCache] */
     fun setCache(cache: Cache?) {
         this.cache = cache
     }
@@ -59,17 +47,13 @@ class MediaSources(
         getMediaSource(uri, null, isCache)
 
     fun getMediaSource(uri: String, headers: Map<String, String>?, isCache: Boolean): MediaSource =
-        getMediaSource(uri, headers, isCache, /*useDefaultCacheKey=*/false, inferContentType(uri, headers))
+        getMediaSource(uri, headers, isCache, false, inferContentType(uri, headers))
 
-    /**
-     * 预载目标专用的 cache 版 MediaSource:读盘 key 用 media3 默认(=uri,不带 headers 后缀)。
-     * 预缓存写盘 key 由 media3 内部 CacheWriter 决定、注入不了本类的后缀工厂,不回落默认 key 会永远 miss。
-     */
     fun getPreloadTargetMediaSource(uri: String, headers: Map<String, String>?): MediaSource =
-        getMediaSource(uri, headers, true, /*useDefaultCacheKey=*/true, inferContentType(uri, headers))
+        getMediaSource(uri, headers, true, true, inferContentType(uri, headers))
 
     fun getHlsMediaSource(uri: String, headers: Map<String, String>?): MediaSource =
-        getMediaSource(uri, headers, false, /*useDefaultCacheKey=*/false, C.TYPE_HLS)
+        getMediaSource(uri, headers, false, false, C.TYPE_HLS)
 
     private fun getMediaSource(
         uri: String,
@@ -91,17 +75,12 @@ class MediaSources(
         return when (contentType) {
             C.TYPE_DASH -> DashMediaSource.Factory(factory).createMediaSource(mediaItem)
             C.TYPE_HLS -> HlsMediaSource.Factory(factory)
-                // 自定义错误处理策略:跳过坏的切片继续播放
                 .setLoadErrorHandlingPolicy(HlsErrorHandlingPolicy())
                 .createMediaSource(mediaItem)
             else -> ProgressiveMediaSource.Factory(factory).createMediaSource(mediaItem)
         }
     }
 
-    /**
-     * 由 headers 构建 per-item DataSource factory(headers 未落在 MediaItem 上时使用,如预缓存下载)。
-     * 不复用全局共享 factory,避免多次构建 MediaSource 时 headers 相互覆盖。
-     */
     fun createDataSourceFactory(headers: Map<String, String>?): DataSource.Factory {
         val normalized = toRequestHeaders(headers)
         var userAgent: String? = null
@@ -113,27 +92,15 @@ class MediaSources(
                 requestHeaders[entry.key] = entry.value
             }
         }
-        // client 未注入时回落 OkGoHelper 的共享 client(DoH/hosts/代理/SSL 都挂在它上面;
-        // 旧栈由 OkGoHelper.initExoOkHttpClient 全局注入,这里保持"必然有正确 client"的口径),
-        // 再回落类持有式兜底单例
         val httpFactory = OkHttpDataSource.Factory(client ?: OkGoHelper.getItvClient() ?: FallbackClient.INSTANCE)
         httpFactory.setUserAgent(userAgent)
         httpFactory.setDefaultRequestProperties(requestHeaders)
         return DefaultDataSource.Factory(appContext, httpFactory)
     }
 
-    /** 从 buildMediaItem 构建的 MediaItem 取 headers 后建 factory(播放/预载源常规入口) */
     fun createDataSourceFactory(mediaItem: MediaItem): DataSource.Factory =
         createDataSourceFactory(getHeadersFrom(mediaItem))
 
-    /**
-     * 边播缓存数据源(修复「跨线路串缓存」):
-     * media3 默认的 CacheKeyFactory 只认 dataSpec.key/uri —— 同一 URL 配不同 Referer/UA/token
-     * 的源会互相读到对方写到盘上的数据;此处改为「分片 uri + 规范化 headers」作为 key。
-     *
-     * <p>无 headers 时保持 media3 默认行为(key=uri),不改变原有命中语义;
-     * [useDefaultCacheKey]=true(预载目标)时读盘回落到 media3 默认 key(=uri)。
-     */
     private fun getCacheDataSourceFactory(
         upstream: DataSource.Factory,
         headers: Map<String, String>?,
@@ -157,26 +124,15 @@ class MediaSources(
 
         const val HEADER_FORMAT = "TVBox-Format"
 
-        /** MediaItem.requestMetadata.extras 中承载 http headers 的 key(HashMap&lt;String,String&gt;) */
         const val EXTRA_HEADERS = "avbox.extras.httpHeaders"
 
-        /**
-         * 兜底 OkHttpClient:仅在调用方未注入共享 client 时使用。
-         * 类持有式懒加载单例:天然线程安全,无需 volatile(每个 MediaSource 各带一套 Dispatcher/ConnectionPool
-         * 会丢失连接与 TLS 复用,HLS 多分片时明显更慢、更耗电)。
-         */
         private object FallbackClient {
             val INSTANCE: OkHttpClient = OkHttpClient.Builder().build()
         }
 
-        /** 进程级实例(预载侧与播放侧共用同一 client 注入面;M7e 起取代 doikki `ExoMediaSourceHelper.getInstance`) */
         @Volatile
         private var instance: MediaSources? = null
 
-        /**
-         * 取进程级实例:client 走懒读 `OkGoHelper.getItvClient()`(不能构造期快照 —— `reloadDns()` 会重建 client),
-         * 缓存走进程级共享 [PlayerCache.getSharedCache]。
-         */
         @JvmStatic
         fun getInstance(context: Context): MediaSources {
             val existing = instance
@@ -189,9 +145,6 @@ class MediaSources(
             }
         }
 
-        /**
-         * 统一的 MediaItem 构建入口:headers 写入 requestMetadata.extras,播放与预载共用同一 header 语义。
-         */
         @JvmStatic
         fun buildMediaItem(uri: String, headers: Map<String, String>?): MediaItem {
             val extras = Bundle()
@@ -206,10 +159,6 @@ class MediaSources(
                 .build()
         }
 
-        /**
-         * 预缓存(PreCacheHelper/DownloadHelper)专用 MediaItem:显式带上推断出的 mimeType ——
-         * DownloadHelper 只按 uri/mimeType 判类型、读不到 TVBox-Format 约定,HLS/DASH 会被当进度流下载。
-         */
         @JvmStatic
         fun buildPreloadMediaItem(uri: String, headers: Map<String, String>?): MediaItem {
             val item = buildMediaItem(uri, headers)
@@ -217,7 +166,6 @@ class MediaSources(
             return item.buildUpon().setMimeType(mimeType).build()
         }
 
-        /** 从 buildMediaItem 构建的 MediaItem 中取回 headers(未携带时返回 null) */
         @JvmStatic
         fun getHeadersFrom(mediaItem: MediaItem): Map<String, String>? {
             val extras = mediaItem.requestMetadata.extras ?: return null
@@ -226,7 +174,6 @@ class MediaSources(
             return stored as? Map<String, String>
         }
 
-        /** headers → 磁盘缓存 key 后缀(排序 + trim + 大小写不敏感,与预载侧 key 口径一致) */
         @JvmStatic
         fun headerKeySuffix(headers: Map<String, String>?): String {
             if (headers == null || headers.isEmpty()) {
@@ -250,9 +197,6 @@ class MediaSources(
             return sb.toString()
         }
 
-        /**
-         * 过滤内部标记与空键值,保留 UA 在 map 内(由 [createDataSourceFactory] 拆分处理)。
-         */
         @JvmStatic
         fun toRequestHeaders(headers: Map<String, String>?): HashMap<String, String> {
             val requestHeaders = HashMap<String, String>()
@@ -288,7 +232,6 @@ class MediaSources(
             }
         }
 
-        /** TVBox-Format 头 → content type(hls/mpegurl/m3u8 → HLS;dash/mpd/dash+xml → DASH) */
         @JvmStatic
         fun inferFormatContentType(headers: Map<String, String>?): Int {
             if (headers == null || !headers.containsKey(HEADER_FORMAT)) {
@@ -304,7 +247,6 @@ class MediaSources(
             return C.TYPE_OTHER
         }
 
-        /** 内容类型 → MediaItem mimeType(media3 类型推断依据;进度流返回 null 保持原样) */
         @JvmStatic
         fun mimeTypeOf(contentType: Int): String? = when (contentType) {
             C.TYPE_HLS -> MimeTypes.APPLICATION_M3U8

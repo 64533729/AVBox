@@ -17,15 +17,9 @@ import java.util.Locale
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 
-/**
- * 代理直播源加载:配置里只有一条 `http://127.0.0.1:9978/proxy?...&ext=<base64>` 合成地址时,
- * 解开 ext 再取真正的直播列表 —— py/js 源走 Spider(带超时,超时作废),其余走 OkGo。
- * 频道列表与页面态留在宿主,这里只回调结果。
- */
 internal class LiveProxyLoader(private val host: Host) {
 
     internal interface Host {
-        /** 是否处于"刷新已有列表"流程(此时不改页面态,避免闪 loading) */
         fun isRefreshing(): Boolean
 
         fun onLoading()
@@ -36,7 +30,6 @@ internal class LiveProxyLoader(private val host: Host) {
     }
 
     companion object {
-        /** 代理源地址白名单;不得改用 TextUtils.isEmpty(单测 returnDefaultValues 会静默返 false) */
         fun isValidProxyUrl(url: String?): Boolean {
             if (url == null || url.isEmpty()) return false
             val lowerUrl = url.trim { it <= ' ' }.lowercase(Locale.US)
@@ -50,7 +43,6 @@ internal class LiveProxyLoader(private val host: Host) {
 
     private val mHandler = Handler(Looper.getMainLooper())
 
-    /** 页面销毁时清掉已入队的回调(晚到的网络响应由宿主自行兜底) */
     fun cancelAll() {
         mHandler.removeCallbacksAndMessages(null)
     }

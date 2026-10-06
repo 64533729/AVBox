@@ -34,7 +34,6 @@ import com.github.tvbox.osc.ui.components.VodCard
 import com.github.tvbox.osc.ui.page.openVodCardOrDetail
 import com.github.tvbox.osc.ui.theme.filterChipColors
 
-/** 分区标题前的裸图标(22dp、onSurface 着色):画稿图标与内置图标共用 */
 @Composable
 internal fun SectionTitleIcon(painter: Painter) {
     Icon(

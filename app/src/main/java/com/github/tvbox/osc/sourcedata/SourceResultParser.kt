@@ -21,12 +21,6 @@ import org.greenrobot.eventbus.EventBus
 import java.util.ArrayList
 import java.util.LinkedHashMap
 
-/**
- * 站点返回数据的解析与分投:XML/JSON → AbsXml,JSON → AbsSortXml,再按目标通道分投。
- *
- * 分投口径是三通道身份判定:搜索通道走 EventBus(面板自行收),
- * 详情通道要过 push/迅雷后处理,其余通道直接 postValue。
- */
 class SourceResultParser(
     private val gson: Gson,
     private val searchResult: SourceChannel<AbsXml?>,
@@ -39,8 +33,6 @@ class SourceResultParser(
         val name = obj.get("name").asString
         val kv = obj.getAsJsonArray("value")
         val values = LinkedHashMap<String, String>()
-        // 2026-09-10 BugFix:必须存 (v → n),与 FilterSheet 消费约定一致(显示 map value=显示名 n,
-        // 选中发送 map key=筛选值 v);原 put(n, v) 写反,导致胶囊显示英文 v 且发错筛选值
         for (ele in kv) {
             val ele_obj = ele.asJsonObject
             val values_value = if (ele_obj.has("v")) ele_obj.get("v").asString else ""
@@ -177,7 +169,6 @@ class SourceResultParser(
 
     fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         try {
-            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
             if (json == null || json.trim { it <= ' ' }.isEmpty()) {
                 if (result != null) {
                     LOG.i("echo--parse-empty-body:$sourceKey (站点返回空响应;JSON 型源(ac=detail)拿不到内容时常见,或该源实为 XML 类型)")
@@ -211,7 +202,6 @@ class SourceResultParser(
             return data
         } catch (e: Exception) {
             if (result != null) {
-                // json 可能是 null(接口 onError 分支、爬虫超时):裸取 substring 会再抛 NPE,线程死掉 UI 永远转圈
                 val head = if (json == null) "null" else json.substring(0, Math.min(200, json.length))
                 LOG.i("echo--parse-fail-json:$sourceKey ex=$e head=$head")
             }
@@ -239,7 +229,6 @@ class SourceResultParser(
         }
     }
 
-    /** 解析失败的空详情:与 DetailLoader 的同名出口同形状,且带代次(V4) */
     private fun createEmptyDetail(sourceKey: String?, detailToken: Int?): AbsXml {
         val data = AbsXml()
         data.sourceKey = sourceKey
@@ -253,7 +242,6 @@ class SourceResultParser(
 
     companion object {
 
-        // XStream 非线程安全:按线程缓存实例复用(勿改共享单例)
         private val sortXStream: ThreadLocal<XStream> = object : ThreadLocal<XStream>() {
             override fun initialValue(): XStream {
                 val xstream = XStream(DomDriver())

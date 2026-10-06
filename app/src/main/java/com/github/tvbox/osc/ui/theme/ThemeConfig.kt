@@ -27,7 +27,6 @@ val DefaultSeedArgb: Int = 0xFF1B6EF3.toInt()
 
 val DefaultPaletteStyle: PaletteStyle = PaletteStyle.TonalSpot
 
-/** 名字存资源 id(不在数据表里存字符串):展示侧用 `stringResource` 取,切语言后自动跟随 */
 val PresetSeeds: List<Pair<Int, Int>> = listOf(
     R.string.theme_seed_red to 0xFFD02020.toInt(),
     R.string.theme_seed_orange to 0xFFE07A00.toInt(),

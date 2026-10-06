@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 进度记录判据的边界:三条通道(续播点/百分比/看过门槛)共用,口径漂移会互相矛盾 */
 class WatchProgressRulesTest {
 
     @Test
@@ -17,7 +16,6 @@ class WatchProgressRulesTest {
 
     @Test
     fun decide_shortVideo_fallsBackToPercent() {
-        // 25 秒短片:30 秒绝对阈值永远够不到,按 30%(7.5 秒)记
         val short = 25_000L
         assertEquals(WatchDecision.SKIP, WatchProgressRules.decide(7_499, short))
         assertEquals(WatchDecision.SAVE, WatchProgressRules.decide(7_500, short))
@@ -25,7 +23,6 @@ class WatchProgressRulesTest {
 
     @Test
     fun decide_finishedPercentStillSaves() {
-        // 看完不清百分比:卡片要能显示到 100(续播点由播出结束的清除路径负责)
         val hundredSeconds = 100_000L
         assertEquals(WatchDecision.SAVE, WatchProgressRules.decide(94_999, hundredSeconds))
         assertEquals(WatchDecision.SAVE, WatchProgressRules.decide(95_000, hundredSeconds))
@@ -34,7 +31,6 @@ class WatchProgressRulesTest {
 
     @Test
     fun decide_unknownDuration_usesAbsoluteThreshold() {
-        // 直播/时长未就绪(内核已释放的落盘路径)读作 0
         assertEquals(WatchDecision.SKIP, WatchProgressRules.decide(29_999, 0))
         assertEquals(WatchDecision.SAVE, WatchProgressRules.decide(30_000, 0))
     }

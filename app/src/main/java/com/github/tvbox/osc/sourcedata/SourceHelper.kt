@@ -26,15 +26,8 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-/**
- * 站点取数的公共支撑:线程池、站点级请求构造、豆瓣源识别、extend 解析、结果来源标注。
- *
- * 这些能力被多个 Loader 共用,放在这里而不是各自复制;extend 解析缓存归
- * [SourceRuntimeState],由调用方把自己的缓存传进来。
- */
 object SourceHelper {
 
-    // 2026-09-11:单线程改 3 线程——原单线程被卡死的 spider 任务(不响应 interrupt)永久占用后,后续全部任务排队,首页永久骨架屏
     @JvmField
     val SPIDER_POOL: ExecutorService = Executors.newFixedThreadPool(3)
 
@@ -44,10 +37,6 @@ object SourceHelper {
     /** i18n: keep —— 只进日志(convertResponse → onError → LOG.i),无 UI 出口 */
     const val ERR_NETWORK = "网络请求错误"
 
-    /**
-     * type 0/1/4 接口请求统一入口:带上站点级 header(fongmi 的 sites[].header)。
-     * spider 的请求走 jar 内自有网络栈,注入不进去(fongmi 官方也标注 type 3 不套用)。
-     */
     @JvmStatic
     fun siteGet(sourceBean: SourceBean): GetRequest<String> {
         val request = OkGo.get<String>(sourceBean.api!!)
@@ -72,7 +61,6 @@ object SourceHelper {
         return lower.contains("douban") || value.contains("豆瓣")
     }
 
-    /** 首页源判定:兜底源可能不是列表第 0 项(第 0 项被标 hide 时会往后挑),所以比首页源 key 而不是下标 0 */
     @JvmStatic
     fun isHomeSource(sourceKey: String?): Boolean {
         return !TextUtils.isEmpty(sourceKey) && sourceKey == ApiConfig.get().getHomeSourceBean().key
@@ -94,7 +82,6 @@ object SourceHelper {
                 if (infoList != null) {
                     for (urlInfo in infoList) {
                         val urls = urlInfo.urls!!
-                        // Java 的 split("#") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
                         val str: Array<String> = if (urls.contains("#")) RegexUtils.getPattern("#").split(urls) else arrayOf(urls)
                         val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()
                         for (s in str) {
@@ -115,10 +102,6 @@ object SourceHelper {
         }
     }
 
-    /**
-     * extend 解析:本地 127.0.0.1 走文件,其余走网络,结果压成单行 JSON 后进缓存。
-     * 超时返回原值(不是空串),否则站点会收到被清空的 extend。
-     */
     @JvmStatic
     fun getFixUrl(extendCache: ConcurrentHashMap<String, String>, gson: Gson, extend: String?, timeoutSeconds: Long): String? {
         if (TextUtils.isEmpty(extend)) return ""
@@ -160,7 +143,6 @@ object SourceHelper {
         }
     }
 
-    /** 同 [getFixUrl],但直接在当前线程取(调用方已在后台线程时用) */
     @JvmStatic
     fun getFixUrlDirect(extendCache: ConcurrentHashMap<String, String>, gson: Gson, extend: String?): String? {
         if (TextUtils.isEmpty(extend)) return ""
@@ -196,7 +178,6 @@ object SourceHelper {
     private fun tryMinifyJson(gson: Gson, raw: String): String {
         var text = raw
         try {
-            // 兼容:Java 的 trim() 只去 <=0x20,Kotlin 的 trim() 会连 Unicode 空白一起去
             text = text.trim { it <= ' ' }
             val jsonElement = JsonParser.parseString(text)
             return gson.toJson(jsonElement)

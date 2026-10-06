@@ -42,7 +42,6 @@ import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 
-
 class FormatSTL : TimedTextFileFormat {
 
     @Throws(IOException::class, FatalParsingException::class)
@@ -54,69 +53,29 @@ class FormatSTL : TimedTextFileFormat {
         val gsiBlock = ByteArray(1024)
         val ttiBlock = ByteArray(128)
 
-
         try {
-            //we read the file
-            //but first we create the possible styles
             createSTLStyles(tto)
 
             var bytesRead: Int
-            //the GSI block is loaded
             bytesRead = `is`.read(gsiBlock)
             if (bytesRead < 1024)
-            //the file must contain at least a GSI block and a TTI block
-            //this is a fatal parsing error.
                 throw FatalParsingException("The file must contain at least a GSI block")
-            //CPC : code page number 0..2
-            //DFC : disk format code 3..10
-            //save the number of frames per second
             val dfc = byteArrayOf(gsiBlock[6], gsiBlock[7])
             val fps = String(dfc, Charset.defaultCharset()).toInt()
-            //DSC : Display Standard Code 11
-            //CCT : Character Code Table number 12..13
             val cct = byteArrayOf(gsiBlock[12], gsiBlock[13])
             val table = String(cct, Charset.defaultCharset()).toInt()
-            //LC : Language Code 14..15
-            //OPT : Original Programme Title 16..47
             val opt = ByteArray(32)
             System.arraycopy(gsiBlock, 16, opt, 0, 32)
             val title = String(opt, Charset.defaultCharset())
-            //OEP : Original Episode Title 48..79
             val oet = ByteArray(32)
             System.arraycopy(gsiBlock, 48, oet, 0, 32)
             val episodeTitle = String(oet, Charset.defaultCharset())
-            //TPT : Translated Programme Title 80..111
-            //TEP : Translated Episode Title 112..143
-            //TN : Translator's Name 144..175
-            //TCD : Translators Contact Details 176..207
-            //SLR : Subtitle List Reference code 208..223
-            //CD : Creation Date 224..229
-            //RD : Revision Date 230..235
-            //RN : Revision Number 236..237
-            //TNB : Total Number of TTI Blocks 238..242
             val tnb = byteArrayOf(gsiBlock[238], gsiBlock[239], gsiBlock[240], gsiBlock[241], gsiBlock[242])
             val numberOfTTIBlocks = String(tnb, Charset.defaultCharset()).toInt()
-            //TNS : Total Number of Subtitles 243..247
             val tns = byteArrayOf(gsiBlock[243], gsiBlock[244], gsiBlock[245], gsiBlock[246], gsiBlock[247])
             val numberOfSubtitles = String(tns, Charset.defaultCharset()).toInt()
-            //TNG : Total Number of Subtitle Groups 248..250
-            //MNC : Max Number of characters in row 251..252
-            //MNR : Max number of rows 253..254
-            //TCS : Time Code: Status 255
-            //TCP : Time Code: Start-of-Programme 256..263
-            //TCF : Time Code: First In-Cue 264..271
-            //TND : Total Number of Disks 272
-            //DSN : Disk Sequence Number 273
-            //CO : Country of Origin 274..276
-            //PUB : Publisher 277..308
-            //EN : Editor's Name 309..340
-            //ECD : Editor's Contact Details 341..372
-            // Spare bytes 373..447
-            //UDA : User-Defined Area 448..1023
 
-            //we add the title
             tto.title = (title.trim { it <= ' ' } + " " + episodeTitle.trim { it <= ' ' }).trim { it <= ' ' }
-            //this checks the reference to the characters coding employed.
             if (table > 4 || table < 0)
                 tto.warnings += "Invalid Character Code table number, corrupt data? will try to parse anyways assuming it is latin.\n\n"
             else if (table != 0)
@@ -125,50 +84,32 @@ class FormatSTL : TimedTextFileFormat {
             var subtitleNumber = 0
             var additionalText = false
             var currentCaption: Subtitle? = null
-            //the TTI blocks are read
             for (i in 0 until numberOfTTIBlocks) {
-                //the TTI block is loaded
                 bytesRead = `is`.read(ttiBlock)
                 if (bytesRead < 128) {
-                    //unexpected end of file
                     tto.warnings += "Unexpected end of file, " + i + " blocks read, expecting " + numberOfTTIBlocks + " blocks in total.\n\n"
                     break
                 }
 
-                //if we have additional text pending, we do not create a new caption
                 if (!additionalText)
                     currentCaption = Subtitle()
 
-                //SGN : Subtitle group number 0
-                //SN : Subtitle Number 1..2
                 val currentSubNumber = ttiBlock[1] + 256 * ttiBlock[2]
                 if (currentSubNumber != subtitleNumber)
-                //missing subtitle number?
                     tto.warnings += "Unexpected subtitle number at TTI block " + i + ". Parsing proceeds...\n\n"
-                //EBN : Extension Block Number 3
                 val ebn = ttiBlock[3].toInt()
                 if (ebn != -1)
                     additionalText = true
                 else additionalText = false
 
-                //CS : Cumulative Status 4
-                //TCI : Time Code In 5..8
                 val startTime = "" + ttiBlock[5] + ":" + ttiBlock[6] + ":" + ttiBlock[7] + ":" + ttiBlock[8]
-                //TCO : Time Code Out 9..12
                 val endTime = "" + ttiBlock[9] + ":" + ttiBlock[10] + ":" + ttiBlock[11] + ":" + ttiBlock[12]
-                //VP : Vertical Position 13
-                //JC : Justification Code 14
                 val justification = ttiBlock[14].toInt()
-                //0:none, 1:left, 2:centered, 3:right
-                //CF : Comment Flag 15
                 if (ttiBlock[15].toInt() == 0) {
-                    //comments are ignored
-                    //TF : Text Field 16..112
                     val textField = ByteArray(112)
                     System.arraycopy(ttiBlock, 16, textField, 0, 112)
 
                     if (additionalText)
-                    //if it is just additional text for the caption
                         parseTextForSTL(currentCaption!!, textField, justification, tto)
                     else {
                         currentCaption!!.start = Time("h:m:s:f/fps", startTime + "/" + fps)
@@ -176,7 +117,6 @@ class FormatSTL : TimedTextFileFormat {
                         parseTextForSTL(currentCaption, textField, justification, tto)
                     }
                 }
-                //we increase the subtitle number
                 if (!additionalText)
                     subtitleNumber++
 
@@ -184,14 +124,11 @@ class FormatSTL : TimedTextFileFormat {
             if (subtitleNumber != numberOfSubtitles)
                 tto.warnings += "Number of parsed subtitles (" + subtitleNumber + ") different from expected number of subtitles (" + numberOfSubtitles + ").\n\n"
 
-            //we close the reader
             `is`.close()
-
 
             tto.cleanUnusedStyles()
 
         } catch (e: Exception) {
-            //format error
             LOG.e("FormatSTL", e)
             throw FatalParsingException("Format error in the file, migth be due to corrupt data.\n" + e.message)
         }
@@ -202,7 +139,6 @@ class FormatSTL : TimedTextFileFormat {
 
     override fun toFile(tto: TimedTextObject): ByteArray? {
 
-        //first we check if the TimedTextObject had been built, otherwise...
         if (!tto.built)
             return null
 
@@ -211,13 +147,10 @@ class FormatSTL : TimedTextFileFormat {
         val gsiBlock = ByteArray(1024)
         var ttiBlock = ByteArray(128)
 
-        //we will store the whole binary file as a unique array
         val file = ByteArray(1024 + 128 * tto.captions!!.size)
 
-        //we build the GSI block
         var extra = "850STL25.0110000".toByteArray(Charset.defaultCharset())
         System.arraycopy(extra, 0, gsiBlock, 0, extra.size)
-        //then we add the title and fill the rest with blanks
         extra = if (tto.title != null) tto.title!!.toByteArray(Charset.defaultCharset()) else tto.fileName!!.toByteArray(Charset.defaultCharset())
         for (i in 0 until 224 - 16) {
             if (i < extra.size)
@@ -226,72 +159,54 @@ class FormatSTL : TimedTextFileFormat {
                 gsiBlock[i + 16] = 32
 
         }
-        //other info
         val dateFormat: DateFormat = SimpleDateFormat("yyMMdd")
         val date = Date()
         var aux = dateFormat.format(date)
-        aux += aux + "00" //revision number
+        aux += aux + "00"
         var aux2 = "" + tto.captions!!.size
         while (aux2.length < 5) aux2 = "0" + aux2
         aux += aux2 + aux2 + "0013216100000000"
-        //we add the time of first subtitle
         aux += tto.captions!!.get(tto.captions!!.firstKey())!!.start!!.getTime("hhmmssff/25")
         aux += "11OOO"
         extra = aux.toByteArray(Charset.defaultCharset())
         System.arraycopy(extra, 0, gsiBlock, 224, extra.size)
-        //the rest is filled with blanks
         for (i in 277 until 1024) {
             gsiBlock[i] = 32
         }
 
-
-        //we add the GSI block to our string representing the file
         System.arraycopy(gsiBlock, 0, file, 0, gsiBlock.size)
 
-        //we iterate over the captions to create the TTI blocks
         val itrC = tto.captions!!.values.iterator()
         var subtitleNumber = 0
         while (itrC.hasNext()) {
             currentC = itrC.next()
-            //SGN
             ttiBlock[0] = 0
-            //SN
             ttiBlock[1] = (subtitleNumber % 256).toByte()
             ttiBlock[2] = (subtitleNumber / 256).toByte()
-            //EBN
             ttiBlock[3] = 0xff.toByte()
-            //CS
             ttiBlock[4] = 0
-            //TCI
             var timeCode = RegexUtils.getPattern(":").split(currentC.start!!.getTime("h:m:s:f/25"))
             ttiBlock[5] = timeCode[0].toByte()
             ttiBlock[6] = timeCode[1].toByte()
             ttiBlock[7] = timeCode[2].toByte()
             ttiBlock[8] = timeCode[3].toByte()
-            //TCO
             timeCode = RegexUtils.getPattern(":").split(currentC.end!!.getTime("h:m:s:f/25"))
             ttiBlock[9] = timeCode[0].toByte()
             ttiBlock[10] = timeCode[1].toByte()
             ttiBlock[11] = timeCode[2].toByte()
             ttiBlock[12] = timeCode[3].toByte()
-            //VP
             ttiBlock[13] = 18
-            //JC
             if (currentC.style != null) {
                 if (currentC.style!!.textAlign!!.contains("left"))
                     ttiBlock[14] = 1
                 else if (currentC.style!!.textAlign!!.contains("right"))
                     ttiBlock[14] = 3
             } else ttiBlock[14] = 2
-            //CF
             ttiBlock[15] = 0
-            //TF
             val lines = RegexUtils.getPattern("<br />").split(currentC.content!!)
-            //we clean XML, span would be implemented here
             var pos = 16
             for (i in 0 until lines.size)
                 lines[i] = lines[i].replace(Regex("\\<.*?\\>"), "")
-            //we code the style
             if (currentC.style != null) {
                 val style = currentC.style!!
                 if (style.italic)
@@ -301,7 +216,6 @@ class FormatSTL : TimedTextFileFormat {
                     ttiBlock[pos++] = 0x82.toByte()
                 else ttiBlock[pos++] = 0x83.toByte()
 
-                //colors
                 val color = style.color!!.substring(0, 6)
                 if (color.equals("000000", ignoreCase = true))
                     ttiBlock[pos++] = 0x00.toByte()
@@ -321,15 +235,12 @@ class FormatSTL : TimedTextFileFormat {
 
             }
 
-            //we code the text
             for (i in 0 until lines.size) {
 
                 val chars = lines[i].toCharArray()
                 for (j in 0 until chars.size) {
-                    //check the text is not too long
                     if (pos > 126)
                         break
-                    //check it is a supported char, else it is ignored
                     if (chars[j].code >= 0x20 && chars[j].code <= 0x7f)
                         ttiBlock[pos++] = chars[j].code.toByte()
                 }
@@ -338,12 +249,9 @@ class FormatSTL : TimedTextFileFormat {
                     ttiBlock[pos++] = 0x8A.toByte()
             }
 
-            //we fill the rest with end characters
             while (pos < 128)
                 ttiBlock[pos++] = 0x8F.toByte()
 
-
-            //we add the TTI block to our string representing the file
             System.arraycopy(ttiBlock, 0, file, 1024 + subtitleNumber * 128, ttiBlock.size)
             ttiBlock = ByteArray(128)
             subtitleNumber++
@@ -352,15 +260,6 @@ class FormatSTL : TimedTextFileFormat {
         return file
     }
 
-    /* PRIVATEMETHODS */
-
-
-    /**
-     * This method parses the text field taking into account STL control codes
-     * @param currentCaption
-     * @param textField
-     * @param justification 
-     */
     private fun parseTextForSTL(currentCaption: Subtitle, textField: ByteArray, justification: Int, tto: TimedTextObject) {
 
         var italics = false
@@ -369,16 +268,13 @@ class FormatSTL : TimedTextFileFormat {
         var style: Style?
         var text = ""
 
-        //we go around the field in pair of bytes to decode them
         var i = 0
         while (i < textField.size) {
 
             if (textField[i].toInt() < 0) {
-                //first byte > 8 (4 bits)
                 if (textField[i].toInt() <= -113) {
-                    //we might be with a  control code
                     if (i + 1 < textField.size && textField[i] == textField[i + 1])
-                        i++ //if repeated skip one
+                        i++
                     when (textField[i].toInt()) {
                         -128 -> {
                             italics = true
@@ -393,21 +289,16 @@ class FormatSTL : TimedTextFileFormat {
                             underline = false
                         }
                         -124 -> {
-                            //Boxing not supported
                         }
                         -123 -> {
-                            //Boxing not supported
                         }
                         -118 -> {
-                            //line break
-                            currentCaption.content += text + "<br />" //line could be trimmed here
+                            currentCaption.content += text + "<br />"
                             text = ""
                         }
                         -113 -> {
-                            //end of caption
-                            currentCaption.content += text //line could be trimmed here
+                            currentCaption.content += text
                             text = ""
-                            //we check the style
                             if (underline)
                                 color += "U"
                             if (italics)
@@ -432,29 +323,21 @@ class FormatSTL : TimedTextFileFormat {
                                     style = tto.styling!!.get(color)
                             }
 
-                            //we save the style
                             currentCaption.style = style
-                            //and save the caption
                             var key = currentCaption.start!!.mseconds
-                            //in case the key is already there, we increase it by a millisecond, since no duplicates are allowed
                             while (tto.captions!!.containsKey(key)) key++
                             tto.captions!!.put(key, currentCaption)
-                            //we end the loop
                             i = textField.size
                         }
                         else -> {
-                            //non valid code...
                         }
                     }
                 } else {
-                    //other codes and non supported characters...
-                    //corresponds to the upper half of the character code table
                 }
 
             } else if (textField[i].toInt() < 32) {
-                //it is a teletext control code, only colors are supported
                 if (i + 1 < textField.size && textField[i] == textField[i + 1])
-                    i++ //if repeated skip one
+                    i++
                 when (textField[i].toInt()) {
                     7 -> {
                         color = "white"
@@ -481,12 +364,10 @@ class FormatSTL : TimedTextFileFormat {
                         color = "black"
                     }
                     else -> {
-                        //non supported	
                     }
                 }
 
             } else {
-                //we have a supported character coded in the two bytes, range is from 0x20 to 0x7F
                 val x = byteArrayOf(textField[i])
                 text += String(x, Charset.defaultCharset())
             }
@@ -626,7 +507,6 @@ class FormatSTL : TimedTextFileFormat {
         style = Style("blackI", style)
         style.underline = false
         tto.styling!!.put(style.iD, style)
-
 
     }
 

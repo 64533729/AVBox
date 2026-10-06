@@ -69,21 +69,6 @@ import org.json.JSONObject
 import java.io.File
 import java.util.HashMap
 
-/**
- * 点播播放容器(M7e 起为 Kotlin):渲染宿主槽位、控制层挂载与字幕/弹幕/投屏接线。
- *
- * <p>移植口径 = 纯语言迁移,逐行等价。Kotlin 侧的形态差异:
- * ① Java 里返回 `kotlin.Unit` 的匿名 lambda(字幕/弹幕/选轨/投屏回调)改写成 Kotlin lambda,
- *   其中的早退点按"取反 + 嵌套"表达(lambda 内不能非局部 return),判定与早退点逐条保留;
- * ② Java 侧从不赋 null 的字段(`mController`/`scheduler`/`surfaceSlot`)落成 `lateinit`(保持非空类型):
- *   同包 Kotlin 调用方 [PlayContainerViewBridge]/[PlayContainerControlListener] 按非空直接解引用,
- *   放宽成可空会让它们编译不过;
- * ③ 可空字段(`mVideoView`/`mActivity`/`pageHost`/`engine`/`danmuLoadController`/`mHandler`/`mDanmuView`)
- *   按 Java 的判空形态逐点对齐:Java 有判空的走 `?.`,裸解引用保留 `!!`(复刻 Java 同路径的 NPE);
- * ④ `x == null ? a : x.y` 收敛成 `x?.y ?: a`(回落值与 Java 的 `a` 一致);
- * ⑤ 内部类 [MyWebView] 仍是 `inner class`(视图桥以 `container.MyWebView(...)` 构造);
- * ⑥ `@Subscribe(threadMode = ThreadMode.MAIN)` 的 [refresh] 保持 public(EventBus 反射调用)。
- */
 class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, PlaybackHostApi, PlaybackPage {
 
     private val trackSelector: TrackSelectorDelegate = TrackSelectorDelegate(object : TrackSelectorDelegate.Host {
@@ -97,23 +82,15 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     lateinit var scheduler: PlaybackController
     private lateinit var surfaceSlot: FrameLayout
     private var engine: PlaybackEngine? = null
-    /**
-     * 页面能力宿主(由 `DetailActivity` 经 [setPageHost] 注入)。
-     *
-     * ⚠️ 属性名带 `m` 前缀:显式 [setPageHost] 与属性 setter 会撞 JVM 签名(`setPageHost(PageHost)`)。
-     */
     var mPageHost: PageHost? = null
     var mActivity: Activity? = activity
 
     private val mContext: Context = activity
 
-    /** 存入字段而不是每次写 lambda:hostDestroy 要按"是不是自己"摘监听 */
     private val tipStateListener: TipStateListener = TipStateListener { onTipStateChanged(it) }
 
-    /** 详情页选集面板显隐(面板状态在 DetailViewModel,这里只做投影,供底栏冻结自动收起用) */
     private val viewBridge: PlaybackViewBridge = PlayContainerViewBridge(this)
 
-    /** 控制器回调:切解码重播等复用路径要直接触发,故存字段 */
     private val controlListener: PlayContainerControlListener = PlayContainerControlListener(this)
 
     private var qualitySelectedListener: OnQualitySelectedListener? = null
@@ -126,11 +103,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     lateinit var mController: PlayerControlApi
     private var preloadReadyToast: Toast? = null
     private var mHandler: Handler? = null
-    /**
-     * "本次播放是否由预览态退出"侧写标记(由 [setExitingPreview] 写)。
-     *
-     * ⚠️ 属性名带 `m` 前缀:同上,显式 [setExitingPreview] 会与属性 setter 撞签名。
-     */
     var mExitingPreview: Boolean = false
     private var previewMode: Boolean = false
     private var mDanmuView: DanmakuView? = null
@@ -138,7 +110,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     private val exoCues: MutableList<Cue> = ArrayList()
     private var exoInternalSubtitle: Boolean = false
 
-    /** 字幕决定代际:用户每次选字幕/每轮起播决策自增;在途的在线字幕解析只在这期间没变时才允许落地 */
     private var subtitleDecisionSeq: Int = 0
 
     private val videoDuration: Long = -1
@@ -154,18 +125,14 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         LayoutInflater.from(activity).inflate(R.layout.view_play_container, this, true)
         PlayerTipBridge.hide()
         init()
-        // 提示层(加载/错误遮罩)画在控制器 Compose 层:状态要桥进控制层,并收起位置在控制器之上的弹幕视图。
-        // 挂监听在 init() 之后(mController/danmuLoadController 已就位)与 hide() 之后(免旧容器残留回调)
         PlayerTipBridge.setTipStateListener(tipStateListener)
         scheduler.setViewBridge(viewBridge)
         if (engine != null) engine!!.attach(this)
     }
 
-    /** 提示层状态变化:桥入控制层状态(遮罩在视频面之上、顶栏/底栏之下),并让弹幕视图让位 */
     private fun onTipStateChanged(tip: PlayerTipState) {
         if (mHandler == null) return
         val showing = tip.loading || tip.err
-        // 提示可能由调度/取流线程写入(setTip 会从解析链路直接调用),控制层状态与弹幕视图可见性统一回主线程
         mHandler?.post {
             if (mController != null) {
                 mController.getUiState().applyTip(tip.msg, tip.loading, tip.err)
@@ -199,12 +166,10 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         mPageHost = host
     }
 
-    /** 详情页选集面板显隐(面板状态在 DetailViewModel,这里只做投影,供底栏冻结自动收起用) */
     fun setEpisodeSheetOpen(open: Boolean) {
         if (mController != null) mController.getUiState().episodeSheetOpen = open
     }
 
-    /** 清晰度切换结果回调:仅在受理后回调一次,与 `selectQuality` 同线程返回;页面必须从主线程调它 */
     fun interface OnQualitySelectedListener {
         fun onQualitySelected(position: Int)
     }
@@ -231,12 +196,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (engine!!.isReleased()) return
         if (engine!!.isLiveMode()) engine!!.exitLive()
         engine!!.attach(this)
-        // 重新接管后本页恢复"退出即停播"的职责:交接标记是给"交出去后本页就销毁"准备的,
-        // 音乐页返回(影视内容)这条路径本页仍存活,不清掉会让 hostDestroy 漏掉 detach —— 退出后声音不停
         handedOver = false
         if (!ownsEngineContent() && mVideoView != null) {
-            // 内核内容已被别的页面换走(或对方尚未销毁):它的进度只有 detach 落盘这一个时点,
-            // 而那次落盘可能晚于本页新起播改写 progressKey —— 接管时先按现键存一次,两边时序就都无害了
             mVideoView!!.saveCurrentProgress()
         }
         if (mVideoView != null && mController != null) {
@@ -250,7 +211,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             }
         }
         if (ownsEngineContent()) {
-            // 接管的是引擎里既有的会话(直播回切/音乐页交还),页面自己没走过 setData,数据要在这里补同步
             syncSessionVod()
         }
         LOG.i("echo-p4 re-attach after live/other page")
@@ -258,14 +218,12 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
 
     override fun hostPause() {
         if (mVideoView != null && !mExitingPreview && !scheduler.isConfirmedAudioOnly()) {
-            // 传 isPlaying() 而非恒 true:标记语义 = 回前台会续播(与 hostResume 同一判据),手动暂停后离开须为 false
             lifecyclePaused = mVideoView!!.isPlaying
             if (mController != null) mController.setLifecyclePaused(lifecyclePaused)
             mVideoView!!.pause()
         }
     }
 
-    /** 交给音乐播放页接管:引擎摘视图但不停播,随后的 hostDestroy 不得再 detach(会停掉刚交接的音频) */
     fun handOverToNextPage() {
         if (engine == null) return
         handedOver = true
@@ -275,7 +233,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     override fun hostDestroy() {
         LOG.i("echo-music destroy: hostDestroy enter")
         PlayerTipBridge.clearTipStateListener(tipStateListener)
-        // 页面回调随页面一起摘掉,不留方法引用
         qualitySelectedListener = null
         if (engine != null && !handedOver) engine!!.detach(this)
         cancelPreloadToast()
@@ -375,7 +332,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         mController.setGestureEnabled(true)
         mVideoView = if (engine == null) null else engine!!.player()
         mController.setListener(controlListener)
-        // 挂载控制器:注入播放器视图并把自己注册为状态宿主(去 doikki 后取代 setVideoController)
         if (mVideoView != null) mController.setKernelProvider(mVideoView)
     }
 
@@ -411,10 +367,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /**
-     * 把引擎当前会话的影片数据同步给控制层:选集入口可见性由它派生 ——
-     * 同片接管(退出页面后快速重进)与页面重新接管都不走 prepare,只在 prepare 时计算会漏掉这些会话。
-     */
     private fun syncSessionVod() {
         if (mController == null || scheduler == null) return
         mController.getUiState().sessionVod = scheduler.vod()
@@ -510,7 +462,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
                 activity.runOnUiThread {
                     if (!isAttached()) return@runOnUiThread
                     LOG.i("echo-Local Subtitle Path: " + path)
-                    // 本地文件在整部片里通用,记进片级记忆(文件被系统清掉时按失效回落)
                     TrackMemory.saveSubtitle(trackMemoryKey(), TrackMemory.subtitleLocal(path))
                     setSubtitle(path)
                 }
@@ -552,7 +503,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
                 mActivity!!.runOnUiThread {
                     val zimuUrl = subtitle.url
                     LOG.i("echo-Remote Subtitle Url: " + zimuUrl)
-                    // 只记发布页 + 文件名(直链只对当集有效):换集按集号回同一发布页取本集文件
                     TrackMemory.saveSubtitle(
                         trackMemoryKey(),
                         TrackMemory.subtitleOnline(releaseUrl, subtitle.name),
@@ -604,7 +554,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             if (pos >= 0 && pos < bean.size) {
                 val value = bean[pos]
                 try {
-                    // 在途的在线字幕解析作废:别让它回头盖掉用户这一手
                     subtitleDecisionSeq++
                     for (subtitle in bean) {
                         subtitle.selected = TrackSelectorDelegate.isSameTrack(subtitle, value)
@@ -744,10 +693,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /**
-     * 回调线程可能不是主线程:本方法会走"释放内核 + 重起播"这条**增删播放器子视图**的链路,必须整段在主线程,
-     * 非主线程增删子视图会让 `ViewGroup.mChildren` 出 null 洞(下次 traversal 崩)——不能只把提示文案 post 出去。
-     */
     fun errorWithRetry(err: String, finish: Boolean) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mHandler!!.post { errorWithRetry(err, finish) }
@@ -804,7 +749,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             }
             mediaPlayer.restoreTracks()
         }
-        // 歌词来源:内联 data: 在内存里、毫秒级;URL 歌词优先吃本集缓存,否则每次起播都要走网络(快慢全看源站,慢链还要等满 10s 超时)
         val lyric = scheduler.playLyric()
         var lyricPath = lyric
         if (TextUtils.isEmpty(lyric) || !lyric!!.startsWith("data:")) {
@@ -820,14 +764,8 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         applySubtitleDecision(mediaPlayer, trackInfo)
     }
 
-    /**
-     * 字幕决策:本片记忆(用户显式选择)优先,其次本集缓存 → 源站字幕 → 内置默认。
-     *
-     * <p>显式选择压过源站每集给的字幕(点过来源就是明确意图);任一步拿不到就落到默认链,不新增"没字幕"的空档。
-     */
     private fun applySubtitleDecision(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?) {
         val memoryKey = trackMemoryKey()
-        // 新一轮决策:上一轮在途的在线字幕解析作废
         subtitleDecisionSeq++
         val record = TrackMemory.loadSubtitle(memoryKey)
         if (TrackMemory.isSubtitleOff(record)) {
@@ -849,14 +787,12 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             }
             return
         } else if (TrackMemory.isSubtitleTrack(record) && mController.getSubtitleView().hasInternal) {
-            // 轨道已由播放器按指纹还原(定位失败也会退默认选轨),这里只补"内置字幕在显示"的视图状态
             showInternalSubtitle(mediaPlayer)
             return
         }
         applyDefaultSubtitle(mediaPlayer, trackInfo)
     }
 
-    /** 无记忆(或记忆失效)时的既有链路:本集缓存 → 源站字幕 → 内置字幕 */
     private fun applyDefaultSubtitle(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?) {
         val subtitlePathCache = cachedPlayPath(scheduler.subtitleCacheKey())
         if (!subtitlePathCache.isEmpty()) {
@@ -874,7 +810,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         showInternalSubtitle(mediaPlayer)
     }
 
-    /** 让内置字幕显示出来(选哪条轨由播放器负责,这里只管视图与延时) */
     private fun showInternalSubtitle(mediaPlayer: KernelPlayer?) {
         if (mediaPlayer is ExoPlayer) {
             mediaPlayer.setInternalSubtitleDelay(SubtitleHelper.getTimeDelay())
@@ -884,29 +819,14 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /**
-     * 补一次默认内置选轨。
-     *
-     * <p>只在"外挂字幕落地失败回落"这条路上需要:那时播放器一条内置轨都没选过(EXO 只自动选带 DEFAULT
-     * 标记的轨),光把视图置为显示态会得到整集无字幕。
-     * ⚠️ 不要在"按指纹还原"那条分支上加这个调用:EXO 的 getCurrentTracks 读不到刚下发到播放线程的
-     * setParameters,会把刚还原好的用户选择当成"没选",再顶成默认轨。
-     */
     private fun ensureInternalSubtitleTrackSelected(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?) {
         if (mediaPlayer is ExoPlayer) {
             mediaPlayer.ensureSubtitleTrackSelected()
         }
     }
 
-    /**
-     * 还原"在线字幕"选择:同一发布页里按集号找本集文件,取不到就回落默认链(直链只对当集有效,入库的是发布页)。
-     *
-     * <p>发布页 + 直链是两跳异步请求,回来时可能已换集/换源/用户自己选过字幕,故落地前必须过
-     * [isSubtitleResultCurrent] 的三道守卫。
-     */
     private fun resolveRememberedOnlineSubtitle(memoryKey: String, record: String?, fallback: Runnable) {
         val releaseUrl = TrackMemory.onlineRelease(record)
-        // ViewModel 挂在宿主 Activity 上(与字幕面板同一实例);拿不到就回落,不猜
         if (TextUtils.isEmpty(releaseUrl) || mActivity !is ViewModelStoreOwner) {
             runOnUi(fallback)
             return
@@ -924,7 +844,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
                 runOnUi {
                     if (!isSubtitleResultCurrent(memoryKey, episodeKey, decisionSeq)) return@runOnUi
                     val url = subtitle?.url
-                    if (TextUtils.isEmpty(url)) { // 302 头缺失等同失败:必须回落,否则这个片永远没字幕
+                    if (TextUtils.isEmpty(url)) {
                         LOG.i("echo-track-memory online subtitle empty url, fallback")
                         fallback.run()
                         return@runOnUi
@@ -943,21 +863,18 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         )
     }
 
-    /** 在途字幕结果是否仍然有效(换源 / 换集 / 用户中途自己选过字幕 ⇒ 作废) */
     private fun isSubtitleResultCurrent(memoryKey: String, episodeKey: String?, decisionSeq: Int): Boolean {
         if (!isAttached() || subtitleDecisionSeq != decisionSeq) return false
         if (!TextUtils.equals(memoryKey, trackMemoryKey())) return false
         return TextUtils.equals(episodeKey, scheduler.progressKey())
     }
 
-    /** 回调线程不确定,统一回 UI 线程再动视图 */
     private fun runOnUi(action: Runnable) {
         val activity = mActivity
         if (activity == null) return
         activity.runOnUiThread(action)
     }
 
-    /** 关闭字幕视图(内置 + 外挂);歌词是独立功能(独立缓存键),不跟着关 */
     private fun closeSubtitleViews() {
         try {
             hideExoInternalSubtitle()
@@ -970,7 +887,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /** 长按字幕按钮:关闭全部字幕并记住"这个片不要字幕"(换集不再自动开) */
     fun closeSubtitles() {
         if (mVideoView == null) return
         closeSubtitleViews()
@@ -978,7 +894,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         TrackMemory.saveSubtitle(trackMemoryKey(), TrackMemory.SUBTITLE_OFF)
     }
 
-    /** 本片记忆键;直播/无剧集信息时为空串 ⇒ 记忆读写全部跳过 */
     fun trackMemoryKey(): String {
         val vod = scheduler?.vod()
         if (vod == null) return ""
@@ -990,10 +905,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         checkDanmu(scheduler.playDanmu())
     }
 
-    /**
-     * 某集已落盘的字幕/歌词来源:内联 data: 直接可用;本地文件要确认还在(系统可能清 /zimu/ 缓存目录,否则会静默无字幕);
-     * 其余情况返回空,由调用方回退到本次起播的新地址。
-     */
     private fun cachedPlayPath(cacheKey: String?): String {
         if (TextUtils.isEmpty(cacheKey)) return ""
         val cached = AppGraph.cacheRepository.get(MD5.string2MD5(cacheKey))
@@ -1069,7 +980,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             if (mVideoView != null && !mVideoView!!.isPlaying) mVideoView!!.start()
             return
         }
-        // 同片同线路换集(选集面板点集走的就是这条):内核可复用,省一次重建;换片/换线路仍走重建
         val sameVodSwitch = isSameVodEpisodeSwitch(session)
         engine!!.setData(session)
         syncSessionVod()
@@ -1081,7 +991,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         playViaScheduler(false)
     }
 
-    /** 引擎里已起播的是不是同一部片的同一线路(只是换集) —— 归属键前两段(源|片id)相同、线路相同即可 */
     private fun isSameVodEpisodeSwitch(session: PlaybackSession): Boolean {
         if (scheduler == null || mVideoView == null || mVideoView!!.mediaPlayer == null) return false
         val started = scheduler.startedPlaybackKey()
@@ -1102,7 +1011,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (url != null && !url.isEmpty()) {
             scheduler.stopParse()
             scheduler.initParseLoadFound()
-            // 重播/切播放器/切解码共走本方法:总闸下重播不必重建内核;切外部播放器不在此处(内核交不出去,由 pl≥10 分支先释放)
             if (!scheduler.isCrossContentReuseAllowed()) releasePlayerKernel()
             scheduler.goPlayUrl(url, scheduler.webHeaderMap())
         } else {
@@ -1110,18 +1018,11 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /**
-     * D6 同片接管时对齐实例级配置:缩放直接下发;渲染方式与解码方式都必须重建内核才生效
-     * (复用内核不重建渲染视图,media3 也不给复用内核重选解码器),此处改走既有"重播"链路
-     * 并返回 true,调用方不要再 resume。
-     */
     private fun alignInstanceConfigOnTakeover(): Boolean {
         if (mVideoView == null || scheduler == null) return false
         val cfg = scheduler.playerCfg() ?: return false
         mVideoView!!.setScreenScaleType(cfg.optInt("sc", 0))
-        // 外部播放器由 goPlayUrl 交给第三方,内核重建/重播不由这里发起(与 trySoftDecodeFallback 同一判据)
         if (cfg.optInt("pl", 2) >= 10) return false
-        // 纯音频会话最终总会热切 Texture(见 ensureAudioOnlyRender),按用户设置重建只会白断一次声音
         val renderChanged = !scheduler.isConfirmedAudioOnly()
             && mVideoView!!.needsRenderRebuild(cfg.optInt("pr", 1))
         val decodeChanged = !PlayerHelper.isExoDecodeApplied(cfg)
@@ -1130,7 +1031,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             if (renderChanged) "echo-render-changed: rebuild kernel on takeover"
             else "echo-exo-decode-changed: rebuild kernel on takeover",
         )
-        // 重建后按配置值重新起播一次:重试阶梯(含自动软解额度)随之复位,起播失败时仍能自动回退
         scheduler.beginNewPlay()
         controlListener.replay(false)
         return true
@@ -1146,7 +1046,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
     }
 
     private fun isSamePlaybackOwned(session: PlaybackSession): Boolean {
-        // 无痕:停着的那份是旧痕迹,不接管(重进从片头起播);正在播的(音频在后台)是活状态,照常接管不打断
         if (HistoryHelper.isIncognito() && (mVideoView == null || !mVideoView!!.isPlaying)) return false
         if (!TextUtils.equals(scheduler.startedPlaybackKey(), session.playbackKey())) return false
         if (engine!!.isLiveMode()) return false
@@ -1281,7 +1180,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         }
     }
 
-    /** 字幕字号 = 设置值 × 当前形态(预览 0.6×/全屏 1×);统一走 setTextSize(float)=sp —— SimpleSubtitleView 只重写了 float 重载(描边层 backGroundText 随之同步),int 实参会被加宽到 float,同样落到该重载 */
     private fun applySubtitleTextSize() {
         if (mController == null || mController.getSubtitleView() == null) return
         val size = SubtitleHelper.getTextSize(mActivity)
@@ -1305,7 +1203,6 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         scheduler.setPendingInherit(scheduler.progressKey(), position)
         mVideoView!!.pause()
         if (scheduler.isCrossContentReuseAllowed()) {
-            // 总闸下换源也算换线:内核留给新源复用(释放与判定共用同一许可);进度改由此处显式落盘,原先靠 release 内部兜底
             mVideoView!!.saveCurrentProgress()
             LOG.i("echo-switchSource keep player kernel for reuse")
         } else {
@@ -1325,14 +1222,11 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         hideTipOnUiThread()
     }
 
-    /** 同页换片:停掉当前内容并立即落盘,免得新片加载期间旧片声画残留;不在播本页内容时不动(别误停音乐页/直播) */
     fun stopForContentSwitch() {
         if (mVideoView == null || !ownsEngineContent()) return
-        // 在途的解析/取流/超时属上一部:新片会话边界虽也会清,但新片详情回来之前它们足以把旧片再拉起来
         scheduler.cancelInFlight()
         mVideoView!!.pause()
         mVideoView!!.saveCurrentProgress()
-        // pause 对取流中的起播无效(PAUSED 时本调用自会 return):不打断的话这一集会在新片加载期间自己响起来
         mVideoView!!.stopPlaybackKeepPlayer()
     }
 

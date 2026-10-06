@@ -52,33 +52,18 @@ import com.github.tvbox.osc.ui.components.ScallopShape
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
-/**
- * 播放器控制层根 Composable。
- * 层级顺序照搬 player_vod_control_view.xml 的 z-order（自底向上）：
- * 加载/错误遮罩 → 顶部栏 → 底部菜单 → 暂停浮层 → 亮度/音量提示 → seek 提示 → loading → 中央网速 →
- * 返回键 → 右侧竖排（旋转/锁）→ 长按倍速。原生字幕视图是控制器的直接子 View（位于 Compose 层之下），
- * 与旧布局一致。
- *
- * ⚠️ 遮罩（[PlayerTipLayer]）必须留在最底、顶栏/底栏之前，否则加载期唤不出控件（见该层注释）。
- */
 @Composable
 fun PlayerOverlay(
     state: PlayerUiState,
     actions: PlayerActions,
-    /** 手势判定状态机(由 ComposeVideoController 持有) */
     gestureHandler: VideoGestureHandler,
-    /** 每次 DOWN 现算的手势会话快照:入参为手势区宽高与屏幕宽度 */
     gestureSession: (width: Int, height: Int, screenWidth: Int, downY: Float) -> VideoGestureSession,
-    /** 出现"待定单击"⇒ 控制器在双击窗口后调 `handler.markSingleTapConfirmed()` */
     onTapPending: () -> Unit,
 ) {
-    // 屏幕宽度(半屏分侧用)必须在组合期读出:pointerInput 的 lambda 里不能有 @Composable 调用
     val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            // 视频手势层:替代旧的 doikki GestureDetector + View onTouchEvent。
-            // 只认领子控件(控制条按钮/进度条)未消费的触摸 —— 见 videoGestureLayer 的说明。
             .videoGestureLayer(
                 handler = gestureHandler,
                 sessionProvider = { size, downY ->
@@ -87,31 +72,26 @@ fun PlayerOverlay(
                     if (sizeW <= 0 || sizeH <= 0) {
                         null
                     } else {
-                        // 屏幕宽度用于半屏分侧(含导航栏),与旧实现同口径
                         gestureSession(sizeW, sizeH, screenWidthPx, downY)
                     }
                 },
                 onTapPending = onTapPending,
             ),
     ) {
-        // 图标盒只有一处算,胶囊与右侧竖排共用 ⇒ 两处图标必然等大(竖屏全屏下胶囊会被钳小)
         val iconBox = playerIconBox(maxWidth - playerEdgePadding() * 2)
         PlayerTipLayer(state)
         PlayerTopBar(state, actions)
-        // 旧 XML bottom_container 为 layout_gravity="bottom"（BoxScope 内显式贴底）
         PlayerBottomBar(state, actions, iconBox, Modifier.align(Alignment.BottomCenter))
         PlayerCenterControls(state, actions, Modifier.align(Alignment.Center))
         PlayerPauseLayer(state, actions)
         PlayerSlideHint(state)
         PlayerSeekHint(state)
-        // 遮罩自带指示器：同时在屏会叠出两层转圈（遮罩的居中指示器 + 缓冲转圈），故遮罩在屏时不画
         if (!state.tipVisible) PlayerLoadingLayer(state)
         PlayerNetSpeedCenter(state)
         PlayerSideButtons(state, actions, iconBox)
         PlayerInfoOsd(state, actions, maxWidth)
         PlayerSpeedBoostHint(state)
 
-        // 尺寸/倍速/播放器选择弹窗（阶段 7）
         state.selectDialog?.let { dialogState ->
             PlayerSelectDialog(
                 dialogState = dialogState,
@@ -119,7 +99,6 @@ fun PlayerOverlay(
             )
         }
 
-        // 播放参数抽屉：横屏贴右滑出、竖屏贴底滑出（与选集面板同形态）
         state.paramsSheet?.let { sheet ->
             PlayerParamsSheet(
                 sheet = sheet,
@@ -132,7 +111,6 @@ fun PlayerOverlay(
             )
         }
 
-        // Step 6 对话框 Compose 化（替代 View 版 Danmu/SearchDanmu/Subtitle/SearchSubtitle/Cast Dialog）
         state.danmuSettingSheet?.let { sheet ->
             DanmuSettingSheet(sheet) { state.danmuSettingSheet = null }
         }
@@ -150,21 +128,18 @@ fun PlayerOverlay(
         }
     }
 
-    // seek 提示 1s 自动隐藏（替代 msg 1000/1001；key 含文本保证连续滑动时重新计时）
     LaunchedEffect(state.seekHintVisible, state.seekHintText) {
         if (state.seekHintVisible) {
             delay(1000)
             actions.hideSeekHint()
         }
     }
-    // 亮度/音量提示 1s 自动隐藏（替代 msg 100/101）
     LaunchedEffect(state.slideHintVisible, state.slideHintText) {
         if (state.slideHintVisible) {
             delay(1000)
             actions.hideSlideHint()
         }
     }
-    // 1s 轮询（替代 myRunnable2：系统时间/网速/分辨率）
     LaunchedEffect(Unit) {
         while (true) {
             actions.refreshSystemInfo()
@@ -173,18 +148,10 @@ fun PlayerOverlay(
     }
 }
 
-// ---------------------------------------------------------------------------
-// 共享辅助：mm 尺寸换算 / 菜单按钮
-// ---------------------------------------------------------------------------
-
-/** 覆盖层设计基准宽（= `BaseActivity.getSizeInDp()` 的常态值） */
 private const val PLAYER_DESIGN_WIDTH = 1280f
 
-/** 覆盖层尺寸的唯一事实来源（窗口长边像素 / 设计宽）。⚠️ 别改回 `getDimension*()` + 方向补偿：
- *  AutoSize 的 screenWidth 由库（显示宽）与 `refreshAutoSize`（窗口宽）两处写入、变更又不触发重组，旧方向的尺寸会烙进 TextUnit ⇒ 小窗↔全屏切换时字号突变。 */
 @Composable
 private fun playerMmScale(): Float {
-    // containerSize 是真实容器像素且随布局即时更新（自由窗口/桌面模式/分屏下比 Configuration 准）；首帧未量出时回落 Configuration
     val container = LocalWindowInfo.current.containerSize
     val longEdgePx = if (container.width > 0 && container.height > 0) {
         maxOf(container.width, container.height).toFloat()
@@ -195,8 +162,6 @@ private fun playerMmScale(): Float {
     return if (longEdgePx > 0f) longEdgePx / PLAYER_DESIGN_WIDTH else 1f
 }
 
-/** dimen 的原始数值（不带任何单位换算）；非 mm 单位返回 null。
- *  只认字面量：覆盖层用到的 dimen 必须保持配置无关（别加 `values-sw600dp` 之类），否则这里的 Resources 读不到新配置。 */
 private fun rawMm(resources: Resources, @DimenRes id: Int): Float? {
     val tv = TypedValue()
     try {
@@ -206,12 +171,9 @@ private fun rawMm(resources: Resources, @DimenRes id: Int): Float? {
     }
     if (tv.type != TypedValue.TYPE_DIMENSION) return null
     if ((tv.data and TypedValue.COMPLEX_UNIT_MASK) != TypedValue.COMPLEX_UNIT_MM) return null
-    // ⚠️ 必须用 complexToFloat：维度值的 data 是定点编码(高 24 位尾数 + 低位单位/基数)，
-    // getFloat() 会把这段位模式当 IEEE 浮点重解释(30mm → 1e-41)，尺寸静默变成 0
     return TypedValue.complexToFloat(tv.data)
 }
 
-/** mm dimens 按当前窗口换算为 Compose Dp；取整规则同旧 `getDimensionPixelSize`，非 mm 走系统换算。 */
 @Composable
 internal fun playerDim(@DimenRes id: Int): Dp {
     val res = LocalContext.current.resources
@@ -221,22 +183,15 @@ internal fun playerDim(@DimenRes id: Int): Dp {
     return with(LocalDensity.current) { pxInt.toFloat().toDp() }
 }
 
-/** 与 [playerDim] 同一套换算，保留浮点（旧 `getDimension` 不取整）；菜单按钮字号用。 */
 @Composable
 internal fun playerTextSize(@DimenRes id: Int): TextUnit {
     val res = LocalContext.current.resources
     val raw = rawMm(res, id)
     val px = if (raw != null) raw * playerMmScale() else res.getDimension(id)
-    // 非负保证：TextUnit/尺寸一旦为负或非有限，下游(布局/排版)会直接抛异常
     val safePx = if (px.isFinite()) px.coerceAtLeast(0f) else 0f
     return with(LocalDensity.current) { safePx.toSp() }
 }
 
-/**
- * 播放器覆盖层控件距屏幕边缘的距离：compact（screenWidthDp < 600，竖屏详情页预览态）16dp；
- * medium/expanded（横屏全屏、平板、折叠展开）48dp。
- * 备注：边距与手势带无关 —— dkplayer 的 `PlayerUtils.isEdge()` 已忽略四边各 40dp 内的视频手势。
- */
 @Composable
 internal fun playerEdgePadding(): Dp =
     if (LocalConfiguration.current.screenWidthDp >= 600) 48.dp else 16.dp
@@ -297,7 +252,6 @@ internal fun CenterControlIcon(
     }
 }
 
-/** 解析行用的文字条目：常态纯文字全白，按压仅淡色底 + 文字加粗；选中色由调用方传入（02F8E1）。 */
 @Composable
 internal fun PlayerMenuButton(
     text: String,
@@ -336,8 +290,6 @@ internal fun PlayerMenuButton(
     )
 }
 
-/** 动作胶囊内的图标按钮：白色图标 + 下方文字标签 + 按压淡底（无障碍朗读由文字承担）。
- *  [box] 定图标盒尺寸 —— 竖屏全屏下不能直接用 `playerDim(vs_40)`（它按长边=屏高缩放，会撑爆宽度）。 */
 @Composable
 internal fun PlayerPillIconButton(
     @DrawableRes iconRes: Int,
@@ -390,17 +342,10 @@ internal fun PlayerPillIconButton(
     }
 }
 
-/** 图标相对触摸盒的比例；`PlayerLayers` 的右侧竖排也用它来与胶囊图标同尺寸 */
 internal const val ICON_TO_BOX_RATIO = 0.55f
 
-/** 动作胶囊最多同时可见的图标数（图标盒的宽度上限按"全可见"的最坏情况算） */
 private const val PILL_MAX_ICONS = 8
 
-/**
- * 覆盖层图标的触摸盒尺寸（动作胶囊与右侧竖排**共用同一结果**，两处图标因此必然等大）。
- * 按可用宽度钳制：`playerDim` 按窗口**长边**缩放，而竖屏全屏的长边 = 屏高、可用宽却由**短边**决定，
- * 不钳则胶囊铺满时每颗摊到的槽位会小于图标盒，图标相互挤压甚至溢出屏宽。
- */
 @Composable
 internal fun playerIconBox(availableWidth: Dp): Dp {
     val gap = playerDim(R.dimen.vs_8)

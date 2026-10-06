@@ -54,7 +54,6 @@ class Style {
     @JvmField
     var fontSize: String? = null
 
-    /** colors are stored as 8 chars long RGBA */
     @JvmField
     var color: String? = null
 
@@ -81,7 +80,6 @@ class Style {
         fun getRGBValue(format: String, value: String): String? {
             var color: String? = null
             if (format.equals("name", ignoreCase = true)) {
-                // standard color format from W3C
                 if (value == "transparent")
                     color = "00000000"
                 else if (value == "black")
@@ -121,7 +119,6 @@ class Style {
                 else if (value == "cyan")
                     color = "00ffffff "
             } else if (format.equals("&HBBGGRR", ignoreCase = true)) {
-                // hex format from SSA
                 val sb = StringBuilder()
                 sb.append(value.substring(6))
                 sb.append(value.substring(4, 5))
@@ -129,7 +126,6 @@ class Style {
                 sb.append("ff")
                 color = sb.toString()
             } else if (format.equals("&HAABBGGRR", ignoreCase = true)) {
-                // hex format from ASS
                 val sb = StringBuilder()
                 sb.append(value.substring(8))
                 sb.append(value.substring(6, 7))
@@ -137,21 +133,15 @@ class Style {
                 sb.append(value.substring(2, 3))
                 color = sb.toString()
             } else if (format.equals("decimalCodedBBGGRR", ignoreCase = true)) {
-                // normal format from SSA
                 var hex: String = Integer.toHexString(value.toInt())
-                // any missing 0s are filled in
                 while (hex.length < 6)
                     hex = "0" + hex
-                // order is reversed
                 color = hex.substring(4) + hex.substring(2, 4) +
                         hex.substring(0, 2) + "ff"
             } else if (format.equals("decimalCodedAABBGGRR", ignoreCase = true)) {
-                // normal format from ASS
                 var hex: String = java.lang.Long.toHexString(value.toLong())
-                // any missing 0s are filled in
                 while (hex.length < 8)
                     hex = "0" + hex
-                // order is reversed
                 color = hex.substring(6) + hex.substring(4, 6) +
                         hex.substring(2, 4) + hex.substring(0, 2)
             }

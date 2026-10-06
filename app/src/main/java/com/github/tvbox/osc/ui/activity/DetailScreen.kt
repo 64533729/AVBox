@@ -153,7 +153,6 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
                     )
                 }
             }
-            // 提示层由控制器 Compose 层绘制(PlayerLayers.PlayerTipLayer):写在这一层会盖住顶栏/底栏
             if (!fullBox && pageState is DetailViewModel.PageState.Ready) {
                 Icon(
                     painter = painterResource(R.drawable.ic_player_expand),
@@ -163,7 +162,6 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
                         .align(Alignment.BottomEnd)
                         .padding(
                             end = 16.dp,
-                            // vs_30 太小时该式子会变负(Compose 直接抛 IllegalArgumentException)，钳到 0
                             bottom = (16.dp + playerDim(R.dimen.vs_30) / 2 - 20.dp).coerceAtLeast(0.dp),
                         )
                         .size(40.dp)
@@ -201,8 +199,6 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
         }
     }
 
-    // 侧滑只在"横屏全屏"这一种形态:大屏设备点全屏时系统可能不旋转(忽略应用的方向限制),
-    // 那时窗口仍是竖屏,面板必须保持贴底
     EpisodeSheet(vm, revision, slideFromEnd = fullBox && isLandscapeNow)
     VodCardMenu(vodMenu) { menuContext.jumpToSearch(it) }
 }

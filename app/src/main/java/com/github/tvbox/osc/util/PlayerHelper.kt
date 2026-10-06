@@ -29,7 +29,6 @@ object PlayerHelper {
         updateCfg(videoView, playerCfg, -1)
     }
 
-    /** forcePlayerType 为历史遗留(内核对仅剩 EXO,不再有可强制的目标),保留入参以稳定既有调用方 */
     @JvmStatic
     fun updateCfg(videoView: MyVideoView?, playerCfg: JSONObject, forcePlayerType: Int) {
         var renderType = KV.get(HawkConfig.PLAY_RENDER, 1)
@@ -41,19 +40,13 @@ object PlayerHelper {
         } catch (e: JSONException) {
             LOG.e("PlayerHelper", e)
         }
-        // exo 键单独用 optString 读(2026-09-17):不塞进上面的 try —— 该 try 遇第一个缺失键即中断,
-        // 老播放记录/直播配置没有 exo 键时会把后面的 sc 一起吞掉
         exoDecode = playerCfg.optString("exo", exoDecode)
-        // EXO 解码方式下发(2026-09-17):进程级静态位,与 videoView 实例无关(故不放在下面的判空块里),
-        // 每次起播前按"本剧配置 → 全局设置"的有效值推一次
         val exoDecodeChanged = applyExoDecode(exoDecode)
         val renderViewFactory: PlayerRenderViewFactory = when (renderType) {
             1 -> EngineSurfaceRenderViewFactory.create()
             else -> EngineTextureRenderViewFactory.create()
         }
         if (videoView != null) {
-            // EXO 解码方式变了且当前还活着一个 EXO 内核(换集复用路径):media3 不会重选解码器,
-            // 只改静态位不生效 —— 标记本次起播必须重建内核(见 MyVideoView.consumeKernelRebuildRequired)
             if (exoDecodeChanged && videoView.mediaPlayer is ExoPlayer) {
                 videoView.requireKernelRebuild()
                 LOG.i("echo-exo-decode-changed: rebuild kernel on next start")
@@ -70,23 +63,17 @@ object PlayerHelper {
         return true
     }
 
-    /**
-     * 存活内核**已生效**的解码方式是否与 cfg 目标值一致;静态位只在起播链路下发,而 media3 不给复用内核重选解码器 ——
-     * 不一致就只能重建内核(D6 同片接管这类不走起播的路径据此判断)。
-     */
     @JvmStatic
     fun isExoDecodeApplied(playerCfg: JSONObject?): Boolean {
         val exoDecode = if (playerCfg == null) null else playerCfg.optString("exo", "硬解码") // i18n: keep
         return isExoDecodeApplied(exoDecode, ExoPlayer.isPreferSoftwareDecode())
     }
 
-    /** 上一条的口径本体(exo 值只认"软解码",缺键/空串按硬解);独立出来供 JVM 单测锁真值表 */
     @JvmStatic
     fun isExoDecodeApplied(exoDecode: String?, preferSoftwareDecode: Boolean): Boolean {
         return ("软解码" == exoDecode) == preferSoftwareDecode // i18n: keep
     }
 
-    /** 委派新内核层策略(真值源唯一;本方法保留为旧调用点兼容入口,见 SourcePolicy.isLocalProxyUrl) */
     @JvmStatic
     fun isLocalProxyUrl(url: String?): Boolean = SourcePolicy.isLocalProxyUrl(url)
 
@@ -99,7 +86,6 @@ object PlayerHelper {
         return if (headers.isEmpty()) null else headers
     }
 
-    /** 合并单个 header(s) 字段:接受 JSONObject 或 JSON 文本;非法内容静默跳过(保持旧行为) */
     @JvmStatic
     fun appendJsonHeaders(headers: HashMap<String, String>?, rawHeaders: Any?) {
         if (headers == null || rawHeaders == null || rawHeaders === JSONObject.NULL) return
@@ -126,7 +112,6 @@ object PlayerHelper {
         }
     }
 
-    /** 播放器名;每次调用重取文案(不缓存字符串 —— 缓存会让切语言后停在旧语言) */
     @JvmStatic
     fun getPlayerName(playType: Int): String {
         return when (playType) {
@@ -229,7 +214,6 @@ object PlayerHelper {
         }
     }
 
-    /** 画面缩放名;每次调用重取文案(不缓存字符串 —— 缓存会让切语言后停在旧语言) */
     @JvmStatic
     fun getScaleName(screenScaleType: Int): String {
         return when (screenScaleType) {

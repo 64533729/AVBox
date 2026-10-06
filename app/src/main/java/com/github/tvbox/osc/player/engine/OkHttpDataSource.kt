@@ -26,12 +26,6 @@ import java.util.Collections
 import java.util.HashMap
 import java.util.concurrent.CountDownLatch
 
-/**
- * ExoPlayer HTTP data source backed by okhttp3(移植自 doikki `OkHttpDataSource`)。
- *
- * <p>与 media3 官方 OkHttp 数据源的差别:走应用自己构建的 OkHttpClient(DoH/hosts/代理/SSL 都在 client 上),
- * 支持 Range/POST,416 已到流尾判定与 4xx 错误体回传保持 media3 语义。
- */
 class OkHttpDataSource private constructor(
     private val callFactory: Call.Factory,
     private val userAgent: String?,

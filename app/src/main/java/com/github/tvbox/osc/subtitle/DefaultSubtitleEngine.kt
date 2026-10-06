@@ -46,10 +46,6 @@ import java.util.TreeMap
 
 import com.github.tvbox.osc.player.KernelPlayer
 
-/**
- * @author AveryZhong.
- */
-
 class DefaultSubtitleEngine : SubtitleEngine {
     private var mWorkHandler: Handler? = null
     private var mSubtitles: MutableList<Subtitle>? = null
@@ -187,7 +183,6 @@ class DefaultSubtitleEngine : SubtitleEngine {
 
     private var playSubtitleCacheKey: String? = null
 
-    /** 加载序号:切集/重载/销毁后,老请求的迟到结果必须丢弃(否则会覆盖当前歌词/字幕,表现为"出来得慢或串词") */
     private var mLoadSeq: Int = 0
 
     override fun setPlaySubtitleCacheKey(cacheKey: String?) {
@@ -258,7 +253,6 @@ class DefaultSubtitleEngine : SubtitleEngine {
                     mWorkHandler!!.sendEmptyMessageDelayed(MSG_REFRESH, delay)
                 }
             } catch (e: Exception) {
-                // 刷新循环单次失败不打断后续 tick
                 LOG.d("DefaultSubtitleEngine", "subtitle refresh tick failed")
             }
             true

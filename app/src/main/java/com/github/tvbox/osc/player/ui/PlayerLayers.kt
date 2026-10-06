@@ -50,8 +50,6 @@ private fun HintPill(modifier: Modifier, content: @Composable RowScope.() -> Uni
         modifier
             .shadow(4.dp, PillShape)
             .background(Color.Black.copy(alpha = OVERLAY_PILL_ALPHA), PillShape)
-            // 垂直内距 vs_5：胶囊高度主要由内容撑(图标盒/文字行高)，内距只补一点呼吸感 ——
-            // 胶囊高度与图标盒一起把 80mm 收到 60mm
             .padding(horizontal = playerDim(R.dimen.vs_20), vertical = playerDim(R.dimen.vs_5)),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
@@ -203,7 +201,6 @@ fun PlayerNetSpeedCenter(state: PlayerUiState) {
 fun PlayerSideButtons(state: PlayerUiState, actions: PlayerActions, iconBox: Dp) {
     if (state.lockState == LockVisibility.GONE) return
     val shown = state.lockState == LockVisibility.SHOWN
-    // 边距跟随 window 分档（竖屏预览 16dp / 横屏全屏与平板 48dp，见 playerEdgePadding）
     val edge = playerEdgePadding()
     val iconSize = iconBox * ICON_TO_BOX_RATIO
     Box(Modifier.fillMaxSize()) {
@@ -215,7 +212,6 @@ fun PlayerSideButtons(state: PlayerUiState, actions: PlayerActions, iconBox: Dp)
             startSide = true,
             edge = edge,
             iconSize = iconSize,
-            // 锁定态隐藏（绕锁旋转无意义）
             visible = shown && !state.locked,
             onClick = actions::onRotateClicked,
         )

@@ -18,16 +18,6 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 
-/**
- * 内核渲染器工厂(移植自旧 `osc.player.ExoPlayer.SubtitleOffsetRenderersFactory`):
- * ① 视频渲染器用 [CodecPreferences] 驱动的解码器选择器(软解偏好),并替换为带可重放帧缓存的
- * [ReplayableCacheVideoRenderer](暂停态重绘的前提);
- * ② 文本渲染器用反射代理包一层字幕延迟([subtitleDelayUsProvider] 返回微秒);
- * ③ 收集视频渲染器实例供后续下发渲染器消息(帧率匹配关闭/输出分辨率信令)。
- *
- * @param dynamicScheduling 动态调度开关(时长→进度,对应隐藏设置 exo_video_dynamic_scheduling)
- * @param videoRendererSink 本工厂创建的视频渲染器收集处
- */
 class EngineRenderersFactory(
     context: Context,
     private val subtitleDelayUsProvider: () -> Long,
@@ -37,7 +27,6 @@ class EngineRenderersFactory(
 
     companion object {
 
-        /** 视频解码器选择器:软解偏好经 [CodecPreferences] 动态读取(与旧内核同一真值源) */
         private val VIDEO_CODEC_SELECTOR = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
             val preferSoft = CodecPreferences.isPreferSoftwareDecode()
             val infos: List<MediaCodecInfo> =
@@ -105,12 +94,6 @@ class EngineRenderersFactory(
         }
     }
 
-    /**
-     * 把 super 建的默认 MediaCodecVideoRenderer 换成带可重放帧缓存的子类。构建设置须与上游 1.11.1 的
-     * `DefaultRenderersFactory.createMediaCodecVideoRenderer` 逐项对齐(升级 media3 时回来对账);
-     * 唯一例外:selector 必须下发 [VIDEO_CODEC_SELECTOR](软解偏好靠它,上游形参恒为 DEFAULT)。
-     * 被换下的实例未 init/enable、不持编解码器与显示面,丢弃安全。
-     */
     private fun replaceWithReplayableRenderer(
         context: Context,
         mediaCodecSelector: MediaCodecSelector,
@@ -150,11 +133,9 @@ class EngineRenderersFactory(
             )
             return
         }
-        // 未换成功:保持上游默认渲染器,暂停态重绘随之失效(redrawReady 会挡掉),不影响播放
         LOG.i("echo-exo-video-renderer: media codec renderer not found, redraw disabled")
     }
 
-    /** 文本渲染器代理:render() 的位置参数按字幕延迟回拨(delayUs 为负时按 0 夹取) */
     private class SubtitleOffsetRendererHandler(
         private val renderer: Renderer,
         private val delayUsProvider: () -> Long,
@@ -164,7 +145,6 @@ class EngineRenderersFactory(
         override fun invoke(proxy: Any?, method: Method, args: Array<out Any>?): Any? {
             var invokeArgs: Array<out Any>? = args
             if (method.name == "render" && args != null && args.isNotEmpty() && args[0] is Long) {
-                // 运行时数组是 Object[](Java 传参),取可写副本后只替换位置参数
                 val cloned = (args as Array<Any>).clone()
                 cloned[0] = maxOf(0L, (args[0] as Long) - delayUsProvider())
                 invokeArgs = cloned

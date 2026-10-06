@@ -13,15 +13,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 解析结果的分投口径(改动这里会直接决定"搜索能出结果""详情能起播"):
- * 搜索通道 → EventBus(面板自己收),详情通道 → 过 push/迅雷后处理再投,其余通道 → 直接 postValue。
- */
 class SourceResultParserRoutingTest {
 
     private val gson = Gson()
 
-    /** 记录投递而不落到 Android 主线程(单测里没有 Looper) */
     private class RecordingChannel : SourceChannel<AbsXml?>() {
         val posted = ArrayList<AbsXml?>()
         override fun postValue(value: AbsXml?) {
@@ -29,7 +24,6 @@ class SourceResultParserRoutingTest {
         }
     }
 
-    /** 必须是非 private 类 + public 方法:EventBus 走反射分发,私有类会拿不到访问权 */
     class EventRecorder {
         val events = ArrayList<RefreshEvent>()
 
@@ -86,7 +80,6 @@ class SourceResultParserRoutingTest {
         assertEquals("src", list.posted[0]!!.sourceKey)
     }
 
-    /** M4a 第一验收:详情回包经新通道(Flow)投递后仍携带代次,迟到回包隔离不得弱化 */
     @Test
     fun detailTokenSurvivesFlowDelivery() = runBlocking {
         val search = SourceChannel<AbsXml?>()

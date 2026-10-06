@@ -38,7 +38,6 @@ import org.json.JSONObject
 import kotlin.coroutines.resume
 
 class HomeViewModel : ViewModel() {
-    /** 资源文案:ViewModel 无 Context,走 LanguageManager(Application 的 base 切语言不会重挂) */
     private fun str(resId: Int, vararg args: Any): String {
         val app = App.getInstance() ?: return ""
         return LanguageManager.localized(app).getString(resId, *args)
@@ -80,7 +79,6 @@ class HomeViewModel : ViewModel() {
     private val bootReady = MutableStateFlow(false)
     val pageErrorEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
-    /** 分类取数失败(含一次自动重试仍失败):首页整页错误态,与真空区分 */
     val sortLoadFailed = MutableStateFlow(false)
     private var sortRetried = false
     private val listRetried = HashSet<String>()
@@ -136,7 +134,6 @@ class HomeViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        // 三个通道的收集器不用手工摘:onCleared 返回后框架才取消 viewModelScope,收集协程随之结束
         EventBus.getDefault().unregister(this)
         val staleLoaders = ArrayList(loaders.values)
         loaders.clear()
@@ -212,7 +209,6 @@ class HomeViewModel : ViewModel() {
         requestPartition(partition, Partition.FIRST_PAGE)
     }
 
-    /** 整页错误态(分类取数失败)手动重试 */
     fun retrySort() {
         val key = loadingSourceKey ?: return
         LOG.i("echo--sort-manual-retry: key=$key")
@@ -466,14 +462,6 @@ class HomeViewModel : ViewModel() {
         var released: Boolean = false
             private set
 
-        /**
-         * 收集作用域随本 loader 生命周期:release() 取消它即摘掉收集器(等价旧 removeObserver)。
-         *
-         * ⚠️ 两个坑都在这一行:①`CoroutineScope(viewModelScope.coroutineContext)` 会**复用** VM 的
-         * SupervisorJob,`cancel()` 就会把整个 viewModelScope 一起杀掉(而 `loadHome()` 每次换源都
-         * release 旧 loader ⇒ 首页永久 loading);②显式 `SupervisorJob(parent)` 造子 Job;
-         * `Dispatchers.Main.immediate` 让回包仍在主线程处理(order 与旧 LiveData 观察者一致)。
-         */
         private val observeScope = CoroutineScope(
             SupervisorJob(viewModelScope.coroutineContext[Job]) + Dispatchers.Main.immediate
         )
@@ -501,9 +489,6 @@ class HomeViewModel : ViewModel() {
             pending?.invoke(LoaderResult(stale = true, absXml = null))
             pending = null
             busy = false
-            // 释放即弃用:observeScope 是一次性的(取消后不能再 launch),所以调用方必须**先把它从
-            // `loaders` 表里摘掉/清表再 release** —— 否则后续 requestPartition 会 getOrPut 取回它,
-            // pending 永远等不到回包、该分区永停 Loading。当前两个调用点(loadHome/onCleared)都是先 clear 再 release。
             observeScope.cancel()
         }
     }

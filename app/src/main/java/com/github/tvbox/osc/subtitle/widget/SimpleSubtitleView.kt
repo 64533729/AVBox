@@ -48,10 +48,6 @@ import com.github.tvbox.osc.util.MD5
 
 import com.github.tvbox.osc.player.KernelPlayer
 
-/**
- * @author AveryZhong.
- */
-
 @SuppressLint("AppCompatCustomView")
 class SimpleSubtitleView : TextView,
     SubtitleEngine, SubtitleEngine.OnSubtitleChangeListener,
@@ -65,7 +61,7 @@ class SimpleSubtitleView : TextView,
     @JvmField
     var hasInternal: Boolean = false
 
-    private lateinit var backGroundText: TextView //用于描边的TextView
+    private lateinit var backGroundText: TextView
     private var lyricMode: Boolean = false
 
     constructor(context: Context) : super(context) {
@@ -205,7 +201,6 @@ class SimpleSubtitleView : TextView,
     }
 
     override fun setLayoutParams(params: ViewGroup.LayoutParams) {
-        //同步布局参数
         backGroundText.layoutParams = params
         super.setLayoutParams(params)
     }
@@ -213,7 +208,6 @@ class SimpleSubtitleView : TextView,
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val tt = backGroundText.text
         val text = if (lyricMode) getText().toString() else getText()
-        //两个TextView上的文字必须一致
         if (TextUtils.isEmpty(tt) || tt != text) {
             backGroundText.text = text
             this.postInvalidate()
@@ -240,7 +234,6 @@ class SimpleSubtitleView : TextView,
     }
 
     override fun onDraw(canvas: Canvas) {
-        //其他地方，backGroundText和super的先后顺序影响不会很大，但是此处必须要先绘制backGroundText，
         drawBackGroundText()
         backGroundText.draw(canvas)
         super.onDraw(canvas)
@@ -248,13 +241,9 @@ class SimpleSubtitleView : TextView,
 
     private fun drawBackGroundText() {
         val tp: TextPaint = backGroundText.paint
-        //设置描边宽度
         tp.strokeWidth = 10f
-        //背景描边并填充全部
         tp.style = Paint.Style.FILL_AND_STROKE
-        //设置描边颜色
         backGroundText.setTextColor(Color.BLACK)
-        //将背景的文字对齐方式做同步
         backGroundText.gravity = gravity
     }
 

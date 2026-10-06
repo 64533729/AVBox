@@ -25,11 +25,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/**
- * 详情通道的后处理:push:// 线路当场解析成真实线路、磁力链接交给迅雷解析。
- *
- * 两者都会改写详情数据并把结果回投 detailResult,所以由详情/解析通道共用同一个实例。
- */
 class PushDetailResolver(private val gson: Gson, private val detailResult: SourceChannel<AbsXml?>) {
 
     fun checkPush(data: AbsXml): AbsXml {
@@ -182,7 +177,6 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                             if (code >= 0) {
                                 LOG.i(info)
                             } else {
-                                // 这个回调在线程池线程上跑,越界/空指针会直接崩进程:源结构不完整时只放弃改首集名
                                 val first = if (infoList.isEmpty()) null else infoList[0]
                                 val firstBeanList = first?.beanList
                                 if (firstBeanList != null && firstBeanList.isNotEmpty()) {
@@ -198,7 +192,6 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                                 val urlInfo = infoList[key]
                                 val playList = urlMap[key]!!
                                 urlInfo.urls = playList
-                                // Java 的 split("#") 走 Pattern.split:尾部空串被丢掉;Kotlin 的 split(Regex) 会保留
                                 val str = RegexUtils.getPattern("#").split(playList)
                                 val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()
                                 for (s in str) {
@@ -232,10 +225,6 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
 
     companion object {
 
-        /**
-         * 资源文案;走 LanguageManager(Application 的 base 切语言不会重挂,直接 app.getString 会停旧语言);
-         * App 未就绪(单测/极早调用)返回空串,不抛异常。
-         */
         private fun str(resId: Int, vararg args: Any?): String {
             val app = App.getInstance()
             return if (app == null) "" else LanguageManager.localized(app).getString(resId, *args)

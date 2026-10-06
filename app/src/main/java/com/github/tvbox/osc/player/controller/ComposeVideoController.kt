@@ -77,44 +77,24 @@ class ComposeVideoController @JvmOverloads constructor(
 
     companion object {
 
-        /** 锁屏图标 3s 后隐藏 */
         private const val LOCK_HIDE_DELAY_MS = 3000L
-        /** BugReview #32:倍速应用重试上限(100ms×30 = 3s),防长期不进播放态时主线程空转 */
         private const val SPEED_RETRY_MAX = 30
-        /** SeekBar max 照搬旧布局 android:max="1000" */
         private const val SEEK_MAX = 1000
     }
 
-
     internal lateinit var state: PlayerUiState
 
-    /** 播放器视图(手势委托与测试用;null = 尚未挂载) */
     val playerView: MyVideoView?
         get() = videoView
 
-    /** [playerActivity] 的缓存(控制器上下文在生命周期内不变,解析一次即可) */
     private var activityCache: Activity? = null
 
-    /** 是否处于锁定态(手势委托读;与 UI 的 lockState 互为镜像) */
     val isLocked: Boolean
         get() = state.locked
 
-    /**
-     * 控制器上下文所在的 Activity(字幕字号 / 旋转 / 返回键 / OSD 屏参都问它)。
-     *
-     * <p>⚠️ **必须从控制器自身上下文解析,不能问播放器视图**:`ComposeVideoController` 由页面
-     * (`PlayContainer`)以 **Activity** 为上下文创建,而 `AppPlayerView` 归引擎、由
-     * `ContextThemeWrapper(applicationContext, …)` 创建 —— 对后者 `PlayerUtils.scanForActivity`
-     * 沿 `ContextWrapper` 链走到 Application 会返回 null(旧 doikki `BaseVideoController` 用的正是
-     * 控制器上下文,见其 `mActivity = PlayerUtils.scanForActivity(getContext())`)。
-     * 消费方(`SubtitleHelper.getTextSize` 内部 `activity!!`、`requestedOrientation`、
-     * `onBackPressedDispatcher`)对 null 都不友好,故这里按"控制器上下文优先、视图兜底"解析。
-     */
     fun playerActivity(): Activity? =
         activityCache ?: PlayerUtils.scanForActivity(context)?.also { activityCache = it }
             ?: videoView?.hostActivity()
-
-    // ---- 手势层对接(videoGestureLayer / VideoGestureActionsImpl) ----
 
     internal fun gestureCanChangePosition(): Boolean = canChangePosition
 
@@ -124,13 +104,8 @@ class ComposeVideoController @JvmOverloads constructor(
 
     internal fun playerState(): Int = curPlayState
 
-    /** 当前倍速(长按前记录用) */
     internal fun currentSpeed(): Float = playerView?.speed ?: 1f
 
-    /**
-     * 进入"手势拖动 seek"态:与底部进度条拖动同口径 —— 置 `dragging` 让进度定时器丢弃这一拍,
-     * 并停表;[exitGestureSeek] 复位并重新起表。
-     */
     internal fun enterGestureSeek() {
         if (!state.dragging) {
             state.dragging = true
@@ -145,45 +120,27 @@ class ComposeVideoController @JvmOverloads constructor(
         keepControlsAlive()
     }
 
-    /** 手势 seek 落盘(与拖动 seek 的 onSeekFinished 同口径) */
     internal fun saveGestureProgress(targetMs: Int) {
         savePlaybackProgress(notifyHistory = true, seekTargetMs = targetMs)
     }
 
-    /** 竖滑提示(亮度/音量共用文案位) */
     internal fun showSlideHint(text: String, brightness: Boolean) {
         state.slideHintText = text
         state.slideHintBrightness = brightness
         state.slideHintVisible = true
     }
 
-    /**
-     * 单击确认定时器。
-     *
-     * <p>为什么要有它:接线层**不能**在抬手后阻塞等第二下 —— 那一轮 `awaitEachGesture` 的收尾会
-     * 把第二下吃掉,双击就永远判不出来(真机实测:双击播放/暂停失效)。所以接线层抬手即返回,
-     * 由这里在双击窗口之后再补发单击。
-     */
     private val tapConfirmRunnable = Runnable { confirmGestureTap() }
 
-    /** 接线层出现"待定单击"时调用:双击窗口过后再确认 */
     internal fun onGestureTapPending() {
         uiHandler.removeCallbacks(tapConfirmRunnable)
         uiHandler.postDelayed(tapConfirmRunnable, gestureHandler.doubleTapTimeoutMs)
     }
 
-    /**
-     * 补发单击。
-     *
-     * <p>交给状态机判断"是否还在待定":若窗口内来了第二下,状态机已判成双击并清掉待定标记,
-     * 这里就什么也不做 —— 否则双击会**连带**触发一次控制条显隐(真机实测:点一下暂停后,
-     * 控制条再也收不回去)。
-     */
     private fun confirmGestureTap() {
         gestureHandler.markSingleTapConfirmed()
     }
 
-    /** 手势委托用的播控入口(转发给播放器视图;未挂载时为空操作) */
     fun togglePlayFromGesture() {
         videoView?.togglePlay()
     }
@@ -196,28 +153,21 @@ class ComposeVideoController @JvmOverloads constructor(
         videoView?.setSpeed(speed)
     }
 
-    /** 播放器视图(由 PlayContainer 在挂载时注入;控制器的一切播控/读数都问它,等价旧 ControlWrapper) */
     private var videoView: MyVideoView? = null
 
     override fun setKernelProvider(view: MyVideoView?) {
         videoView = view
-        // 去 doikki:控制器不再经 dooki VideoView.setVideoController 挂载,改由自己注册为状态宿主
         view?.setVideoController(this)
     }
 
-    /** 手势委托:在 init 块里建(不再有父类构造期的虚调用 initView) */
-    /** 手势副作用落实(init 里建,避免构造期虚调用) */
     private lateinit var gestureActions: VideoGestureActionsImpl
 
-    /** 手势判定状态机(指针事件由覆盖层的 videoGestureLayer 喂入) */
     internal lateinit var gestureHandler: VideoGestureHandler
 
-    /** 三个手势开关(旧 setCanChangePosition/setEnableInNormal/setGestureEnabled) */
     private var canChangePosition = true
     private var enableInNormal = false
     private var gestureSwitch = true
 
-    // —— 原生字幕视图（PlayContainer 直接操作，保留 View 引用） ——
     private lateinit var mSubtitleView: SimpleSubtitleView
     private lateinit var mLyricView: SimpleSubtitleView
     private lateinit var mExoSubtitleView: SubtitleView
@@ -225,10 +175,8 @@ class ComposeVideoController @JvmOverloads constructor(
     internal var curPlayState = 0
     private val videoSizeGate = VideoSizeGate()
 
-    // —— 控制层行为字段（照抄 VodController） ——
     internal var previewMode = false
     internal var speedOld = 1.0f
-    /** BugReview #32:倍速应用重试计数 */
     private var speedRetryCount = 0
     private var skipEnd = true
     private var isClickBackBtn = false
@@ -236,21 +184,16 @@ class ComposeVideoController @JvmOverloads constructor(
     internal var playerConfig: JSONObject? = null
     private var listener: VodControlListener? = null
 
-    // 方向键/滚轮步进 seek 的累计进度与提交去抖
     private var keySeekProgress = 0
 
-    // 底栏闲置隐藏（旧 myHandleSeconds：注释写6秒实为10秒，照搬）
     private val idleHideMillis = 10000L
 
     private val uiHandler by lazy { Handler(Looper.getMainLooper()) }
 
-    /** 进度刷新定时器(替代旧 doikki 基类的 `mShowProgress`;读取口径见 [onProgressTick]) */
     private var progressTicking = false
     private val progressRunnable by lazy { Runnable { onProgressTick() } }
     private val idleHideRunnable by lazy {
         Runnable {
-            // 面板在屏时续期而不是收起:面板会吃掉点击(玩家不会收到 onSingleTapConfirmed),不续期就会
-            // 在用户盯着面板时把底栏收掉,与"面板期间不收底栏"矛盾
             if (state.overlayPanelOpen) keepControlsAlive() else hideBottom()
         }
     }
@@ -271,7 +214,6 @@ class ComposeVideoController @JvmOverloads constructor(
     }
     private val webParseUseCase by lazy { WebParseUseCase() }
 
-    // FastClickCheckUtil 等价：同一动作 500ms 内只生效一次
     private val fastClickMap = HashMap<String, Long>()
 
     private fun fastClickAllowed(key: String): Boolean {
@@ -282,10 +224,6 @@ class ComposeVideoController @JvmOverloads constructor(
         return true
     }
 
-    // ============================================================
-    // 生命周期 / 初始化
-    // ============================================================
-
     init {
         state = PlayerUiState()
 
@@ -295,7 +233,6 @@ class ComposeVideoController @JvmOverloads constructor(
         initNativeSubtitleViews()
         initComposeLayer()
 
-        // —— 初始状态（对齐旧 initView 屏显初始化） ——
         state.sysTimeVisible = false
         state.isPortrait =
             resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -304,7 +241,6 @@ class ComposeVideoController @JvmOverloads constructor(
         initSubtitleInfo()
     }
 
-    /** 原生字幕视图（z-order：Compose 层之下，与旧布局一致） */
     private fun initNativeSubtitleViews() {
         val vs5 = resources.getDimensionPixelSize(R.dimen.vs_5)
         val vs15 = resources.getDimensionPixelSize(R.dimen.vs_15)
@@ -339,10 +275,7 @@ class ComposeVideoController @JvmOverloads constructor(
     private fun initComposeLayer() {
         val composeView = ComposeView(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            // 全屏 reparent(DecorView) 后 detach 时 composition 会释放并重建，
-            // 状态全部保存在 PlayerUiState（控制器持有），重建无感
             setContent {
-                // 视频覆盖层挂在纯黑播放页:状态栏图标外观仍由宿主 Activity 断言,主题不接管
                 AVBoxTheme(manageStatusBarIcons = false) {
                     PlayerOverlay(
                         state = state,
@@ -363,8 +296,6 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        // ⚠️ 必须同时复位标志:只 removeCallbacks 会让 progressTicking 停在 true,
-        // 重挂后 startProgress() 全部早退 ⇒ 进度条/时间胶囊永久冻结
         uiHandler.removeCallbacks(progressRunnable)
         progressTicking = false
         uiHandler.removeCallbacks(idleHideRunnable)
@@ -374,15 +305,9 @@ class ComposeVideoController @JvmOverloads constructor(
         uiHandler.removeCallbacks(tapConfirmRunnable)
     }
 
-    // ============================================================
-    // 播放器事件钩子 → PlayerUiState
-    // ============================================================
-
     override fun setPlayState(playState: Int) {
         curPlayState = playState
         state.playState = playState
-        // 时长可信的状态才对齐:同片接管/页面重挂只回灌当前状态(PAUSED/PLAYING),不会再有 PREPARED;
-        // PREPARING 要排除 —— 此时时长读作 0,会把点播误判成直播源而隐藏倍速/片头尾
         if (playState != AppPlayerView.STATE_IDLE && playState != AppPlayerView.STATE_ERROR &&
             playState != AppPlayerView.STATE_PREPARING
         ) {
@@ -400,7 +325,6 @@ class ComposeVideoController @JvmOverloads constructor(
                 startProgress()
             }
             AppPlayerView.STATE_PAUSED -> {
-                // 生命周期暂停保留界面(退后台那一帧进任务快照):不收菜单、不清顶栏
                 if (!state.lifecyclePaused) {
                     state.topLeftVisible = false
                     state.netSpeedTopRightVisible = false
@@ -411,8 +335,6 @@ class ComposeVideoController @JvmOverloads constructor(
             AppPlayerView.STATE_ERROR -> listener?.errReplay()
             AppPlayerView.STATE_PREPARED -> listener?.prepared()
             AppPlayerView.STATE_PLAYBACK_COMPLETED -> {
-                // 旧 doikki `BaseVideoController.onPlayStateChanged` 在本态清锁定态;手势层读的就是它,
-                // 漏清会让"锁屏 → 自动跳下一集"之后手势全被拒(锁图标此时也已自动隐藏,用户无从解锁)
                 state.locked = false
                 PlaybackProgress.markFinished()
                 listener?.playNext(true)
@@ -420,42 +342,24 @@ class ComposeVideoController @JvmOverloads constructor(
         }
     }
 
-    /** 播放器状态变化(旧 `setPlayerState`):全屏/小屏搬运已随去 doikki 删除 ⇒ 只会收到普通态 */
     override fun setPlayerState(playerState: Int) {
         state.playerState = playerState
     }
 
-    /** 内核上报尺寸（换内容必然先回落 0）：角标当帧刷新，不等轮询 */
     override fun onVideoSizeChanged(width: Int, height: Int) {
         state.videoSize = videoSizeGate.textFor(width, height)
     }
 
-    /** 内核换了内容（setUrl）：解除闸门过滤 */
     override fun onVideoSizeCleared() {
         videoSizeGate.onKernelContentReplaced()
     }
 
-    /**
-     * 进度刷新一跳(旧 doikki 基类 `mShowProgress` 的等价物)。
-     *
-     * <p>**节奏与停止条件逐条照抄旧基类**(`BaseVideoController.java:314-331`):
-     * 一跳读完位置后,若仍在播则按 `(1000 - 位置 % 1000) / 倍速` **延迟**续期(对齐秒边界、跟随倍速);
-     * 不在播则把标志复位并**不再续期**(定时器自行停表)。
-     *
-     * <p>⚠️ 陷阱(本片首版踩过):旧基类的续期是 `postDelayed` 而非 `post`,且"不在播即停表";
-     * 写成 `post` + 无条件续期会变成 0 延迟自旋 —— 主线程被消息队列灌满、
-     * `PlaybackProgress.onProgress` 以最大频率触达。
-     *
-     * <p>读取口径与旧基类一致:位置/时长都经 `PlayerUtils.safeTimeMs` 收敛
-     * (旧 `BaseVideoController.setProgress` 如此),非播放态位置读 0。
-     */
     private fun onProgressTick() {
         progressTicking = false
         val view = videoView
         if (view != null && !state.dragging) {
             onProgressTick(view.duration, view.currentPosition)
         }
-        // 拖拽中不续期(与旧 stopProgress 同效);onSeekFinished/onSeekCancelled 会重新 startProgress
         if (state.dragging) return
         if (view?.isPlaying != true) return
         progressTicking = true
@@ -470,7 +374,6 @@ class ComposeVideoController @JvmOverloads constructor(
         state.duration = durationMs
         state.position = positionMs
         PlaybackProgress.onProgress(positionMs, durationMs)
-        // 片尾自动跳下一集（skipEnd 防重，照搬）
         if (skipEnd && positionMs != 0 && durationMs != 0) {
             val et = playerConfig?.optInt("et", 0) ?: 0
             if (et > 0 && positionMs + et * 1000 >= durationMs) {
@@ -481,24 +384,18 @@ class ComposeVideoController @JvmOverloads constructor(
         state.bufferedPercent = runCatching { videoView?.bufferedPercentage ?: 0 }.getOrDefault(0)
     }
 
-    /**
-     * 启动进度刷新(旧 `BaseVideoController.startProgress`):已在跑则空操作,否则**立即**投一跳
-     * (`post` 而非 `postDelayed` —— 旧基类同样是 `post(mShowProgress)`,首跳自行判断在播与否再决定是否续期)。
-     */
     override fun startProgress() {
         if (progressTicking) return
         progressTicking = true
         uiHandler.post(progressRunnable)
     }
 
-    /** 停止进度刷新(旧 `BaseVideoController.stopProgress`) */
     private fun stopProgress() {
         if (!progressTicking) return
         uiHandler.removeCallbacks(progressRunnable)
         progressTicking = false
     }
 
-    /** [seekTargetMs] 只在 seek 提交时给:此刻读 currentPosition 还是拖动前的老位置,暂停态也等不到下一拍更正 */
     private fun savePlaybackProgress(notifyHistory: Boolean, seekTargetMs: Int = -1) {
         val viewDuration = runCatching { videoView?.duration ?: 0L }.getOrDefault(0L).toInt()
         val viewPosition = runCatching { videoView?.currentPosition ?: 0L }.getOrDefault(0L).toInt()
@@ -510,12 +407,9 @@ class ComposeVideoController @JvmOverloads constructor(
         }
         if (duration <= 0) return
         PlaybackProgress.flush(position, duration)
-        // 值没变也必须通知:周期写入早已落盘,历史页手里的可能是进播放前的旧快照
         if (notifyHistory) EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH))
     }
 
-    /** seek 提示（替代旧 updateSeekUI + msg 1000/1001，UI 侧 1s 自动隐藏）。
-     *  只显示目标时间 —— 总时长在底栏时间胶囊里已有，提示里再带一份是冗余。 */
     internal fun updateSeekUiHint(curr: Int, seekTo: Int) {
         state.seekHintForward = seekTo > curr
         state.seekHintText = PlayerUtils.stringForTime(seekTo)
@@ -532,15 +426,10 @@ class ComposeVideoController @JvmOverloads constructor(
                 curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
     }
 
-    // ============================================================
-    // 底栏显隐（替代 msg 1002/1003 与 myHandle 闲置计时）
-    // ============================================================
-
     override fun toggleControls() {
         if (!state.controlsVisible) showBottom() else hideBottom()
     }
 
-    /** 详情页预览态点击视频区（PlayerControlApi 契约），与全屏单击同一切换逻辑 */
     override fun toggleControlBar() {
         toggleControls()
     }
@@ -549,7 +438,6 @@ class ComposeVideoController @JvmOverloads constructor(
         applyShowBottom()
     }
 
-    /** 可见性规则与 msg 1002 等价 */
     private fun applyShowBottom() {
         updateDanmuSearchBtnState()
         state.controlsVisible = true
@@ -562,11 +450,8 @@ class ComposeVideoController @JvmOverloads constructor(
         keepControlsAlive()
     }
 
-    /** 等价旧 msg 1003 */
     fun hideBottom() {
         uiHandler.removeCallbacks(idleHideRunnable)
-        // 拖拽/按键步进中把底栏移出组合会吞掉 onDragCancel（Compose 手势随组合销毁），
-        // dragging 卡死会让 setProgress 永久早退、进度显示冻结，先复位
         if (state.dragging) onSeekCancelled()
         state.controlsVisible = false
         state.topLeftVisible = false
@@ -620,34 +505,26 @@ class ComposeVideoController @JvmOverloads constructor(
             state.playerType = playerType
             val start = cfg.getInt("st")
             val end = cfg.getInt("et")
-            // 未设置留空串：参数面板据此显示「未设置」，而不是把「片头」当值显示一遍
             state.timeStartText = if (start == 0) "" else PlayerUtils.stringForTime(start * 1000)
             state.timeEndText = if (end == 0) "" else PlayerUtils.stringForTime(end * 1000)
-            // 配置一变(含换集/换源)就同步参数面板，否则面板会停在旧值
             refreshParamsSheet()
         } catch (e: JSONException) {
             LOG.e("ComposeVideoController", e)
         }
     }
 
-    // —— 播放参数面板（底栏状态类控件的统一入口） ——
-
-    /** 倍速档位（参数面板与倍速弹窗共用同一份，避免两处漂移） */
     private val speedOptions = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 3.0f)
 
-    /** 倍速档位下标；配置值不在档位表里时兜底到 1.0x（参数面板与倍速弹窗共用同一口径） */
     private fun speedIndex(value: Float): Int {
         val idx = speedOptions.indexOfFirst { it == value }
         return if (idx >= 0) idx else speedOptions.indexOfFirst { it == 1.0f }
     }
 
-    /** 参数面板里播放器的展示顺序:exo 在左,外部播放器保持原顺序跟在其后 */
     private fun sheetPlayerOrder(types: List<Int>): List<Int> {
         val head = listOf(2)
         return head.filter { types.contains(it) } + types.filter { it !in head }
     }
 
-    /** 面板打开时按当前配置现算；选项或选中值变化后重算，保证 chips 选中态实时刷新 */
     private fun buildParamsSheet(): ParamsSheetState? {
         val cfg = playerConfig ?: return null
         val speed = cfg.optDouble("sp", 1.0).toFloat()
@@ -723,18 +600,15 @@ class ComposeVideoController @JvmOverloads constructor(
         )
     }
 
-    /** 面板未打开时是 no-op（别把 null 写回去，那等于"打开面板"） */
     private fun refreshParamsSheet() {
         if (state.paramsSheet == null) return
         state.paramsSheet = buildParamsSheet()
     }
 
-    /** 开/关画质都要重播一次本集才生效(开=挂链,关=回 Surface 直通;media3 只在渲染器 enable 时建/不建 sink) */
     private fun restartForPictureIfNeeded() {
         if (PictureEffects.consumeRestartNeeded()) listener?.replay(false)
     }
 
-    /** 解码选项：只有硬/软两档(软解 = media3 的视频解码选择器优先系统软件解码器) */
     private fun decodeChoice(cfg: JSONObject): ParamsChoice {
         val isSoft = cfg.optString("exo", "硬解码") == "软解码" // i18n: keep
         return ParamsChoice(
@@ -780,7 +654,6 @@ class ComposeVideoController @JvmOverloads constructor(
             val cfg = playerConfig ?: return
             if (playerType == cfg.optInt("pl", 2)) return
             cfg.put("pl", playerType)
-            // ⚠️ 必须先于 updatePlayerCfg():它会让"自动切内核"态作废,否则本次落库会被回填成自动切换前的内核
             listener?.setAllowSwitchPlayer(false)
             updatePlayerCfgState()
             listener?.updatePlayerCfg()
@@ -794,12 +667,9 @@ class ComposeVideoController @JvmOverloads constructor(
         keepControlsAlive()
         try {
             val cfg = playerConfig ?: return
-            // 值没变(重复点当前档)只刷新显式选择标记,不重建内核:重建会中断播放并清掉已试线路
             val unchanged = cfg.optString("exo") == value
             cfg.put("exo", value) // i18n: keep
-            // 记一个显式选择标记:否则设置页的新值会被播放记录里的旧值压住
             cfg.put("exoSet", 1)
-            // 用户显式选过解码:本次播放不再自动回退软解
             listener?.setAllowDecodeFallback(false)
             updatePlayerCfgState()
             listener?.updatePlayerCfg()
@@ -817,7 +687,6 @@ class ComposeVideoController @JvmOverloads constructor(
         state.danmuSearchAvailable = ApiConfig.get().hasDanmuSearchUi()
     }
 
-    /** 直播源(duration==0)隐藏倍速/片头尾按钮;取不到时长按可显示处理 */
     private fun updateLiveButtonsState() {
         state.liveButtonsVisible = runCatching { videoView?.duration ?: 0L != 0L }.getOrDefault(true)
     }
@@ -831,8 +700,6 @@ class ComposeVideoController @JvmOverloads constructor(
                 LOG.e("ComposeVideoController", e)
             }
         } else if (speedRetryCount < SPEED_RETRY_MAX) {
-            // BugReview #32:重试带上限,播放长期不进 playback 态时不再主线程空转;
-            // 后续播放态就绪的事件(resetSpeed/切集)会重新触发应用
             speedRetryCount++
             uiHandler.removeCallbacks(speedRetryRunnable)
             uiHandler.postDelayed(speedRetryRunnable, 100)
@@ -864,7 +731,6 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun setPreviewMode(previewMode: Boolean) {
         this.previewMode = previewMode
         state.previewMode = previewMode
-        // 退出全屏回预览态时顺带收起全屏残留菜单，避免预览窗仍挂着底栏/中央三键
         if (previewMode && state.controlsVisible) hideBottom()
         uiHandler.removeCallbacks(lockHideRunnable)
         state.lockState = LockVisibility.GONE
@@ -874,7 +740,6 @@ class ComposeVideoController @JvmOverloads constructor(
         state.title = playTitleInfo
     }
 
-    /** 暂停浮层已删,保留接口兼容 */
     override fun setUrlTitle(playTitleInfo: String) = Unit
 
     override fun setHasDanmu(hasDanmu: Boolean) {
@@ -893,7 +758,6 @@ class ComposeVideoController @JvmOverloads constructor(
         this.gestureSwitch = gestureEnabled
     }
 
-    /** 旧暂停浮层根已并入 Compose 层,View 版无需隐藏 */
     override fun hidePauseRoot() = Unit
 
     override fun onNewPlayStarted() {
@@ -903,7 +767,6 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun setLifecyclePaused(paused: Boolean) {
         state.lifecyclePaused = paused
-        // 退后台保留控件(任务快照 = 离开时的样子):冻结自动收起,否则计时会在后台把控件收掉
         if (paused) uiHandler.removeCallbacks(idleHideRunnable) else keepControlsAlive()
     }
 
@@ -918,8 +781,6 @@ class ComposeVideoController @JvmOverloads constructor(
             if (state.controlsVisible) hideBottom()
             return false
         }
-        // 侧边返回手势(YouTube 式)：菜单唤出时先收菜单并消费本次返回，
-        // 菜单收起后再滑才交还宿主退出全屏回竖屏详情页
         if (state.controlsVisible) {
             hideBottom()
             return true
@@ -927,10 +788,6 @@ class ComposeVideoController @JvmOverloads constructor(
         return false
     }
 
-    /**
-     * 自动重试的"换内核"阶梯(仅由 PlayContainer.autoRetry 调用):内核只剩 EXO,恒为"跳过"。
-     * 手动换播放器([onPlayerClicked]/[onPlayerLongClicked])不受影响,仍按剧记忆持久化。
-     */
     override fun switchPlayer(): Boolean = PlayerSwitchUseCase.switchPlayer()
 
     override fun stopOther() {
@@ -953,10 +810,6 @@ class ComposeVideoController @JvmOverloads constructor(
         return webParseUseCase.getWebPlayUrlIfNeeded(webPlayUrl) ?: ""
     }
 
-    // ============================================================
-    // PlayerActions 实现（按钮清单）
-    // ============================================================
-
     override fun onNextClicked() {
         listener?.playNext(false)
         hideBottom()
@@ -968,10 +821,7 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     override fun onPlayPauseClicked() {
-        // 与其余按钮一致 500ms 防抖：触摸误双击＝两次 togglePlay 净零
         if (!fastClickAllowed("play_pause")) return
-        // 遮罩在屏且不在播放态时短路:内核里可能还挂着上一次会话的地址,start() 会按旧地址起播
-        // (错误态同样是 IDLE,故判遮罩而非只判 loading)
         if (state.tipVisible && !isInPlaybackState()) return
         videoView?.togglePlay()
         keepControlsAlive()
@@ -1040,7 +890,6 @@ class ComposeVideoController @JvmOverloads constructor(
                 items = names,
                 defaultIndex = defaultPos,
                 onSelected = { pos ->
-                    // 选中的就是当前内核时什么都不做(含不收底栏):与 applyPlayer 的同值早退同一口径
                     if (players[pos] != playerType) {
                         applyPlayer(players[pos])
                         hideBottom()
@@ -1083,7 +932,6 @@ class ComposeVideoController @JvmOverloads constructor(
         }
     }
 
-    /** 把当前位置设为片头;位置已过半程时不设(那时它更可能是片尾) */
     private fun markTimeStart() {
         val view = videoView ?: return
         val current = PlayerUtils.safeTimeMs(view.currentPosition)
@@ -1091,7 +939,6 @@ class ComposeVideoController @JvmOverloads constructor(
         setTimeMark("st", current / 1000)
     }
 
-    /** 把当前位置到结尾的时长设为片尾;位置未过半程时不设 */
     private fun markTimeEnd() {
         val view = videoView ?: return
         val current = PlayerUtils.safeTimeMs(view.currentPosition)
@@ -1100,7 +947,6 @@ class ComposeVideoController @JvmOverloads constructor(
         setTimeMark("et", (duration - current) / 1000)
     }
 
-    /** 写 st/et 并落库(0 = 清除) */
     private fun setTimeMark(key: String, seconds: Int) {
         keepControlsAlive()
         try {
@@ -1116,7 +962,6 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun onEpisodeClicked() {
         if (!fastClickAllowed("episode")) return
         listener?.showEpisodes()
-        // 面板在屏时不收底栏(与播放参数/弹幕面板一致),只续期自动收起计时
         keepControlsAlive()
     }
 
@@ -1132,7 +977,6 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onSubtitleLongClicked() {
         if (!fastClickAllowed("zimu_long")) return
-        // 关闭字幕归播放层:要落"这个片不要字幕"的记忆并让它跨集生效
         listener?.closeSubtitles()
         hideBottom()
         Toast.makeText(context, context.getString(R.string.player_subtitle_closed), Toast.LENGTH_SHORT).show()
@@ -1202,7 +1046,6 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onBackClicked() {
         isClickBackBtn = state.controlsVisible && !previewMode
-        // 走 dispatcher(宿主一律是 BaseActivity):Activity.onBackPressed() 已废弃
         (playerActivity() as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed()
     }
 
@@ -1247,12 +1090,10 @@ class ComposeVideoController @JvmOverloads constructor(
             seekTarget = seekBarToPosition(progress, duration).toInt()
             view.seekTo(seekTarget.toLong())
         }
-        // 顺序反了这次 seek 的位置就进不了记录:拖拽态下进度拍丢弃这一拍,而暂停态的循环开完这一拍就停
         state.dragging = false
         keySeekProgress = 0
         startProgress()
         keepControlsAlive()
-        // 显式落盘:暂停态等不到下一拍,播放态也不该等到下一拍才更新历史页
         if (seekTarget >= 0) savePlaybackProgress(notifyHistory = true, seekTargetMs = seekTarget)
     }
 
@@ -1303,7 +1144,6 @@ class ComposeVideoController @JvmOverloads constructor(
         }
         return maxOf(1, (increment * SEEK_MAX / duration).toInt())
     }
-
 
     override fun refreshSystemInfo() {
         val view = videoView ?: return

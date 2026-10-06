@@ -5,10 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** SourcePolicy 单测:锁住「RTMP live 后缀」与「缓存数据源选择」的真值表 */
 class SourcePolicyTest {
-
-    // ==================== RTMP live=1 ====================
 
     @Test
     fun rtmpLiveFlag_appendedWhenMissing() {
@@ -35,8 +32,6 @@ class SourcePolicyTest {
         assertFalse(SourcePolicy.isRtmp(null))
     }
 
-    // ==================== 本地代理判定 ====================
-
     @Test
     fun localProxy_detectsLoopbackHosts() {
         assertTrue(SourcePolicy.isLocalProxyUrl("http://127.0.0.1:9978/proxy?url=x"))
@@ -45,11 +40,8 @@ class SourcePolicyTest {
         assertTrue(SourcePolicy.isLocalProxyUrl("https://localhost/x"))
         assertFalse(SourcePolicy.isLocalProxyUrl("http://192.168.1.2/x"))
         assertFalse(SourcePolicy.isLocalProxyUrl(null))
-        // 忠实移植:旧实现是字面前缀匹配,域名恰以 "127.0.0.1" 打头同样命中(如 127.0.0.1.example.com)
         assertTrue(SourcePolicy.isLocalProxyUrl("http://127.0.0.1.example.com/x"))
     }
-
-    // ==================== 缓存模式选择 ====================
 
     private fun mode(
         isLocalProxyUrl: Boolean = false,

@@ -12,12 +12,6 @@ import java.io.UnsupportedEncodingException
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 全站/单源搜索(searchContent)。
- *
- * <p>t4 源的 extend 是阻塞拉取,所以整段搜索请求先挪到准备线程池;
- * 空结果与解析失败都走 [SourceResultParser.postEmptySearchResult] 保持同一形状。
- */
 class SearchLoader(
     private val gson: Gson,
     private val extendCache: ConcurrentHashMap<String, String>,
@@ -25,7 +19,6 @@ class SearchLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    // searchContent
     fun getSearch(sourceKey: String?, wd: String?) {
         getSearch(sourceKey, wd, "")
     }
@@ -52,7 +45,6 @@ class SearchLoader(
         }
     }
 
-    /** type 3:爬虫 searchContent;空结果也回一条空 AbsXml,保持与其它分支同形状 */
     private fun searchFromSpider(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
 
         try {
@@ -69,9 +61,7 @@ class SearchLoader(
         }
     }
 
-    /** type 0/1:站点搜索接口(type 0 走 XML) */
     private fun searchFromApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?, requestTag: String?) {
-        // 回调里要按 type 分流 xml/json,值语义与调用点一致(原为捕获上层局部量)
         val type = sourceBean.type
 
         SourceHelper.siteGet(sourceBean)
@@ -101,7 +91,6 @@ class SearchLoader(
             })
     }
 
-    /** type 4:带 extend 的搜索;extend 是阻塞拉取,故整段挪到准备线程池 */
     private fun searchFromExtendedApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?, requestTag: String?) {
 
         SourceHelper.PREPARE_POOL.execute {
@@ -119,7 +108,6 @@ class SearchLoader(
                 .params("wd", queryWd)
                 .params("ac", "detail")
                 .params("quick", "false")
-            // 当 extend 不为空且非空字符串时添加参数
             if (extend != null && !extend.isEmpty()) {
                 request.params("extend", extend)
             }
@@ -135,7 +123,6 @@ class SearchLoader(
 
                 override fun onSuccess(response: Response<String>) {
                     val json = response.body()
-//                            LOG.i("echo-t4 search onSuccess"+json);
                     resultParser.json(result, json, sourceBean.key, searchToken)
                 }
 

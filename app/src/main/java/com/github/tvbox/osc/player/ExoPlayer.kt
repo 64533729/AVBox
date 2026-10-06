@@ -17,32 +17,12 @@ import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 
-/**
- * 新栈内核适配器(M7b):把 app 侧内核契约 [KernelPlayer] 桥到新内核 [PlayerEngine]。
- *
- * <p>为什么保留类名与对外方法面:宿主([AppPlayerView]/[MyVideoView])、控制器与调度层
- * (选轨菜单/OSD/重试阶梯/媒体会话/画面效果)都按本类型读取内核能力;类名与方法面不变 ⇒
- * 内核换代对它们是透明的(M7b 最小切换面)。
- *
- * <p>**去 doikki(M7e 起)**:基类由 `xyz.doikki.videoplayer.player.AbstractPlayer` 换成
- * app 侧 [KernelPlayer](逐签名等价,含起播位置契约与 `mPlayerEventListener` 直读形态),
- * 本类因此不再引用任何 `xyz.doikki` 符号。
- *
- * <p>行为对齐(逐条对照旧 `ExoPlayer extends ExoMediaPlayer`):
- * 首次 READY 发 `onPrepared` + `onInfo(RENDERING_START)`(旧 `mIsPreparing` 语义,含 HLS 原地重试后的重发)、
- * 其后 BUFFERING/READY/ENDED 对 `onInfo(BUFFERING_*)`/`onCompletion`;
- * 视频尺寸经 [PlayerEngine.videoSizeListener] 回发,旋转非 0 补发 `onInfo(MEDIA_INFO_VIDEO_ROTATION_CHANGED)`;
- * `keepRenderViewOnReset` 固定 true(宿主 `replay` 的复用分支);
- * `setStartPosition` 用基类记录值(旧 `ExoMediaPlayer.prepareAsync` 的 getStartPosition/markStartPositionApplied 契约)。
- */
 class ExoPlayer(context: Context) : KernelPlayer() {
 
     private val appContext: Context = context.applicationContext
 
-    /** 本会话内核(每次 [initPlayer] 重建;release 后置空) */
     private var engine: PlayerEngine? = null
 
-    /** 新栈播放状态机(M7b):桥把内核事件与播放命令投给它,M7c 起由调度层直读 */
     val stateMachine = PlaybackStateMachine()
 
     private var onCuesListener: OnCuesListener? = null
@@ -51,13 +31,9 @@ class ExoPlayer(context: Context) : KernelPlayer() {
 
     private var contentKeyValue = ""
 
-    /** prepareAsync 之后等待首个 STATE_READY(旧 doikki `mIsPreparing` 语义) */
     private var awaitingPrepared = false
 
-    /** 内核未建立时暂存的播放速度(旧 doikki `mSpeedPlaybackParameters` 语义;重建内核后回灌) */
     private var pendingSpeed: Float? = null
-
-    // ==================== AbstractPlayer:内核生命周期 ====================
 
     override fun initPlayer() {
         val config = PlayerEngineConfig(
@@ -103,7 +79,6 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         val current = engine ?: return
         PictureEffects.onPrepare(this, current.isTunnelingEnabled)
         current.setStartPosition(startPosition)
-        // 无源/无内核不下发也不进入"等待 onPrepared"(旧 doikki 在 setMediaSource 前的早退语义)
         if (!current.prepare()) return
         awaitingPrepared = true
         stateMachine.onPrepareRequested()
@@ -125,11 +100,6 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         stateMachine.onStopRequested()
     }
 
-    /**
-     * 静默停内核([MyVideoView.clearVideoFrame] 直调):只停内核、不改状态机 ——
-     * 旧实现直调 `mMediaPlayer.stop()` 时基类状态本来就不变(盖黑帧是"复用换集"的前置动作,不是一次播放停止);
-     * 投状态机(→IDLE)会让 `isIdleKernelReusable` 等读取点把仍有内容的内核误判成空闲(M7d 收口 M7b 登记⑥)。
-     */
     fun stopForFrameClear() {
         engine?.stop()
     }
@@ -198,8 +168,6 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         engine?.setOptions()
     }
 
-    // ==================== 内核事件 → 旧契约回调 ====================
-
     private fun dispatchPlaybackState(state: Int) {
         if (awaitingPrepared) {
             if (state == Player.STATE_READY) {
@@ -230,21 +198,16 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         }
     }
 
-    // ==================== app 扩展面(调用点零改动的承接) ====================
-
-    /** 本片记忆键(见 TrackMemory);内核重建后由 [initPlayer] 重新推给新实例 */
     fun setContentKey(key: String?) {
         contentKeyValue = key ?: ""
         engine?.setContentKey(contentKeyValue)
     }
 
-    /** 点播磁盘缓存标记(第二期「边播边缓存」;由 MyVideoView 注入,直播页恒 false) */
     fun setUseDiskCache(enabled: Boolean) {
         useDiskCacheFlag = enabled
         engine?.setUseDiskCache(enabled)
     }
 
-    /** 输出分辨率信令(纹理渲染路径由 MyVideoView 推;Surface 路径由内核 setDisplay 内部补发) */
     fun notifyVideoOutputResolution(width: Int, height: Int) {
         engine?.notifyVideoOutputResolution(width, height)
     }
@@ -324,7 +287,6 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         return value.coerceIn(1, 10)
     }
 
-    /** 内核字幕回调(内置字幕渲染由内核完成,这里只透给播放器的外挂字幕面板) */
     @JvmSuppressWildcards
     fun interface OnCuesListener {
         fun onCues(cues: List<Cue>)
@@ -336,13 +298,11 @@ class ExoPlayer(context: Context) : KernelPlayer() {
         const val ERROR_KIND_NETWORK = 1
         const val ERROR_KIND_DECODE = 2
 
-        /** 下发 EXO 解码方式:true = 软解(系统软件解码器优先)。真值源收口在新内核层 CodecPreferences(双栈同一偏好)。 */
         @JvmStatic
         fun setPreferSoftwareDecode(prefer: Boolean) {
             CodecPreferences.setPreferSoftwareDecode(prefer)
         }
 
-        /** 当前已下发的 EXO 解码方式(供 PlayerHelper 判断"这次起的解码方式变了没") */
         @JvmStatic
         fun isPreferSoftwareDecode(): Boolean = CodecPreferences.isPreferSoftwareDecode()
     }

@@ -4,7 +4,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** PlaybackAttemptState 切换意图单测:锁住三态语义(REBUILD 覆盖 REUSE、取用即复位) */
 class PlaybackAttemptStateIntentTest {
 
     @Test

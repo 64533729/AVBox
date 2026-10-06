@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">AVBox</string>
 
-    <!-- Settings: language (language names stay endonym, same as the platform language picker) -->
     <string name="settings_language">Language</string>
     <string name="settings_group_language_layout">Language &amp; Layout</string>
     <string name="settings_language_subtitle">Change the app interface language</string>
@@ -15,17 +14,14 @@
     <string name="settings_language_zh_hant_hk">繁體(香港)</string>
     <string name="settings_language_restart_message">Takes effect after restart</string>
 
-    <!-- Player: notification -->
     <string name="player_notification_previous">Previous</string>
     <string name="player_notification_next">Next</string>
     <string name="player_notification_channel_name">Playback controls</string>
     <string name="player_notification_channel_desc">Background playback controls</string>
 
-    <!-- Common (continued) -->
     <string name="common_search">Search</string>
     <string name="common_retry">Retry</string>
 
-    <!-- Live -->
     <string name="live_empty_channels">No live channels. Check your live source settings</string>
     <string name="live_password_title">Enter password</string>
     <string name="live_password_hint">Group password</string>
@@ -41,7 +37,6 @@
     <string name="live_group_long_press_delete">%1$s (long-press to delete)</string>
     <string name="player_play_pause">Play/Pause</string>
 
-    <!-- Subtitle sheet -->
     <string name="subtitle_builtin">Select built-in subtitle</string>
     <string name="subtitle_local">Select local subtitle</string>
     <string name="subtitle_online">Search subtitles online</string>
@@ -60,7 +55,6 @@
     <string name="toast_subtitle_style_ok">Style applied</string>
     <string name="toast_subtitle_not_found">No matching subtitles found</string>
 
-    <!-- Player container / player tips -->
     <string name="player_error_sniff">Sniffing error</string>
     <string name="player_error_play">Playback error</string>
     <string name="player_no_audio_track">No audio track</string>
@@ -75,7 +69,6 @@
     <string name="toast_no_cast_url">No castable playback URL</string>
     <string name="toast_subtitle_read_failed">Failed to read the subtitle file</string>
 
-    <!-- Danmaku sheet -->
     <string name="danmu_settings">Danmaku Settings</string>
     <string name="danmu_online">Online Danmaku</string>
     <string name="danmu_color">Danmaku Color</string>
@@ -94,7 +87,6 @@
     <string name="toast_input_empty">Input cannot be empty</string>
     <string name="toast_danmu_not_found">No matching danmaku found</string>
 
-    <!-- Home -->
     <string name="home_subscription_source">Subscriptions</string>
     <string name="home_site_search_hint">Search site name or URL</string>
     <string name="home_site_search_empty">No matching sites</string>
@@ -102,7 +94,6 @@
     <string name="home_load_timeout">Home page timed out. Check your network and try again</string>
     <string name="home_recommend">Recommended</string>
 
-    <!-- Search -->
     <string name="search_settings">Search Settings</string>
     <string name="search_no_site">No search sites selected. Tick them in Search Settings on the Home page</string>
     <string name="search_history">Search History</string>
@@ -115,7 +106,6 @@
     <string name="search_no_exact_result">No exact match for “%1$s”</string>
     <string name="search_no_result">No results for “%1$s”</string>
 
-    <!-- Cast -->
     <string name="cast_title">Cast to Device</string>
     <string name="cast_hint">Make sure the TV/box has AVBox installed or DLNA casting enabled\nThe TV/box and the phone are connected to the same Wi-Fi</string>
     <string name="cast_permission_hint">Allow the “Nearby devices” permission to search for cast devices\nAfter enabling it, tap “Refresh” to retry</string>
@@ -125,7 +115,6 @@
     <string name="toast_cast_success">Cast started</string>
     <string name="toast_cast_failed">Cast failed</string>
 
-    <!-- Common -->
     <string name="common_back">Back</string>
     <string name="common_not_set">Not set</string>
     <string name="common_set">Set</string>
@@ -152,7 +141,6 @@
     <string name="common_select_all">Select all</string>
     <string name="common_invert_selection">Invert selection</string>
 
-    <!-- Player bottom bar -->
     <string name="player_menu_subtitle">Subtitle</string>
     <string name="player_menu_audio_track">Audio</string>
     <string name="player_menu_video_track">Video</string>
@@ -162,14 +150,12 @@
     <string name="player_menu_more">More</string>
     <string name="player_menu_parse">Parse</string>
 
-    <!-- 播放参数面板 -->
     <string name="player_params_speed">Speed</string>
     <string name="player_params_time">Opening &amp; ending</string>
     <string name="player_params_player">Player</string>
     <string name="player_params_set_start">Set opening</string>
     <string name="player_params_set_end">Set ending</string>
 
-    <!-- Picture settings panel -->
     <string name="player_menu_picture">Picture</string>
     <string name="player_picture_preset">Preset</string>
     <string name="player_anime4k_title">Anime4K</string>
@@ -209,7 +195,6 @@
     <string name="player_picture_unavailable_restart">Picture adjustment saved - it takes effect after playback restarts</string>
     <string name="player_picture_unavailable_decoder">The current decoder doesn\'t support picture adjustment</string>
 
-    <!-- Music player page -->
     <string name="music_queue">Queue</string>
     <string name="music_song_index">Track %1$d</string>
     <string name="tab_home">Home</string>
@@ -218,7 +203,6 @@
     <string name="toast_source_auto_disabled">This source cannot be used and would crash the app, so it was disabled (you can re-enable it in Config Management)</string>
     <string name="toast_press_again_to_exit">Press Back again to exit</string>
 
-    <!-- Detail page: source switching and favorites -->
     <string name="detail_switch_site">Switched to site %1$s</string>
     <string name="detail_switching_source">Switching source</string>
     <string name="detail_switch_failed">Source switch failed. Keeping the current source</string>
@@ -226,7 +210,6 @@
     <string name="toast_removed_from_collect">Removed from favorites</string>
     <string name="toast_added_to_collect">Added to favorites</string>
 
-    <!-- Settings: preload -->
     <string name="preload_next_episode">Preload next episode</string>
     <string name="preload_next_episode_subtitle">Only supported by the Media3 player and some sources</string>
     <string name="preload_duration">Preload duration</string>
@@ -234,7 +217,6 @@
     <string name="preload_play_cache_subtitle">May make the Media3 player unusable when enabled</string>
     <string name="preload_cache_size">Cache size</string>
 
-    <!-- Search page -->
     <string name="search_field_hint">Search titles and actors</string>
     <string name="search_result_layout">Result layout</string>
     <string name="search_site_empty">No results from this site</string>
@@ -244,14 +226,12 @@
     <string name="common_filter">Filter</string>
     <string name="vodcard_search_similar">Search similar</string>
 
-    <!-- Favorites page -->
     <string name="collect_clear">Clear favorites</string>
     <string name="collect_empty">No favorites</string>
     <string name="collect_clear_message">This will delete all favorites and cannot be undone</string>
     <string name="collect_uncollect_message">Remove “%1$s” from favorites?</string>
     <string name="collect_delete_selected_message">Remove %1$d selected favorites?</string>
 
-    <!-- Theme: color picker -->
     <string name="theme_brightness_value">Brightness %1$d%%</string>
     <string name="theme_initial_color">Initial color</string>
     <string name="theme_current_color">Current color</string>
@@ -259,7 +239,6 @@
     <string name="music_previous">Previous</string>
     <string name="music_next">Next</string>
 
-    <!-- Search settings sheet -->
     <string name="search_home_poster">Home posters</string>
     <string name="search_layout_horizontal">Horizontal</string>
     <string name="search_layout_vertical">Vertical</string>
@@ -269,7 +248,6 @@
     <string name="search_sites_selected_hint">Selected %1$d/%2$d. Select all to search every site</string>
     <string name="search_sites_empty">No sites available</string>
 
-    <!-- Live: gestures and tips -->
     <string name="live_brightness">Brightness</string>
     <string name="live_volume">Volume</string>
     <string name="live_gesture_hint">%1$s %2$d%%</string>
@@ -283,7 +261,6 @@
     <string name="live_epg_hot_no_info">Highlights - No program info</string>
     <string name="live_epg_no_info">No program info</string>
 
-    <!-- Dialogs -->
     <string name="dialog_kernel_prewarm_title">Performance Warning</string>
     <string name="dialog_kernel_prewarm_message">When enabled, the app creates the player engine at startup and keeps it resident, which speeds up playback start-up.\n\nHowever, it occupies extra system resources, which may cause stutter or the app being reclaimed in the background.</string>
     <string name="dialog_kernel_prewarm_confirm">Enable</string>
@@ -293,13 +270,11 @@
     <string name="dialog_source_disabled_message">“%1$s” caused the app to crash and has been disabled.\n\nIf it has been fixed, you can re-enable it; otherwise switching to it will likely crash the app again.</string>
     <string name="dialog_source_disabled_confirm">Enable anyway</string>
 
-    <!-- Tips -->
     <string name="toast_cache_cleared">Cache cleared</string>
     <string name="toast_no_app_for_link">No app can open this link</string>
     <string name="toast_live_follow_vod">Live source now follows the VOD source</string>
     <string name="toast_source_in_use">The source in use cannot be deleted</string>
 
-    <!-- Players -->
     <string name="player_exo">Media3</string>
     <string name="player_mx">MX Player</string>
     <string name="player_reex">Reex Player</string>
@@ -313,7 +288,6 @@
     <string name="player_scale_crop">Crop</string>
     <string name="player_parse_failed_prefix">Parse failed >>> %1$s</string>
 
-    <!-- Detail page -->
     <string name="detail_fullscreen_play">Play fullscreen</string>
     <string name="detail_empty_source">No sources. Try switching source or searching</string>
     <string name="detail_music_player">Open Music Player</string>
@@ -332,7 +306,6 @@
     <string name="detail_finding_source">Finding sources…</string>
     <string name="detail_recommend">Related</string>
 
-    <!-- History -->
     <string name="history_title">History</string>
     <string name="history_clear">Clear history</string>
     <string name="history_empty">No watch history</string>
@@ -346,7 +319,6 @@
     <string name="history_episode_progress">Episode %1$d/%2$d</string>
     <string name="history_watched_percent">Watched %1$d%%</string>
 
-    <!-- Settings: theme -->
     <string name="theme_color">Theme Color</string>
     <string name="theme_app_effects">App Effects</string>
     <string name="theme_liquid_glass">Liquid Glass</string>
@@ -384,7 +356,6 @@
     <string name="theme_style_rainbow">Rainbow</string>
     <string name="theme_style_fruit_salad">Fruit Salad</string>
 
-    <!-- Settings: playback -->
     <string name="settings_play_kernel">Player Engine</string>
     <string name="settings_play_render">Rendering</string>
     <string name="settings_play_scale">Video Scaling</string>
@@ -397,7 +368,6 @@
     <string name="settings_music_page">Music Player Page</string>
     <string name="settings_music_page_subtitle">Open automatically for audio-only content</string>
 
-    <!-- Tips: source loading -->
     <string name="toast_config_parse_failed">Failed to parse config</string>
     <string name="toast_config_fetch_failed">Failed to fetch config\n%1$s</string>
     <string name="toast_live_config_parse_failed">Failed to parse live config</string>
@@ -406,7 +376,6 @@
     <string name="toast_local_source_missing">The local source file no longer exists\nIt may have been deleted or renamed in the file manager. Please re-import the local source</string>
     <string name="source_push_agent">Push</string>
 
-    <!-- Live: settings sheet -->
     <string name="live_group_line">Select Line</string>
     <string name="live_group_scale">Aspect Ratio</string>
     <string name="live_group_decoder">Decoding</string>
@@ -419,7 +388,6 @@
     <string name="live_setting_cross_group">Cross-group Switching</string>
     <string name="live_source_index_name">Source %1$d</string>
 
-    <!-- Config management -->
     <string name="config_no_source">Not configured</string>
     <string name="config_switched_to">Switched to: %1$s</string>
     <string name="config_switch_repo">Switch Repo</string>
@@ -438,7 +406,6 @@
     <string name="config_field_url">URL</string>
     <string name="live_follow_vod_source">Follow VOD source</string>
 
-    <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_config_manage">Config Management</string>
     <string name="settings_config_manage_subtitle">Import or delete subscription sources</string>
@@ -464,7 +431,6 @@
     <string name="settings_app_tagline">TVBox for Phone</string>
     <string name="settings_app_version">App version</string>
 
-    <!-- Settings: preferences -->
     <string name="settings_preference_title">Preferences</string>
     <string name="settings_history_merge">Merge History</string>
     <string name="settings_incognito">Incognito Mode</string>
@@ -482,14 +448,12 @@
     <string name="settings_buffer_time">Buffer Time</string>
     <string name="settings_search_threads">Search Threads</string>
 
-    <!-- Settings: secondary page group labels -->
     <string name="settings_group_play_picture">Engine &amp; Picture</string>
     <string name="settings_group_play_behavior">Playback Behavior</string>
     <string name="settings_group_privacy">Privacy &amp; Interaction</string>
     <string name="settings_group_play_search">Playback &amp; Search</string>
     <string name="settings_group_preload_cache">Preload &amp; Cache</string>
 
-    <!-- Playback pipeline tips (PlaybackController / ComposeVideoController) -->
     <string name="common_success">Success</string>
     <string name="common_failed">Failed</string>
     <string name="player_time_start">Opening</string>
@@ -512,7 +476,6 @@
     <string name="player_call_external_play">Launching external player %1$s</string>
     <string name="player_call_external_result">External player %1$s: %2$s</string>
 
-    <!-- Remaining UI strings (2026-09-22) -->
     <string name="player_lock">Lock</string>
     <string name="player_rotate_landscape">Rotate to landscape</string>
     <string name="player_rotate_portrait">Rotate to portrait</string>
@@ -535,7 +498,6 @@
     <string name="toast_permission_required">Permission required</string>
     <string name="toast_folder_data_missing">Folder data is missing, cannot open</string>
 
-    <!-- Resolve / sniff / download / danmaku / cast / local source (non-UI, 2026-09-22) -->
     <string name="player_sniffing_url">Sniffing playback URL</string>
     <string name="player_resolving_url">Resolving playback URL</string>
     <string name="player_parse_error">Parse error</string>

@@ -4,10 +4,6 @@ import android.util.Base64
 
 import com.github.tvbox.osc.util.DefaultConfig
 
-/**
- * @author pj567
- * @date :2021/3/8
- */
 class ParseBean {
 
     var name: String? = null
@@ -22,7 +18,6 @@ class ParseBean {
 
     var ext: String? = null
 
-    /** 0 普通嗅探 1 json 2 Json扩展 3 聚合 */
     var type: Int = 0
 
     var isDefault: Boolean = false

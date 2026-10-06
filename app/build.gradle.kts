@@ -88,7 +88,6 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
-        // Robolectric 需要真实资源与清单(Compose UI 测试在 JVM 上跑的前提)
         unitTests.isIncludeAndroidResources = true
     }
 }
@@ -136,19 +135,15 @@ dependencies {
     implementation(libs.mmkv)
     implementation(libs.danmaku.flame.master)
 
-    // media3 播放内核(M10 起由本模块直接声明,此前经 :player 模块的 api 传递)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.exoplayer.rtsp)
     implementation(libs.media3.datasource)
-    // rtmp 扩展:DefaultDataSource 反射加载 RtmpDataSource;其自带的 io.antmedia:rtmp-client 由下方 exclude 换成本地 16KB 版
     implementation(libs.media3.datasource.rtmp)
     implementation(libs.media3.database)
     implementation(libs.media3.ui)
-    // jellyfin ffmpeg 软解:DefaultRenderersFactory 反射发现 FfmpegAudioRenderer
     implementation(libs.media3.ffmpeg.decoder)
-    // 画质参数(调色)的着色器效果:ExoPlayer#setVideoEffects 在运行期反射查找效果模块,必须打进包
     implementation(libs.media3.effect)
     implementation(project(":quickjs"))
     implementation(project(":pyramid"))
@@ -158,15 +153,11 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.commons.io)
     implementation(libs.juniversalchardet)
-    // zxing:动态加载的爬虫 jar 运行期需要 com.google.zxing.*(二维码),宿主必须提供。
-    // 宿主源码无静态引用,禁止按"零引用"删除;keep 规则见 proguard-rules.pro
     implementation(libs.zxing.core)
-    // sardine:订阅源 jar 里的 WebDAV 爬虫(com.github.catvod.spider.WebDAV)用它做
     implementation(libs.sardine) {
         exclude(group = "xpp3", module = "xpp3")
     }
 
-    // Compose UI(avbox-mobile-ui-spec §2)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -187,10 +178,6 @@ dependencies {
 
     testImplementation(libs.junit)
 
-    // ---- 纯 JVM 上的 Compose/Android 行为验证栈 ----
-    // 动机:M7e 的"手势改 Compose pointerInput"两次在独立复核被判不予交付,根因是接线层语义
-    // (子控件消费、双击时序、ACTION_CANCEL、长按计时)在只有 JUnit4 的环境里无法离线验证。
-    // 这三条依赖把 Compose 的指针分发与 Android 框架行为搬进 JVM 单测。
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)

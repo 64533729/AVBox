@@ -38,18 +38,15 @@ class Connect {
             return to(url, req, "js_okhttp_tag")
         }
 
-        /** tag 按爬虫隔离:避免搜索页 stopAll 误杀其他站点在途 JS 请求 */
         @JvmStatic
         fun to(url: String, req: Req, tag: Any?): Call {
             client = withTimeout(req, if (req.isRedirect()) OkGoHelper.getDefaultClient()!! else OkGoHelper.getNoRedirectClient()!!)
             return client!!.newCall(getRequest(url, req, req.getHeader().toHeaders(), tag))
         }
 
-        /** OkHttp 超时是 client 级,爬虫的 timeout 只能靠派生 client;不能用 OkHttp.client() —— 它会换成 OkDns,丢掉配置 hosts 映射 */
         @JvmStatic
         fun withTimeout(req: Req, base: OkHttpClient): OkHttpClient {
             var timeout = req.getTimeout()!!.toLong()
-            // 0 在 OkHttp 里表示"不超时":不采用该语义,非正数一律回落默认值(否则爬虫写错一个 0 就能让请求永不超时)
             if (timeout <= 0) timeout = OkGoHelper.DEFAULT_MILLISECONDS
             if (timeout == OkGoHelper.DEFAULT_MILLISECONDS) return base
             return base.newBuilder().connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).build()
@@ -62,13 +59,10 @@ class Connect {
                 val jsHeader = ctx.createNewJSObject()
                 setHeader(ctx, res, jsHeader)
                 ctx.setProperty(jsObject, "headers", jsHeader)
-                // Kotlin 没有 String(byte[], charsetName) 这一支,用 Charset.forName 等价(未知字符集同样抛异常后落 catch)
                 if (req.getBuffer() == 0) ctx.setProperty(jsObject, "content", String(res.body.bytes(), Charset.forName(req.getCharset())))
                 if (req.getBuffer() == 1) {
                     val array = ctx.createNewJSArray()
                     val bytes = res.body.bytes()
-                    // BugReview #22:byte 直接 (int) 提升会把 >0x7F 的字节变负数(255→-1),
-                    // 二进制响应(图片/密文/m3u8)数据损坏;& 0xFF 还原无符号值
                     for (i in bytes.indices) array.set(bytes[i].toInt() and 0xFF, i)
                     ctx.setProperty(jsObject, "content", array)
                 }
@@ -136,7 +130,6 @@ class Connect {
         fun cancelByTag(tag: Any?) {
             try {
                 if (client != null) {
-                    // tag 为 null 时 Java 版在 equals 处抛 NPE 并由本 catch 兜底,!! 必须留在分支内才同抛点
                     val target = tag!!
                     for (call in client!!.dispatcher.queuedCalls()) {
                         if (target == call.request().tag()) {

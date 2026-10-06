@@ -19,7 +19,6 @@ import com.whl.quickjs.wrapper.QuickJSContext
 
 class JsLoader {
 
-    //当前的Js爬虫key
     @Volatile
     private var recentKey: String = ""
 
@@ -83,8 +82,6 @@ class JsLoader {
         }
         val cache = File(AppContextHolder.context()!!.filesDir.absolutePath + "/csp/" + key + ".jar")
         try {
-            // BugReview #15:csp 父目录只有全局 jar 下载路径会创建;仅含站点级 jar 时目录
-            // 不存在,new FileOutputStream(cache) 抛 FileNotFoundException,js 源全变 SpiderNull
             val parent = cache.parentFile
             if (parent != null && !parent.exists()) parent.mkdirs()
         } catch (ignored: Throwable) {
@@ -143,9 +140,6 @@ class JsLoader {
             val jarMd5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
             classLoader = loadJarInternal(jarUrl, jarMd5, jarKey)
         }
-        // BugReview #19:sp 声明放 try 外,init 抛异常时 JsSpider 已创建 QuickJSContext +
-        // 单线程 executor,不 destroy 会泄漏 native runtime 与线程(构造失败场景由
-        // JsSpider 构造函数自行兜底,此时 sp 为 null)
         var sp: Spider? = null
         try {
             Log.i("JSLoader", "echo-getSpider load")

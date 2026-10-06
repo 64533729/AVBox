@@ -31,7 +31,6 @@ object AppDataManager {
         return DB_NAME + ".v" + DB_FILE_VERSION + ".db"
     }
 
-    /** 获取(或重建)数据库实例:backup/restore 会 close 并置 null,故需重建;加锁防 check-then-act 竞态重复 build。 */
     @JvmStatic
     fun get(): AppDataBase {
         synchronized(AppDataManager::class.java) {
@@ -53,7 +52,6 @@ object AppDataManager {
     @Throws(IOException::class)
     fun backup(path: File): Boolean {
         dbInstance?.close()
-        // 置 null,否则 get() 永远返回已关闭实例(后续 Room 操作全抛 "connection pool has been closed")
         dbInstance = null
         val db = AppContextHolder.context()!!.getDatabasePath(dbPath())
         return if (db.exists()) {

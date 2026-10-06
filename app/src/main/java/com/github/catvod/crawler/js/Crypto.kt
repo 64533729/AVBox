@@ -22,7 +22,6 @@ class Crypto {
 
     companion object {
 
-        // 入参可空:调用方是 JS 桥(Global.aesX/rsaX),Java 版对这些点靠 try 内解引用抛 NPE 后返回 ""
         @JvmStatic
         fun aes(mode: String?, encrypt: Boolean, input: String?, inBase64: Boolean, key: String?, iv: String?, outBase64: Boolean): String {
             try {

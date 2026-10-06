@@ -14,11 +14,6 @@ import java.util.ArrayList
 import java.util.Collections
 import java.util.regex.Pattern
 
-/**
- * @author pj567
- * @date :2020/12/21
- * @description:
- */
 object DefaultConfig {
 
     @JvmStatic
@@ -54,7 +49,6 @@ object DefaultConfig {
         return data
     }
 
-    /** 按白名单挑分类;一个都没匹配上退化为全量,否则源改分类名会把首页整页过滤成空 */
     @JvmStatic
     fun pickByCategories(list: List<MovieSort.SortData>, categories: List<String>): MutableList<MovieSort.SortData> {
         val data = ArrayList<MovieSort.SortData>()
@@ -79,7 +73,6 @@ object DefaultConfig {
 
     @JvmStatic
     fun getAppVersionCode(mContext: Context): Int {
-        //包管理操作管理类
         val pm = mContext.packageManager
         try {
             val packageInfo = pm.getPackageInfo(mContext.packageName, 0)
@@ -92,7 +85,6 @@ object DefaultConfig {
 
     @JvmStatic
     fun getAppVersionName(mContext: Context): String? {
-        //包管理操作管理类
         val pm = mContext.packageManager
         try {
             val packageInfo = pm.getPackageInfo(mContext.packageName, 0)
@@ -103,12 +95,6 @@ object DefaultConfig {
         return ""
     }
 
-    /**
-     * 后缀
-     *
-     * @param name
-     * @return
-     */
     @JvmStatic
     fun getFileSuffix(name: String?): String {
         if (TextUtils.isEmpty(name)) {
@@ -118,12 +104,6 @@ object DefaultConfig {
         return if (endP > -1) name.substring(endP) else ""
     }
 
-    /**
-     * 获取文件的前缀
-     *
-     * @param fileName
-     * @return
-     */
     @JvmStatic
     fun getFilePrefixName(fileName: String?): String {
         if (TextUtils.isEmpty(fileName)) {
@@ -159,7 +139,6 @@ object DefaultConfig {
         if (snifferMatch.matcher(url).find()) return true
         return false
     }
-
 
     @JvmStatic
     fun safeJsonString(obj: JsonObject, key: String, defaultVal: String): String {

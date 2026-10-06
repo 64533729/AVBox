@@ -30,11 +30,6 @@ import me.jessyan.autosize.AutoSizeConfig
 import me.jessyan.autosize.internal.CustomAdapt
 import com.github.tvbox.osc.util.CutoutUtil
 
-/**
- * @author pj567
- * @date :2020/12/17
- * @description:
- */
 abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
 
     @JvmField
@@ -52,7 +47,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         hideSysBar()
     }
 
-    /** 语言资源包裹;必须早于 AppCompat 的 delegate 建基(它依赖包裹后的 base) */
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(LanguageManager.wrap(newBase))
     }
@@ -75,7 +69,7 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         setContentView(getLayoutResID())
         mContext = this
         initSystemUiListener()
-        CutoutUtil.adaptCutoutAboveAndroidP(mContext!!, true) //设置刘海
+        CutoutUtil.adaptCutoutAboveAndroidP(mContext!!, true)
         AppManager.getInstance().addActivity(this)
         applyOrientationPolicy()
         init()
@@ -102,8 +96,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
             uiOptions = uiOptions or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             window.decorView.systemUiVisibility = uiOptions
         }
-        // 再走 InsetsController：把"短暂露出后自动收回"显式钉住(不依赖旧 IMMERSIVE_STICKY 的映射)，
-        // 旧接口只保留 LAYOUT_* 的布局语义与下面可见性监听依赖的隐藏位
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(WindowInsetsCompat.Type.systemBars())
@@ -115,7 +107,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
             decorView.setOnSystemUiVisibilityChangeListener { visibility ->
                 val hiddenBars = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN
                 if ((visibility and hiddenBars) != hiddenBars) {
-                    // 兜底：ROM 在沉浸进出/横竖屏/回前台会把系统栏放出来，延时要短于显示窗口
                     decorView.removeCallbacks(hideSysBarRunnable)
                     decorView.postDelayed(hideSysBarRunnable, SYSBAR_REHIDE_DELAY_MS)
                 }
@@ -143,14 +134,9 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         return false
     }
 
-    /**
-     * 方向策略:sw<600dp 锁竖屏,>=600dp 放开 —— 与平台在 API 36+ 的忽略范围一致,
-     * 故手机档行为不变,大屏交由用户旋转/折叠。
-     */
     open fun applyOrientationPolicy() {
         try {
             val desired = orientationPolicyValue()
-            // 只在策略值本身变化时下发,否则会覆盖播放器「旋转」按钮刚设过的方向
             if (orientationPolicy == desired) {
                 return
             }
@@ -161,7 +147,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         }
     }
 
-    /** 当前窗口档下的策略值;播放器退出全屏时恢复到此值,而不是硬写竖屏 */
     open fun orientationPolicyValue(): Int {
         try {
             val configuration = super.getResources().configuration
@@ -264,7 +249,6 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
     }
 
     companion object {
-        /** 系统栏被 ROM 放出后的兜底重藏延时：要短于"栏可见"的观感窗口，又不抢系统露出动画 */
         private const val SYSBAR_REHIDE_DELAY_MS = 100L
 
         private var screenRatio = -100.0f

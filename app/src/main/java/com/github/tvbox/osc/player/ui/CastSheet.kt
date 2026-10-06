@@ -44,12 +44,6 @@ import com.github.tvbox.osc.util.RemoteTVBox
 import com.github.tvbox.osc.util.PermissionHelper
 import com.github.tvbox.osc.util.PlayerHelper
 
-/** 投屏面板:DLNA/TVBox 设备扫描与投送 */
-
-// ---------------------------------------------------------------------------
-// 投屏(扫描/投送逻辑按原实现 1:1 迁移)
-// ---------------------------------------------------------------------------
-
 @Composable
 fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -84,15 +78,10 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
         searchFinished = false
         val scanning = canScan
         if (!scanning) return@DisposableEffect onDispose { }
-        // TVBox 局域网扫描(旧 searchTvBoxDevices;回调线程切主线程)
         Thread {
             RemoteTVBox.searchAvalible(object : RemoteTVBox.Callback() {
                 override fun found(viewHost: String?, end: Boolean) {
                     mainHandler.post {
-                        // 记住扫描到的 TVBox 地址:PlayerHelper 13 号
-                        // 「RemoteTVBox 播放器」与 RemoteTVBox.run() 都依赖 HawkConfig.REMOTE_TVBOX,
-                        // 而这里曾是它唯一的写入时机 —— Compose 迁移后漏掉了,导致该播放器永远不可用。
-                        // 仅当尚未记住时写入,避免多台设备时覆盖用户显式选择。
                         if (!viewHost.isNullOrEmpty() && RemoteTVBox.getAvalible() == null) {
                             RemoteTVBox.setAvalible(viewHost)
                             PlayerHelper.invalidatePlayersExistInfo()
@@ -102,11 +91,9 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
                 }
 
                 override fun fail(all: Boolean, end: Boolean) {
-                    // 旧实现 end 时仅刷新状态,无需处理
                 }
             })
         }.start()
-        // DLNA 扫描(旧 searchDlnaDevices)
         DLNACastManager.get().setDeviceListener(object : DLNACastManager.DeviceListener {
             override fun onDeviceChanged() {
                 mainHandler.post {
@@ -124,7 +111,6 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
         }
     }
 
-    // dismiss 由 PlayerDialog 的内容槽传入:投屏成功的异步回调也要走退场动画,故作为参数
     val castToDevice: (CastDevice, () -> Unit) -> Unit = { device, dismiss ->
         if (device.type == CastDevice.TYPE_TVBOX) {
             try {
@@ -150,7 +136,6 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
                         }
                         mainHandler.post {
                             if (ok) {
-                                // 投屏成功 = 用户显式选中该设备 → 以它为准记住地址(覆盖扫描时的兜底值)
                                 RemoteTVBox.setAvalible(device.id!!)
                                 PlayerHelper.invalidatePlayersExistInfo()
                                 Toast.makeText(context, context.getString(R.string.toast_cast_success), Toast.LENGTH_SHORT).show()
@@ -224,8 +209,6 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
                             modifier = Modifier.align(Alignment.Center),
                         )
                     } else if (deviceList.isEmpty() && !searchFinished) {
-                        // 与首页(HomePage 整页加载态)同款的 M3 expressive 几何加载指示器 + 同尺寸 64dp:
-                        // 取代原先的 CircularProgressIndicator(SheetLoading),口径见 UI spec「加载指示器」
                         Column(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalAlignment = Alignment.CenterHorizontally,

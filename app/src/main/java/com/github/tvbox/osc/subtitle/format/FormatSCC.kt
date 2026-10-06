@@ -47,20 +47,16 @@ class FormatSCC : TimedTextFileFormat {
         val tto = TimedTextObject()
         var newCaption: Subtitle? = null
 
-        // variables to represent a decoder
         var textBuffer = ""
         var isChannel1 = false
         var isBuffered = true
 
-        // to store current style
         var underlined = false
         var italics = false
         var color: String? = null
 
-        // first lets load the file
         val br = BufferedReader(InputStreamReader(`is`))
 
-        // the file name is saved
         tto.fileName = fileName
         tto.title = fileName
 
@@ -69,9 +65,7 @@ class FormatSCC : TimedTextFileFormat {
         try {
 
             lineCounter++
-            // the file must start with the type declaration
             if (!br.readLine()!!.trim { it <= ' ' }.equals("Scenarist_SCC V1.0", ignoreCase = true)) {
-                // this is a fatal parsing error.
                 throw FatalParsingException(
                     "The fist line should define the file type: \"Scenarist_SCC V1.0\"")
 
@@ -85,83 +79,49 @@ class FormatSCC : TimedTextFileFormat {
                 while (line != null) {
                     line = line.trim { it <= ' ' }
                     lineCounter++
-                    // if its not an empty line
                     if (!line.isEmpty()) {
-                        // we separate the time code from the VANC data
                         var data = RegexUtils.getPattern("\t").split(line)
                         val currentTime = Time("h:m:s:f/fps", data[0] + "/29.97")
-                        // we separate the words
                         data = RegexUtils.getPattern(" ").split(data[1])
                         var j = 0
                         while (j < data.size) {
-                            // we get its hex value stored in a short
                             var word = data[j].toInt(16)
 
-                            // odd parity could be checked here
-
-                            // we eliminate the parity bits before decoding
                             word = word and 0x7f7f
 
-                            // if it is a char:
                             if ((word and 0x6000) != 0) {
-                                // if we are in the right channel (1)
                                 if (isChannel1) {
-                                    // we extract the two chars
                                     val c1 = ((word and 0xff00) ushr 8).toByte()
                                     val c2 = (word and 0x00ff).toByte()
 
                                     if (isBuffered) {
-                                        // we decode the byte and add it to the
-                                        // text buffer
                                         textBuffer += decodeChar(c1)
-                                        // we decode the second char and add it,
-                                        // this one can be empty.
                                         textBuffer += decodeChar(c2)
                                     } else {
-                                        // we decode the byte and add it to the
-                                        // text screen
                                         newCaption!!.content += decodeChar(c1)
-                                        // we decode the second char and add it,
-                                        // this one can be empty.
                                         newCaption.content += decodeChar(c2)
                                     }
                                 }
 
                             } else if (word == 0x0000)
-                                // word 8080 is filler to add frames
                                 currentTime.mseconds = (currentTime.mseconds + 1000 / 29.97).toInt()
                             else {
-                                // it is a control code
                                 if (j + 1 < data.size && data[j] == data[j + 1])
-                                    // if code is repeated, skip one.
                                     j++
 
-                                // we check the channel
                                 if ((word and 0x0800) == 0) {
-                                    // we are on channel 1 or 3
 
-                                    // we parse the code
                                     if ((word and 0x1670) == 0x1420) {
-                                        // it is a command code
-                                        // we check the channel
                                         if ((word and 0x0100) == 0) {
-                                            // it is channel 1
                                             isChannel1 = true
-                                            // the command is decoded
                                             word = word and 0x000f
                                             when (word) {
                                                 0 -> {
-                                                    // Resume Caption Loading: start
-                                                    // pop on captions
                                                     isBuffered = true
                                                     textBuffer = ""
                                                 }
                                                 5, 6, 7 -> {
-                                                    // roll-up caption by number of
-                                                    // rows, effect not supported
-                                                    // clear text buffer
                                                     textBuffer = ""
-                                                    // clear screen text
                                                     if (newCaption != null) {
                                                         newCaption.end = currentTime
                                                         var style = ""
@@ -173,62 +133,36 @@ class FormatSCC : TimedTextFileFormat {
                                                         newCaption.style = tto.styling!![style]
                                                         tto.captions!![newCaption.start!!.mseconds] = newCaption
                                                     }
-                                                    // new caption starts with roll
-                                                    // up style
                                                     newCaption = Subtitle()
                                                     newCaption.start = currentTime
-                                                    // all characters and codes will
-                                                    // be applied directly to the
-                                                    // screen
                                                     isBuffered = false
                                                 }
                                                 9 -> {
-                                                    // Resume Direct Captioning:
-                                                    // start paint-on captions
                                                     isBuffered = false
                                                     newCaption = Subtitle()
                                                     newCaption.start = currentTime
                                                 }
                                                 12 -> {
-                                                    // Erase Displayed Memory: clear
-                                                    // screen text
                                                     if (newCaption != null) {
                                                         newCaption.end = currentTime
                                                         if (newCaption.start != null) {
-                                                            // we save the caption
                                                             var key = newCaption.start!!.mseconds
-                                                            // in case the key is
-                                                            // already there, we
-                                                            // increase it by a
-                                                            // millisecond, since no
-                                                            // duplicates are
-                                                            // allowed
                                                             while (tto.captions!!.containsKey(key))
                                                                 key++
-                                                            // we save the caption
                                                             tto.captions!![newCaption.start!!.mseconds] = newCaption
-                                                            // and reset the caption
-                                                            // builder
                                                             newCaption = Subtitle()
                                                         }
                                                     }
                                                 }
                                                 14 -> {
-                                                    // Erase Non-Displayed Memory:
-                                                    // clear the text buffer
                                                     textBuffer = ""
                                                 }
                                                 15 -> {
-                                                    // End of caption: Swap
-                                                    // off-screen buffer with
-                                                    // caption screen.
                                                     newCaption = Subtitle()
                                                     newCaption.start = currentTime
                                                     newCaption.content += textBuffer
                                                 }
                                                 else -> {
-                                                    // unsupported or unrecognized
-                                                    // command code
                                                 }
                                             }
 
@@ -238,24 +172,16 @@ class FormatSCC : TimedTextFileFormat {
 
                                     } else if (isChannel1) {
                                         if ((word and 0x1040) == 0x1040) {
-                                            // it is a preamble code, format is
-                                            // removed
                                             color = "white"
                                             underlined = false
                                             italics = false
-                                            // it is a new line
                                             if (isBuffered && !textBuffer.isEmpty())
                                                 textBuffer += "<br />"
                                             if (!isBuffered && !newCaption!!.content!!.isEmpty())
                                                 newCaption.content += "<br />"
                                             if ((word and 0x0001) == 1)
-                                                // it is underlined
                                                 underlined = true
-                                            // positioning is not supported,
-                                            // rows and columns are ignored
                                             if ((word and 0x0010) != 0x0010) {
-                                                // setting style for following
-                                                // text
                                                 word = word and 0x000e
                                                 word = (word shr 1).toShort().toInt()
                                                 when (word) {
@@ -268,7 +194,6 @@ class FormatSCC : TimedTextFileFormat {
                                                     6 -> color = "magenta"
                                                     7 -> italics = true
                                                     else -> {
-                                                        // error!
                                                     }
                                                 }
                                             } else {
@@ -276,13 +201,10 @@ class FormatSCC : TimedTextFileFormat {
                                             }
 
                                         } else if ((word and 0x1770) == 0x1120) {
-                                            // it is a midrow style code
                                             if ((word and 0x001) == 1)
-                                                // it is underlined
                                                 underlined = true
                                             else
                                                 underlined = false
-                                            // setting style for text
                                             word = word and 0x000e
                                             word = (word shr 1).toShort().toInt()
                                             when (word) {
@@ -316,46 +238,29 @@ class FormatSCC : TimedTextFileFormat {
                                                 }
                                                 7 -> italics = true
                                                 else -> {
-                                                    // error!
                                                 }
                                             }
                                         } else if ((word and 0x177c) == 0x1720) {
-                                            // it is a tab code
-                                            // positioning is not supported
 
                                         } else if ((word and 0x1770) == 0x1130) {
-                                            // it is a special character code
                                             word = word and 0x000f
-                                            // coded value is extracted
                                             if (isBuffered)
-                                                // we decode the special char
-                                                // and add it to the text buffer
                                                 textBuffer += decodeSpecialChar(word)
                                             else
-                                                // we decode the special char
-                                                // and add it to the text
                                                 newCaption!!.content += decodeSpecialChar(word)
                                         } else if ((word and 0x1660) == 0x1220) {
-                                            // it is an extended character code
                                             word = word and 0x011f
-                                            // coded value is extracted
                                             if (isBuffered)
-                                                // we decode the extended char
-                                                // and add it to the text buffer
                                                 decodeXtChar(textBuffer, word)
                                             else
-                                                // we decode the extended char
-                                                // and add it to the text
                                                 decodeXtChar(
                                                     newCaption!!.content,
                                                     word)
 
                                         } else {
-                                            // non recognized code
                                         }
                                     }
                                 } else {
-                                    // we are on channel 2 or 4
                                     isChannel1 = false
                                 }
 
@@ -364,21 +269,15 @@ class FormatSCC : TimedTextFileFormat {
                         }
 
                     }
-                    // end of while
                     line = br.readLine()
 
                 }
 
-                // we save any last shown caption
                 newCaption!!.end = Time("h:m:s:f/fps", "99:59:59:29/29.97")
                 if (newCaption.start != null) {
-                    // we save the caption
                     var key = newCaption.start!!.mseconds
-                    // in case the key is already there, we increase it by a
-                    // millisecond, since no duplicates are allowed
                     while (tto.captions!!.containsKey(key))
                         key++
-                    // we save the caption
                     tto.captions!![newCaption.start!!.mseconds] = newCaption
                 }
                 tto.cleanUnusedStyles()
@@ -388,7 +287,6 @@ class FormatSCC : TimedTextFileFormat {
             tto.warnings += "unexpected end of file at line " + lineCounter +
                 ", maybe last caption is not complete.\n\n"
         } finally {
-            // we close the reader
             `is`.close()
         }
 
@@ -398,84 +296,57 @@ class FormatSCC : TimedTextFileFormat {
 
     override fun toFile(tto: TimedTextObject): Array<String>? {
 
-        // first we check if the TimedTextObject had been built, otherwise...
         if (!tto.built)
             return null
 
-        // we will write the lines in an ArrayList
         var index = 0
-        // the minimum size of the file is double the number of captions since
-        // lines are double spaced.
         val file = ArrayList<String>(
             20 + 2 * tto.captions!!.size)
 
-        // first we add the header
         file.add(index++, "Scenarist_SCC V1.0\n")
 
-        // line is to store the information to add to the file
         var line = ""
-        // to store information about the captions
         var oldC: Subtitle
         var newC = Subtitle()
         newC.content = ""
         newC.end = Time("h:mm:ss.cs", "0:00:00.00")
 
-        // Next we iterate over the captions
         val itrC = tto.captions!!.values.iterator()
         while (itrC.hasNext()) {
             line = ""
             oldC = newC
             newC = itrC.next()
-            // if old caption ends after new caption starts
             if (oldC.end!!.mseconds > newC.start!!.mseconds) {
-                // captions overlap
                 newC.content = newC.content + ("<br />" + oldC.content)
-                // we add the time to the new line, and clear old caption so
-                // both can now appear
                 newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                // we correct the frame delay (8080 8080)
                 line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c "
                 newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
-                // we clear the buffer and start new pop-on caption
                 line += "94ae 94ae 9420 9420 "
 
             } else if (oldC.end!!.mseconds < newC.start!!.mseconds) {
-                // we clear the screen for new caption
                 line += oldC.end!!.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c\n\n"
-                // we add the time to the new line, we clear buffer and start
-                // new caption
                 newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                // we correct the frame delay (8080 8080)
                 line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
                     "\t94ae 94ae 9420 9420 "
                 newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
             } else {
-                // we add the time to the new line, we clear screen and buffer
-                // and start new caption
                 newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                // we correct the frame delay (8080 8080)
                 line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c 94ae 94ae 9420 9420 "
                 newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
             }
 
-            // we add the coded caption text along with any styles to the
-            // off-screen buffer
             line += codeText(newC)
-            // lastly we display the caption
             line += "8080 8080 942f 942f\n"
 
-            // we add it to the "file"
             file.add(index++, line)
 
         }
 
-        // an empty line is added
         file.add(index++, "")
 
-        // we return the expected file as an array of String
         val toReturn = Array(file.size) { "" }
         for (i in toReturn.indices) {
             toReturn[i] = file[i]
@@ -483,11 +354,6 @@ class FormatSCC : TimedTextFileFormat {
         return toReturn
     }
 
-    /* PRIVATEMETHODS */
-
-    /**
-     * INCOMPLETE METHOD: does not tab to correct position or applies styles
-     */
     private fun codeText(newC: Subtitle): String {
         var toReturn = ""
 
@@ -495,88 +361,53 @@ class FormatSCC : TimedTextFileFormat {
 
         var i = 0
         var tab = 0
-        // max 32 chars
         if (lines[i].length > 32)
             lines[i] = lines[i].substring(0, 32)
-        // we calculate tabs to center the text
         tab = (32 - lines[i].length) / 2
 
-        // we position the cursor with a preamble code
-        // the row should be chosen according to how many lines left...
         toReturn += "1340 1340 "
-        // we tab over to the correct spot
         if (tab % 4 != 0)
-            // tab code should go here
             ;
 
-        // we add the caption style using midrow codes
-
-        // we code the caption text
         toReturn += codeChar(lines[i].toCharArray())
 
         if (lines.size > 1) {
-            // and next line
             i++
 
-            // max 32 chars
             if (lines[i].length > 32)
                 lines[i] = lines[i].substring(0, 32)
-            // we calculate tabs to center the text
             tab = (32 - lines[i].length) / 2
 
-            // we position the cursor with a preamble code
-            // the row should be chosen according to how many lines left...
             toReturn += "13e0 13e0 "
-            // we tab over to the correct spot
             if (tab % 4 != 0)
-                // tab code should go here
                 ;
 
-            // we add the caption style using midrow codes
-
-            // we code the caption text
             toReturn += codeChar(lines[i].toCharArray())
 
             if (lines.size > 2) {
-                // and next line
                 i++
 
-                // max 32 chars
                 if (lines[i].length > 32)
                     lines[i] = lines[i].substring(0, 32)
-                // we calculate tabs to center the text
                 tab = (32 - lines[i].length) / 2
 
-                // we position the cursor with a preamble code
                 toReturn += "9440 9440 "
-                // we tab over to the correct spot
                 if (tab % 4 != 0)
-                    // tab code should go here
                     ;
-                // we add the caption style using midrow codes
 
-                // we code the caption text
                 toReturn += codeChar(lines[i].toCharArray())
 
                 if (lines.size > 3) {
-                    // and next line
                     i++
 
-                    // max 32 chars
                     if (lines[i].length > 32)
                         lines[i] = lines[i].substring(0, 32)
-                    // we calculate tabs to center the text
                     tab = (32 - lines[i].length) / 2
 
-                    // we position the cursor with a preamble code
                     toReturn += "94e0 94e0 "
-                    // we tab over to the correct spot
                     if (tab % 4 != 0)
-                        // tab code should go here
                         ;
-                    // we add the caption style using midrow codes
 
-                    // we code the caption text
                     toReturn += codeChar(lines[i].toCharArray())
 
                 }
@@ -586,9 +417,6 @@ class FormatSCC : TimedTextFileFormat {
         return toReturn
     }
 
-    /**
-     * INCOMPLETE METHOD, does not consider special or extended chars
-     */
     private fun codeChar(chars: CharArray): String {
         val toReturn = StringBuilder()
 
@@ -715,11 +543,6 @@ class FormatSCC : TimedTextFileFormat {
                     toReturn.append("da")
                 '[' ->
                     toReturn.append("5b")
-                /*
-                 * case "é": toReturn+="dc"; break; case ']': toReturn+="5d";
-                 * break; case "í": toReturn+="5e"; break; case "ó":
-                 * toReturn+="df"; break; case "ú": toReturn+="e0"; break;
-                 */
                 'a' ->
                     toReturn.append("61")
                 'b' ->
@@ -771,18 +594,11 @@ class FormatSCC : TimedTextFileFormat {
                 'y' ->
                     toReturn.append("79")
                 'z' ->
-                    toReturn.append("7a")/*
-                     * case "ç": toReturn+="fb"; break; case "÷":
-                     * toReturn+="7c"; break; case "Ñ": toReturn+="fd"; break;
-                     * case "ñ": toReturn+="fe"; break;
-                     */
+                    toReturn.append("7a")
                 '|' ->
                     toReturn.append("7f")
 
                 else ->
-                    // error
-                    // it happens for strange chars, since it is not complete, they
-                    // are replaced by spaces
                     toReturn.append("7f")
             }
             if (i % 2 == 1)
@@ -818,7 +634,6 @@ class FormatSCC : TimedTextFileFormat {
             127 ->
                 "|"
             0 ->
-                // filler code
                 ""
             else ->
                 "" + c.toInt().toChar()
@@ -860,7 +675,6 @@ class FormatSCC : TimedTextFileFormat {
             0 ->
                 "�"
             else ->
-                // unrecoginzed code
                 ""
         }
     }

@@ -10,7 +10,6 @@ class DetailNavStackTest {
     private fun target(id: String, key: String = "src", title: String = "片$id") =
         DetailNavStack.Target(vodId = id, sourceKey = key, title = title, picture = "", fromCollect = false)
 
-    /** 只保留当前一部:返回键一次即退出页面,返回链不随打开次数增长 */
     @Test
     fun pushKeepsOnlyCurrentTarget() {
         val stack = DetailNavStack()
@@ -19,7 +18,6 @@ class DetailNavStackTest {
         assertNull(stack.pop())
     }
 
-    /** 重复点当前这一部不该重载(同源同 id 同标题视为同一目标;换源后的同 id 要能入栈) */
     @Test
     fun pushIgnoresSameTargetOnTop() {
         val stack = DetailNavStack()
@@ -37,7 +35,6 @@ class DetailNavStackTest {
         assertNull(stack.pop())
     }
 
-    /** 空 id 卡片靠标题区分:标题不同 = 新片(判成同一部会让卡片点了没反应) */
     @Test
     fun emptyIdCardsUseTitle() {
         val stack = DetailNavStack()

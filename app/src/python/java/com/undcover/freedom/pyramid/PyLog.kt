@@ -2,9 +2,6 @@ package com.undcover.freedom.pyramid
 
 import android.util.Log
 
-/**
- * Created by UndCover on 16/12/15.
- */
 class PyLog {
     fun setLogLevel(logLevel: Int): PyLog {
         try {
@@ -76,24 +73,12 @@ class PyLog {
             }
         }
 
-        /**
-         * 用于生命周期
-         */
         const val FILTER_LC = 0x01
 
-        /**
-         * 用于网络请求 默认为 LEVEL_I
-         */
         const val FILTER_NW = 0x02
 
-        /**
-         * ActivityManager内置Log
-         */
         const val FILTER_AM = 0x04
 
-        /**
-         * 用于FrameWork内置log
-         */
         const val FILTER_FW = 0x08
 
         private var isLifeCycleEnable = false
@@ -142,135 +127,88 @@ class PyLog {
             if (logLevel < LEVEL_V)
                 return
             var m = msg
-            while (m.length > segmentSize) {// 循环分段打印日志
+            while (m.length > segmentSize) {
                 val logContent = m.substring(0, segmentSize)
                 m = m.replace(logContent, "\t\t")
                 Log.v(tag, logContent)
             }
-            Log.v(tag, m)// 打印剩余日志
+            Log.v(tag, m)
         }
 
         private fun longD(tag: String, msg: String) {
             if (logLevel < LEVEL_D)
                 return
             var m = msg
-            while (m.length > segmentSize) {// 循环分段打印日志
+            while (m.length > segmentSize) {
                 val logContent = m.substring(0, segmentSize)
                 m = m.replace(logContent, "\t\t")
                 Log.d(tag, logContent)
             }
-            Log.d(tag, m)// 打印剩余日志
+            Log.d(tag, m)
         }
 
         private fun longI(tag: String, msg: String) {
             if (logLevel < LEVEL_I)
                 return
             var m = msg
-            while (m.length > segmentSize) {// 循环分段打印日志
+            while (m.length > segmentSize) {
                 val logContent = m.substring(0, segmentSize)
                 m = m.replace(logContent, "\t\t")
                 Log.i(tag, logContent)
             }
-            Log.i(tag, m)// 打印剩余日志
+            Log.i(tag, m)
         }
 
         private fun longW(tag: String, msg: String) {
             if (logLevel < LEVEL_W)
                 return
             var m = msg
-            while (m.length > segmentSize) {// 循环分段打印日志
+            while (m.length > segmentSize) {
                 val logContent = m.substring(0, segmentSize)
                 m = m.replace(logContent, "\t\t")
                 Log.w(tag, logContent)
             }
-            Log.w(tag, m)// 打印剩余日志
+            Log.w(tag, m)
         }
 
         private fun longE(tag: String, msg: String) {
             if (logLevel < LEVEL_E)
                 return
             var m = msg
-            while (m.length > segmentSize) {// 循环分段打印日志
+            while (m.length > segmentSize) {
                 val logContent = m.substring(0, segmentSize)
                 m = m.replace(logContent, "\t\t")
                 Log.e(tag, logContent)
             }
-            Log.e(tag, m)// 打印剩余日志
+            Log.e(tag, m)
 
-//        if (tag == null || tag.length() == 0
-//                || msg == null || msg.length() == 0)
-//            return;
-
-//        int segmentSize = 3 * 1024;
-//        long length = msg.length();
-//        if (length <= segmentSize) {// 长度小于等于限制直接打印
-//            Log.e(tag, msg);
-//        } else {
-//            while (msg.length() > segmentSize) {// 循环分段打印日志
-//                String logContent = msg.substring(0, segmentSize);
-//                msg = msg.replace(logContent, "");
-//                Log.e(tag, logContent);
-//            }
-//            Log.e(tag, msg);// 打印剩余日志
-//        }
         }
 
-        /**
-         * 默认Tag
-         *
-         * @param msg
-         */
         @JvmStatic
         fun v(msg: String) {
             v(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 默认Tag
-         *
-         * @param msg
-         */
         @JvmStatic
         fun d(msg: String) {
             d(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 默认Tag
-         *
-         * @param msg
-         */
         @JvmStatic
         fun i(msg: String) {
             i(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 默认Tag
-         *
-         * @param msg
-         */
         @JvmStatic
         fun w(msg: String) {
             w(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 默认Tag
-         *
-         * @param msg
-         */
         @JvmStatic
         fun e(msg: String) {
             e(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 添加AppTag
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun v(tag: String, msg: String) {
             val msgStr = tag + " " + msg
@@ -281,12 +219,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 添加AppTag
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun d(tag: String, msg: String) {
             val msgStr = tag + " " + msg
@@ -297,12 +229,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 添加AppTag
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun i(tag: String, msg: String) {
             val msgStr = tag + " " + msg
@@ -313,12 +239,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 添加AppTag
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun w(tag: String, msg: String) {
             val msgStr = tag + " " + msg
@@ -329,67 +249,36 @@ class PyLog {
             }
         }
 
-        /**
-         * 多参数,使用默认Tag
-         *
-         * @param args
-         */
         @JvmStatic
         fun v(vararg args: String?) {
             val msg = getArgsStr(*args)
             v(TagConstant.TAG_DEF, msg)
         }
 
-        /**
-         * 多参数,使用默认Tag
-         *
-         * @param args
-         */
         @JvmStatic
         fun d(vararg args: String?) {
             val msg = getArgsStr(*args)
             d(msg)
         }
 
-        /**
-         * 多参数,使用默认Tag
-         *
-         * @param args
-         */
         @JvmStatic
         fun i(vararg args: String?) {
             val msg = getArgsStr(*args)
             i(msg)
         }
 
-        /**
-         * 多参数,使用默认Tag
-         *
-         * @param args
-         */
         @JvmStatic
         fun w(vararg args: String?) {
             val msg = getArgsStr(*args)
             w(msg)
         }
 
-        /**
-         * 多参数,使用默认Tag
-         *
-         * @param args
-         */
         @JvmStatic
         fun e(vararg args: String?) {
             val msg = getArgsStr(*args)
             e(msg)
         }
 
-        /**
-         * 打印生命周期
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun lc(tag: String, msg: String) {
             if (isLifeCycleEnable) {
@@ -397,12 +286,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 打印ActivityManager管理
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun am(tag: String, msg: String) {
             if (isAtyManagerEnable) {
@@ -410,12 +293,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 打印框架信息
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun fw(tag: String, msg: String) {
             if (isFrameWorkEnable) {
@@ -423,12 +300,6 @@ class PyLog {
             }
         }
 
-        /**
-         * 打印网络请求
-         *
-         * @param tag
-         * @param msg
-         */
         @JvmStatic
         fun nw(tag: String, msg: String) {
             if (isNetWorkEnable) {

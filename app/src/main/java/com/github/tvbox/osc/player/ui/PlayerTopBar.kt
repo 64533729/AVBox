@@ -47,11 +47,8 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
     val rightVisible = state.topRightVisible && !state.previewMode
     val previewSizeVisible = state.previewMode && state.topLeftVisible
     val anyVisible = state.topLeftVisible || rightVisible
-    // 左右边距按窗口宽度分档（竖屏预览 16dp / 横屏全屏与平板 48dp，见 playerEdgePadding）
     val edge = playerEdgePadding()
     val topPad = if (state.previewMode) PreviewTopPadding else 12.dp
-    // 顶栏贴顶时补上未被自身覆盖的安全区差值（不贴顶/已被上层 padding 抬下去时为 0）。宽档（≥600dp：横屏
-    // 全屏/平板）只取挖孔：safeDrawing 含状态栏，而系统栏在进应用/旋转/回前台会被短暂放出且带显隐动画，跟着它顶栏会弹一下
     val density = LocalDensity.current
     val topInset = if (LocalConfiguration.current.screenWidthDp >= 600) {
         WindowInsets.displayCutout
@@ -71,7 +68,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
             .onGloballyPositioned { barTopPx = it.positionInWindow().y }
     ) {
         if (anyVisible) {
-            // scrim 渐变（黑 55% → 透明），替代旧实现"无背景白字压画面"
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -92,7 +88,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
                     bottom = playerDim(R.dimen.vs_5),
                 )
         ) {
-                    // —— 左块：返回箭头 + 片名 ——
             if (state.topLeftVisible) {
                 Row(Modifier.weight(3f), verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -125,7 +120,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
             } else {
                 Spacer(Modifier.weight(3f))
             }
-            // —— 右块：网速/进度时间/系统时间 ——
             if (rightVisible) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                     Row(
@@ -135,7 +129,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
                         if (state.sysTimeVisible && state.batteryPercent in 0..100) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                // 时间文字自带 top=vs_5，此处不补会与时间错位
                                 modifier = Modifier.padding(
                                     end = playerDim(R.dimen.vs_10),
                                     top = playerDim(R.dimen.vs_5),
@@ -177,7 +170,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
     }
 }
 
-/** 电池图标档位：充电/充满 → 闪电帧；否则按百分比映射 1~6 档（每档约 16.7%） */
 private fun batteryIcon(state: PlayerUiState): Int = when {
     state.batteryCharging -> R.drawable.ic_battery_charging
     state.batteryPercent <= 16 -> R.drawable.ic_battery_1

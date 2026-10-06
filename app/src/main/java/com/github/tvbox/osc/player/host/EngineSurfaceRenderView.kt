@@ -9,16 +9,6 @@ import android.view.SurfaceView
 import android.view.View
 import com.github.tvbox.osc.player.KernelPlayer
 
-/**
- * 新栈表面宿主(Surface 模式,M7b):逐行为等价移植旧 `osc.player.render.SurfaceRenderView`,
- * 测量算法用 app 侧自有的 [RenderMeasure]。
- *
- * <p>交面/离面语义照旧:Created/Changed → `setDisplay(holder)`、Destroyed → `setDisplay(null)`;
- * 输出分辨率补发由内核侧 `setDisplay` 完成(Surface 路径唯一补发点,见 PlayerEngine.setDisplay)。
- *
- * <p>去 doikki(M7e 起):渲染契约由 [PlayerRenderView] 承担、内核形参由 doikki `AbstractPlayer`
- * 换成 app 侧 [KernelPlayer]。
- */
 class EngineSurfaceRenderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,

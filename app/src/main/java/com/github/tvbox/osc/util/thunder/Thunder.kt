@@ -28,7 +28,6 @@ import com.github.tvbox.osc.util.AppContextHolder
 
 object Thunder {
 
-    /** 资源文案:Application 的 base 只在进程启动时挂一次,切语言后直接用 app.getString 会停在旧语言 */
     private fun str(resId: Int, vararg args: Any?): String {
         val app = AppContextHolder.context()
         return if (app == null) "" else LanguageManager.localized(app).getString(resId, *args)
@@ -42,9 +41,7 @@ object Thunder {
     private var torrentFileInfoArrayList: ArrayList<TorrentFileInfo>? = null
     private var threadPool: ExecutorService? = null
 
-
     private fun init(context: Context) {
-        // fake deviceId and Mac(2026-09-15 由独立 SP `rand_thunder_id` 迁入 KV,见 HawkConfig.THUNDER_IMEI/THUNDER_MAC)
         var imei = KV.get(HawkConfig.THUNDER_IMEI, "")
         var mac = KV.get(HawkConfig.THUNDER_MAC, "")
         if (TextUtils.isEmpty(imei)) {
@@ -77,7 +74,6 @@ object Thunder {
         }
         if (bool) {
             torrentFileInfoArrayList = null
-            // del cache file
             val cache = File(if (task_url.isEmpty()) cacheRoot else localPath)
             recursiveDelete(cache)
             if (!cache.exists())
@@ -232,7 +228,6 @@ object Thunder {
         }
     }
 
-
     @JvmStatic
     fun play(url: String, callback: ThunderCallback): Boolean {
         if (url.startsWith("tvbox-torrent:")) {
@@ -353,7 +348,6 @@ object Thunder {
         return false
     }
 
-
     private fun errorInfo(code: Int): String {
         return when (code) {
             9125 ->
@@ -377,10 +371,8 @@ object Thunder {
         }
     }
 
-
     @JvmStatic
     fun isSupportUrl(url: String?): Boolean {
-//        return isMagnet(url) || isThunder(url) || isEd2k(url) || isFtp(url);
         val u = url!!
         return isMagnet(u) || isThunder(u) || isTorrent(u)
     }
@@ -462,7 +454,6 @@ object Thunder {
         return sb.toString()
     }
 
-
     @JvmStatic
     fun isNetworkDownloadTask(url: String): Boolean {
         if (TextUtils.isEmpty(url)) return false
@@ -494,7 +485,5 @@ object Thunder {
         }
         return null
     }
-
-
 
 }

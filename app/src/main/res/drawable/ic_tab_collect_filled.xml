@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 详情页收藏态实心星：取 ic_tab_collect 的外轮廓子路径（去掉内部挖空），填充版(2026-09-10) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

@@ -44,7 +44,6 @@ class VlcPlayer {
         fun run(activity: Activity, url: String, title: String?, subtitle: String?, progress: Long): Boolean {
             val packageInfo = getPackageInfo() ?: return false
 
-            // https://wiki.videolan.org/Android_Player_Intents/
             val intent = Intent(Intent.ACTION_VIEW)
             intent.setPackage(packageInfo.packageName)
             intent.setDataAndTypeAndNormalize(Uri.parse(url), "video/*")

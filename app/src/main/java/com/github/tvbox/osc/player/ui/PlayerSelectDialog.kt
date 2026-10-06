@@ -12,12 +12,6 @@ import androidx.compose.ui.Modifier
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.state.SelectDialogState
 
-/**
- * 播放器选择弹窗(倍速/画面尺寸/内核等列表选择):
- * 480mm 宽 M3 面板(surfaceContainer + 18dp 圆角)+ 标题 + 竖向列表(最高 vs_410),
- * 条目沿用 [SheetButton](surfaceBright 底 / 选中 primaryContainer)。
- * 行为:点击已选中项不响应、点击其他项回调后收起。
- */
 @Composable
 fun PlayerSelectDialog(
     dialogState: SelectDialogState,

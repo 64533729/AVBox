@@ -212,7 +212,6 @@ private fun ParamsSliderGroup(
     Slider(
         value = index,
         onValueChange = { index = it },
-        // 读 index 而不是上面的 stop:末次拖动与抬手可能落在同一帧(还没重组),闭包里的 stop 会差一档
         onValueChangeFinished = { choice.onSelect(index.roundToInt().coerceIn(choice.options.indices)) },
         valueRange = 0f..(choice.options.size - 1).toFloat(),
         steps = choice.options.size - 2,

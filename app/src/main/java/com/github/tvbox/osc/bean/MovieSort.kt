@@ -10,10 +10,6 @@ import java.util.ArrayList
 import java.util.HashMap
 import java.util.LinkedHashMap
 
-/**
- * @author pj567
- * @date :2020/12/18
- */
 @XStreamAlias("class")
 class MovieSort : Serializable {
     @JvmField
@@ -37,7 +33,6 @@ class MovieSort : Serializable {
         @JvmField
         var filterSelect: HashMap<String, String> = HashMap()
 
-        /** 类型 */
         @JvmField
         var flag: String? = null
 

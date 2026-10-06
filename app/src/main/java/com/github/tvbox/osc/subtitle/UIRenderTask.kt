@@ -28,10 +28,6 @@ package com.github.tvbox.osc.subtitle
 import com.github.tvbox.osc.subtitle.model.Subtitle
 import com.github.tvbox.osc.subtitle.runtime.AppTaskExecutor
 
-/**
- * @author AveryZhong.
- */
-
 class UIRenderTask(private val mOnSubtitleChangeListener: SubtitleEngine.OnSubtitleChangeListener?) : Runnable {
 
     private var mSubtitle: Subtitle? = null

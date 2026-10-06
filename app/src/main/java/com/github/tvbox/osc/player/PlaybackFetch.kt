@@ -19,19 +19,11 @@ import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 
-/**
- * 取流状态与结果观察者:持有取流通道并把结果落到会话数据(清晰度/进度键/字幕/歌词/封面),
- * 起播与解析分发仍由宿主完成。
- *
- * 观察面走通道的 [SourceChannel.flow]:收集域随本对象(init 建立、release 取消),
- * 主线程派发与旧 LiveData 观察面一致 —— 通道在发射线程上恢复收集者,由 Main.immediate 落回主线程。
- */
 class PlaybackFetch(private val controller: PlaybackController) {
 
     private var sourceViewModel: SourceViewModel? = null
     private var collectJob: Job? = null
 
-    /** 建立取流结果观察者(预载协调器仍归页面) */
     fun init() {
         val vm = SourceViewModel()
         sourceViewModel = vm
@@ -40,22 +32,18 @@ class PlaybackFetch(private val controller: PlaybackController) {
         }
     }
 
-    /** 页面销毁时注销观察者(对应原 hostDestroy 的 removeObserver) */
     fun release() {
         collectJob?.cancel()
         collectJob = null
     }
 
-    /** 把“已准备好的取流结果”直接喂给解析链(页面 play() 命中预载数据时调用) */
     fun deliver(info: JSONObject?) {
         if (collectJob?.isActive != true) return
         handlePlayResult(info)
     }
 
-    /** 预载协调器需要它取流(PreloadCoordinator 构造参数) */
     fun sourceViewModel(): SourceViewModel? = sourceViewModel
 
-    /** 取消在途取流请求 */
     fun cancelPlayRequest() {
         sourceViewModel?.cancelPlayRequest()
     }
@@ -70,7 +58,6 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 }
                 val view = controller.viewBridge()
                 if (view != null && controller.isSwitchStopPending()) {
-                    // 换源点击即停后,旧源在途的取流结果不得再拉起播放
                     LOG.i("echo-ignore play result while source switching")
                     return
                 }
@@ -121,7 +108,6 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 if (url.startsWith("[") && view != null) {
                     url = view.firstUrlByArray(url)
                 }
-                // 音乐源取流结果的封面字段常是 cover 而不是 artwork;漏读会让换集后海报不刷新
                 var artwork = info.optString("artwork", "")
                 if (TextUtils.isEmpty(artwork)) artwork = info.optString("cover", "")
                 if (TextUtils.isEmpty(artwork) && !TextUtils.isEmpty(controller.playLyric()) && controller.vod() != null) {
@@ -134,7 +120,6 @@ class PlaybackFetch(private val controller: PlaybackController) {
                     controller.handleResolvePlayUrlFailed(msg)
                     return
                 }
-                // 取流成功,手动选线标记完成使命,后续失败恢复走正常自动策略
                 controller.setUserPickedLine(false)
                 val danmaku = info.optString("danmaku", "").trim { it <= ' ' }
                 val danmuProgressKey = controller.progressKey()
@@ -167,7 +152,6 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 controller.handleResolvePlayUrlFailed(PlaybackController.str(R.string.player_get_info_error))
             }
         } else {
-            // 获取播放信息错误后只需再重试一次
             controller.handleResolvePlayUrlFailed(PlaybackController.str(R.string.player_get_info_error))
         }
     }
@@ -187,10 +171,8 @@ class PlaybackFetch(private val controller: PlaybackController) {
         val filename = name + if (name.lowercase(Locale.ROOT).endsWith(ext)) "" else ext
         var url = obj.optString("url", "")
         val data = obj.optString("data", "")
-        // 本地代理 URL 要靠爬虫的内存态现取,拿不到就整段没有字幕/歌词;同一份内容已在 data 里时直接用
         if (!TextUtils.isEmpty(data) && (TextUtils.isEmpty(url) || PlayerHelper.isLocalProxyUrl(url))) {
             url = "data:text/plain;base64," + Base64.encodeToString(data.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
-            // data: URI 的文件名只能靠 fragment 带(内容里出现的点会让 hasExtension 误判)
             val view = controller.viewBridge()
             return if (view == null) url else "$url#" + view.encodeUrl(filename)
         }
@@ -206,7 +188,6 @@ class PlaybackFetch(private val controller: PlaybackController) {
         return value.contains("lyric") || value.contains("lrc") || text.contains("歌词") // i18n: keep
     }
 
-    /** 取流结果没带弹幕地址时联网搜一份(与进度键绑定:切集后旧结果作废) */
     private fun searchDanmu(danmaku: String) {
         if (!TextUtils.isEmpty(danmaku) || !DanmakuApi.canSearch(controller.sourceBean()) || controller.vod() == null) return
         val series = controller.currentSeries(controller.vod()!!.playFlag, controller.vod()!!.playIndex)

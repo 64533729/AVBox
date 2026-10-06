@@ -12,7 +12,6 @@ import java.util.HashMap
 
 interface PlayerControlApi {
 
-    /** 未实现方(直播控制器等)无需覆写:接口级默认空实现,与 Java 侧 default 方法等价 */
     fun setKernelProvider(view: MyVideoView?) {
     }
 

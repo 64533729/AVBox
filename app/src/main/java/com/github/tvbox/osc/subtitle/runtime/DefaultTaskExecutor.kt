@@ -31,10 +31,6 @@ import android.os.Looper
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * @author AveryZhong.
- */
-
 class DefaultTaskExecutor : TaskExecutor() {
 
     private var mMainHandler: Handler? = null

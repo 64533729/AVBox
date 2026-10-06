@@ -20,7 +20,6 @@ class SearchActivity : BaseActivity() {
         enableTransparentEdgeToEdge()
         findViewById<androidx.compose.ui.platform.ComposeView>(R.id.compose_view).setContent {
             AVBoxTheme {
-                // 独立 Activity 页面:套窗口根槽位,弹层无论写在哪都能全屏弹出(见 SheetHostScaffold)
                 SheetHostScaffold {
                     SearchScreen()
                 }

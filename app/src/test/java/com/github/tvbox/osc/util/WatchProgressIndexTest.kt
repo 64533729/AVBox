@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 进度索引的载荷与淘汰规则:删错/删漏都表现为"该清的没清",边界必须锁住 */
 class WatchProgressIndexTest {
 
     @Test
@@ -28,7 +27,6 @@ class WatchProgressIndexTest {
 
     @Test
     fun payload_roundTripKeepsSeparatorCharacters() {
-        // 集名可含分号/竖线/引号/花括号,分隔符拼接方案会在这里撕裂
         val nasty = "第01集;|\"{} 4K"
         val raw = WatchProgressIndex.withEp(null, nasty, 7L)
         assertEquals(listOf(nasty), WatchProgressIndex.decode(raw)?.eps)
@@ -70,7 +68,6 @@ class WatchProgressIndexTest {
         assertEquals(emptyList<String>(), WatchProgressIndex.pickEvictions(entries, 3))
         assertEquals(listOf("b"), WatchProgressIndex.pickEvictions(entries, 2))
         assertEquals(listOf("b", "c"), WatchProgressIndex.pickEvictions(entries, 1))
-        // 活跃时间相同:保持入参顺序,结果可复现
         val ties = listOf("x" to 5L, "y" to 5L, "z" to 5L)
         assertEquals(listOf("x", "y"), WatchProgressIndex.pickEvictions(ties, 1))
     }

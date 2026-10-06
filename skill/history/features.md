@@ -4290,3 +4290,41 @@ new-instance v2, Lorg/json/JSONArray;  invoke-direct {v2, v1}      # new JSONArr
 **验证**:`.\gradlew.bat :app:assembleDebug` + `:app:testDebugUnitTest` 每轮改动后均重跑,最终 **BUILD SUCCESSFUL**(末轮 18s)+ **65 类 / 501 用例 / 0 失败 / 0 错误**;Kotlin 告警 2 条 → 1 条(剩下的 `Unnecessary safe call` 是既有);APK 与测试结果时间戳逐轮核对(避免 UP-TO-DATE 误判)。**未真机验证**——三个历史/进度缺陷与复用改动都落在 Android 依赖的类里(`PlaybackProgress.currentKey` 依赖 `App.getInstance()`、seek 在控制器内),当前测试集是纯 JVM,写不出有意义的自动化锁,故只锁了规则层(`WatchProgressRulesTest`)。**待真机走查**:①竖屏预览点箭头直接返回上级(不再出现横屏夹生态)、全屏箭头一步退全屏、系统返回键仍是两步;②切到第 2 集看几秒返回历史页 = 卡片显示第 02 集且重进落在第 2 集;③暂停后拖进度条到 b → 卡片百分比立即变 b(播放中拖动同样立即);④看完一集卡片显示 100%、点进去仍从头播;⑤换线/换源/换片不再出现"黑一下 + 整段重建"、进度接着看、无残留画面/声音;⑥**换分辨率不同的源(4K→720P)时画面几何** —— 复用不重建渲染视图,这是本次唯一新增的曝光面;⑦退出播放页 60 秒内再进=秒开,超过 1 分钟=允许重建。
 
 **文档同步**:活规范 `skill/avbox-mobile-ui-spec.md` 改五处 —— §4.4(返回键两步口径 + 箭头/返回键全屏口径故意不同)、§6.10(`onBackClicked()` 移出"设方向的显式按钮")、§6.14 新增"切集/换线要即时落库"、§6.16(阈值与"看完显示 100% / 续播点由完播清除"、无痕判据位置表述)、**§6.19 整节改写**(标题加"2026-10-03 改为一律不重建",删除被推翻的"换片/换线路不该复用",补三条强重建条件、已知取舍、60 秒上界);`skill/avbox-playback-service-spec.md` 加决策 D8 + 修订记录一行;本条为实施与定位记录。
+
+---
+
+## 全库删注释：代码零注释化（2026-10-06）
+
+**需求**：用户「本项目已经有很完整的文档了，将所有注释删掉，让代码自解释」。
+
+**范围（606 个文件，改 490 个）**：`app/src/**`（kt 365 / xml 106 / java 12）+ `*.gradle.kts` 3 + `app/proguard-*.pro` 2 + `gradle.properties` + `gradle/libs.versions.toml`。**排除**：`示例文件/`、`源码/`、`日志/`、`quickjs/`、`pyramid/`、`libs/`、`assets/Anime4K/*.glsl`、`assets/js/**`（第三方/参考/构建产物）。
+
+**结果**：90721 行 → 82045 行（删 8676 行注释；`git diff --shortstat` 口径 490 文件 / 8801 删 / 133 增，133 增来自"代码行尾带注释"的行改写）。
+
+**三类保留（不可删）**：
+1. **许可证块 20 处**（`subtitle/**` 的 MIT：`Copyright` / `Permission is hereby granted` / `SPDX-License`）—— 删了违反许可。
+2. **`// i18n: keep` 62 处** —— `i18n_gate.py` 读"本行或上一行"做白名单，删了 ui 层硬闸门立刻非 0。
+3. **`//noinspection` 1 处**（`BootGuard.kt`）。
+
+**工具**：`.codebuddy/tools/strip_comments_all.py`（`--dry` 报告 / `--apply` 写回 / `--verify` 校验）。自研分词器：Kotlin/Java/KTS 支持 `//`、`/* */`、字符字面量、`"..."` 转义、`"""` raw string、`${}` 模板（含模板内嵌套字符串与 `{}` 深度）；XML 认 `<!-- -->`；`.pro`/`.properties`/`.toml` 只认**行首** `#`（实测三处配置文件无非行首 `#`）。整行只含注释 ⇒ 整行删（含缩进）；连续空行压成 1；**每文件保留原 EOL**。
+
+**三个踩过的坑（都在这轮修掉）**：
+1. **缩进空格被当成"代码"** ⇒ 带缩进的整行注释判不出"该删"，第一版只删 5386 行（正确值 8676）。修：`add/raw` 只在字符非空白时置 `code=True`。
+2. **删多行块注释时把注释正文写进了输出行** ⇒ `代码 + /* 多行 */` 这种行留下 `/*` 残片（`FormatSCC.kt` 因此掉 170 行）。修：注释正文一律不落地，只按内部换行推进行号并标 `comment=True`。
+3. **`Path.read_text()/write_text()` 会做换行转换** ⇒ 检测不到 CRLF，且写入时把 `\n` 翻成 `\r\n`，会把 457 个 LF 文件全改成 CRLF。修：改二进制 `read_bytes()/write_bytes()` 并逐文件还原 BOM/EOL。
+
+**验证（四道）**：
+1. **代码投影比对 PASS**：`--verify` 把 `git HEAD` 与现文件各自"剥注释 + 去空行"后逐行比对，606 文件全等 ⇒ 证明只动了注释。仅 3 个文件各差 1 行（见下）。
+2. **`:app:assembleDebug` BUILD SUCCESSFUL**；`:app:testDebugUnitTest` **655 / 0 失败 / 0 错误 / 1 跳过 / 82 套件**（与 M9/M10/M11 基线一致）。改完那 3 个文件后**增量复跑一次**（30s）仍全绿。
+3. **`i18n_gate.py` exit 0**：ui 层 0 处（硬闸门过）；非 ui 37 处（`PlayerEngine` 33 / `Trans` 2 / `SourceHelper` 1 / `SourceResultParser` 1，与既有登记一致）。
+4. **残留扫描**：XML `<!--` 0；配置文件行首 `#` 0；`/*`、`*/`、行首 `//` 的残余命中**全部**落在"字符串字面量 / 保留的许可证块 / 保留的指令 / raw string 内的 shader 样例"。
+
+**唯一超出"只删注释"的改动（3 行 import）**：删注释后 3 个文件出现"只在注释里被引用"的 import ⇒ `AppPlayerView.kt`、`PlayerRenderView.kt` 的 `android.view.SurfaceHolder`、`VideoGestureLayerWiringTest.kt` 的 `awaitEachGesture`。按既有约定（注释精简后必跑 `prune_imports.py`）清掉这 3 行。**坑**：`prune_imports.py --apply` 会把**既有**的未使用 import 一并删（`AppPlayerView` 的 `AssetFileDescriptor`、`VideoGestureLayerWiringTest` 的 `awaitFirstDown`/`pointerInput`/`assertEquals`），按 M11 约定"既有只登记不改" ⇒ 已手工回退，只留本次新增的 3 行。
+
+**用户前提抽查（"文档已完整"是否成立）**：被删的警告类注释（含 ⚠️/坑/必须/否则/NPE）共 **453 行 / 149 文件**。抽查关键词在 `skill/` 的覆盖：`com.android.internal`、`IGNORABLE_FRAME_PREFIXES`、`trim { it <= ' ' }`、`QUICK_CRASH_MS`、`MAX_LOAD_ATTEMPTS`、`WAKE_LOCK`、`unitTests.isReturnDefaultValues`、`artworkView`、`audioOnlyConfirmed`、`恒真`、`代际`、`遮黑帧` 均**有命中**；**未见命中**的是 `恒真自比较`（"代际必须用发起时捕获值 vs 当前值比较，写成自比较即恒真"这条细节）与 `isSniffRequestOfCurrentRound`（方法名随重写消失）⇒ 用户前提基本成立，建议把这 1 处细节补进 `avbox-playback-service-spec.md`。
+
+**EOL 说明（需知悉）**：仓库 `core.autocrlf=input`，工作区 CRLF/LF 对 git **完全不可见**（提交恒存 LF），项目自有 `check_line_endings.py` 也只卡"MIXED"。本轮中途做过一次 `git checkout -- .` 复位，导致原本 CRLF 的约 111 个文件的工作区行尾被归一成 LF（**提交内容不受影响**）。当前：目标 606 文件中 31 CRLF / 575 LF，**无 MIXED**；工具本身已按文件保真 EOL。
+
+**规范同步**：`skill/SKILL.md`「注释」条目由"极简（单条 ≤2 行）"改写为**零注释 + 三类例外**（附工具用法）；`skill/avbox-code-review-spec.md` 的既定约定 2 条改写为"「存在解释性注释」才是问题"；`.codebuddy/skills/android/` 镜像已同步（同步前 diff 确认副本 = HEAD，可无损覆盖）。
+
+**未验证面**：真机走查未做（纯注释改动，无行为面）；`:app:assembleRelease` 未跑（需用户许可）。

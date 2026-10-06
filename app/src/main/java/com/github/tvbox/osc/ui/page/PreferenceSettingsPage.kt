@@ -111,7 +111,6 @@ fun PreferenceSettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel =
                         checked = state.incognito,
                         onCheckedChange = {
                             vm.put(HawkConfig.INCOGNITO, it)
-                            // 历史页据此立刻切到"无痕提示"或恢复列表(不必重进页面)
                             EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH))
                         },
                     )
@@ -176,7 +175,6 @@ fun PreferenceSettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel =
                     SettingsRow(
                         title = stringResource(R.string.settings_danmu_api),
                         leadingIconRes = R.drawable.ic_pref_danmu_api,
-                        // 不显示接口链接本身:填过什么只有编辑弹窗里可见
                         valueText = stringResource(if (state.danmuApi.isEmpty()) R.string.common_not_set else R.string.common_set),
                         onClick = { danmuApiDialog = true },
                     )
@@ -265,7 +263,6 @@ private fun CollectColumnsRow(columns: Int, onSelect: (Int) -> Unit) {
     )
 }
 
-/** 语言入口:选中即写 KV(给落盘留出弹窗交互的时间),确认后立即自重启;取消回滚 */
 @Composable
 private fun LanguageRow() {
     val available = LanguageManager.available()
@@ -303,8 +300,6 @@ private fun LanguageRow() {
                 TextButton(onClick = { dismissAnimated() }) { Text(stringResource(R.string.common_cancel)) }
             },
             confirmButton = {
-                // 确认走"先播退场动画再执行动作":动作(pending 清空 + 置重启中)与取消(回滚语言)收尾不同,
-                // 所以这里不能复用 onDismissRequest
                 val dismissThen = LocalSheetDismissThen.current
                 TextButton(onClick = {
                     dismissThen {

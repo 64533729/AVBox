@@ -17,12 +17,6 @@ import java.util.ArrayList
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 详情取数(detailContent)。
- *
- * <p>三类特殊入口都在这里:推送链接(push://→ 本地合成详情)、源已失效(返回空详情走空态,
- * 不在调用方 NPE)、换源回退(fallback,超时收紧到 6s)。
- */
 class DetailLoader(
     private val gson: Gson,
     private val extendCache: ConcurrentHashMap<String, String>,
@@ -30,7 +24,6 @@ class DetailLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    // detailContent
     fun getDetail(sourceKey: String?, urlid: String) {
         getDetail(sourceKey, urlid, false)
     }
@@ -39,13 +32,8 @@ class DetailLoader(
         getDetail(sourceKey, urlid, fallback, null)
     }
 
-    /**
-     * @param requestToken 详情代次(V4):回包原样带回去,由页面判"是否属于当前这一代";
-     *                     null = 不判代次(老调用点)。
-     */
     fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean, requestToken: Int?) {
         if (Looper.myLooper() === Looper.getMainLooper()) {
-            // 同 getSort:t0/1/4 的 extend 拉取会阻塞
             val key = sourceKey
             val id = urlid
             SourceHelper.PREPARE_POOL.execute {
@@ -78,9 +66,6 @@ class DetailLoader(
             return
         }
         if (sourceBean == null) {
-            // 源已不存在(2026-09-13):典型场景 = 切到新源后加载完成前,从历史记录点进
-            // 一条属于旧源(已失效 key)的条目;或订阅源被删。此处返回空 AbsXml(与末尾
-            // 未知 type 分支同形状),详情页走空态,而不是在下面 sourceBean.getType() 处 NPE
             LOG.i("echo--getDetail--source-null--$key")
             detailResult.postValue(createEmptyDetail(key, requestToken))
             return
@@ -95,7 +80,6 @@ class DetailLoader(
         }
     }
 
-    /** type 3:爬虫 detailContent;换源回退(fallback)时超时收紧 */
     private fun getDetailFromSpider(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
 
         SourceHelper.SPIDER_POOL.execute {
@@ -104,21 +88,17 @@ class DetailLoader(
                 val ids = ArrayList<String>()
                 ids.add(id)
                 try {
-//                                LOG.i("echo--getDetail--id: " + id);
                     sp.detailContent(ids)
                 } catch (e: Exception) {
                     LOG.i("echo--getDetail--error: " + e.message)
                     ""
                 }
             }, if (fallback) 6_000L else sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getDetail--" + sourceBean.key)
-//                    LOG.i("echo--getDetail--result:" + json);
             resultParser.json(detailResult, json, sourceBean.key, "", requestToken)
         }
     }
 
-    /** type 0/1/4:站点接口(带 extend);type 0 走 XML */
     private fun getDetailFromApi(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
-        // 回调里要按 type 分流 xml/json,值语义与调用点一致(原为捕获上层局部量)
         val type = sourceBean.type
 
         val extend = if (fallback) {
@@ -131,7 +111,6 @@ class DetailLoader(
             .tag("detail")
             .params("ac", if (type == 0) "videolist" else "detail")
             .params("ids", id)
-        // 当 extend 不为空且非空字符串时添加参数
         if (extend != null && !extend.isEmpty()) {
             request.params("extend", extend)
         }
@@ -160,7 +139,6 @@ class DetailLoader(
         })
     }
 
-    /** 空详情(源不存在 / 未知 type):详情页按空态渲染,不带任何影片数据 */
     private fun createEmptyDetail(sourceKey: String?, requestToken: Int?): AbsXml {
         val data = AbsXml()
         data.sourceKey = sourceKey
@@ -197,8 +175,4 @@ class DetailLoader(
         return data
     }
 
-    /**
-     * 站点级 header 作为播放请求的兜底头(fongmi 同语义):只补结果里没有的键,结果自带的头优先。
-     * 没配 header 的源这里是空操作。
-     */
 }

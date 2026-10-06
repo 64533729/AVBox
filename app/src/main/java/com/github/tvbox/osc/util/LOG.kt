@@ -12,11 +12,6 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * @author pj567
- * @date :2020/12/18
- * @description:
- */
 object LOG {
     private var TAG = "TVBox-runtime"
     private const val MAX_LOG_LENGTH = 3000
@@ -42,17 +37,14 @@ object LOG {
         }
         try {
             fileLogExecutor!!.execute {
-                // 每行独立开关文件:保证进程被杀时已写入的内容不丢(排查场景量小,开销可接受)
                 try {
                     FileWriter(File(AppContextHolder.context()!!.filesDir, FILE_LOG_NAME), true).use { writer ->
                         writer.write(line + "\n")
                     }
                 } catch (ignored: Throwable) {
-                    // 落盘失败即放弃:fileLog 自身兜底,不能再走 LOG 以免递归
                 }
             }
         } catch (ignored: Throwable) {
-            // 同上:提交落盘任务失败即放弃,防递归
         }
     }
 
@@ -68,17 +60,12 @@ object LOG {
         fileLog("I", msg.toString())
     }
 
-    /** 带模块标签的 debug 日志:"有意忽略"的 catch 用它记录忽略原因 */
     @JvmStatic
     fun d(tag: String?, msg: String?) {
         Log.d(TAG, tag + ": " + msg)
         fileLog("D", msg.toString())
     }
 
-    /**
-     * 带模块标签的错误日志(含异常栈):异常无法恢复但不应静默时使用。
-     * tr 同步落 System.err —— 本机 vivo ROM 吞 Logcat 时仍可见(见 MEMORY 排查记录)。
-     */
     @JvmStatic
     fun e(tag: String?, msg: String?, tr: Throwable?) {
         Log.e(TAG, tag + ": " + msg, tr)
