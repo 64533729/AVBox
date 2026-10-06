@@ -28,12 +28,6 @@ import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.state.LockVisibility
-import com.github.tvbox.osc.player.state.ParamsChoice
-import com.github.tvbox.osc.player.state.ParamsSheetState
-import com.github.tvbox.osc.player.effect.PictureEffects
-import com.github.tvbox.osc.player.effect.anime4k.Anime4kSettings
-import com.github.tvbox.osc.player.effect.anime4k.Anime4kTier
-import com.github.tvbox.osc.player.state.PictureParamsState
 import com.github.tvbox.osc.player.state.PlayerActions
 import com.github.tvbox.osc.player.state.PlayerUiState
 import com.github.tvbox.osc.player.state.PlayState
@@ -70,7 +64,6 @@ class ComposeVideoController @JvmOverloads constructor(
     companion object {
 
         private const val LOCK_HIDE_DELAY_MS = 3000L
-        private const val SPEED_RETRY_MAX = 30
         private const val SEEK_MAX = 1000
     }
 
@@ -143,7 +136,7 @@ class ComposeVideoController @JvmOverloads constructor(
         videoView?.setSpeed(speed)
     }
 
-    private var videoView: MyVideoView? = null
+    internal var videoView: MyVideoView? = null
 
     override fun setKernelProvider(view: MyVideoView?) {
         videoView = view
@@ -153,6 +146,8 @@ class ComposeVideoController @JvmOverloads constructor(
     private lateinit var gestureActions: VideoGestureActionsImpl
 
     internal lateinit var gestureHandler: VideoGestureHandler
+
+    internal lateinit var config: PlayerConfigDelegate
 
     private var canChangePosition = true
     private var enableInNormal = false
@@ -166,18 +161,17 @@ class ComposeVideoController @JvmOverloads constructor(
 
     internal var previewMode = false
     internal var speedOld = 1.0f
-    private var speedRetryCount = 0
     private var skipEnd = true
     private var isClickBackBtn = false
     private var showParseFlag = false
     internal var playerConfig: JSONObject? = null
-    private var listener: VodControlListener? = null
+    internal var listener: VodControlListener? = null
 
     private var keySeekProgress = 0
 
     private val idleHideMillis = 10000L
 
-    private val uiHandler by lazy { Handler(Looper.getMainLooper()) }
+    internal val uiHandler by lazy { Handler(Looper.getMainLooper()) }
 
     private var progressTicking = false
     private val progressRunnable by lazy { Runnable { onProgressTick() } }
@@ -188,7 +182,6 @@ class ComposeVideoController @JvmOverloads constructor(
     }
     private val lockHideRunnable by lazy { Runnable { state.lockState = LockVisibility.HIDDEN } }
     private val keySeekCommitRunnable by lazy { Runnable { commitKeySeek() } }
-    private val speedRetryRunnable by lazy { Runnable { applySpeedWhenReady() } }
 
     private val m3u8PurifyUseCase by lazy {
         M3u8PurifyUseCase(context, object : M3u8PurifyUseCase.Callback {
@@ -218,6 +211,7 @@ class ComposeVideoController @JvmOverloads constructor(
 
         gestureActions = VideoGestureActionsImpl(this)
         gestureHandler = VideoGestureHandler(gestureActions)
+        config = PlayerConfigDelegate(this)
 
         initNativeSubtitleViews()
         initComposeLayer()
@@ -290,7 +284,7 @@ class ComposeVideoController @JvmOverloads constructor(
         uiHandler.removeCallbacks(idleHideRunnable)
         uiHandler.removeCallbacks(lockHideRunnable)
         uiHandler.removeCallbacks(keySeekCommitRunnable)
-        uiHandler.removeCallbacks(speedRetryRunnable)
+        config.cancelSpeedRetry()
         uiHandler.removeCallbacks(tapConfirmRunnable)
     }
 
@@ -487,187 +481,6 @@ class ComposeVideoController @JvmOverloads constructor(
         }
     }
 
-    private fun updatePlayerCfgState() {
-        val cfg = playerConfig ?: return
-        try {
-            val playerType = cfg.getInt("pl")
-            state.playerType = playerType
-            val start = cfg.getInt("st")
-            val end = cfg.getInt("et")
-            state.timeStartText = if (start == 0) "" else PlayerUtils.stringForTime(start * 1000)
-            state.timeEndText = if (end == 0) "" else PlayerUtils.stringForTime(end * 1000)
-            refreshParamsSheet()
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private val speedOptions = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 3.0f)
-
-    private fun speedIndex(value: Float): Int {
-        val idx = speedOptions.indexOfFirst { it == value }
-        return if (idx >= 0) idx else speedOptions.indexOfFirst { it == 1.0f }
-    }
-
-    private fun sheetPlayerOrder(types: List<Int>): List<Int> {
-        val head = listOf(2)
-        return head.filter { types.contains(it) } + types.filter { it !in head }
-    }
-
-    private fun buildParamsSheet(): ParamsSheetState? {
-        val cfg = playerConfig ?: return null
-        val speed = cfg.optDouble("sp", 1.0).toFloat()
-        val playerType = cfg.optInt("pl", 2)
-        val players = sheetPlayerOrder(PlayerHelper.getExistPlayerTypes())
-        val scaleType = cfg.optInt("sc", 0)
-        return ParamsSheetState(
-            speed = ParamsChoice(
-                options = speedOptions.map { "${it}x" },
-                selected = speedIndex(speed),
-                onSelect = { applySpeed(speedOptions[it]) },
-            ),
-            decode = decodeChoice(cfg),
-            player = ParamsChoice(
-                options = players.map { PlayerHelper.getPlayerName(it) },
-                selected = players.indexOf(playerType).coerceAtLeast(0),
-                onSelect = { applyPlayer(players[it]) },
-            ),
-            scale = ParamsChoice(
-                options = (0..5).map { PlayerHelper.getScaleName(it) },
-                selected = scaleType.coerceIn(0, 5),
-                onSelect = { applyScale(it) },
-            ),
-            picture = PictureParamsState(
-                preset = PictureEffects.preset(),
-                tuning = PictureEffects.custom(),
-                unavailableReason = PictureEffects.unavailableReason(),
-                anime4kTierText = context.getString(Anime4kTier.current().labelRes),
-                anime4kEnabled = Anime4kSettings.enabled(),
-                anime4kUnavailable = PictureEffects.anime4kUnavailable(),
-                anime4kSharpen = Anime4kSettings.sharpen(),
-                anime4kDeblur = Anime4kSettings.deblur(),
-                onAnime4kToggled = {
-                    Anime4kSettings.setEnabled(it)
-                    restartForPictureIfNeeded()
-                    refreshParamsSheet()
-                },
-                onAnime4kSharpenChanged = { PictureEffects.setAnime4kSharpen(it) },
-                onAnime4kDeblurToggled = {
-                    Anime4kSettings.setDeblur(it)
-                    restartForPictureIfNeeded()
-                    refreshParamsSheet()
-                },
-                onPresetSelected = {
-                    PictureEffects.selectPreset(it)
-                    restartForPictureIfNeeded()
-                    refreshParamsSheet()
-                },
-                onTuningChanged = {
-                    PictureEffects.setCustom(it)
-                    restartForPictureIfNeeded()
-                },
-                onReset = {
-                    PictureEffects.reset()
-                    restartForPictureIfNeeded()
-                    refreshParamsSheet()
-                },
-                onCompareChanged = {
-                    PictureEffects.compare(it)
-                    restartForPictureIfNeeded()
-                },
-            ),
-            timeStartText = state.timeStartText,
-            timeEndText = state.timeEndText,
-            onSetTimeStart = { markTimeStart() },
-            onSetTimeEnd = { markTimeEnd() },
-            onResetTime = { onTimeResetClicked() },
-            onSearchDanmu = if (state.danmuSearchAvailable) {
-                { onDanmuSearchClicked() }
-            } else {
-                null
-            },
-        )
-    }
-
-    private fun refreshParamsSheet() {
-        if (state.paramsSheet == null) return
-        state.paramsSheet = buildParamsSheet()
-    }
-
-    private fun restartForPictureIfNeeded() {
-        if (PictureEffects.consumeRestartNeeded()) listener?.replay(false)
-    }
-
-    private fun decodeChoice(cfg: JSONObject): ParamsChoice {
-        val isSoft = cfg.optString("exo", "硬解码") == "软解码" // i18n: keep
-        return ParamsChoice(
-            options = listOf(
-                context.getString(R.string.player_decode_hard),
-                context.getString(R.string.player_decode_soft),
-            ),
-            selected = if (isSoft) 1 else 0,
-            onSelect = { applyDecode(if (it == 1) "软解码" else "硬解码") }, // i18n: keep
-        )
-    }
-
-    private fun applySpeed(value: Float) {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            cfg.put("sp", value.toDouble())
-            updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-            speedOld = value
-            videoView?.setSpeed(value)
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private fun applyScale(index: Int) {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            cfg.put("sc", index)
-            updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-            videoView?.setScreenScaleType(index)
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private fun applyPlayer(playerType: Int) {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            if (playerType == cfg.optInt("pl", 2)) return
-            cfg.put("pl", playerType)
-            listener?.setAllowSwitchPlayer(false)
-            updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-            listener?.replay(false)
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private fun applyDecode(value: String) {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            val unchanged = cfg.optString("exo") == value
-            cfg.put("exo", value) // i18n: keep
-            cfg.put("exoSet", 1)
-            listener?.setAllowDecodeFallback(false)
-            updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-            if (!unchanged) listener?.replay(false)
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
     private fun updateDanmuBtnState() {
         state.danmuOpen = DanmuHelper.isOpen()
     }
@@ -678,21 +491,6 @@ class ComposeVideoController @JvmOverloads constructor(
 
     private fun updateLiveButtonsState() {
         state.liveButtonsVisible = runCatching { videoView?.duration ?: 0L != 0L }.getOrDefault(true)
-    }
-
-    private fun applySpeedWhenReady() {
-        if (isInPlaybackState()) {
-            speedRetryCount = 0
-            try {
-                playerConfig?.let { videoView?.setSpeed(it.getDouble("sp").toFloat()) }
-            } catch (e: JSONException) {
-                LOG.e("ComposeVideoController", e)
-            }
-        } else if (speedRetryCount < SPEED_RETRY_MAX) {
-            speedRetryCount++
-            uiHandler.removeCallbacks(speedRetryRunnable)
-            uiHandler.postDelayed(speedRetryRunnable, 100)
-        }
     }
 
     override fun getUiState(): PlayerUiState = state
@@ -709,7 +507,7 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun setPlayerConfig(playerCfg: JSONObject) {
         playerConfig = playerCfg
-        updatePlayerCfgState()
+        config.updatePlayerCfgState()
     }
 
     override fun showParse(userJxList: Boolean) {
@@ -761,7 +559,7 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun resetSpeed() {
         skipEnd = true
-        applySpeedWhenReady()
+        config.applySpeedWhenReady()
     }
 
     override fun onBackPressed(): Boolean {
@@ -823,24 +621,24 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onScaleClicked() {
         keepControlsAlive()
-        showScaleDialog()
+        config.showScaleDialog()
     }
 
     override fun onScaleLongClicked() {
         keepControlsAlive()
         if (!fastClickAllowed("scale_long")) return
-        applyScale(0)
+        config.applyScale(0)
     }
 
     override fun onSpeedClicked() {
         keepControlsAlive()
-        showSpeedDialog()
+        config.showSpeedDialog()
     }
 
     override fun onSpeedLongClicked() {
         keepControlsAlive()
         if (!fastClickAllowed("speed_long")) return
-        applySpeed(1.0f)
+        config.applySpeed(1.0f)
     }
 
     override fun onPlayerClicked() {
@@ -855,7 +653,7 @@ class ComposeVideoController @JvmOverloads constructor(
                 nextIdx = if (i == existPlayerTypes.size - 1) 0 else i + 1
             }
         }
-        applyPlayer(existPlayerTypes[nextIdx])
+        config.applyPlayer(existPlayerTypes[nextIdx])
         hideBottom()
     }
 
@@ -880,7 +678,7 @@ class ComposeVideoController @JvmOverloads constructor(
                 defaultIndex = defaultPos,
                 onSelected = { pos ->
                     if (players[pos] != playerType) {
-                        applyPlayer(players[pos])
+                        config.applyPlayer(players[pos])
                         hideBottom()
                     }
                 },
@@ -892,20 +690,20 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onTimeStartClicked() {
         keepControlsAlive()
-        markTimeStart()
+        config.markTimeStart()
     }
 
     override fun onTimeStartLongClicked() {
-        setTimeMark("st", 0)
+        config.setTimeMark("st", 0)
     }
 
     override fun onTimeEndClicked() {
         keepControlsAlive()
-        markTimeEnd()
+        config.markTimeEnd()
     }
 
     override fun onTimeEndLongClicked() {
-        setTimeMark("et", 0)
+        config.setTimeMark("et", 0)
     }
 
     override fun onTimeResetClicked() {
@@ -914,34 +712,7 @@ class ComposeVideoController @JvmOverloads constructor(
             val cfg = playerConfig ?: return
             cfg.put("st", 0)
             cfg.put("et", 0)
-            updatePlayerCfgState()
-            listener?.updatePlayerCfg()
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private fun markTimeStart() {
-        val view = videoView ?: return
-        val current = PlayerUtils.safeTimeMs(view.currentPosition)
-        if (current > PlayerUtils.safeTimeMs(view.duration) / 2) return
-        setTimeMark("st", current / 1000)
-    }
-
-    private fun markTimeEnd() {
-        val view = videoView ?: return
-        val current = PlayerUtils.safeTimeMs(view.currentPosition)
-        val duration = PlayerUtils.safeTimeMs(view.duration)
-        if (current < duration / 2) return
-        setTimeMark("et", (duration - current) / 1000)
-    }
-
-    private fun setTimeMark(key: String, seconds: Int) {
-        keepControlsAlive()
-        try {
-            val cfg = playerConfig ?: return
-            cfg.put(key, seconds)
-            updatePlayerCfgState()
+            config.updatePlayerCfgState()
             listener?.updatePlayerCfg()
         } catch (e: JSONException) {
             LOG.e("ComposeVideoController", e)
@@ -1018,7 +789,7 @@ class ComposeVideoController @JvmOverloads constructor(
 
     override fun onParamsClicked() {
         keepControlsAlive()
-        state.paramsSheet = buildParamsSheet()
+        state.paramsSheet = config.buildParamsSheet()
     }
 
     override fun onInfoOsdClicked() {
@@ -1149,7 +920,6 @@ class ComposeVideoController @JvmOverloads constructor(
         if (state.infoOsdVisible) InfoOsdText.refreshInfoOsd(context, state, videoView, playerActivity(), speed)
     }
 
-
     override fun hideSeekHint() {
         state.seekHintVisible = false
     }
@@ -1158,38 +928,4 @@ class ComposeVideoController @JvmOverloads constructor(
         state.slideHintVisible = false
     }
 
-    private fun showScaleDialog() {
-        try {
-            val cfg = playerConfig ?: return
-            val scaleType = cfg.getInt("sc")
-            val scales = ArrayList<String>()
-            for (i in 0..5) {
-                scales.add(PlayerHelper.getScaleName(i))
-            }
-            state.selectDialog = SelectDialogState(
-                tip = context.getString(R.string.player_select_scale),
-                items = scales,
-                defaultIndex = scaleType.coerceIn(0, 5),
-                onSelected = { index -> applyScale(index) },
-            )
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
-
-    private fun showSpeedDialog() {
-        try {
-            val cfg = playerConfig ?: return
-            val speed = cfg.getDouble("sp").toFloat()
-            val speeds = speedOptions.map { "${it}x" }
-            state.selectDialog = SelectDialogState(
-                tip = context.getString(R.string.player_select_speed),
-                items = speeds,
-                defaultIndex = speedIndex(speed),
-                onSelected = { index -> applySpeed(speedOptions[index]) },
-            )
-        } catch (e: JSONException) {
-            LOG.e("ComposeVideoController", e)
-        }
-    }
 }
