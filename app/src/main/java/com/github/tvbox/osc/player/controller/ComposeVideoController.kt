@@ -41,6 +41,7 @@ import com.github.tvbox.osc.player.effect.anime4k.Anime4kTier
 import com.github.tvbox.osc.player.state.PictureParamsState
 import com.github.tvbox.osc.player.state.PlayerActions
 import com.github.tvbox.osc.player.state.PlayerUiState
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.state.VideoSizeGate
 import com.github.tvbox.osc.player.state.SelectDialogState
 import com.github.tvbox.osc.player.ui.PlayerOverlay
@@ -101,8 +102,6 @@ class ComposeVideoController @JvmOverloads constructor(
     internal fun gestureEnableInNormal(): Boolean = enableInNormal
 
     internal fun gestureEnabled(): Boolean = gestureSwitch
-
-    internal fun playerState(): Int = curPlayState
 
     internal fun currentSpeed(): Float = playerView?.speed ?: 1f
 
@@ -172,7 +171,6 @@ class ComposeVideoController @JvmOverloads constructor(
     private lateinit var mLyricView: SimpleSubtitleView
     private lateinit var mExoSubtitleView: SubtitleView
 
-    internal var curPlayState = 0
     private val videoSizeGate = VideoSizeGate()
 
     internal var previewMode = false
@@ -305,26 +303,25 @@ class ComposeVideoController @JvmOverloads constructor(
         uiHandler.removeCallbacks(tapConfirmRunnable)
     }
 
-    override fun setPlayState(playState: Int) {
-        curPlayState = playState
+    override fun setPlayState(playState: PlayState) {
         state.playState = playState
-        if (playState != AppPlayerView.STATE_IDLE && playState != AppPlayerView.STATE_ERROR &&
-            playState != AppPlayerView.STATE_PREPARING
+        if (playState != PlayState.IDLE && playState != PlayState.ERROR &&
+            playState != PlayState.PREPARING
         ) {
             updateLiveButtonsState()
         }
         when (playState) {
-            AppPlayerView.STATE_IDLE -> {
+            PlayState.IDLE -> {
                 savePlaybackProgress(notifyHistory = true)
                 state.locked = false
                 state.duration = 0
                 state.position = 0
             }
-            AppPlayerView.STATE_PLAYING -> {
+            PlayState.PLAYING -> {
                 initOrientationState()
                 startProgress()
             }
-            AppPlayerView.STATE_PAUSED -> {
+            PlayState.PAUSED -> {
                 if (!state.lifecyclePaused) {
                     state.topLeftVisible = false
                     state.netSpeedTopRightVisible = false
@@ -332,13 +329,14 @@ class ComposeVideoController @JvmOverloads constructor(
                 }
                 savePlaybackProgress(notifyHistory = true)
             }
-            AppPlayerView.STATE_ERROR -> listener?.errReplay()
-            AppPlayerView.STATE_PREPARED -> listener?.prepared()
-            AppPlayerView.STATE_PLAYBACK_COMPLETED -> {
+            PlayState.ERROR -> listener?.errReplay()
+            PlayState.PREPARED -> listener?.prepared()
+            PlayState.COMPLETED -> {
                 state.locked = false
                 PlaybackProgress.markFinished()
                 listener?.playNext(true)
             }
+            PlayState.PREPARING, PlayState.BUFFERING, PlayState.BUFFERED, PlayState.START_ABORT -> Unit
         }
     }
 
@@ -417,13 +415,11 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     internal fun isInPlaybackState(): Boolean {
-        return videoView != null &&
-                curPlayState != AppPlayerView.STATE_ERROR &&
-                curPlayState != AppPlayerView.STATE_IDLE &&
-                curPlayState != AppPlayerView.STATE_PREPARING &&
-                curPlayState != AppPlayerView.STATE_PREPARED &&
-                curPlayState != AppPlayerView.STATE_START_ABORT &&
-                curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
+        if (videoView == null) return false
+        return when (state.playState) {
+            PlayState.PLAYING, PlayState.PAUSED, PlayState.BUFFERING, PlayState.BUFFERED -> true
+            else -> false
+        }
     }
 
     override fun toggleControls() {
@@ -1180,7 +1176,7 @@ class ComposeVideoController @JvmOverloads constructor(
         val footer = context.getString(R.string.osd_config) + " " + configText(view, exo)
         left.add(
             context.getString(R.string.osd_conclusion) + " "
-                + context.getString(if (state.playState == AppPlayerView.STATE_ERROR) R.string.osd_abnormal else R.string.osd_normal)
+                + context.getString(if (state.playState == PlayState.ERROR) R.string.osd_abnormal else R.string.osd_normal)
         )
 
         right.add(
@@ -1262,11 +1258,11 @@ class ComposeVideoController @JvmOverloads constructor(
     }
 
     private fun playStateRes(): Int = when (state.playState) {
-        AppPlayerView.STATE_BUFFERING -> R.string.osd_state_buffering
-        AppPlayerView.STATE_PLAYING -> R.string.osd_state_playing
-        AppPlayerView.STATE_PAUSED -> R.string.osd_state_paused
-        AppPlayerView.STATE_PLAYBACK_COMPLETED -> R.string.osd_state_ended
-        AppPlayerView.STATE_ERROR -> R.string.osd_abnormal
+        PlayState.BUFFERING -> R.string.osd_state_buffering
+        PlayState.PLAYING -> R.string.osd_state_playing
+        PlayState.PAUSED -> R.string.osd_state_paused
+        PlayState.COMPLETED -> R.string.osd_state_ended
+        PlayState.ERROR -> R.string.osd_abnormal
         else -> R.string.osd_state_ready
     }
 

@@ -56,16 +56,16 @@ class ComposeLiveController(
     private var firstTouch = false
     private var changeBrightness = false
     private var changeVolume = false
-    private var curPlayState = AppPlayerView.STATE_IDLE
+    private var playState = PlayState.IDLE
 
     init {
         @Suppress("ClickableViewAccessibility")
         setOnTouchListener(this)
     }
 
-    override fun setPlayState(playState: Int) {
-        curPlayState = playState
-        listener?.onPlayStateChanged(PlayState.fromLegacy(playState))
+    override fun setPlayState(playState: PlayState) {
+        this.playState = playState
+        listener?.onPlayStateChanged(playState)
     }
 
     override fun setPlayerState(playerState: Int) {
@@ -81,13 +81,11 @@ class ComposeLiveController(
     }
 
     private fun gesturePlaybackState(): Boolean {
-        return videoView != null &&
-                curPlayState != AppPlayerView.STATE_ERROR &&
-                curPlayState != AppPlayerView.STATE_IDLE &&
-                curPlayState != AppPlayerView.STATE_PREPARING &&
-                curPlayState != AppPlayerView.STATE_PREPARED &&
-                curPlayState != AppPlayerView.STATE_START_ABORT &&
-                curPlayState != AppPlayerView.STATE_PLAYBACK_COMPLETED
+        if (videoView == null) return false
+        return when (playState) {
+            PlayState.PLAYING, PlayState.PAUSED, PlayState.BUFFERING, PlayState.BUFFERED -> true
+            else -> false
+        }
     }
 
     private fun canHandleGesture(event: MotionEvent): Boolean {

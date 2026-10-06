@@ -88,10 +88,9 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         view.setExoDiskCacheEnabled(true)
         view.setProgressSink(progressSink)
         view.addOnStateChangeListener(object : AppPlayerView.SimpleOnStateChangeListener() {
-            override fun onPlayStateChanged(playState: Int) {
+            override fun onPlayStateChanged(playState: PlayState) {
                 if (released) return
-                val state = PlayState.fromLegacy(playState)
-                if (playState == AppPlayerView.STATE_ERROR) {
+                if (playState == PlayState.ERROR) {
                     LOG.i(
                         "echo-player error: kernel="
                             + (if (videoView.mediaPlayer == null) "null" else videoView.mediaPlayer!!.javaClass.simpleName)
@@ -100,7 +99,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                             + " url=" + controller.webPlayUrl()
                     )
                 }
-                if (playState == AppPlayerView.STATE_PLAYING) {
+                if (playState == PlayState.PLAYING) {
                     if (controller.isConfirmedAudioOnly()) {
                         videoView.hideVideoFrameCover()
                     } else {
@@ -108,20 +107,20 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
                     }
                 }
                 if (liveMode) return
-                if (playState == AppPlayerView.STATE_PLAYING) {
+                if (playState == PlayState.PLAYING) {
                     controller.ensureAudioOnlyRender()
                     controller.onPlayerStateForPreload(playState)
                 }
-                if (playState == AppPlayerView.STATE_BUFFERING || playState == AppPlayerView.STATE_BUFFERED) {
+                if (playState == PlayState.BUFFERING || playState == PlayState.BUFFERED) {
                     controller.onPlayerStateForPreload(playState)
                 }
-                if (controller.webPlayUrl() != null && controller.isStartedPlayState(state)) {
+                if (controller.webPlayUrl() != null && controller.isStartedPlayState(playState)) {
                     controller.markPlaybackStarted()
                     if (!released && !videoView.isVideoFrameCleared()) {
                         activeView().hideTipOnUiThread()
                     }
                 }
-                if (controller.handlePlayStateForMusicSession(state)) {
+                if (controller.handlePlayStateForMusicSession(playState)) {
                     return
                 }
                 activeView().startDanmuIfReady()

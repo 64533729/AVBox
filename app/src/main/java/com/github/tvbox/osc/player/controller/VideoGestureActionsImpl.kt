@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioManager
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.AppPlayerView
+import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.ui.VideoGestureActions
 import com.github.tvbox.osc.player.ui.VideoGestureSession
 import com.github.tvbox.osc.util.GestureHelper
@@ -62,12 +63,12 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
         lastAppliedBrightness = Float.NaN
         lastAppliedVolume = Int.MIN_VALUE
         val view = host.playerView
-        val paused = host.curPlayState == AppPlayerView.STATE_PAUSED
+        val paused = host.state.playState == PlayState.PAUSED
         return VideoGestureSession(
             inPlayback = host.isInPlaybackState(),
             canChangePosition = host.gestureCanChangePosition(),
             enableInNormal = host.gestureEnableInNormal(),
-            fullScreen = host.playerState() == AppPlayerView.PLAYER_FULL_SCREEN,
+            fullScreen = host.state.playerState == AppPlayerView.PLAYER_FULL_SCREEN,
             locked = host.isLocked,
             previewMode = host.previewMode,
             paused = paused,

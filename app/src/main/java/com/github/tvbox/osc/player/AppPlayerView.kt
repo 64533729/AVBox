@@ -30,12 +30,12 @@ open class AppPlayerView @JvmOverloads constructor(
 
     interface OnStateChangeListener {
         fun onPlayerStateChanged(playerState: Int)
-        fun onPlayStateChanged(playState: Int)
+        fun onPlayStateChanged(playState: PlayState)
     }
 
     open class SimpleOnStateChangeListener : OnStateChangeListener {
         override fun onPlayerStateChanged(playerState: Int) = Unit
-        override fun onPlayStateChanged(playState: Int) = Unit
+        override fun onPlayStateChanged(playState: PlayState) = Unit
     }
 
     interface ProgressSink {
@@ -74,7 +74,7 @@ open class AppPlayerView @JvmOverloads constructor(
     protected val mCurrentPlayState: Int
         get() = mMediaPlayer?.playState?.toLegacy() ?: STATE_IDLE
 
-    private var mLastReportedPlayState = STATE_IDLE
+    private var mLastReportedPlayState = PlayState.IDLE
 
     protected var mCurrentPlayerState = PLAYER_NORMAL
 
@@ -122,7 +122,7 @@ open class AppPlayerView @JvmOverloads constructor(
     protected open fun startPlay(): Boolean {
         if (showNetWarning()) {
             mMediaPlayer?.abortStart()
-            dispatchPlayState(STATE_START_ABORT)
+            dispatchPlayState(PlayState.START_ABORT)
             return false
         }
         if (mEnableAudioFocus) {
@@ -262,7 +262,7 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun release() {
-        val hadActiveState = mLastReportedPlayState != STATE_IDLE
+        val hadActiveState = mLastReportedPlayState != PlayState.IDLE
         mAudioFocusHelper?.abandonFocus()
         mAudioFocusHelper = null
         mMediaPlayer?.release()
@@ -307,7 +307,7 @@ open class AppPlayerView @JvmOverloads constructor(
             if (mCurrentPosition > 0 && !player.isStartPositionApplied()) {
                 player.seekTo(mCurrentPosition)
             }
-            dispatchPlayState(STATE_PREPARED)
+            dispatchPlayState(PlayState.PREPARED)
             if (!isMute()) {
                 mAudioFocusHelper?.requestFocus()
             }
@@ -473,18 +473,18 @@ open class AppPlayerView @JvmOverloads constructor(
     @Suppress("UNUSED_PARAMETER")
     open fun setMute(isMute: Boolean) = Unit
 
-    private fun dispatchPlayState(playState: Int) {
+    private fun dispatchPlayState(playState: PlayState) {
         mLastReportedPlayState = playState
         setPlayState(playState)
     }
 
     private fun reportPlayState() {
-        val state = mCurrentPlayState
+        val state = mMediaPlayer?.playState ?: PlayState.IDLE
         if (state == mLastReportedPlayState) return
         dispatchPlayState(state)
     }
 
-    protected fun setPlayState(playState: Int) {
+    protected fun setPlayState(playState: PlayState) {
         mVideoController?.setPlayState(playState)
         mOnStateChangeListeners?.let { listeners ->
             for (listener in it2snapshot(listeners)) {
@@ -523,7 +523,7 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     interface VideoControllerHost {
-        fun setPlayState(playState: Int)
+        fun setPlayState(playState: PlayState)
 
         fun setPlayerState(playerState: Int)
 
@@ -552,9 +552,10 @@ open class AppPlayerView @JvmOverloads constructor(
                     LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
                 )
             }
-            controller.setPlayState(mCurrentPlayState)
+            val state = mMediaPlayer?.playState ?: PlayState.IDLE
+            controller.setPlayState(state)
             controller.setPlayerState(mCurrentPlayerState)
-            if (mCurrentPlayState != STATE_IDLE && mCurrentPlayState != STATE_ERROR) {
+            if (state != PlayState.IDLE && state != PlayState.ERROR) {
                 controller.startProgress()
             }
         }

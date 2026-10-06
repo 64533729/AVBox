@@ -7,7 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import com.github.tvbox.osc.player.AppPlayerView
+import com.github.tvbox.osc.player.state.PlayState
 
 class PlaybackPreload(private val host: Host) {
 
@@ -46,13 +46,13 @@ class PlaybackPreload(private val host: Host) {
         PreloadManagerHolder.setReadyListener(listener)
     }
 
-    fun onPlayerState(playState: Int) {
+    fun onPlayerState(playState: PlayState) {
         val coordinator = preloadCoordinator ?: return
         val view = host.view()
         if (view == null) return
-        if (playState == AppPlayerView.STATE_PLAYING || playState == AppPlayerView.STATE_BUFFERED) {
+        if (playState == PlayState.PLAYING || playState == PlayState.BUFFERED) {
             coordinator.scheduleEvaluate(view.buildPreloadSnapshot())
-        } else if (playState == AppPlayerView.STATE_BUFFERING) {
+        } else if (playState == PlayState.BUFFERING) {
             coordinator.onMainPlayerBuffering()
         }
     }

@@ -872,7 +872,7 @@ class PlaybackController {
         preload.init()
     }
 
-    fun onPlayerStateForPreload(playState: Int) {
+    fun onPlayerStateForPreload(playState: PlayState) {
         preload.onPlayerState(playState)
     }
 

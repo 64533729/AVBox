@@ -190,9 +190,8 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     }
 
     private val stateListener = object : AppPlayerView.SimpleOnStateChangeListener() {
-        override fun onPlayStateChanged(playState: Int) {
-            val state = PlayState.fromLegacy(playState)
-            when (state) {
+        override fun onPlayStateChanged(playState: PlayState) {
+            when (playState) {
                 PlayState.PREPARING, PlayState.BUFFERING -> ui.buffering = true
                 PlayState.PREPARED, PlayState.BUFFERED -> ui.buffering = false
                 PlayState.PLAYING -> {
@@ -215,9 +214,9 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
                 PlayState.IDLE, PlayState.START_ABORT -> {}
             }
             ui.durationMs = player.duration.coerceAtLeast(0L)
-            if (state == PlayState.PREPARING
-                || state == PlayState.PREPARED
-                || state == PlayState.PLAYING
+            if (playState == PlayState.PREPARING
+                || playState == PlayState.PREPARED
+                || playState == PlayState.PLAYING
             ) {
                 refreshMeta()
                 syncLyric()

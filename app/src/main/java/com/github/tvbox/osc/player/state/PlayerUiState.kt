@@ -13,7 +13,7 @@ import com.github.tvbox.osc.player.AppPlayerView
 
 class PlayerUiState {
 
-    var playState: Int by mutableStateOf(AppPlayerView.STATE_IDLE)
+    var playState: PlayState by mutableStateOf(PlayState.IDLE)
     var playerState: Int by mutableStateOf(AppPlayerView.PLAYER_NORMAL)
     var duration: Int by mutableStateOf(0)
     var position: Int by mutableStateOf(0)
@@ -111,24 +111,24 @@ class PlayerUiState {
 
     val playbackActive: Boolean
         get() = lifecyclePaused ||
-                playState == AppPlayerView.STATE_PLAYING ||
-                playState == AppPlayerView.STATE_BUFFERING ||
-                playState == AppPlayerView.STATE_BUFFERED
+                playState == PlayState.PLAYING ||
+                playState == PlayState.BUFFERING ||
+                playState == PlayState.BUFFERED
 
     val pauseOverlayVisible: Boolean
-        get() = playState == AppPlayerView.STATE_PAUSED && !controlsVisible && !lifecyclePaused
+        get() = playState == PlayState.PAUSED && !controlsVisible && !lifecyclePaused
 
     val seekPreviewOrPosition: Int
         get() = if (dragging && duration > 0) seekPreviewPositionMs.toInt().coerceIn(0, duration) else position
 
     val loadingVisible: Boolean
-        get() = playState == AppPlayerView.STATE_PREPARING || playState == AppPlayerView.STATE_BUFFERING
+        get() = playState == PlayState.PREPARING || playState == PlayState.BUFFERING
 
     val centerControlsVisible: Boolean
         get() = controlsVisible && !loadingVisible && !tipVisible && !locked
 
     val netSpeedCenterVisible: Boolean
-        get() = playState == AppPlayerView.STATE_IDLE
+        get() = playState == PlayState.IDLE
 }
 
 enum class LockVisibility { GONE, HIDDEN, SHOWN }
