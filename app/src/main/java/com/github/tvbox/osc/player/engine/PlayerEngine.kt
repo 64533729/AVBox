@@ -28,14 +28,10 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.analytics.DefaultAnalyticsCollector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.trackselection.MappingTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
-import com.github.tvbox.osc.R
-import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.player.PlayerCodecStats
 import com.github.tvbox.osc.player.TrackInfo
 import com.github.tvbox.osc.player.TrackInfoBean
@@ -43,11 +39,8 @@ import com.github.tvbox.osc.player.effect.PictureEffects
 import com.github.tvbox.osc.player.effect.RedrawPolicy
 import com.github.tvbox.osc.player.effect.ReplayableCacheVideoRenderer
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.TrackMemory
 import okhttp3.OkHttpClient
 import java.util.ArrayList
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
 data class PlayerEngineConfig(
@@ -80,6 +73,12 @@ class PlayerEngine(
 
     private val trackSelector = DefaultTrackSelector(appContext)
 
+    private val trackSelection = EngineTrackSelection(object : EngineTrackSelection.Host {
+        override fun trackSelector(): DefaultTrackSelector = this@PlayerEngine.trackSelector
+
+        override fun internalPlayer(): ExoPlayer? = this@PlayerEngine.internalPlayer
+    })
+
     private var internalPlayer: ExoPlayer? = null
 
     val player: ExoPlayer?
@@ -92,8 +91,6 @@ class PlayerEngine(
     private var retriedAsHls = false
 
     private var useDiskCache = false
-
-    private var contentKey = ""
 
     @Volatile
     private var startPositionMs = 0L
@@ -113,10 +110,6 @@ class PlayerEngine(
     private var lastOutputWidth = 0
     private var lastOutputHeight = 0
     private var redrawScheduled = false
-
-    @Volatile
-    private var subtitleDelayUs = 0L
-    private var onCuesListener: ((List<Cue>) -> Unit)? = null
 
     var videoSizeListener: VideoSizeListener? = null
 
@@ -159,13 +152,13 @@ class PlayerEngine(
     private val engineListener = object : Player.Listener {
 
         override fun onTracksChanged(tracks: Tracks) {
-            loadDefaultSubtitleTrackBeforeReady()
+            trackSelection.loadDefaultSubtitleTrackBeforeReady()
             reportVideoSizeFromTracks(tracks)
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
-                defaultSubtitleTrackSelectionClosed = true
+                trackSelection.markSubtitleSelectionClosed()
             }
             playbackStateListener?.invoke(playbackState)
         }
@@ -179,7 +172,7 @@ class PlayerEngine(
         }
 
         override fun onCues(cueGroup: CueGroup) {
-            onCuesListener?.invoke(cueGroup.cues)
+            trackSelection.dispatchCues(cueGroup.cues)
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -215,7 +208,7 @@ class PlayerEngine(
     private fun createPlayer(): ExoPlayer {
         val renderersFactory = EngineRenderersFactory(
             appContext,
-            { subtitleDelayUs },
+            { trackSelection.subtitleDelayUs },
             videoRenderers,
             config.dynamicScheduling,
         )
@@ -271,8 +264,7 @@ class PlayerEngine(
         currentPlayPath = playPath
         currentHeaders = copyHeaders(headers)
         retriedAsHls = false
-        defaultSubtitleTrackSelected = false
-        defaultSubtitleTrackSelectionClosed = false
+        trackSelection.resetForNewContent()
         resetPlaybackStats()
         mediaSource = mediaSources.getMediaSource(playPath, copyHeaders(currentHeaders))
 
@@ -585,27 +577,19 @@ class PlayerEngine(
     }
 
     fun setOnCuesListener(listener: ((List<Cue>) -> Unit)?) {
-        onCuesListener = listener
+        trackSelection.setOnCuesListener(listener)
     }
 
     fun setInternalSubtitleDelay(milliseconds: Int) {
-        subtitleDelayUs = milliseconds * 1000L
+        trackSelection.setInternalSubtitleDelay(milliseconds)
     }
 
-    fun getSelectedVideoFormat(): Format? = selectedFormat(C.TRACK_TYPE_VIDEO)
+    fun getSelectedVideoFormat(): Format? {
+        return trackSelection.getSelectedVideoFormat()
+    }
 
-    fun getSelectedAudioFormat(): Format? = selectedFormat(C.TRACK_TYPE_AUDIO)
-
-    private fun selectedFormat(trackType: Int): Format? {
-        val exo = internalPlayer ?: return null
-        val tracks = exo.currentTracks
-        for (group in tracks.groups) {
-            if (group.type != trackType || !group.isSelected) continue
-            for (i in 0 until group.length) {
-                if (group.isTrackSelected(i)) return group.getTrackFormat(i)
-            }
-        }
-        return null
+    fun getSelectedAudioFormat(): Format? {
+        return trackSelection.getSelectedAudioFormat()
     }
 
     private fun reportVideoSizeFromTracks(tracks: Tracks) {
@@ -699,422 +683,46 @@ class PlayerEngine(
                 errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
                 errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
         }
-
-        private val LANG_MAP = hashMapOf(
-            "zh" to "国语",
-            "zh-cn" to "国语",
-            "cmn" to "国语",
-            "chi" to "国语",
-            "zho" to "国语",
-            "chs" to "国语",
-            "yue" to "粤语",
-            "zh-hk" to "粤语",
-            "zh-yue" to "粤语",
-            "en" to "英语",
-            "en-us" to "英语",
-            "eng" to "英语",
-            "ja" to "日语",
-            "jpn" to "日语",
-            "ko" to "韩语",
-            "kor" to "韩语",
-            "th" to "泰语",
-            "tha" to "泰语",
-        )
     }
 
     fun interface VideoSizeListener {
         fun onVideoSizeChanged(width: Int, height: Int, unappliedRotationDegrees: Int)
     }
 
-    private var defaultSubtitleTrackSelected = false
-    private var defaultSubtitleTrackSelectionClosed = false
-
     fun getTrackInfo(): TrackInfo {
-        val data = TrackInfo()
-        val mappedInfo = trackSelector.currentMappedTrackInfo ?: return data
-        logRendererListOnce(mappedInfo)
-        for (rendererIndex in 0 until mappedInfo.rendererCount) {
-            val type = mappedInfo.getRendererType(rendererIndex)
-            if (type != C.TRACK_TYPE_AUDIO && type != C.TRACK_TYPE_VIDEO && type != C.TRACK_TYPE_TEXT) continue
-            val groups = mappedInfo.getTrackGroups(rendererIndex)
-            for (groupIndex in 0 until groups.length) {
-                val group = groups[groupIndex]
-                for (trackIndex in 0 until group.length) {
-                    val fmt = group.getFormat(trackIndex)
-                    if (type == C.TRACK_TYPE_TEXT && isUndeclaredClosedCaptionTrack(fmt)) continue
-                    val language = getLanguage(fmt)
-                    val detail = if (type == C.TRACK_TYPE_VIDEO) getVideoName(fmt) else getName(fmt)
-                    val bean = TrackInfoBean()
-                    bean.language = language
-                    bean.name = buildDisplayName(
-                        if (type == C.TRACK_TYPE_AUDIO) str(R.string.player_menu_audio_track)
-                        else if (type == C.TRACK_TYPE_VIDEO) str(R.string.player_menu_video_track)
-                        else str(R.string.player_menu_subtitle),
-                        if (type == C.TRACK_TYPE_AUDIO) data.getAudio().size + 1
-                        else if (type == C.TRACK_TYPE_VIDEO) data.getVideo().size + 1
-                        else data.getSubtitle().size + 1,
-                        language,
-                        detail,
-                    )
-                    bean.renderId = rendererIndex
-                    bean.trackGroupId = groupIndex
-                    bean.trackId = trackIndex
-                    bean.groupIndex = groupIndex
-                    bean.index = trackIndex
-                    bean.selected = isCurrentTrackSelected(fmt, type)
-                    bean.bitmapSubtitle = type == C.TRACK_TYPE_TEXT && isBitmapSubtitle(fmt)
-                    bean.type = type
-                    bean.formatKey = formatKey(fmt, type)
-                    if (type == C.TRACK_TYPE_AUDIO) {
-                        data.addAudio(bean)
-                    } else if (type == C.TRACK_TYPE_VIDEO) {
-                        data.addVideo(bean)
-                    } else {
-                        data.addSubtitle(bean)
-                    }
-                }
-            }
-        }
-        return data
-    }
-
-    private var rendererListLogged = false
-
-    private fun logRendererListOnce(mappedInfo: MappingTrackSelector.MappedTrackInfo) {
-        if (rendererListLogged) return
-        rendererListLogged = true
-        val sb = StringBuilder("echo-setTrack renderers:")
-        for (i in 0 until mappedInfo.rendererCount) {
-            sb.append(" [").append(i).append("]type=").append(mappedInfo.getRendererType(i))
-                .append('/').append(mappedInfo.getRendererName(i))
-        }
-        LOG.i(sb.toString())
+        return trackSelection.getTrackInfo()
     }
 
     fun setTrack(track: TrackInfoBean?) {
-        if (track == null) return
-        if (!applyTrack(track.renderId, track.trackGroupId, track.trackId)) return
-        if (track.type == C.TRACK_TYPE_TEXT) {
-            TrackMemory.saveSubtitle(contentKey, track.formatKey)
-        } else {
-            TrackMemory.saveTrack(contentKey, track.type, track.formatKey)
-        }
+        trackSelection.setTrack(track)
     }
 
     fun selectTrack(track: TrackInfoBean?) {
-        if (track == null) return
-        applyTrack(track.renderId, track.trackGroupId, track.trackId)
-    }
-
-    private fun applyTrack(rendererIndex: Int, groupIndex: Int, trackIndex: Int): Boolean {
-        try {
-            val mappedInfo = trackSelector.currentMappedTrackInfo
-            if (mappedInfo == null) {
-                LOG.i("echo-setTrack: MappedTrackInfo is null")
-                return false
-            }
-            if (rendererIndex == C.INDEX_UNSET || rendererIndex < 0 || rendererIndex >= mappedInfo.rendererCount) {
-                LOG.i("echo-setTrack: No renderer found")
-                return false
-            }
-            val groups = mappedInfo.getTrackGroups(rendererIndex)
-            if (!isTrackIndexValid(groups, groupIndex, trackIndex)) {
-                LOG.i("echo-setTrack: Invalid track index - group:$groupIndex, track:$trackIndex")
-                return false
-            }
-            val override = DefaultTrackSelector.SelectionOverride(groupIndex, trackIndex)
-            val builder = trackSelector.buildUponParameters()
-            builder.setRendererDisabled(rendererIndex, false)
-            builder.clearSelectionOverrides(rendererIndex)
-            val targetType = mappedInfo.getRendererType(rendererIndex)
-            for (i in 0 until mappedInfo.rendererCount) {
-                if (i != rendererIndex && mappedInfo.getRendererType(i) == targetType) {
-                    builder.clearSelectionOverrides(i)
-                }
-            }
-            builder.setSelectionOverride(rendererIndex, groups, override)
-            trackSelector.setParameters(builder.build())
-            val applied = groups.get(groupIndex).getFormat(trackIndex)
-            LOG.i(
-                "echo-setTrack applied: renderer=$rendererIndex group=$groupIndex track=$trackIndex type=$targetType " +
-                    "mime=${applied?.sampleMimeType} channels=${applied?.channelCount ?: -1} codecs=${applied?.codecs} trackKey=$contentKey",
-            )
-            return true
-        } catch (e: Exception) {
-            LOG.i("echo-setTrack error: ${e.message}")
-            return false
-        }
+        trackSelection.selectTrack(track)
     }
 
     fun restoreTracks() {
-        restoreByMemory(C.TRACK_TYPE_AUDIO)
-        restoreByMemory(C.TRACK_TYPE_VIDEO)
-        restoreSubtitleByMemory()
+        trackSelection.restoreTracks()
     }
-
-    private fun restoreByMemory(trackType: Int) {
-        val remembered = TrackMemory.loadTrack(contentKey, trackType) ?: return
-        val position = locate(trackType, remembered)
-        if (position == null) {
-            LOG.i("echo-track-memory miss type=$trackType key=$contentKey fp=$remembered")
-            return
-        }
-        if (applyTrack(position[0], position[1], position[2])) {
-            LOG.i("echo-track-memory restore type=$trackType fp=$remembered")
-        }
-    }
-
-    private fun restoreSubtitleByMemory() {
-        val record = TrackMemory.loadSubtitle(contentKey) ?: return
-        if (!TrackMemory.isSubtitleTrack(record)) return
-        val position = locate(C.TRACK_TYPE_TEXT, record)
-        if (position == null) {
-            LOG.i("echo-track-memory text miss, use default: $record")
-            selectDefaultSubtitlePick()
-            return
-        }
-        if (applyTrack(position[0], position[1], position[2])) {
-            LOG.i("echo-track-memory restore text fp=$record")
-        }
-    }
-
-    private fun locate(trackType: Int, fingerprint: String): IntArray? {
-        val mappedInfo = trackSelector.currentMappedTrackInfo ?: return null
-        val keys = ArrayList<String>()
-        val positions = ArrayList<IntArray>()
-        for (rendererIndex in 0 until mappedInfo.rendererCount) {
-            if (mappedInfo.getRendererType(rendererIndex) != trackType) continue
-            val groups = mappedInfo.getTrackGroups(rendererIndex)
-            for (groupIndex in 0 until groups.length) {
-                val group = groups[groupIndex]
-                for (trackIndex in 0 until group.length) {
-                    val format = group.getFormat(trackIndex)
-                    if (trackType == C.TRACK_TYPE_TEXT && isUndeclaredClosedCaptionTrack(format)) continue
-                    keys.add(formatKey(format, trackType))
-                    positions.add(intArrayOf(rendererIndex, groupIndex, trackIndex))
-                }
-            }
-        }
-        val index = TrackMemory.pick(keys, fingerprint)
-        return if (index < 0) null else positions[index]
-    }
-
-    private fun formatKey(fmt: Format?, trackType: Int): String {
-        if (fmt == null) return ""
-        val codec = firstNonEmpty(fmt.codecs, mimeSubtype(fmt))
-        if (trackType == C.TRACK_TYPE_AUDIO) {
-            return TrackMemory.audioFingerprint(getLanguage(fmt), codec, fmt.channelCount)
-        }
-        if (trackType == C.TRACK_TYPE_VIDEO) {
-            return TrackMemory.videoFingerprint(codec, fmt.width, fmt.height)
-        }
-        return TrackMemory.textFingerprint(getLanguage(fmt), codec)
-    }
-
-    private fun mimeSubtype(fmt: Format?): String {
-        val mime = fmt?.sampleMimeType ?: return ""
-        if (!mime.contains("/")) return ""
-        return mime.substring(mime.indexOf('/') + 1)
-    }
-
-    private fun firstNonEmpty(first: String?, second: String?): String =
-        if (first != null && first.isNotEmpty()) first else (second ?: "")
 
     fun loadDefaultSubtitleTrack() {
-        if (defaultSubtitleTrackSelected) return
-        if (TrackMemory.loadSubtitle(contentKey) != null) {
-            LOG.i("echo-track-memory subtitle decision exists, skip default")
-            defaultSubtitleTrackSelected = true
-            return
-        }
-        selectDefaultSubtitlePick()
+        trackSelection.loadDefaultSubtitleTrack()
     }
 
     fun ensureSubtitleTrackSelected() {
-        val subtitles = getTrackInfo().getSubtitle()
-        if (subtitles.isEmpty()) return
-        for (subtitle in subtitles) {
-            if (subtitle.selected) return
-        }
-        selectDefaultSubtitlePick()
-    }
-
-    private fun selectDefaultSubtitlePick() {
-        val subtitles = getTrackInfo().getSubtitle()
-        if (subtitles.isEmpty()) return
-        defaultSubtitleTrackSelected = true
-        var target = subtitles[0]
-        for (subtitle in subtitles) {
-            if ("国语" == subtitle.language) { // i18n: keep(字幕语言匹配值)
-                target = subtitle
-                break
-            }
-        }
-        selectTrack(target)
-    }
-
-    private fun loadDefaultSubtitleTrackBeforeReady() {
-        if (defaultSubtitleTrackSelectionClosed) return
-        loadDefaultSubtitleTrack()
+        trackSelection.ensureSubtitleTrackSelected()
     }
 
     fun resetTrackSelection() {
-        trackSelector.setParameters(trackSelector.buildUponParameters().clearSelectionOverrides().build())
-        LOG.i("echo-setTrack: clear stale overrides on content switch")
+        trackSelection.resetTrackSelection()
     }
 
     fun setContentKey(key: String?) {
-        contentKey = key ?: ""
+        trackSelection.setContentKey(key)
     }
 
     fun setUseDiskCache(enabled: Boolean) {
         useDiskCache = enabled
     }
 
-    private fun isTrackIndexValid(groups: TrackGroupArray, groupIndex: Int, trackIndex: Int): Boolean {
-        if (groupIndex < 0 || groupIndex >= groups.length) return false
-        val group = groups.get(groupIndex)
-        return trackIndex >= 0 && trackIndex < group.length
-    }
-
-    private fun isBitmapSubtitle(format: Format?): Boolean {
-        val mimeType = format?.sampleMimeType ?: return false
-        val lower = mimeType.lowercase(Locale.getDefault())
-        return lower.contains("pgs") || lower.contains("dvb") || lower.contains("vobsub")
-    }
-
-    private fun isUndeclaredClosedCaptionTrack(format: Format?): Boolean {
-        if (format == null || format.accessibilityChannel != Format.NO_VALUE) return false
-        return MimeTypes.APPLICATION_CEA608 == format.sampleMimeType ||
-            MimeTypes.APPLICATION_CEA708 == format.sampleMimeType
-    }
-
-    private fun isCurrentTrackSelected(format: Format?, trackType: Int): Boolean {
-        val exo = internalPlayer ?: return false
-        val tracks = exo.currentTracks
-        for (group in tracks.groups) {
-            if (group.type != trackType || !group.isSelected) continue
-            for (i in 0 until group.length) {
-                if (group.isTrackSelected(i) && isSameFormat(format, group.getTrackFormat(i))) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private fun isSameFormat(a: Format?, b: Format?): Boolean {
-        if (a === b) return true
-        if (a == null || b == null) return false
-        if (a.id != null && b.id != null && a.id == b.id) return true
-        return a == b
-    }
-
-    private fun getLanguage(fmt: Format): String {
-        val language = matchLanguage(fmt.language)
-        if (language.isNotEmpty()) {
-            return language
-        }
-        return matchLanguage(
-            (fmt.label ?: "") + " " + (fmt.id ?: "") + " " + (fmt.codecs ?: ""),
-        )
-    }
-
-    private fun matchLanguage(text: String?): String {
-        if (text == null) return ""
-        val value = text.lowercase(Locale.getDefault())
-        LANG_MAP[value]?.let { return it }
-        if (value.contains("yue") || value.contains("cantonese") || value.contains("粤") || value.contains("广东")) {
-            return "粤语"
-        }
-        if (value.contains("zh") || value.contains("chi") || value.contains("zho") || value.contains("chs") ||
-            value.contains("cht") || value.contains("cmn") || value.contains("中") ||
-            value.contains("国语") || value.contains("普通话")
-        ) {
-            return "国语"
-        }
-        if (value.contains("en") || value.contains("eng") || value.contains("english") || value.contains("英")) {
-            return "英语"
-        }
-        if (value.contains("ja") || value.contains("jpn") || value.contains("japanese") || value.contains("日")) {
-            return "日语"
-        }
-        if (value.contains("ko") || value.contains("kor") || value.contains("korean") || value.contains("韩")) {
-            return "韩语"
-        }
-        if (value.contains("tha") || value.contains("thai") || value.contains("th")) {
-            return "泰语"
-        }
-        return ""
-    }
-
-    private fun getName(fmt: Format): String {
-        val channelLabel: String = if (fmt.channelCount <= 0) {
-            ""
-        } else if (fmt.channelCount == 1) {
-            str(R.string.player_channel_mono)
-        } else if (fmt.channelCount == 2) {
-            str(R.string.player_channel_stereo)
-        } else {
-            str(R.string.player_channel_count, fmt.channelCount)
-        }
-
-        var codec = ""
-        if (!fmt.codecs.isNullOrEmpty()) {
-            codec = fmt.codecs!!.uppercase(Locale.getDefault())
-        }
-        val mime = fmt.sampleMimeType
-        if (mime != null && mime.contains("/")) {
-            if (codec.isEmpty()) {
-                codec = mime.substring(mime.indexOf('/') + 1).uppercase(Locale.getDefault())
-            }
-        }
-        val builder = StringBuilder()
-        appendPart(builder, fmt.label)
-        appendPart(builder, codec)
-        appendPart(builder, channelLabel)
-        return builder.toString()
-    }
-
-    private fun getVideoName(fmt: Format): String {
-        val builder = StringBuilder()
-        appendPart(builder, fmt.label)
-        if (fmt.width > 0 && fmt.height > 0) {
-            appendPart(builder, "${fmt.width}x${fmt.height}")
-        }
-        val codecs = fmt.codecs
-        val mime = fmt.sampleMimeType
-        if (!codecs.isNullOrEmpty()) {
-            appendPart(builder, codecs.uppercase(Locale.getDefault()))
-        } else if (mime != null && mime.contains("/")) {
-            appendPart(builder, mime.substring(mime.indexOf('/') + 1).uppercase(Locale.getDefault()))
-        }
-        return builder.toString()
-    }
-
-    private fun buildDisplayName(prefix: String, number: Int, language: String?, detail: String?): String {
-        val builder = StringBuilder(prefix).append(number)
-        if (!language.isNullOrEmpty()) {
-            builder.append(" - ").append(language)
-        }
-        if (!detail.isNullOrEmpty()) {
-            builder.append(" ").append(detail)
-        }
-        return builder.toString()
-    }
-
-    private fun appendPart(builder: StringBuilder, value: String?) {
-        if (value == null) return
-        val part = value.trim { it <= ' ' }
-        if (part.isEmpty() || "und".equals(part, ignoreCase = true) || "未知" == part) return
-        if (builder.isNotEmpty()) {
-            builder.append(" / ")
-        }
-        builder.append(part)
-    }
-
-    private fun str(resId: Int, vararg args: Any?): String {
-        val app = App.getInstance() ?: return ""
-        return LanguageManager.localized(app).getString(resId, *args)
-    }
 }
