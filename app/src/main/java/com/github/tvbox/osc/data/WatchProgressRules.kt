@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
 enum class WatchDecision { SAVE, SKIP }
 

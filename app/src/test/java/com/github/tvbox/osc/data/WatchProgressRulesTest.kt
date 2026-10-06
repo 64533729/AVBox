@@ -1,4 +1,4 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

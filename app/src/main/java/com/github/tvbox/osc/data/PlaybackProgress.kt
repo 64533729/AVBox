@@ -3,8 +3,6 @@ package com.github.tvbox.osc.data
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
-import com.github.tvbox.osc.util.WatchDecision
-import com.github.tvbox.osc.util.WatchProgressRules
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
