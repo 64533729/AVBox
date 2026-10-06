@@ -866,6 +866,54 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 
 **顺带同步的文档（M10 直接证伪的断言）**：`skill/avbox-code-review-spec.md` 的"技术栈实况"（语言构成 / 模块清单 / 播放内核 / 排除范围四处）、`skill/SKILL.md` 的迁移规范条目与"契约层"高危约束（去掉 `player` 模块与 `xyz.doikki.videoplayer.**`）、`skill/avbox-playback-service-spec.md` 顶部加"播放栈实现口径已换代"横幅（该 spec 自 M7 起实现层描述已作废，全量重写仍未做）。
 
+# 7.22 M11 实测登记（2026-10-06，终审：全库自有源码零 Java）
+
+**结论**：四处零 Java 判据全部满足；`:app:assembleDebug` 绿、`:app:testDebugUnitTest` **655 用例 / 0 失败 / 0 错误 / 1 跳过（82 suite）**（`--rerun-tasks` 真跑，与 M9/M10 基线持平）；契约面 `javap -p -s` catvod 公开面 25 类 **旧有新无 = 0**；**收敛轮抓出并修复 2 条「本次迁移引入」的「中」**。
+
+## 本轮新增的一道闸门：全库「API 语义轴」扫描（后续任何迁移项目照用）
+
+M9 已写下教训「**别只按文件分工复核，要按 API 语义轴分工**」，但当时**只在 `catvod` 单包执行**。M11 把它推广到**全库 380 个 `.kt`**，方法：
+
+1. 按语义轴全库 grep：`trim()` / `lowercase()` / `uppercase()` / `split(` / `replaceAll(` / `String(`+`getBytes` / `toInt()` / `roundToInt()` / `Math.round` / `String.format` / `==` / `indexOf` / `substring` / 集合构造与迭代顺序 / `Objects.hash` / `Random` / `SimpleDateFormat` / `Class.forName` 等。
+2. **逐处取 Java 原文对照**：`git log --diff-filter=D --name-only -- '**/<类名>.java'` 找删除提交 → `git show <该 commit>^:<旧路径>` 取原文。
+3. 判「触发条件是否真实可达」：输入域不含触发字符的降为 低。
+4. **判「是否迁移引入」**：`git log --diff-filter=D -1 -- '**/<类名>.java'` 有命中 = 该文件由 Java 迁来；零命中 = 迁移前就存在的 Kotlin（属「既有」，不计入本轮判据）。**这一步很关键** —— 否则会把既有 Kotlin 的 `trim()` 当成迁移缺陷，把 diff 扩大 13 个文件。
+
+**结论：唯一成体系的回归仍是 `trim()` 语义差**（M9 在 catvod 已修 6 处），本轮在 **`player` 包（晚于约定确立）与 `bean` 包（早于约定确立）** 各抓出一批 ⇒ **M9 当时「该问题族只存在于 catvod」的结论是覆盖面不足导致的乐观**。
+
+## 本轮发现与处置
+
+| # | 发现 | 数量 | 严重度 | 处置 |
+| --- | --- | --- | --- | --- |
+| 1 | 播放链 **UA / header** 用 Kotlin `trim()`（Unicode 版）而非 Java `String.trim()`：`PlayUrlResolver.kt:279,329,433,468`、`PlaybackFetch.kt:149`、`ReexPlayer.kt:69`（原文见 `git show e904581^`/`6022d20^`/`c357978^`） | 6 | **中** | **已修** → `trim { it <= ' ' }` |
+| 2 | `PreloadManagerHolder.kt:295` 的 header 签名用 plain `trim()`，引擎侧 `MediaSources.kt:240` 用 `trim { it <= ' ' }` 且 KDoc 声明「与预载侧 key 口径一致」⇒ 两侧 key 不同、**预载缓存静默不命中** | 1 | **中** | **已修** |
+| 3 | 同类低危：`bean/AbsJson.kt:239,241`、`bean/Depot.kt:19,23`、`PlayUrlResolver.kt:202,206`、`PlaybackFetch.kt:141`、`danmu/DanmuLoadController.kt:96`、`danmu/Parser.kt:65`、`usecase/M3u8PurifyUseCase.kt:90,94`、`usecase/WebParseUseCase.kt:40,49,51` | 14 | 低 | **已修**（同族一并收敛） |
+| 4 | 迁移引入的未使用 import：`dlna/OkHttpStreamClient.kt`（`okhttp3.MediaType`/`Response`，M6b `89a7c3d`）、`player/PlaybackFetch.kt`（`VodInfo`/`HashMap`，M7c `6022d20`） | 4 | 低 | **已修** |
+| 5 | 13 个**既有** Kotlin 文件的未使用 import（约 20 个：`EdgeToEdgeTopBar` 6 / `LivePlayActivity` 3 / `CollectPage` 3 / `FloatingNavBar` 2 等） | ~20 | 低 | **登记不改**（非迁移引入；一次扫 13 个 UI 文件会扩大 diff 而不降低风险） |
+| 6 | `lowercase()`/`uppercase()` 无参版 = `Locale.ROOT`，原 Java 无参 `toLowerCase()` = `Locale.getDefault()`（10 文件 16 处） | 16 | 低/口味 | **登记不改**（仅土耳其语系可见，且 Kotlin 方向更正确） |
+| 7 | `bean/ParseBean.kt:35` `toByteArray()`（固定 UTF-8）替代 Java `getBytes()`（平台默认） | 1 | 低/理论 | **登记不改**（Android `defaultCharset` 恒为 UTF-8，解码侧也显式用 `Charset.defaultCharset()`） |
+
+**合计改动：10 文件 21 处 `trim` + 2 文件 4 个 import = 11 文件 21 insertions / 25 deletions。**
+
+## 本轮确证等价的面（覆盖面证据，供后续复用）
+
+- `split(regex)` 全走 `RegexUtils.getPattern(x).split(y)`（M3u8 11 处、TxtSubscribe、SourceHelper、OkGoHelper…）；`split(regex, limit>0)` 用 Kotlin `split` 且尾部空串语义一致。
+- `replaceAll(regex,"$1")` ≡ `replace(Regex, "\$1")`（17 处正则串逐处一致）；Java 对象 `==` 身份比较全部迁成 `===`（`SourceResultParser` 8 处等）。
+- 字节↔字符串转换全部显式 `Charsets.UTF_8` / `Charset.defaultCharset()`；`String.format` 的 locale 逐处保留。
+- 数值：未出现 `roundToInt()`（新代码用 `Math.round` 保 floor(x+0.5)）；`toInt()` 与 `(int)` / `Integer.parseInt` 逐处一致。
+- **Gson**：`bean/` 21 类字段名一字未改，`@SerializedName`/`@Expose` 保留。**XStream**：`@XStreamAlias`/`@XStreamAsAttribute`/`@XStreamImplicit`/`@XStreamConverter` 全保留，`AbsXml`/`AbsSortXml` 继承链未变。
+- **Room**：`app/schemas/**/1.json` 未改动，三实体列名/notNull 与源码逐列一致。
+- **反射**：宿主侧无对**宿主类**的反射查找；`JarLoader`/`JsLoader` 的反射名与 FQCN 字符串（属**外部 jar 的契约**）逐字未动。
+- **JNI**：`P2PClass` 26 个 `external fun` 与 Java 原文名字/参数/返回逐字一致；`.so` 三件在 `app/src/main/jniLibs/arm64-v8a/`。
+- **Manifest**：15 个相对类名全部命中 `.kt`；`WAKE_LOCK` 在册。
+
+## 一条给「终审类里程碑」的方法论
+
+1. **语义轴扫描必须覆盖全库**，不能只在「问题首次出现的包」里做 —— 本轮的 2 条「中」全在 catvod 之外。
+2. **必须区分「迁移引入」与「既有」**：判据 = 该文件是否有被删的 `.java`（`git log --diff-filter=D -1 -- '**/<类名>.java'`）。既有 Kotlin 的同名写法不计入收敛判据，只登记。
+3. **`trim()` 是 Java→Kotlin 迁移的头号语义差**（Java 裁 `<= ' '`，Kotlin 裁 Unicode 空白）。凡 header / UA / URL / 文件名 / 协议串 / 配置值的裁剪点，一律 `trim { it <= ' ' }`；新写代码无 Java 对应物时可用 Kotlin `trim()`。
+4. **同一语义的「两侧实现」要成对检查**（本例：预载侧签名 vs 引擎侧缓存 key）—— 单看一个文件永远发现不了「口径不一致」。
+
 # 8. 回滚
 
 每切片一 commit，出问题 `git revert` 或 `git reset` 到上一切片；不推远程除非明确许可。契约层切片回滚前先确认 `javap` 基线仍可比对（产物与源码一致）。
