@@ -26,6 +26,7 @@ import coil3.request.ImageRequest
 import coil3.target.Target
 import coil3.toBitmap
 import com.github.tvbox.osc.R
+import com.github.tvbox.osc.data.PlaybackPorts
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
@@ -474,6 +475,7 @@ class PlaybackService : Service() {
             if (current == null) {
                 current = PlaybackEngine(app)
                 engine = current
+                installDataPorts()
             }
             startHost(app, null)
             return current
@@ -481,6 +483,11 @@ class PlaybackService : Service() {
 
         @JvmStatic
         fun peek(): PlaybackEngine? = engine
+
+        private fun installDataPorts() {
+            PlaybackPorts.isLiveMode = { peek()?.isLiveMode() == true }
+            PlaybackPorts.discardStartedContentOf = { peek()?.discardStartedContentOf(it) }
+        }
 
         @JvmStatic
         fun prewarm(context: Context, delayMs: Long) {
@@ -509,6 +516,7 @@ class PlaybackService : Service() {
                 if (current == null) {
                     current = PlaybackEngine(app)
                     engine = current
+                    installDataPorts()
                 }
                 current.onPrewarmPreferenceChanged(true)
             } catch (th: Throwable) {

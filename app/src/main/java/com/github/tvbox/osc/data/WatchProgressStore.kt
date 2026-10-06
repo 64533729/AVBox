@@ -1,10 +1,13 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
-import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.AppGraph
-import com.github.tvbox.osc.data.CacheRepository
-import com.github.tvbox.osc.player.PlaybackService
+import com.github.tvbox.osc.util.HistoryHelper
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.MD5
+import com.github.tvbox.osc.util.WatchDecision
+import com.github.tvbox.osc.util.WatchProgressIndex
+import com.github.tvbox.osc.util.WatchProgressRules
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
@@ -146,7 +149,7 @@ object WatchProgressStore {
         val cleared = synchronized(indexLock) { clearTitleLocked(owner) }
         discard(cleared)
         LOG.i("echo-progress clear-owner owner=" + owner + " eps=" + cleared.size)
-        PlaybackService.peek()?.discardStartedContentOf(listOf(owner))
+        PlaybackPorts.discardStartedContentOf?.invoke(listOf(owner))
         PlaybackProgress.forget(owner)
         EpisodeTotals.remove(owner)
     }
@@ -185,7 +188,7 @@ object WatchProgressStore {
             }
         }
         discard(keys)
-        PlaybackService.peek()?.discardStartedContentOf(owners)
+        PlaybackPorts.discardStartedContentOf?.invoke(owners)
         val stale = cache.clearAllProgress()
         discardHashed(stale)
         LOG.i("echo-progress clear-all titles=" + titles + " eps=" + keys.size + " stale=" + stale.size)
@@ -234,14 +237,14 @@ object WatchProgressStore {
             entries.add(owner to (WatchProgressIndex.decode(KV.get(key, ""))?.at ?: 0L))
         }
         val keep = entries.mapTo(HashSet(entries.size + 1)) { it.first }
-        val currentOwner = App.getInstance()!!.getVodInfo()?.let { ownerOf(it) }
+        val currentOwner = PlaybackPorts.currentVod?.invoke()?.let { ownerOf(it) }
         if (!currentOwner.isNullOrEmpty()) keep.add(currentOwner)
         PlaybackProgress.retain(keep)
         EpisodeTotals.retain(keep)
         val evicted = WatchProgressIndex.pickEvictions(entries, WatchProgressIndex.MAX_TITLES)
             .filter { it != justSavedOwner && it != currentOwner }
         if (evicted.isEmpty()) return
-        PlaybackService.peek()?.discardStartedContentOf(evicted)
+        PlaybackPorts.discardStartedContentOf?.invoke(evicted)
         for (owner in evicted) {
             val keys = clearTitleLocked(owner)
             discard(keys)

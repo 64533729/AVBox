@@ -1,6 +1,8 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.util.HistoryHelper
+import com.github.tvbox.osc.util.KV
 
 object EpisodeTotals {
 

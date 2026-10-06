@@ -28,6 +28,7 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
+import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.AppPlayerView
@@ -56,7 +57,6 @@ import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.KV
-import com.github.tvbox.osc.util.PlaybackProgress
 import com.github.tvbox.osc.util.PlayerUtils
 import org.greenrobot.eventbus.EventBus
 import org.json.JSONException

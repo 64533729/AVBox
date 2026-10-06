@@ -8,6 +8,8 @@ import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.data.PlaybackProgress
+import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.sourcedata.SourceHelper
@@ -20,8 +22,6 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.MD5
-import com.github.tvbox.osc.util.PlaybackProgress
-import com.github.tvbox.osc.util.WatchProgressStore
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
 import com.github.tvbox.osc.util.thunder.Jianpian

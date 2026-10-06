@@ -1,5 +1,6 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.sourcedata
 
+import com.github.tvbox.osc.data.EpisodeMatcher
 import java.util.Locale
 
 object SubtitleFilePicker {

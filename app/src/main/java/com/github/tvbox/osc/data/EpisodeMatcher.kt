@@ -1,6 +1,7 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.util.LOG
 import java.util.ArrayList
 import java.util.Locale
 import java.util.regex.Pattern

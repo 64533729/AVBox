@@ -39,9 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.data.EpisodeTotals
 import com.github.tvbox.osc.ui.components.VodPoster
 import com.github.tvbox.osc.ui.theme.cardContainer
-import com.github.tvbox.osc.util.EpisodeTotals
 import kotlin.math.roundToInt
 
 private const val PROGRESS_ENTER_DURATION_MS = 600

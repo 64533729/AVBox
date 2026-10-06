@@ -8,7 +8,6 @@ import com.github.tvbox.osc.bean.Subtitle
 import com.github.tvbox.osc.bean.SubtitleData
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.OkGoHelper
-import com.github.tvbox.osc.util.SubtitleFilePicker
 import com.github.tvbox.osc.util.net.Http
 
 import kotlinx.coroutines.CancellationException

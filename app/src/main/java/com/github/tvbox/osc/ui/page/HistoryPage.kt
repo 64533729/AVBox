@@ -43,11 +43,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.data.EpisodeTotals
+import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.ui.components.AppTopBarScaffold
 import com.github.tvbox.osc.ui.components.LoadState
 import com.github.tvbox.osc.ui.components.LoadStateBox
-import com.github.tvbox.osc.util.EpisodeTotals
-import com.github.tvbox.osc.util.PlaybackProgress
 
 private data class HistoryContent(
     val items: List<VodInfo>,

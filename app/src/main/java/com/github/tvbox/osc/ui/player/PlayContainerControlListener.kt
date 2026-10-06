@@ -4,12 +4,12 @@ import android.text.TextUtils
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.ParseBean
+import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.controller.VodControlListener
 import com.github.tvbox.osc.player.state.DanmuSettingSheetState
 import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.LOG
-import com.github.tvbox.osc.util.WatchProgressStore
 import org.greenrobot.eventbus.EventBus
 import java.util.HashMap
 

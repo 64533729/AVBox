@@ -6,6 +6,7 @@ import android.content.Context
 
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppDataManager
+import com.github.tvbox.osc.data.PlaybackPorts
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.AppManager
@@ -36,6 +37,7 @@ class App : Application() {
         super.onCreate()
         instance = this
         AppContextHolder.install(this)
+        PlaybackPorts.currentVod = { getInstance()?.getVodInfo() }
         com.github.tvbox.osc.util.BootGuard.install()
         initParams()
         OkGoHelper.init()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.github.tvbox.osc.data.AppGraph
+import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.sourcedata.SourceHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.DefaultConfig
@@ -13,7 +14,6 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.Preconnect
-import com.github.tvbox.osc.util.WatchProgressStore
 import com.github.tvbox.osc.util.thunder.Jianpian
 import org.json.JSONArray
 import org.json.JSONObject

@@ -3,7 +3,7 @@ package com.github.tvbox.osc.player
 import android.text.TextUtils
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.util.EpisodeMatcher
+import com.github.tvbox.osc.data.EpisodeMatcher
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG

@@ -1,8 +1,8 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.event.RefreshEvent
+import com.github.tvbox.osc.util.LOG
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors

@@ -1,8 +1,10 @@
-package com.github.tvbox.osc.util
+package com.github.tvbox.osc.data
 
-import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.event.RefreshEvent
-import com.github.tvbox.osc.player.PlaybackService
+import com.github.tvbox.osc.util.HistoryHelper
+import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.WatchDecision
+import com.github.tvbox.osc.util.WatchProgressRules
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -110,8 +112,8 @@ object PlaybackProgress {
         token != lastToken && advancedMs >= MIN_ADVANCE_MS
 
     private fun markWatched(positionMs: Int, durationMs: Int) {
-        val vod = App.getInstance()!!.getVodInfo() ?: return
-        if (PlaybackService.peek()?.isLiveMode() == true) return
+        val vod = PlaybackPorts.currentVod?.invoke() ?: return
+        if (PlaybackPorts.isLiveMode?.invoke() == true) return
         val token = key(vod.sourceKey, vod.id) + "#" + vod.playFlag + "#" + vod.playIndex
         if (token != sampleToken) {
             sampleToken = token
@@ -133,7 +135,7 @@ object PlaybackProgress {
     }
 
     private fun currentKey(): String? {
-        val vod = App.getInstance()!!.getVodInfo() ?: return null
+        val vod = PlaybackPorts.currentVod?.invoke() ?: return null
         if (vod.sourceKey.isNullOrEmpty() || vod.id.isNullOrEmpty()) return null
         return key(vod.sourceKey, vod.id)
     }
