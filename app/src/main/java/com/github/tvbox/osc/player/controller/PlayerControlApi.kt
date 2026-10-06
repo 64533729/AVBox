@@ -64,8 +64,6 @@ interface PlayerControlApi {
 
     fun playM3u8(url: String?, headers: HashMap<String, String>?)
 
-    fun cancelM3u8Purify()
-
     fun encodeUrl(url: String?): String
 
     fun firstUrlByArray(url: String?): String

@@ -23,6 +23,7 @@ import com.github.tvbox.osc.util.PlaybackProgress
 import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
 import com.github.tvbox.osc.player.state.PlayState
+import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
 import com.github.tvbox.osc.util.thunder.Jianpian
 import com.github.tvbox.osc.util.thunder.Thunder
 import org.greenrobot.eventbus.EventBus
@@ -352,7 +353,7 @@ class PlaybackController {
         }
 
         override fun cancelM3u8Purify() {
-            view?.cancelM3u8Purify()
+            M3u8PurifyUseCase.cancelActive()
         }
     })
 

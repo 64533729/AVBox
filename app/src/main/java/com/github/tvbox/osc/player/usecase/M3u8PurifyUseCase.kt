@@ -17,10 +17,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.net.MalformedURLException
 import java.net.URL
 import java.util.HashMap
+import kotlin.coroutines.coroutineContext
 
 class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
 
@@ -39,27 +42,24 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
 
     private val scope: CoroutineScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
 
-    @Volatile
-    private var job: Job? = null
-
     fun playM3u8(url: String, headers: HashMap<String, String>?) {
         if (url.contains("url=")) {
             callback.startPlayUrl(url, headers)
             return
         }
-        job?.cancel()
-        job = scope.launch {
+        cancelActive()
+        val round = scope.launch {
             val content = try {
                 request(url, headers)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 LOG.e("echo-m3u8请求错误1: " + e)
-                callback.startPlayUrl(url, headers)
+                deliver { callback.startPlayUrl(url, headers) }
                 return@launch
             }
             if (!content.startsWith("#EXTM3U")) {
-                callback.startPlayUrl(url, headers)
+                deliver { callback.startPlayUrl(url, headers) }
                 return@launch
             }
             val forwardUrl = extractForwardUrl(url, content)
@@ -70,10 +70,12 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
                 fetchAndProcessForwardUrl(forwardUrl, headers, url)
             }
         }
+        activeJob = round
     }
 
-    fun cancel() {
-        job?.cancel()
+    private suspend fun deliver(block: () -> Unit) {
+        if (activeJob === coroutineContext[Job]) activeJob = null
+        block()
     }
 
     private suspend fun request(url: String, headers: HashMap<String, String>?): String {
@@ -109,16 +111,23 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
 
     private suspend fun processM3u8Content(url: String, content: String, headers: HashMap<String, String>?) {
         val basePath = getBasePath(url)
-        val purified = withContext(Dispatchers.IO) { M3u8.purify(basePath, content) }
-        if (purified == null || M3u8.currentAdCount == 0) {
+        val (purified, adCount) = purifyLock.withLock {
+            withContext(Dispatchers.IO) {
+                val result = M3u8.purify(basePath, content)
+                result to M3u8.currentAdCount
+            }
+        }
+        if (purified == null || adCount == 0) {
             LOG.i("echo-m3u8内容解析：未检测到广告")
-            callback.startPlayUrl(url, headers)
+            deliver { callback.startPlayUrl(url, headers) }
         } else {
             val key = RemoteServer.putM3u8Content(purified)
             val proxyUrl = ControlManager.get().getAddress(true) + "proxyM3u8?k=" + key
-            callback.onM3u8ProxyUrl(proxyUrl, url)
-            callback.startPlayUrl(proxyUrl, headers)
-            Toast.makeText(context, str(R.string.toast_ads_removed, M3u8.currentAdCount), Toast.LENGTH_SHORT).show()
+            deliver {
+                callback.onM3u8ProxyUrl(proxyUrl, url)
+                callback.startPlayUrl(proxyUrl, headers)
+            }
+            Toast.makeText(context, str(R.string.toast_ads_removed, adCount), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -133,7 +142,7 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
             throw e
         } catch (e: Exception) {
             LOG.e("echo-重定向 m3u8 请求错误: " + e)
-            callback.startPlayUrl(fallbackUrl, headers)
+            deliver { callback.startPlayUrl(fallbackUrl, headers) }
             return
         }
         LOG.i("echo-m3u82-to-play")
@@ -153,6 +162,18 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
         } catch (e: MalformedURLException) {
             LOG.e("echo-resolveForwardUrl异常: " + e.message)
             line
+        }
+    }
+
+    companion object {
+
+        private val purifyLock = Mutex()
+
+        @Volatile
+        private var activeJob: Job? = null
+
+        fun cancelActive() {
+            activeJob?.cancel()
         }
     }
 }

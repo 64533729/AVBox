@@ -160,10 +160,6 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         playM3u8(url, headers!!)
     }
 
-    override fun cancelM3u8Purify() {
-        container.mController?.cancelM3u8Purify()
-    }
-
     override fun startVideoPlayback(
         url: String,
         headers: HashMap<String, String>?,
