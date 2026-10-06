@@ -44,6 +44,7 @@ import com.github.tvbox.osc.util.MusicSettings
 import com.github.tvbox.osc.util.PermissionHelper
 import com.github.tvbox.osc.util.PlayerHelper
 import com.github.tvbox.osc.util.WatchProgressStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -355,9 +356,14 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         lyricSource = source
         lyricJob?.cancel()
         lyricJob = scope.launch {
-            val result = runCatching { MusicLrc.load(source) }
-            result.exceptionOrNull()?.let { LOG.i("echo-music lyric parse failed: $it") }
-            val lines = result.getOrDefault(emptyList())
+            val lines = try {
+                MusicLrc.load(source)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LOG.i("echo-music lyric parse failed: $e")
+                emptyList()
+            }
             LOG.i("echo-music lyric parsed: ${lines.size} lines")
             if (source == lyricSource) ui.lyrics = lines
         }

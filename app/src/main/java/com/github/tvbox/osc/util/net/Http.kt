@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.Headers
 import okhttp3.OkHttp
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,15 +27,27 @@ object Http {
         return executeWithRetry(HttpRequest(url).apply(init).build(), client())
     }
 
+    suspend fun getRaw(url: String, init: HttpRequest.() -> Unit = {}): HttpRawResponse {
+        return executeRawWithRetry(HttpRequest(url).apply(init).build(), client())
+    }
+
     fun getSync(url: String, init: HttpRequest.() -> Unit = {}): Response {
         return client().newCall(HttpRequest(url).apply(init).build()).execute()
     }
 
     internal suspend fun executeWithRetry(request: Request, client: OkHttpClient): String {
+        return executeChecked(request, client) { it.body.string() }
+    }
+
+    internal suspend fun executeRawWithRetry(request: Request, client: OkHttpClient): HttpRawResponse {
+        return executeChecked(request, client) { HttpRawResponse(it.body.bytes(), it.headers) }
+    }
+
+    private suspend fun <T> executeChecked(request: Request, client: OkHttpClient, read: (Response) -> T): T {
         return withContext(Dispatchers.IO) {
             awaitResponse(request, client, 0).use { response ->
                 if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
-                response.body.string()
+                read(response)
             }
         }
     }
@@ -112,3 +125,5 @@ class HttpRequest internal constructor(private val url: String) {
 }
 
 class HttpException(val code: Int) : Exception("HTTP $code")
+
+class HttpRawResponse internal constructor(val body: ByteArray, val headers: Headers)

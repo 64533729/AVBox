@@ -14,9 +14,10 @@ import com.github.tvbox.osc.util.SearchHelper
 import com.github.tvbox.osc.util.SearchSettings
 import com.github.tvbox.osc.util.UA
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.AbsCallback
+import com.github.tvbox.osc.util.net.Http
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -49,7 +50,7 @@ class SearchViewModel : ViewModel() {
 
     val suggest = MutableStateFlow<List<String>>(emptyList())
 
-    private var suggestSeq = 0
+    private var suggestJob: Job? = null
 
     private var token = 0
     private var arriveSeq = 0
@@ -119,9 +120,9 @@ class SearchViewModel : ViewModel() {
     override fun onCleared() {
         org.greenrobot.eventbus.EventBus.getDefault().unregister(this)
         try {
-            OkGo.getInstance().cancelTag("suggest")
+            searchCaller.cancelSearch()
         } catch (ignored: Throwable) {
-            LOG.d("SearchViewModel", "cancel suggest requests failed")
+            LOG.d("SearchViewModel", "cancel search requests failed")
         }
     }
 
@@ -135,26 +136,20 @@ class SearchViewModel : ViewModel() {
                 return@launch
             }
             val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-            OkGo.get<String>(DOUBAN_HOT_URL + year + "," + year)
-                .headers("User-Agent", UA.random())
-                .execute(object : AbsCallback<String>() {
-                    override fun onSuccess(response: com.lzy.okgo.model.Response<String>) {
-                        val body = response.body().orEmpty()
-                        if (body.isNotEmpty()) {
-                            KV.put(HawkConfig.HOME_HOT, body)
-                            KV.put(HawkConfig.HOME_HOT_DAY, today)
-                        }
-                        hotSearch.value = parseHotTitles(body)
-                    }
-
-                    override fun convertResponse(response: okhttp3.Response): String =
-                        response.body.string()
-
-                    override fun onError(response: com.lzy.okgo.model.Response<String>) {
-                        super.onError(response)
-                        hotSearch.value = parseHotTitles(KV.get(HawkConfig.HOME_HOT, ""))
-                    }
-                })
+            try {
+                val body = Http.get(DOUBAN_HOT_URL + year + "," + year) {
+                    headers("User-Agent", UA.random())
+                }
+                if (body.isNotEmpty()) {
+                    KV.put(HawkConfig.HOME_HOT, body)
+                    KV.put(HawkConfig.HOME_HOT_DAY, today)
+                }
+                hotSearch.value = parseHotTitles(body)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                hotSearch.value = parseHotTitles(KV.get(HawkConfig.HOME_HOT, ""))
+            }
         }
     }
 
@@ -167,26 +162,20 @@ class SearchViewModel : ViewModel() {
     }
 
     fun fetchSuggest(text: String) {
-        val seq = ++suggestSeq
-        OkGo.get<String>(SUGGEST_URL + java.net.URLEncoder.encode(text, "UTF-8").replace("+", "%20"))
-            .tag("suggest")
-            .execute(object : AbsCallback<String>() {
-                override fun onSuccess(response: com.lzy.okgo.model.Response<String>) {
-                    if (seq != suggestSeq) return
-                    suggest.value = parseSuggest(response.body().orEmpty())
-                }
-
-                override fun convertResponse(response: okhttp3.Response): String =
-                    response.body.string()
-
-                override fun onError(response: com.lzy.okgo.model.Response<String>) {
-                    super.onError(response)
-                }
-            })
+        suggestJob?.cancel()
+        suggestJob = scope.launch {
+            try {
+                val body = Http.get(SUGGEST_URL + java.net.URLEncoder.encode(text, "UTF-8").replace("+", "%20"))
+                suggest.value = withContext(Dispatchers.IO) { parseSuggest(body) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun clearSuggest() {
-        suggestSeq++
+        suggestJob?.cancel()
         suggest.value = emptyList()
     }
 

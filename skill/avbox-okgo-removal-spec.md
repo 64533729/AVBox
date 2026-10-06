@@ -2,7 +2,7 @@
 
 > 项目:AVBox(TVBox OSC fork;仓库根目录 = 本文件所在目录的上一级)
 > 配套:先读 `SKILL.md`(通用规范 + 文档地图);涉及订阅源字段对照 `avbox-mobile-ui-spec.md` §6.12;涉及契约层(`com.github.catvod.**`)对照 `avbox-kotlin-migration-spec.md` §3.2(签名守恒)。
-> 状态:**执行中(2026-10-06 起草;同日三次修订 + N0/N1/N2 实施回填,均见 §8)**:N0(await 层 + 协程依赖显式化 + 单测)、N1(`sourcedata` 簇 detail/search 链闭环)与 N2(`player` 簇 + `PlayLoader` play/json_jx/m3u8 链闭环)已完成,**下一步 N3**;按 §5 分片执行,每片完成即回填实测登记。
+> 状态:**执行中(2026-10-06 起草;同日三次修订 + N0/N1/N2/N3 实施回填,均见 §8)**:N0(await 层 + 协程依赖显式化 + 单测)、N1(`sourcedata` 簇 detail/search 链闭环)、N2(`player` 簇 + `PlayLoader` play/json_jx/m3u8 链闭环)与 N3(UI / 杂项簇 suggest 链闭环 + 同步路径 2 处 suspend 化)已完成,**下一步 N4**;按 §5 分片执行,每片完成即回填实测登记。
 > 触发背景:2026-10-06 依赖梳理(okhttp / okio / okgo 三件套清点 + 19 文件调用面普查)。结论:OkGo 在本项目只扮演"回调式外观",底层 OkHttpClient 由 `OkGoHelper` 自建并注入 —— 调用面封闭、可渐进替换。同日决策:借迁移同步完成传输层协程化 + 取消机制全 Job 化(§3)。
 
 ## 0. 摘要
@@ -226,7 +226,7 @@ requestScope.launch {                                   // 归属见 §4.4
 设计约束:
 
 1. 核心实现:`suspendCancellableCoroutine { cont -> client().newCall(req).enqueue(...) }` + `cont.invokeOnCancellation { call.cancel() }`(先例:`AppBootstrap.kt:131,147`)。
-2. 仅支持 String suspend 路径 + 原始响应阻塞路径(§1.2:其余能力全部未使用)。调用点的 `convertResponse` 有两种写法,统一内建进 String 路径:多数是 `if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)`(`M3u8PurifyUseCase.kt:68,130`、`SearchViewModel.kt:150,179` 则是直接 `response.body.string()`)。注:okhttp 5 的 `Response.body` 为非空类型,`body != null` 恒真 ⇒ 该守卫在协程路线下是死分支,await 层不必复刻。
+2. suspend 出口两条 + 原始响应阻塞路径一条:**String 路径**(`get`)、**原始字节 + 响应头路径**(`getRaw`,`HttpRawResponse(body: ByteArray, headers: Headers)`;N3 增补——`SubtitleLoader` 需原始字节做编码检测 + `content-disposition` 头、`MusicLrc` 需原始字节,而 `get` 的 String 解码在无 charset 声明的 GBK 内容上会乱码);`getSync` 阻塞路径仅 N4 使用。两条 suspend 出口共享同一实现(E2 判定 / E6 重试 / 取消联动 / 读体在 IO)。调用点的 `convertResponse` 有两种写法,统一内建进 String 路径:多数是 `if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)`(`M3u8PurifyUseCase.kt:68,130`、`SearchViewModel.kt:150,179` 则是直接 `response.body.string()`)。注:okhttp 5 的 `Response.body` 为非空类型,`body != null` 恒真 ⇒ 该守卫在协程路线下是死分支,await 层不必复刻。
 3. 「URL 拼接 / 状态码判定 / 重试判定」抽为可测纯函数(如 `HttpPolicy`),单测覆盖;E6 重试循环在 await 内,仅 `SocketTimeoutException` 触发,**重试上限 3 ⇒ 总尝试最多 4**(P5)。
 4. **`getSync` 禁止在任何协程上下文调用**(runBlocking 也不行,R10);它是 N4 契约层阻塞签名的专用出口。**且 `getSync` 不重试、不做 404/≥500 判定** —— 今天 4 处同步调用走的是 `Request.execute()`(`Request.java:382`,直连 okhttp),**完全绕过 cache policy**(E1);E6 的重试循环只属于 `Http.get` 的 suspend 路径。
 5. **重试实现细则**(E6 等价):每轮必须**重建 Call**(okgo 每轮 `rawCall = request.getRawCall()`);只认 `java.net.SocketTimeoutException`(okgo 的判定就是 `instanceof SocketTimeoutException`,故 `ConnectException`/`UnknownHostException` **不重试**);重试上限 3、总尝试最多 4。
@@ -235,7 +235,7 @@ requestScope.launch {                                   // 归属见 §4.4
 
 | 语义 | 实现要点 |
 |---|---|
-| E1 同步返回原始响应 | `getSync()` 原样返回;N3 的 `SubtitleLoader`/`MusicLrc` 调用方已是/改为 suspend,直接 `Http.get()` |
+| E1 同步返回原始响应 | `getSync()` 原样返回(仍仅 N4 使用);N3 的 `SubtitleLoader`/`MusicLrc` 调用方改为 suspend,内芯换 `Http.getRaw()`(原始字节 + headers;不可用 `get`,后者会丢编码检测/响应头) |
 | E2 404 / ≥500 → 失败 | `HttpException(code)` 抛出,调用点 catch |
 | E3 取消静默 | `CancellationException` 语义天然成立;审查所有 `catch (Exception)` 分支先放行 CancellationException(R12) |
 | E4 转换异常 → 失败 | `body.string()` 异常自然传播 |
@@ -360,7 +360,10 @@ requestScope.launch {                                   // 归属见 §4.4
 
 - 范围:`SearchViewModel`(fetchSuggest 挂 viewModelScope + 删 suggestSeq;fetchSearch 的 `cancelTag("search")` 改 `searchCaller.cancelSearch()`;fetchHotSearch 协程直发)、`LiveProxyLoader`、`SubtitleLoader`(同步 → suspend)、`MusicLrc`(调用方已 suspend,内芯换 `Http.get()`)。
 - 留意:依赖 N1 已提供 `SourceViewModel.cancelSearch()`;`HomeViewModel:372`/`PartitionListViewModel:146` 的 `suspendCancellableCoroutine` 包装层此时可顺手简化为直接 suspend 调用(可选,不强制)。
-- 实测登记:_待回填_。
+- 实测登记:_已回填(2026-10-06)_:① 范围实为 4+1 文件:`MusicPlayerActivity.syncLyric` 的 `runCatching { MusicLrc.load }` 随 MusicLrc 取消面变化一并改 try/catch(CancellationException 放行,R12;否则取消被吞且打"parse failed"误导日志);② `SearchViewModel`:`fetchSuggest` 挂 `viewModelScope`(Main.immediate),`suggestSeq` 删除 → `suggestJob`(新输入 cancel 旧请求,取消精度升级;`clearSuggest` 同改);`fetchHotSearch` 保留 IO 形态(缓存 KV 读写 + 解析均在 IO,与迁移前同),`Http.get` + `headers("User-Agent", UA.random())`,catch 顺序 CancellationException → Exception(原 onError 兜底);`onCleared` 删 `cancelTag("suggest")`,补 `searchCaller.cancelSearch()`(收 N1 遗留);`search` 的取消 N1 已提前收口,本片无改动;③ `LiveProxyLoader`:实例级 `loadScope`(`SupervisorJob + Dispatchers.Main.immediate`,**lazy** 构造),else 分支 `Http.get` + `TxtSubscribe.parseToJsonArray` 挪 IO;`loadLives` / `channelGroupList` / `ArrayList` 拷回保持 Main(R3 关注点,与迁移前逐点一致);`cancelAll()` 在清 handler 之外补 `cancelChildren()`(首次获得真正取消面,见行为差异);`.py/.js` 分支(BoundedCall + 单线程 executor)未动;④ `SubtitleLoader`:`loadFromRemote` 转 suspend、内芯换 `Http.getRaw`(原始字节与 `content-disposition` 头两处用途都保留);`loadFromRemoteAsync` 改 object 级 lazy `ioScope`(`SupervisorJob + Dispatchers.IO`)协程,回调投递仍走 `AppTaskExecutor.mainThread()`;`loadFromDataAsync`/`loadFromLocalAsync`(纯本地,无 okgo)未动;**删除无调用者的同步重载 `loadSubtitle(path): SubtitleLoadSuccessResult?`**(app/src 全量 grep 0 引用,含 test);⑤ `MusicLrc`:`read`/`fetch` 转 suspend、`runCatching` 改 try/catch(CancellationException 放行)、`fetch` 换 `Http.getRaw`(保留原始字节路径 ⇒ `UniversalDetector` 编码检测不变);⑥ 卡口:片内 `com.lzy` 归零(全库余 4 文件全属 N4/N5),`cancelTag` 全库余 **1**(Connect → N4),`runBlocking`/`GlobalScope` 0,`suggestSeq` 全库 0,改动 7 文件行尾全 LF;`.\gradlew :app:assembleDebug` + `:app:testDebugUnitTest` 绿,**683 用例 0 失败**(+3,`HttpTest` 新增 `getRaw` 3 例)。
+- **await 层扩展(片内偏差登记)**:新增 `Http.getRaw(url, init): HttpRawResponse`(`body: ByteArray` + `headers: Headers`;E2/E6/取消/读体 IO 与 `get` 同策略,内部 `executeWithRetry`/`executeRawWithRetry` 共享 `executeChecked` 泛型实现)。原因:`SubtitleLoader` 需原始字节(编码检测)+ `content-disposition` 头、`MusicLrc` 需原始字节,`get` 的 String 路径在无 charset 声明的 GBK 内容上会乱码 ⇒ §4.1 原口径"仅 String suspend 路径"不足,补第二 suspend 出口;§4.1 约束 2 与 §4.2 E1 行已同步改写。
+- **行为差异登记(E9/R14 的 N3 面貌)**:① `SubtitleLoader`/`MusicLrc` 由"同步 execute(不判定 / 不重试 / 不可取消)"变为"suspend 路径(E2 404·≥500 判定 + E6 超时重试 + 取消联动)";② `LiveProxyLoader.cancelAll()` 首次真正取消在飞请求(原仅清 handler 消息;修复方向:Activity destroy 后不再有 `loadLives` 全局写入 / `onGroupsLoaded` 回调);③ `fetchSuggest` 取消由"结果 seq 丢弃"升级为"请求级取消",`clearSuggest` 同步取消在飞请求;④ 线程面:SubtitleLoader 解析/回调链仍为 IO → Main,`LiveProxyLoader.loadLives` 保持 Main,`fetchHotSearch` 回调体由 Main 变 IO(写入对象为 `MutableStateFlow`/MMKV,线程安全)。
+- **可选简化未做(登记)**:`HomeViewModel:372`/`PartitionListViewModel:146` 的 `suspendCancellableCoroutine` 包装的是 `PartitionLoader.request`(fire-and-forget + `SourceChannel.flow.collect` 收结果 + pending 取消语义),非一行可换,留待后续;`DetailViewModel` 的 `requestToken` 保留不强行 Job 化。
 
 ### N4 `catvod` 契约层(3 文件)—— 内部换血,签名守恒
 
@@ -381,7 +384,7 @@ requestScope.launch {                                   // 归属见 §4.4
 |---|---|---|---|
 | R1 | 漏实现 404/≥500 → 失败(E2):网络错误进成功路径,下游解析报错 | 高 | await 层判定 + 单测锁定 |
 | R2 | GET params 拼错位置(E8) | 高 | 单测锁定 URL 形态 |
-| R3 | E5 语义反转:恢复线程跟随 caller,带主线程假设的回调体(直接改 UI / 非线程安全 sink)在新线程跑崩或竞态 | 中(已下调) | §4.2 逐点审查清单。**实测缓解**:本项目的 sink 是线程安全的 —— `SearchViewModel.hotSearch`/`suggest` 是 `MutableStateFlow`;`SourceChannel` 是 `MutableSharedFlow` 包装且 `postValue`/`setValue` 实现相同(都是 `tryEmit`)、无 main 断言;`PlayLoader.postPlayResult` 已包 `mainHandler.post`;`LiveProxyLoader` 已用 `mHandler.post` 回 UI。**仍需单独审的点**:`LiveProxyLoader.onSuccess` 的 `ApiConfig.get().loadLives(livesArray)` 是**全局状态写入**(今天在主线程,挪 IO 后与其它读者竞态);`SortLoader` 的 3 处 `HomeRecCallback.done` 消费方 |
+| R3 | E5 语义反转:恢复线程跟随 caller,带主线程假设的回调体(直接改 UI / 非线程安全 sink)在新线程跑崩或竞态 | 中(已下调) | §4.2 逐点审查清单。**实测缓解**:本项目的 sink 是线程安全的 —— `SearchViewModel.hotSearch`/`suggest` 是 `MutableStateFlow`;`SourceChannel` 是 `MutableSharedFlow` 包装且 `postValue`/`setValue` 实现相同(都是 `tryEmit`)、无 main 断言;`PlayLoader.postPlayResult` 已包 `mainHandler.post`;`LiveProxyLoader` 已用 `mHandler.post` 回 UI。**仍需单独审的点**:`LiveProxyLoader.onSuccess` 的 `ApiConfig.get().loadLives(livesArray)` 是**全局状态写入** —— N3 已核定:协程恢复到 Main 再执行,与迁移前一致(§5 N3);`SortLoader` 的 3 处 `HomeRecCallback.done` 消费方 |
 | R4 | 取消后行为漂移(E3):协程取消静默,但 okgo 的"静默"与 `CancellationException` 传播路径不同,业务 catch 若吞掉会卡 UI | 中 | R12 同防;真机走查快速切页/连点 |
 | R5 | 超时重试丢失或次数错(E6):弱网成功率下降、超时耗时变化;写成"总 3 次"会比现状少一次尝试 | 中 | await 层复刻 **3 次重试 / 4 次尝试**(P5) |
 | R6 | 头语义实现成 add(E7):用 `addHeader` 会把「显式 UA 覆盖全局 UA」变成「两个 UA 头」,凭空引入 okgo 从未有过的行为 | 中 | `header()`(替换)+ 单测锁定单头 |
@@ -444,3 +447,4 @@ requestScope.launch {                                   // 归属见 §4.4
 | 2026-10-06 | **N1 第二轮审查修复**:换角度复核仅 3 条低危(全为本次引入、全当场修):① `81999ce` 重试范围收窄到请求阶段(读体超时不重试,回归 E4/E6;+1 单测);② `b675a09` 修 `RemoteTVBox` 桥 resume-inside-use 的二次 resume、`SubtitleViewModel.pagesTotal` 跨线程写的可见性;③ 另有 2 条既有低危登记不修;679 用例 0 失败。**两轮后收敛:本片可收尾** |
 | 2026-10-06 | **N2 实施回填**:`player` 簇 + `PlayLoader` 三链闭环(见 §5 N2 实测登记);① `M3u8PurifyUseCase` 两跳并一协程 + 单 Job `cancel()`;② `PlayUrlResolver` `json_jx` 自持 Job、`stopParse()` 4 连取消改显式取消(需 `Host` 新增 `cancelPlayRequest()`/`cancelM3u8Purify()`,`PlaybackViewBridge`/`PlayerControlApi` 各加 `cancelM3u8Purify()` 接线到 useCase);③ `PlayLoader` 回调体改协程、`cancelPlayRequest()` = seq 自增 + play 链 cancel/重建(preload 链独立不连带);④ 删 `SourceHelper.siteGetRequest` 桥与随之失效的 `ERR_NETWORK`;⑤ 片内 `com.lzy` 归零、`cancelTag` 余 2(全属 N3/N4);679 用例 0 失败;⑥ 新增行为差异登记一条(stopParse 的 play 取消比 `cancelTag` 多"池阶段/已投递结果"两处作用面) |
 | 2026-10-06 | **N2 收尾审查修复**(两轮独立只读复核 + 作者复核,见 §5 N2「收尾审查轮」):① 中,m3u8 净化协程**自取消**(回调链经 `goPlayUrl → stopParse`)→ `deliver{}` 发回调前摘除本轮取消面;② 中,`M3u8.currentAdCount` 跨轮竞态 + 实例锁不覆盖双页实例 → 净化锁与取消槽上收为 **companion 进程级**,`purify + 读数`同临界区;③ 中,取消通道绑 view bridge 致 handover 孤儿页不可取消 → 取消改**进程级** `M3u8PurifyUseCase.cancelActive()`,`PlaybackViewBridge`/`PlayerControlApi` 的 `cancelM3u8Purify` 及实现**回退**(接口面回原状);④ 低,补 `PlayLoader.cancelPlayRequest` 回归用例(3 种变异必失败);⑤ 低判定不成立:okgo `HttpHeaders.put` 实测只跳 null(§1.3 E10 措辞修正);⑥ 680 用例 0 失败 |
+| 2026-10-06 | **N3 实施回填**:UI / 杂项簇落地(见 §5 N3 实测登记);① `SearchViewModel` suggest 链挂 `viewModelScope`(删 `suggestSeq` → `suggestJob`,新输入取消旧请求),`fetchHotSearch` 协程直发,`onCleared` 补 `searchCaller.cancelSearch()`(收 N1 遗留)、删 `cancelTag("suggest")`;② `LiveProxyLoader` 换协程(实例级 `loadScope` lazy),`cancelAll()` 补 `cancelChildren()`(首次真正取消在飞请求),`loadLives` 保持 Main;③ `SubtitleLoader` `loadFromRemote` 转 suspend + `Http.getRaw`,`loadFromRemoteAsync` 协程化,删无调用者同步重载;④ `MusicLrc` `read`/`fetch` 转 suspend + `Http.getRaw`(保留 `UniversalDetector` 字节检测);⑤ **await 层补 `getRaw`**(原始字节 + headers,§4.1 约束 2 / §4.2 E1 已同步改写);⑥ `MusicPlayerActivity.syncLyric` 的 `runCatching` 改 try/catch 放行取消(R12,范围 4+1 文件);⑦ 卡口:片内 `com.lzy` 归零、全库 `cancelTag` 余 1(N4)、`suggestSeq` 0、行尾全 LF,683 用例 0 失败 |

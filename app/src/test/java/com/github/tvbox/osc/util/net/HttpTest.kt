@@ -128,6 +128,51 @@ class HttpTest {
     }
 
     @Test
+    fun getRaw_returnsBytesAndHeaders() = runBlocking {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("test")
+                .header("Content-Disposition", "attachment; filename=\"a.ass\"")
+                .body("你好".toByteArray().toResponseBody(null))
+                .build()
+        }.build()
+        val raw = Http.executeRawWithRetry(request(), client)
+        assertEquals("你好", String(raw.body, Charsets.UTF_8))
+        assertEquals("attachment; filename=\"a.ass\"", raw.headers["Content-Disposition"])
+    }
+
+    @Test
+    fun getRaw_throwsHttpExceptionFor404() = runBlocking {
+        try {
+            Http.executeRawWithRetry(request(), clientReturning(404, "missing"))
+            fail("expected HttpException")
+        } catch (e: HttpException) {
+            assertEquals(404, e.code)
+        }
+    }
+
+    @Test
+    fun getRaw_readsResponseBodyOffCallerThread() = runBlocking {
+        val caller = Thread.currentThread()
+        val readOn = AtomicReference<Thread>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("test")
+                .body(threadRecordingBody("ok", readOn))
+                .build()
+        }.build()
+        assertEquals("ok", String(Http.executeRawWithRetry(request(), client).body, Charsets.UTF_8))
+        val readThread = readOn.get()
+        assertTrue("响应体读取不应落在调用线程上", readThread != null && readThread !== caller)
+    }
+
+    @Test
     fun get_cancelPropagatesCancellationWithoutOtherFailure() = runBlocking {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)

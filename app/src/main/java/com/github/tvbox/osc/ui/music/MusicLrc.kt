@@ -3,7 +3,8 @@ package com.github.tvbox.osc.ui.music
 import android.net.Uri
 import android.text.TextUtils
 import com.github.tvbox.osc.util.LOG
-import com.lzy.okgo.OkGo
+import com.github.tvbox.osc.util.net.Http
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.mozilla.universalchardet.UniversalDetector
@@ -147,7 +148,7 @@ object MusicLrc {
 
     private fun Long?.orZero(): Long = this ?: 0L
 
-    private fun read(source: String): String? = runCatching {
+    private suspend fun read(source: String): String? = try {
         when {
             source.startsWith("data:") -> decodeDataUri(source)
             source.startsWith("http://") || source.startsWith("https://") -> fetch(source.substringBefore('#'))
@@ -156,8 +157,10 @@ object MusicLrc {
                 if (file.exists()) decode(file.readBytes()) else null
             }
         }
-    }.getOrElse {
-        LOG.i("echo-music lyric load failed: " + it.message)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (th: Throwable) {
+        LOG.i("echo-music lyric load failed: " + th.message)
         null
     }
 
@@ -175,12 +178,11 @@ object MusicLrc {
         return decode(bytes)
     }
 
-    private fun fetch(url: String): String? {
-        val response = OkGo.get<String>(url)
-            .headers("User-Agent", UA)
-            .execute()
-        val bytes = response.body.bytes()
-        return decode(bytes)
+    private suspend fun fetch(url: String): String? {
+        val raw = Http.getRaw(url) {
+            headers("User-Agent", UA)
+        }
+        return decode(raw.body)
     }
 
     private fun decode(bytes: ByteArray): String {

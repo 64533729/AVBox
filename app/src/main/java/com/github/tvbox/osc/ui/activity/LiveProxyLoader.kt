@@ -9,9 +9,14 @@ import com.github.tvbox.osc.bean.LiveChannelGroup
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.live.TxtSubscribe
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import com.github.tvbox.osc.util.net.Http
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.ArrayList
 import java.util.Locale
 import java.util.concurrent.Callable
@@ -43,8 +48,13 @@ internal class LiveProxyLoader(private val host: Host) {
 
     private val mHandler = Handler(Looper.getMainLooper())
 
+    private val loadScope: CoroutineScope by lazy {
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    }
+
     fun cancelAll() {
         mHandler.removeCallbacksAndMessages(null)
+        loadScope.coroutineContext.cancelChildren()
     }
 
     fun load(url: String) {
@@ -100,27 +110,24 @@ internal class LiveProxyLoader(private val host: Host) {
                 it.shutdown()
             }
         } else {
-            OkGo.get<String>(realUrl).execute(object : AbsCallback<String>() {
-                override fun convertResponse(response: okhttp3.Response): String {
-                    return response.body.string()
-                }
-
-                override fun onSuccess(response: Response<String>) {
-                    val livesArray = TxtSubscribe.parseToJsonArray(response.body())
+            loadScope.launch {
+                try {
+                    val body = Http.get(realUrl)
+                    val livesArray = withContext(Dispatchers.IO) { TxtSubscribe.parseToJsonArray(body) }
                     ApiConfig.get().loadLives(livesArray)
                     val list = ApiConfig.get().channelGroupList
                     if (list.isEmpty()) {
                         mHandler.post { host.onEmpty() }
-                        return
+                        return@launch
                     }
                     val loadedGroups = ArrayList(list)
                     mHandler.post { host.onGroupsLoaded(loadedGroups) }
-                }
-
-                override fun onError(response: Response<String>) {
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
                     mHandler.post { host.onEmpty() }
                 }
-            })
+            }
         }
     }
 }
