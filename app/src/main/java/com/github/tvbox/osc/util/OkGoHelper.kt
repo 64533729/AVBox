@@ -8,10 +8,6 @@ import com.github.tvbox.osc.util.net.ProxyAuthenticator
 import com.github.tvbox.osc.util.SSL.SSLSocketFactoryCompat
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.https.HttpsUtils
-import com.lzy.okgo.interceptor.HttpLoggingInterceptor
-import com.lzy.okgo.model.HttpHeaders
 
 import java.io.File
 import java.net.InetAddress
@@ -22,7 +18,6 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 import java.util.concurrent.TimeUnit
-import java.util.logging.Level
 
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
@@ -30,7 +25,6 @@ import javax.net.ssl.X509TrustManager
 import okhttp3.Cache
 import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.OkHttp
 import okhttp3.OkHttpClient
 import okhttp3.dnsoverhttps.DnsOverHttps
 
@@ -84,11 +78,6 @@ object OkGoHelper {
     private fun initExoOkHttpClient() {
         val base = getDefaultClient()
         val builder = if (base != null) base.newBuilder() else OkHttpClient.Builder()
-        val loggingInterceptor = HttpLoggingInterceptor("OkExoPlayer")
-
-        loggingInterceptor.setPrintLevel(HttpLoggingInterceptor.Level.NONE)
-        loggingInterceptor.setColorLevel(Level.OFF)
-        builder.addInterceptor(loggingInterceptor)
 
         builder.retryOnConnectionFailure(true)
         builder.followRedirects(true)
@@ -252,10 +241,6 @@ object OkGoHelper {
         val builder = OkHttpClient.Builder()
         builder.proxySelector(proxySelector())
         builder.proxyAuthenticator(proxyAuthenticator())
-        val loggingInterceptor = HttpLoggingInterceptor("OkExoPlayer")
-        loggingInterceptor.setPrintLevel(HttpLoggingInterceptor.Level.NONE)
-        loggingInterceptor.setColorLevel(Level.OFF)
-        builder.addInterceptor(loggingInterceptor)
         try {
             setOkHttpSsl(builder)
         } catch (th: Throwable) {
@@ -373,12 +358,6 @@ object OkGoHelper {
         initDnsOverHttps()
 
         val builder = OkHttpClient.Builder()
-        val loggingInterceptor = HttpLoggingInterceptor("OkGo")
-
-        loggingInterceptor.setPrintLevel(HttpLoggingInterceptor.Level.NONE)
-        loggingInterceptor.setColorLevel(Level.OFF)
-
-        builder.addInterceptor(loggingInterceptor)
 
         builder.readTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
         builder.writeTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
@@ -393,11 +372,8 @@ object OkGoHelper {
             LOG.e("OkGoHelper", th)
         }
 
-        HttpHeaders.setUserAgent("okhttp/" + OkHttp.VERSION)
-
         val okHttpClient = builder.build()
         okHttpClient.dispatcher.maxRequestsPerHost = 10
-        OkGo.getInstance().setOkHttpClient(okHttpClient)
 
         defaultClient = okHttpClient
 
@@ -414,12 +390,6 @@ object OkGoHelper {
         initDnsOverHttps()
 
         val builder = OkHttpClient.Builder()
-        val loggingInterceptor = HttpLoggingInterceptor("OkGo")
-
-        loggingInterceptor.setPrintLevel(HttpLoggingInterceptor.Level.NONE)
-        loggingInterceptor.setColorLevel(Level.OFF)
-
-        builder.addInterceptor(loggingInterceptor)
 
         builder.readTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
         builder.writeTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
@@ -434,11 +404,8 @@ object OkGoHelper {
             LOG.e("OkGoHelper", th)
         }
 
-        HttpHeaders.setUserAgent("okhttp/" + OkHttp.VERSION)
-
         val okHttpClient = builder.build()
         okHttpClient.dispatcher.maxRequestsPerHost = 10
-        OkGo.getInstance().setOkHttpClient(okHttpClient)
 
         defaultClient = okHttpClient
 
@@ -470,7 +437,7 @@ object OkGoHelper {
                     }
             val sslSocketFactory: SSLSocketFactory = SSLSocketFactoryCompat(trustAllCert)
             builder.sslSocketFactory(sslSocketFactory, trustAllCert)
-            builder.hostnameVerifier(HttpsUtils.UnSafeHostnameVerifier)
+            builder.hostnameVerifier { _, _ -> true }
         } catch (e: Exception) {
             throw RuntimeException(e)
         }

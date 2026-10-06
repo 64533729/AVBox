@@ -149,7 +149,6 @@ dependencies {
     implementation(project(":quickjs"))
     implementation(project(":pyramid"))
 
-    implementation(libs.okgo)
     implementation(libs.xx.permissions)
     implementation(libs.jsoup)
     implementation(libs.commons.io)

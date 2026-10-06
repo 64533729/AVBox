@@ -2,7 +2,7 @@
 
 > 项目:AVBox(TVBox OSC fork;仓库根目录 = 本文件所在目录的上一级)
 > 配套:先读 `SKILL.md`(通用规范 + 文档地图);涉及订阅源字段对照 `avbox-mobile-ui-spec.md` §6.12;涉及契约层(`com.github.catvod.**`)对照 `avbox-kotlin-migration-spec.md` §3.2(签名守恒)。
-> 状态:**执行中(2026-10-06 起草;同日三次修订 + N0/N1/N2/N3 实施回填,均见 §8)**:N0(await 层 + 协程依赖显式化 + 单测)、N1(`sourcedata` 簇 detail/search 链闭环)、N2(`player` 簇 + `PlayLoader` play/json_jx/m3u8 链闭环)与 N3(UI / 杂项簇 suggest 链闭环 + 同步路径 2 处 suspend 化)已完成,**下一步 N4**;按 §5 分片执行,每片完成即回填实测登记。
+> 状态:**已完成(2026-10-06 起草;同日三次修订 + N0–N5 实施回填,均见 §8)**:N0(await 层 + 协程依赖显式化 + 单测)、N1(`sourcedata` 簇 detail/search 链闭环)、N2(`player` 簇 + `PlayLoader` play/json_jx/m3u8 链闭环)、N3(UI / 杂项簇 suggest 链闭环 + 同步路径 2 处 suspend 化)、N4(`catvod` 契约层内部换血、签名守恒)、N5(`OkGoHelper` 去 okgo 化 + 删依赖 + §6.2 全量验收)**全部完成并过收尾审查**;剩真机走查(§6.2 第 6 项)。
 > 触发背景:2026-10-06 依赖梳理(okhttp / okio / okgo 三件套清点 + 19 文件调用面普查)。结论:OkGo 在本项目只扮演"回调式外观",底层 OkHttpClient 由 `OkGoHelper` 自建并注入 —— 调用面封闭、可渐进替换。同日决策:借迁移同步完成传输层协程化 + 取消机制全 Job 化(§3)。
 
 ## 0. 摘要
@@ -393,7 +393,9 @@ requestScope.launch {                                   // 归属见 §4.4
 ### N5 收尾
 
 - 范围:`OkGoHelper` 去 okgo 化(§4.6);删 `gradle/libs.versions.toml` 的 `okgo` 条目与 `app/build.gradle.kts:151` 的依赖;全量验收(§6.2)。
-- 实测登记:_待回填_。
+- 实测登记:_已回填(2026-10-06)_:① `OkGoHelper` 去 okgo 化、§4.6 五项逐条落地:删 `OkGo.getInstance().setOkHttpClient(...)` ×2(init/reloadDns)、删 `HttpHeaders.setUserAgent(...)` ×2(全局 UA 的等价实现 N0 已落于 `HttpRequest.build()` 的**替换语义**注入,值同串 `"okhttp/" + OkHttp.VERSION`)、`HttpsUtils.UnSafeHostnameVerifier` → `builder.hostnameVerifier { _, _ -> true }`(经 okgo 3.0.4 源码核证 `verify(hostname, session) { return true; }` 完全等价;先例 `catvod/net/OkHttp.kt:214`)、删 okgo 版 `HttpLoggingInterceptor` **×4**(`initExoOkHttpClient`/`initDnsOverHttps`/`init`/`reloadDns` 各一,全部 `Level.NONE` + `ColorLevel.OFF` 零功能,按 P7 不引入官方 logging-interceptor);`reloadDns()` 联动(`Parser.resetHttpClient()` / `com.github.catvod.net.OkHttp.resetClient()`)原样保留;连带清 6 条失效 import(`com.lzy.*` ×4、`okhttp3.OkHttp`、`java.util.logging.Level`);② 依赖坐标:`gradle/libs.versions.toml` 删 `okgo = "3.0.4"` 与 `okgo = { group = "com.lzy.net", … }` 两条 + `app/build.gradle.kts` 删 `implementation(libs.okgo)`(实测位置 :152,范围行原记 :151 系行号偏差,以实测为准);③ §6.2 全量验收:1) `app/src` 内 `com.lzy`/`cancelTag`/`runBlocking`/`GlobalScope` **全 0**(全库唯一残留为 `.codebuddy/tools/_*_baseline_*.java` 历史快照,非构建面);2) `:app:assembleDebug` + `:app:testDebugUnitTest` 绿,**688 用例 0 失败**(与基线持平);3) `:app:dependencies --configuration debugRuntimeClasspath` 无 `com.lzy.net`(okhttp 5.5.0 仍在);4) `AVBox_debug.apk` 内 **29 个 dex 全量字节扫描 `com/lzy`/`com.lzy` 0 命中**;5) main 无 `runBlocking`/`GlobalScope`;6) 真机走查待用户执行(§6.2 第 6 项清单);改动 3 文件行尾全 LF。
+- **依赖裁剪风险评估(新增登记)**:动态 jar 的可见依赖面核查:① `app/libs/thunder.jar`(迅雷下载库,宿主 `PlaybackController` 编译期引用)字节扫描 `com/lzy` **0 命中**;② 生态证据:fongmi(`示例文件/TV-fongmi`)全仓 **0 处** okgo/com.lzy,jar 爬虫依赖的是 `com.github.catvod.net.OkHttp` 门面(双生态同名同包,jar 普遍要求 TVBox ∪ fongmi 双端可用)⇒ 生态 jar 引用 okgo 的动机与兼容前提均不存在;③ 上游 TVBox(`示例文件/上游项目`)50 处 okgo 命中均为**宿主代码**(与本次迁移面同形)。残余风险 = 仅面向 TVBox 的野路子 jar 理论上可直接 `import com.lzy.*`(宿主恰好提供),无法穷举;缓解:真机走查覆盖 csp/clan 类 jar 源的加载与请求,回滚按 §6.3(N5 逆序 revert 即恢复依赖)。
+- **终态口径核验(§0)**:① `grep -r "com\.lzy" app/src` = 0;② `:app:dependencies` 无 `com.lzy.net:okgo`;③ 自建网络请求 100% okhttp(await 层 / `catvod.net.OkHttp` / 原生 client)、`cancelTag` 全库 0(12 处 tag 取消全 Job/实例级化)—— **N0–N5 六片闭环,迁移完成(待真机走查)**。
 
 ## 6. 风险、回滚与验收
 
@@ -470,3 +472,4 @@ requestScope.launch {                                   // 归属见 §4.4
 | 2026-10-06 | **N3 收尾审查轮**(独立只读复核 + 作者复核,见 §5 N3「收尾审查轮」):无阻断/高/中;① 登记口径更正——`SubtitleLoader` 无取消入口(取消联动仅 `MusicLrc`),重试面使其最坏 4 次尝试后才被丢弃;② 补登记"enqueue 排队面"与"取消后已 deliver 的 `Response` 不 close"(N0 桥接既有细节,官方桥接同形);③ 判定不成立一条(`LiveProxyLoader` 投递边界经 `56be128^` 核证逐字未变);④ `HttpTest` +3 例(≥500 / 重试总 4 次 / 空 body);⑤ 686 用例 0 失败,**本片可收尾** |
 | 2026-10-06 | **N4 实施回填**:`catvod` 契约层三文件内部换血、签名守恒(见 §5 N4 实测登记);① `JsLoader`/`JarLoader` 同步下载 `OkGo.execute()` → `Http.getSync`(E1 直连,流语义/中断检查逐字保留);② `Connect.cancelByTag` 删 `OkGo` 通道(经 3.0.4 源码核证与 `cancelDefaultClient` 完全同面、纯去重),自实现遍历与 client 取用不变;③ P8 落地:`javap -p -s` 6 类 219 行前后逐行一致;④ `Http.getSync` 补 internal 注入重载 + `HttpTest` 2 例锁 E1(404 不判定 / 不重试);⑤ 卡口:`com.lzy` 余 1(OkGoHelper → N5)、`cancelTag` 全库 0;688 用例 0 失败 |
 | 2026-10-06 | **N4 收尾审查轮**(独立只读复核 + 作者复核,见 §5 N4「收尾审查轮」):无阻断/高/中;6 条低危(1 覆盖缺口 + 5 既有/口味差异)全部登记不改;作者侧补齐独立复核的验证边界(okgo `Request.getRawCall/execute` 源码逐点同形核证、`NoBodyRequest`/`HttpUtils.appendHeaders` 抽验、全库无 okgo 额外全局加工、javap 219 行实测签署);**首轮即收敛,本片可收尾** |
+| 2026-10-06 | **N5 收尾回填**:OkGo 彻底移除(见 §5 N5 实测登记);① `OkGoHelper` 去 okgo 化五项落地(`setOkHttpClient`×2 / `setUserAgent`×2 删除、`UnSafeHostnameVerifier` → `hostnameVerifier { _, _ -> true }`、`HttpLoggingInterceptor`×4 删除、`reloadDns()` 联动保留),连带清 6 条失效 import;② 删 `libs.versions.toml` 两条目 + `app/build.gradle.kts` 依赖;③ §6.2 验收全过:`app/src` 卡口全 0、依赖图无 `com.lzy.net`、APK 29 dex 0 命中、688 用例 0 失败;④ 新增依赖裁剪风险登记(thunder.jar 扫描 0 命中 / fongmi 生态 0 okgo / 上游 50 处均宿主代码;残余=野路子 jar 直接 import,真机走查兜底);⑤ 终态口径核验通过(§0 三条全满足),**N0–N5 六片全部完成(待真机走查)** |
