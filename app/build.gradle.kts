@@ -121,6 +121,7 @@ dependencies {
     implementation(libs.androidx.media)
     implementation(libs.okhttp)
     implementation(libs.okhttp.dnsoverhttps)
+    implementation(libs.kotlinx.coroutines.android)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite.bundled)

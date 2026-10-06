@@ -1,0 +1,109 @@
+package com.github.tvbox.osc.util.net
+
+import com.github.tvbox.osc.util.OkGoHelper
+
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.util.LinkedHashMap
+
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+import kotlinx.coroutines.suspendCancellableCoroutine
+
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttp
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+
+object Http {
+
+    suspend fun get(url: String, init: HttpRequest.() -> Unit = {}): String {
+        return executeWithRetry(HttpRequest(url).apply(init).build(), client())
+    }
+
+    fun getSync(url: String, init: HttpRequest.() -> Unit = {}): Response {
+        return client().newCall(HttpRequest(url).apply(init).build()).execute()
+    }
+
+    internal suspend fun executeWithRetry(request: Request, client: OkHttpClient): String {
+        var retryCount = 0
+        while (true) {
+            try {
+                return execute(request, client).use { response ->
+                    if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
+                    response.body.string()
+                }
+            } catch (e: SocketTimeoutException) {
+                if (!HttpPolicy.shouldRetry(retryCount, e)) throw e
+                retryCount++
+            }
+        }
+    }
+
+    private suspend fun execute(request: Request, client: OkHttpClient): Response {
+        val call = client.newCall(request)
+        return suspendCancellableCoroutine { cont ->
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    cont.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    cont.resume(response)
+                }
+            })
+        }
+    }
+
+    private fun client(): OkHttpClient {
+        return OkGoHelper.getDefaultClient() ?: throw IllegalStateException("default OkHttpClient not initialized")
+    }
+}
+
+class HttpRequest internal constructor(private val url: String) {
+
+    private val headers = LinkedHashMap<String, String>()
+    private val params = LinkedHashMap<String, String>()
+
+    fun headers(key: String, value: String) {
+        headers[key] = value
+    }
+
+    fun headers(map: Map<String, String>) {
+        headers.putAll(map)
+    }
+
+    fun params(key: String, value: String?) {
+        if (value != null) params[key] = value
+    }
+
+    fun params(map: Map<String, String>?) {
+        if (map == null) return
+        for ((key, value) in map) {
+            params(key, value)
+        }
+    }
+
+    internal fun build(): Request {
+        val builder = Request.Builder().url(HttpPolicy.buildUrl(url, params))
+        val acceptLanguage = HttpPolicy.acceptLanguage()
+        if (acceptLanguage.isNotEmpty()) builder.header(HEADER_ACCEPT_LANGUAGE, acceptLanguage)
+        builder.header(HEADER_USER_AGENT, USER_AGENT)
+        for ((key, value) in headers) {
+            builder.header(key, value)
+        }
+        return builder.build()
+    }
+
+    private companion object {
+        const val HEADER_ACCEPT_LANGUAGE = "Accept-Language"
+        const val HEADER_USER_AGENT = "User-Agent"
+        val USER_AGENT = "okhttp/" + OkHttp.VERSION
+    }
+}
+
+class HttpException(val code: Int) : Exception("HTTP $code")

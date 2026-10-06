@@ -22,6 +22,7 @@ okhttp = "5.5.0"
 room = "3.0.3"
 androidxSqlite = "2.7.1"
 okio = "3.18.2"
+kotlinxCoroutines = "1.10.2"
 gson = "2.14.0"
 autosize = "1.2.1"
 xstream = "1.4.21"
@@ -72,6 +73,7 @@ androidx-room-runtime = { group = "androidx.room3", name = "room3-runtime", vers
 androidx-room-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room" }
 androidx-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "androidxSqlite" }
 okio = { group = "com.squareup.okio", name = "okio", version.ref = "okio" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 autosize = { group = "me.jessyan", name = "autosize", version.ref = "autosize" }
 xstream = { group = "com.thoughtworks.xstream", name = "xstream", version.ref = "xstream" }
