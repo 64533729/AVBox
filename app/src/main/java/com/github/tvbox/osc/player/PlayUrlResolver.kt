@@ -33,11 +33,15 @@ import com.github.tvbox.osc.util.HeaderGuard
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.VideoParseRuler
+import com.github.tvbox.osc.util.net.Http
 import com.github.tvbox.osc.util.parser.SuperParse
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.HttpHeaders
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.HashMap
@@ -68,6 +72,10 @@ class PlayUrlResolver(private val host: Host) {
         fun playUrl(url: String, headers: HashMap<String, String>?)
 
         fun playUrl(gen: Int, url: String, headers: HashMap<String, String>?)
+
+        fun cancelPlayRequest()
+
+        fun cancelM3u8Purify()
     }
 
     private val parseHandler: Handler = Handler(
@@ -104,6 +112,11 @@ class PlayUrlResolver(private val host: Host) {
     private var parseFlag: String? = null
 
     private val parseGeneration = AtomicInteger(0)
+
+    private val requestScope: CoroutineScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+
+    @Volatile
+    private var jsonJob: Job? = null
 
     private var mSysWebView: WebView? = null
 
@@ -193,10 +206,9 @@ class PlayUrlResolver(private val host: Host) {
     fun stopParse() {
         parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
         stopLoadWebView(false)
-        OkGo.getInstance().cancelTag("play")
-        OkGo.getInstance().cancelTag("json_jx")
-        OkGo.getInstance().cancelTag("m3u8-1")
-        OkGo.getInstance().cancelTag("m3u8-2")
+        host.cancelPlayRequest()
+        jsonJob?.cancel()
+        host.cancelM3u8Purify()
         val pool = parseThreadPool
         if (pool != null) {
             try {
@@ -259,58 +271,57 @@ class PlayUrlResolver(private val host: Host) {
             loadWebView(pb.url + webUrl)
         } else if (pb.type == 1) {
             host.view()?.showTip(str(R.string.player_resolving_url), true, false)
-            val reqHeaders = HttpHeaders()
+            val reqHeaders = LinkedHashMap<String, String>()
             try {
                 val jsonObject = JSONObject(pb.ext)
                 val headerMap = PlaybackController.extractHeaders(jsonObject)
                 if (headerMap != null) {
                     for (key in headerMap.keys) {
-                        if (!HeaderGuard.isSendable(key, headerMap[key])) {
+                        val value = headerMap[key] ?: continue
+                        if (!HeaderGuard.isSendable(key, value)) {
                             LOG.i("echo-ext-header-skip:$key")
                             continue
                         }
-                        reqHeaders.put(key, headerMap[key])
+                        reqHeaders[key] = value
                     }
                 }
             } catch (e: Throwable) {
                 LOG.e("PlayUrlResolver", e)
             }
             val view = host.view()
-            OkGo.get<String>(pb.url + (if (view == null) webUrl else view.encodeUrl(webUrl!!)))
-                .tag("json_jx")
-                .headers(reqHeaders)
-                .execute(object : AbsCallback<String>() {
-                    override fun convertResponse(response: okhttp3.Response): String {
-                        return response.body.string()
+            val requestUrl = pb.url + (if (view == null) webUrl else view.encodeUrl(webUrl!!))
+            jsonJob = requestScope.launch {
+                val json = try {
+                    Http.get(requestUrl) {
+                        for ((key, value) in reqHeaders) headers(key, value)
                     }
-
-                    override fun onSuccess(response: Response<String>) {
-                        if (!isParseResultCurrent(gen)) return
-                        val json = response.body()
-                        try {
-                            val rs = jsonParse(webUrl, json)!!
-                            val headers = PlaybackController.extractHeaders(rs)
-                            if (rs.optInt("parse", 0) == 1) {
-                                host.setWebHeaderMap(headers)
-                                if (headers != null) {
-                                    host.setWebUserAgent(PlaybackController.headerValue(headers, "user-agent"))
-                                    host.webUserAgent()?.let { host.setWebUserAgent(it.trim { it <= ' ' }) }
-                                }
-                                loadWebView(DefaultConfig.checkReplaceProxy(rs.getString("url")))
-                            } else {
-                                if (host.view() != null) host.playUrl(gen, rs.getString("url"), headers)
-                            }
-                        } catch (e: Throwable) {
-                            LOG.e("PlayUrlResolver", e)
-                            errorWithRetry(str(R.string.player_parse_error), false)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    errorWithRetry(str(R.string.player_parse_error), false)
+                    return@launch
+                }
+                if (!isParseResultCurrent(gen)) return@launch
+                try {
+                    val rs = withContext(Dispatchers.IO) { jsonParse(webUrl, json) }!!
+                    val headers = PlaybackController.extractHeaders(rs)
+                    if (rs.optInt("parse", 0) == 1) {
+                        host.setWebHeaderMap(headers)
+                        if (headers != null) {
+                            host.setWebUserAgent(PlaybackController.headerValue(headers, "user-agent"))
+                            host.webUserAgent()?.let { host.setWebUserAgent(it.trim { it <= ' ' }) }
                         }
+                        loadWebView(DefaultConfig.checkReplaceProxy(rs.getString("url")))
+                    } else {
+                        if (host.view() != null) host.playUrl(gen, rs.getString("url"), headers)
                     }
-
-                    override fun onError(response: Response<String>) {
-                        super.onError(response)
-                        errorWithRetry(str(R.string.player_parse_error), false)
-                    }
-                })
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    LOG.e("PlayUrlResolver", e)
+                    errorWithRetry(str(R.string.player_parse_error), false)
+                }
+            }
         } else if (pb.type == 2) {
             host.view()?.showTip(str(R.string.player_resolving_url), true, false)
             val pool = Executors.newSingleThreadExecutor()

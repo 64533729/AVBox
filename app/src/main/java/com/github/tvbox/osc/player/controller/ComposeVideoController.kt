@@ -798,6 +798,10 @@ class ComposeVideoController @JvmOverloads constructor(
         m3u8PurifyUseCase.playM3u8(url ?: return, headers)
     }
 
+    override fun cancelM3u8Purify() {
+        m3u8PurifyUseCase.cancel()
+    }
+
     override fun encodeUrl(url: String?): String = PlayerSwitchUseCase.encodeUrl(url)
 
     override fun firstUrlByArray(url: String?): String = PlayerSwitchUseCase.firstUrlByArray(url)

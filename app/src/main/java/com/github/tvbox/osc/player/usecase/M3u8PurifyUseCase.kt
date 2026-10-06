@@ -10,10 +10,14 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.M3u8
 import com.github.tvbox.osc.util.RegexUtils
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.HttpHeaders
-import com.lzy.okgo.model.Response
+import com.github.tvbox.osc.util.net.Http
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.MalformedURLException
 import java.net.URL
 import java.util.HashMap
@@ -33,46 +37,53 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
 
     private val context: Context = context.applicationContext
 
+    private val scope: CoroutineScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+
+    @Volatile
+    private var job: Job? = null
+
     fun playM3u8(url: String, headers: HashMap<String, String>?) {
         if (url.contains("url=")) {
             callback.startPlayUrl(url, headers)
             return
         }
-        OkGo.getInstance().cancelTag("m3u8-1")
-        OkGo.getInstance().cancelTag("m3u8-2")
-        val okGoHeaders = HttpHeaders()
-        if (headers != null) {
-            for ((key, value) in headers) {
-                okGoHeaders.put(key, value)
+        job?.cancel()
+        job = scope.launch {
+            val content = try {
+                request(url, headers)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LOG.e("echo-m3u8请求错误1: " + e)
+                callback.startPlayUrl(url, headers)
+                return@launch
+            }
+            if (!content.startsWith("#EXTM3U")) {
+                callback.startPlayUrl(url, headers)
+                return@launch
+            }
+            val forwardUrl = extractForwardUrl(url, content)
+            if (forwardUrl.isEmpty()) {
+                LOG.i("echo-m3u81-to-play")
+                processM3u8Content(url, content, headers)
+            } else {
+                fetchAndProcessForwardUrl(forwardUrl, headers, url)
             }
         }
-        OkGo.get<String>(url)
-            .tag("m3u8-1")
-            .headers(okGoHeaders)
-            .execute(object : AbsCallback<String>() {
-                override fun onSuccess(response: Response<String>) {
-                    val content = response.body()
-                    if (!content.startsWith("#EXTM3U")) {
-                        callback.startPlayUrl(url, headers)
-                        return
-                    }
-                    val forwardUrl = extractForwardUrl(url, content)
-                    if (forwardUrl.isEmpty()) {
-                        LOG.i("echo-m3u81-to-play")
-                        processM3u8Content(url, content, headers)
-                    } else {
-                        fetchAndProcessForwardUrl(forwardUrl, headers, okGoHeaders, url)
-                    }
-                }
+    }
 
-                override fun convertResponse(response: okhttp3.Response): String = response.body.string()
+    fun cancel() {
+        job?.cancel()
+    }
 
-                override fun onError(response: Response<String>) {
-                    super.onError(response)
-                    LOG.e("echo-m3u8请求错误1: " + response.exception)
-                    callback.startPlayUrl(url, headers)
+    private suspend fun request(url: String, headers: HashMap<String, String>?): String {
+        return Http.get(url) {
+            if (headers != null) {
+                for ((key, value) in headers) {
+                    this.headers(key, value)
                 }
-            })
+            }
+        }
     }
 
     private fun extractForwardUrl(baseUrl: String, content: String): String {
@@ -96,9 +107,9 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
         return !line.startsWith("#") && (line.endsWith(".m3u8") || line.contains(".m3u8?"))
     }
 
-    private fun processM3u8Content(url: String, content: String, headers: HashMap<String, String>?) {
+    private suspend fun processM3u8Content(url: String, content: String, headers: HashMap<String, String>?) {
         val basePath = getBasePath(url)
-        val purified = M3u8.purify(basePath, content)
+        val purified = withContext(Dispatchers.IO) { M3u8.purify(basePath, content) }
         if (purified == null || M3u8.currentAdCount == 0) {
             LOG.i("echo-m3u8内容解析：未检测到广告")
             callback.startPlayUrl(url, headers)
@@ -111,30 +122,22 @@ class M3u8PurifyUseCase(context: Context, private val callback: Callback) {
         }
     }
 
-    private fun fetchAndProcessForwardUrl(
+    private suspend fun fetchAndProcessForwardUrl(
         forwardUrl: String,
         headers: HashMap<String, String>?,
-        okGoHeaders: HttpHeaders,
         fallbackUrl: String,
     ) {
-        OkGo.get<String>(forwardUrl)
-            .tag("m3u8-2")
-            .headers(okGoHeaders)
-            .execute(object : AbsCallback<String>() {
-                override fun onSuccess(response: Response<String>) {
-                    val content = response.body()
-                    LOG.i("echo-m3u82-to-play")
-                    processM3u8Content(forwardUrl, content, headers)
-                }
-
-                override fun convertResponse(response: okhttp3.Response): String = response.body.string()
-
-                override fun onError(response: Response<String>) {
-                    super.onError(response)
-                    LOG.e("echo-重定向 m3u8 请求错误: " + response.exception)
-                    callback.startPlayUrl(fallbackUrl, headers)
-                }
-            })
+        val content = try {
+            request(forwardUrl, headers)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.e("echo-重定向 m3u8 请求错误: " + e)
+            callback.startPlayUrl(fallbackUrl, headers)
+            return
+        }
+        LOG.i("echo-m3u82-to-play")
+        processM3u8Content(forwardUrl, content, headers)
     }
 
     private fun getBasePath(url: String): String {

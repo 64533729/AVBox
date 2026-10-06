@@ -59,7 +59,7 @@ description: 项目规则、通用原则、通用代码规范、交付验证与�
 | `skill/history/preload-toast-deadlock.md` | **排查归档(根因已证;2026-09-27 已按方案 A 改磁盘预缓存,待真机验证)**：拖动进度条后预载 toast 概率不出现 = media3 1.11.1 预载完成死锁(时长目标 vs 32MB 字节闸门互不收敛,静默无回调);含源码证据链、撞顶码率阈值、修复选项 A/B/C、A 的实施方案(headers/cache key/mimeType 三处桥接)与真机验证判据 | 改动**预载/`PreloadManagerHolder`/`PreloadCoordinator`/预载读盘链路** 前必读;验证预载"完成/命中"类问题先读 |
 | `skill/avbox-code-review-spec.md` | **代码审查 Spec**：把本文件整份当提示词喂给 AI 做**只读**审查。含角色定义与技术栈实况、既定约定(报了即误报)、高危约束、快速/深度(三批)模式与分批策略、审查清单与硬阈值(文件 >500 行 / 方法 >100 行 / 重复 ≥3 次 / 门面被 ≥20 文件依赖)、输出格式(第 0–6 节 + **附录 A 度量盘点** + **附录 B 上轮对账**)、审查者禁止事项、**审查收敛终止线** | 要做代码审查、或判断"本轮审查能否收尾"时**必读**；判断标准以文末「审查收敛」为准 |
 | `skill/avbox-kotlin-migration-spec.md` | **活规范**：Java→Kotlin 迁移转换规范——M0 实测基线、每切片流程与卡口、Kotlin 静态/字段/构造器转换细则、契约层（`catvod`）逐条清单、Gson×data class 规范、并发不变量、`skill/scripts/verify-migration.ps1` 用法 | 改动 `com.github.catvod.**`、或改动被动态 jar / 第三方 AAR 按名字访问的宿主静态面前**必读** |
-| `skill/avbox-okgo-removal-spec.md` | **活规范(执行中:N1 已完成)**：OkGo → OkHttp + 协程迁移 —— 现状盘点(19 文件)与 okgo 源码取证(E1-E10)、await 层与全 Job 化取消设计(§4)、P1-P11 决策、N0-N5 分片计划与实测登记、验收口径与风险(R1-R14) | 改动 `util/net` 请求层 / `OkGoHelper` / 涉及 `cancelTag` 取消链 / 删 okgo 依赖前**必读**;每片完成回填 §5 实测登记 |
+| `skill/avbox-okgo-removal-spec.md` | **活规范(执行中:N2 已完成)**：OkGo → OkHttp + 协程迁移 —— 现状盘点(19 文件)与 okgo 源码取证(E1-E10)、await 层与全 Job 化取消设计(§4)、P1-P11 决策、N0-N5 分片计划与实测登记、验收口径与风险(R1-R14) | 改动 `util/net` 请求层 / `OkGoHelper` / 涉及 `cancelTag` 取消链 / 删 okgo 依赖前**必读**;每片完成回填 §5 实测登记 |
 | `skill/review/` | **审查报告存档**：`review-<YYYYMMDD>-batch<N>.md`(分批审查报告)与 `refactor-plan-*.md`(重构计划)；同批修复轮记录追加在同一文件(内容 = 改了哪些条目 / 构建与单测结果 / 回归面清单) | 接手上一轮审查结论、需要出「附录 B 上轮对账」时**必读** |
 | 本地参考代码（只读） | 上游 TVBox 与 fongmi/OK影视 的本地副本 | 需要对照上游实现时（**只读参考，不改**） |
 

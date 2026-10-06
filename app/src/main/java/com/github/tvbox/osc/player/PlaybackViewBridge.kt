@@ -81,6 +81,8 @@ interface PlaybackViewBridge {
 
     fun playM3u8(url: String, headers: HashMap<String, String>?, gen: Int)
 
+    fun cancelM3u8Purify()
+
     fun startVideoPlayback(url: String, headers: HashMap<String, String>?, forceExoPlayer: Boolean)
 
     fun switchPlayerKernel(): Boolean

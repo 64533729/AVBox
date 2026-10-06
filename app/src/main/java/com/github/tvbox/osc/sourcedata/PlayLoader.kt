@@ -10,8 +10,13 @@ import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerHelper
 import com.google.gson.Gson
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.HashMap
@@ -29,18 +34,27 @@ class PlayLoader(
     private val playRequestSeq = AtomicInteger()
     private val preloadRequestSeq = AtomicInteger()
 
+    private val rootJob = SupervisorJob()
+    private val requestScope: CoroutineScope by lazy { CoroutineScope(rootJob + Dispatchers.Main.immediate) }
+
+    @Volatile
+    private var playChain = SupervisorJob(rootJob)
+
+    @Volatile
+    private var preloadChain = SupervisorJob(rootJob)
+
     fun getPlay(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {
-        getPlayInternal(playRequestSeq, playResult, "play", sourceKey, playFlag, progressKey, url, subtitleKey)
+        getPlayInternal(playRequestSeq, playResult, playChain, sourceKey, playFlag, progressKey, url, subtitleKey)
     }
 
     fun getPlayForPreload(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {
-        getPlayInternal(preloadRequestSeq, preloadResult, "playPreload", sourceKey, playFlag, progressKey, url, subtitleKey)
+        getPlayInternal(preloadRequestSeq, preloadResult, preloadChain, sourceKey, playFlag, progressKey, url, subtitleKey)
     }
 
     private fun getPlayInternal(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
-        requestTag: String,
+        chain: Job,
         sourceKey: String?,
         playFlag: String?,
         progressKey: String?,
@@ -50,18 +64,18 @@ class PlayLoader(
         val requestSeq = seqHolder.incrementAndGet()
         if (Looper.myLooper() === Looper.getMainLooper()) {
             SourceHelper.PREPARE_POOL.execute {
-                getPlayPrepared(seqHolder, resultChannel, requestSeq, requestTag, sourceKey, playFlag, progressKey, url, subtitleKey)
+                getPlayPrepared(seqHolder, resultChannel, requestSeq, chain, sourceKey, playFlag, progressKey, url, subtitleKey)
             }
             return
         }
-        getPlayPrepared(seqHolder, resultChannel, requestSeq, requestTag, sourceKey, playFlag, progressKey, url, subtitleKey)
+        getPlayPrepared(seqHolder, resultChannel, requestSeq, chain, sourceKey, playFlag, progressKey, url, subtitleKey)
     }
 
     private fun getPlayPrepared(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
         requestSeq: Int,
-        requestTag: String,
+        chain: Job,
         sourceKey: String?,
         playFlag: String?,
         progressKey: String?,
@@ -87,7 +101,7 @@ class PlayLoader(
         } else if (type == 0 || type == 1) {
             playFromApi(seqHolder, resultChannel, requestSeq, sourceBean, requestUrl, url, progressKey, subtitleKey, playFlag, pushUrl)
         } else if (type == 4) {
-            playFromExtendedApi(seqHolder, resultChannel, requestSeq, requestTag, sourceBean, requestUrl, url, progressKey, subtitleKey, playFlag, pushUrl)
+            playFromExtendedApi(seqHolder, resultChannel, requestSeq, chain, sourceBean, requestUrl, url, progressKey, subtitleKey, playFlag, pushUrl)
         } else {
             postPlayResult(seqHolder, resultChannel, requestSeq, null)
         }
@@ -182,7 +196,7 @@ class PlayLoader(
         seqHolder: AtomicInteger,
         resultChannel: SourceChannel<JSONObject?>,
         requestSeq: Int,
-        requestTag: String,
+        chain: Job,
         sourceBean: SourceBean,
         requestUrl: String,
         url: String?,
@@ -193,46 +207,47 @@ class PlayLoader(
     ) {
         val extend = SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
 
-        val request = SourceHelper.siteGetRequest(sourceBean)
-            .tag(requestTag)
-            .params("play", requestUrl)
-            .params("flag", playFlag)
-        if (extend != null && !extend.isEmpty()) {
-            request.params("extend", extend)
-        }
-        request.execute(object : AbsCallback<String>() {
-            override fun convertResponse(response: okhttp3.Response): String {
-                val body = response.body
-                return if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)
-            }
-
-            override fun onSuccess(response: Response<String>) {
-                val json = response.body()
-                LOG.i(json)
-                try {
-                    val result = normalizePlayerResult(JSONObject(json))!!
-                    result.put("key", url)
-                    PushUrlParser.mergePushHeaders(result, pushUrl)
-                    mergeSiteHeaders(result, sourceBean)
-                    result.put("proKey", progressKey)
-                    result.put("subtKey", subtitleKey)
-                    if (!result.has("flag")) result.put("flag", playFlag)
-                    postPlayResult(seqHolder, resultChannel, requestSeq, result)
-                } catch (th: Throwable) {
-                    LOG.e("SourceViewModel", th)
-                    postPlayResult(seqHolder, resultChannel, requestSeq, null)
+        requestScope.launch(chain) {
+            val json = try {
+                SourceHelper.siteGet(sourceBean) {
+                    params("play", requestUrl)
+                    params("flag", playFlag)
+                    if (extend != null && !extend.isEmpty()) {
+                        params("extend", extend)
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                postPlayResult(seqHolder, resultChannel, requestSeq, null)
+                return@launch
             }
-
-            override fun onError(response: Response<String>) {
-                super.onError(response)
+            LOG.i(json)
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val parsed = normalizePlayerResult(JSONObject(json))!!
+                    parsed.put("key", url)
+                    PushUrlParser.mergePushHeaders(parsed, pushUrl)
+                    mergeSiteHeaders(parsed, sourceBean)
+                    parsed.put("proKey", progressKey)
+                    parsed.put("subtKey", subtitleKey)
+                    if (!parsed.has("flag")) parsed.put("flag", playFlag)
+                    parsed
+                }
+                postPlayResult(seqHolder, resultChannel, requestSeq, result)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (th: Throwable) {
+                LOG.e("SourceViewModel", th)
                 postPlayResult(seqHolder, resultChannel, requestSeq, null)
             }
-        })
+        }
     }
 
     fun cancelPlayRequest() {
         playRequestSeq.incrementAndGet()
+        playChain.cancel()
+        playChain = SupervisorJob(rootJob)
     }
 
     private fun shouldDirectPlay(sourceBean: SourceBean?, requestUrl: String?): Boolean {

@@ -511,6 +511,9 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
             startVideoPlayback(url, headers, false)
         }
 
+        override fun cancelM3u8Purify() {
+        }
+
         override fun startVideoPlayback(url: String, headers: HashMap<String, String>?, forceExoPlayer: Boolean) {
             if (released) return
             if (videoView.isKernelErrored()) {

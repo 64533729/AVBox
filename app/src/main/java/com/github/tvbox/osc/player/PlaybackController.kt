@@ -346,6 +346,14 @@ class PlaybackController {
         override fun playUrl(gen: Int, url: String, headers: HashMap<String, String>?) {
             this@PlaybackController.playUrl(gen, url, headers)
         }
+
+        override fun cancelPlayRequest() {
+            fetch.cancelPlayRequest()
+        }
+
+        override fun cancelM3u8Purify() {
+            view?.cancelM3u8Purify()
+        }
     })
 
     private val st: PlaybackAttemptState = PlaybackAttemptState()
