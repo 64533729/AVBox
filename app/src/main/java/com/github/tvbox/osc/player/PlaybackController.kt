@@ -7,29 +7,18 @@ import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.bean.VodInfo
-import com.github.tvbox.osc.data.AppGraph
-import com.github.tvbox.osc.data.PlaybackProgress
-import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.sourcedata.SourceHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.github.tvbox.osc.util.DefaultConfig
-import com.github.tvbox.osc.util.HawkConfig
-import com.github.tvbox.osc.util.ImgUtil
-import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
-import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.usecase.M3u8PurifyUseCase
-import com.github.tvbox.osc.util.thunder.Jianpian
-import com.github.tvbox.osc.util.thunder.Thunder
 import org.greenrobot.eventbus.EventBus
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
-import java.net.URLEncoder
 import java.util.HashMap
 import java.util.Locale
 
@@ -484,8 +473,6 @@ class PlaybackController {
     private var webHeaderMap: HashMap<String, String>? = null
     private var webUserAgent: String? = null
 
-    private var playUrlGeneration: Int = 0
-
     private val fetch: PlaybackFetch = PlaybackFetch(this)
 
     private var currentSession: PlaybackSession? = null
@@ -572,249 +559,131 @@ class PlaybackController {
         view?.setTitle(vod()!!.name + " " + vs.name)
     }
 
-    fun play(reset: Boolean) {
-        st.switchStopPending = false
-        resolver.nextGen()
-        invalidatePreload()
-        view?.hidePreloadReadyTip()
-        if (vod() == null) return
-        val kernelPresent = view?.mediaPlayer() != null
-        val idleKernelReused = isIdleKernelReusable(kernelPresent)
-        val crossContentReuseAllowed = isCrossContentReuseAllowed()
-        val reuseAllowed = consumeReusePlayerOnSwitch() || idleKernelReused || crossContentReuseAllowed
-        val startedKey = progress.startedProgressKey()
-        val sameContentReuse = startedKey != null
-            && !KernelReusePolicy.isCrossContentSwitch(startedKey, progressKey())
-        val reusePlayer = KernelReusePolicy.decide(kernelPresent, false, false, reuseAllowed) == KernelDecision.REUSE
-        st.switchingPlayback = true
-        st.audioPlayback = false
-        view?.onNewPlayStarted()
-        view?.clearArtwork()
-        val vs = currentSeries(vod()!!.playFlag, vod()!!.playIndex)
-        if (vs == null) {
-            handleResolvePlayUrlFailed(str(R.string.player_get_info_error))
-            return
-        }
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_REFRESH, vod()))
-        if (sameContentReuse) {
-            view?.showTip("", true, false)
-        } else {
-            view?.showTip(str(R.string.player_getting_info), true, false)
-        }
-        publishTitle()
+    private val starter: PlaybackStarter = PlaybackStarter(object : PlaybackStarter.Host {
+        override fun attemptState(): PlaybackAttemptState = st
 
-        stopParse()
-        beginNewPlay()
-        config.syncDecodeFromGlobal()
-        setWebPlayUrl(null)
-        setWebHeaderMap(null)
-        initParseLoadFound()
+        override fun view(): PlaybackViewBridge? = this@PlaybackController.view
 
-        view?.stopOtherPlayers()
-        view?.resetDanmu()
-        view?.clearLyric()
-        if (reusePlayer) {
-            savePreviousContentProgress()
-            view?.clearVideoFrame()
-        } else if (kernelPresent) {
-            view?.releasePlayer()
+        override fun vod(): VodInfo? = this@PlaybackController.vod
+
+        override fun playerCfg(): JSONObject? = this@PlaybackController.playerCfg
+
+        override fun sourceKey(): String = this@PlaybackController.sourceKey()
+
+        override fun currentSeries(flag: String?, index: Int): VodInfo.VodSeries? =
+            this@PlaybackController.currentSeries(flag, index)
+
+        override fun playSubtitle(): String? = this@PlaybackController.playSubtitle()
+
+        override fun progressKey(): String? = this@PlaybackController.progressKey()
+
+        override fun progressOwner(): String? = this@PlaybackController.progressOwner()
+
+        override fun startedProgressKey(): String? = progress.startedProgressKey()
+
+        override fun subtitleCacheKey(): String? = this@PlaybackController.subtitleCacheKey()
+
+        override fun setProgressKey(key: String?) {
+            this@PlaybackController.setProgressKey(key)
         }
-        ImgUtil.clearMemoryCache()
-        setSubtitleCacheKey(
-            vod()!!.sourceKey + "-" + vod()!!.id + "-" + vod()!!.playFlag + "-"
-                + vod()!!.playIndex + "-" + vs.name + "-subt"
-        )
-        setProgressKey(vod()!!.sourceKey + vod()!!.id + vod()!!.playFlag + vod()!!.playIndex + vs.name)
-        WatchProgressStore.onPlayStart(progressKey())
-        PlaybackProgress.onEpisodeStartNoScroll()
-        startResolvePlayUrlTimeout()
-        if (st.pendingInheritProgress > 0 && !TextUtils.isEmpty(st.pendingInheritKey)) {
-            inheritProgressFrom(st.pendingInheritKey, st.pendingInheritProgress)
-            LOG.i("echo-switchSource inherit progress " + st.pendingInheritProgress + "ms from " + st.pendingInheritKey)
+
+        override fun setSubtitleCacheKey(key: String?) {
+            this@PlaybackController.setSubtitleCacheKey(key)
         }
-        st.pendingInheritKey = null
-        st.pendingInheritProgress = 0
-        if (reset) {
+
+        override fun getSavedProgress(url: String?): Long = this@PlaybackController.getSavedProgress(url)
+
+        override fun inheritProgressFrom(key: String?, position: Long) {
+            this@PlaybackController.inheritProgressFrom(key, position)
+        }
+
+        override fun inheritProgressIfNeeded() {
+            this@PlaybackController.inheritProgressIfNeeded()
+        }
+
+        override fun clearInheritProgress() {
             progress.clearInheritProgress()
-            WatchProgressStore.clear(progressOwner(), progressKey())
-            AppGraph.cacheRepository.delete(MD5.string2MD5(subtitleCacheKey()), 0)
-        } else {
-            inheritProgressIfNeeded()
-            view?.setSubtitleViewVisible(false)
         }
 
-        if (Jianpian.isJpUrl(vs.url!!)) {
-            val jpUrl = vs.url
-            view?.showParse(false)
-            if (vs.url!!.startsWith("tvbox-xg:")) {
-                playUrl(Jianpian.JPUrlDec(jpUrl!!.substring(9))!!, null)
-            } else {
-                playUrl(Jianpian.JPUrlDec(jpUrl!!)!!, null)
-            }
-            return
-        }
-        val thunderGen = resolver.currentGen()
-        if (Thunder.play(vs.url!!, object : Thunder.ThunderCallback {
-                override fun status(code: Int, info: String) {
-                    view?.showTip(info, code >= 0, code < 0)
-                }
-
-                override fun list(urlMap: MutableMap<Int, String>) {
-                }
-
-                override fun play(url: String) {
-                    playUrl(thunderGen, url, null)
-                }
-            })
-        ) {
-            view?.showParse(false)
-            return
+        override fun handleResolvePlayUrlFailed(err: String) {
+            this@PlaybackController.handleResolvePlayUrlFailed(err)
         }
 
-        if (preload.consumeResult(progressKey())) return
-        val svm = fetch.sourceViewModel()
-        if (svm != null) {
-            svm.getPlay(sourceKey(), vod()!!.playFlag, progressKey(), vs.url, subtitleCacheKey())
+        override fun publishTitle() {
+            this@PlaybackController.publishTitle()
         }
+
+        override fun beginNewPlay() {
+            this@PlaybackController.beginNewPlay()
+        }
+
+        override fun consumeReusePlayerOnSwitch(): Boolean = this@PlaybackController.consumeReusePlayerOnSwitch()
+
+        override fun stopParse() {
+            this@PlaybackController.stopParse()
+        }
+
+        override fun initParseLoadFound() {
+            this@PlaybackController.initParseLoadFound()
+        }
+
+        override fun setWebPlayUrl(url: String?) {
+            this@PlaybackController.setWebPlayUrl(url)
+        }
+
+        override fun setWebHeaderMap(headers: HashMap<String, String>?) {
+            this@PlaybackController.setWebHeaderMap(headers)
+        }
+
+        override fun startResolvePlayUrlTimeout() {
+            this@PlaybackController.startResolvePlayUrlTimeout()
+        }
+
+        override fun startSwitchLinePlayTimeout() {
+            this@PlaybackController.startSwitchLinePlayTimeout()
+        }
+
+        override fun invalidatePreload() {
+            this@PlaybackController.invalidatePreload()
+        }
+
+        override fun syncDecodeFromGlobal() {
+            config.syncDecodeFromGlobal()
+        }
+
+        override fun preloadConsumeResult(key: String?): Boolean = preload.consumeResult(key)
+
+        override fun sourceViewModel(): SourceViewModel? = fetch.sourceViewModel()
+
+        override fun resolverNextGen() {
+            resolver.nextGen()
+        }
+
+        override fun resolverCurrentGen(): Int = resolver.currentGen()
+
+        override fun resolverIsParseResultCurrent(gen: Int): Boolean = resolver.isParseResultCurrent(gen)
+
+        override fun resolverCancelParseTimeout() {
+            resolver.cancelParseTimeout()
+        }
+    })
+
+    fun play(reset: Boolean) {
+        starter.play(reset)
     }
 
-    private fun isIdleKernelReusable(kernelPresent: Boolean): Boolean {
-        if (!kernelPresent) return false
-        return view!!.playState() == PlayState.IDLE
-    }
-
-    fun isCrossContentReuseAllowed(): Boolean {
-        val bridge = view ?: return false
-        if (bridge.mediaPlayer() == null) return false
-        return !bridge.isKernelErrored()
-    }
-
-    private fun savePreviousContentProgress() {
-        val bridge = view ?: return
-        if (TextUtils.isEmpty(progressKey())) return
-        val position = bridge.currentPosition()
-        if (position <= 0) return
-        WatchProgressStore.save(progressOwner(), progressKey(), position, bridge.duration())
-    }
+    fun isCrossContentReuseAllowed(): Boolean = starter.isCrossContentReuseAllowed()
 
     private fun playUrl(gen: Int, url: String, headers: HashMap<String, String>?) {
-        if (!resolver.isParseResultCurrent(gen)) {
-            LOG.i("echo-ignore stale parse result")
-            return
-        }
-        playUrlGeneration = gen
-        playUrl(url, headers)
+        starter.playUrl(gen, url, headers)
     }
 
     fun playUrl(url: String, headers: HashMap<String, String>?) {
-        startSwitchLinePlayTimeout()
-        val target = attachProxySiteKey(url)
-        if (!target.startsWith("data:application")) {
-            EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_REFRESH, target))
-        }
-        if (!KV.get(HawkConfig.M3U8_PURIFY, false)) {
-            goPlayUrl(target, headers)
-            return
-        }
-        if (target.startsWith("http://127.0.0.1") || !target.contains(".m3u8")) {
-            goPlayUrl(target, headers)
-            return
-        }
-        if (vod() != null && DefaultConfig.noAd(vod()!!.playFlag)) {
-            goPlayUrl(target, headers)
-            return
-        }
-        LOG.i("echo-playM3u8:" + target)
-        view?.playM3u8(target, headers, playUrlGeneration)
-        setWebPlayUrl(target)
+        starter.playUrl(url, headers)
     }
 
     fun goPlayUrl(url: String, headers: HashMap<String, String>?) {
-        LOG.i("echo-goPlayUrl:" + url)
-        if (TextUtils.isEmpty(url)) {
-            handleResolvePlayUrlFailed(str(R.string.player_play_url_empty))
-            return
-        }
-        val bridge = view
-        if (bridge == null || !bridge.isPageAlive()) return
-        playUrlGeneration = resolver.currentGen()
-        val finalUrl = url
-        bridge.runOnUi(Runnable {
-            if (st.switchStopPending) {
-                LOG.i("echo-ignore goPlayUrl while source switching")
-                return@Runnable
-            }
-            if (playUrlGeneration != resolver.currentGen()) {
-                LOG.i("echo-ignore goPlayUrl of stale parse result")
-                resolver.cancelParseTimeout()
-                return@Runnable
-            }
-            setWebPlayUrl(finalUrl)
-            stopParse()
-            if (view == null) return@Runnable
-            var targetUrl = finalUrl
-            try {
-                val playerType = playerCfg()!!.getInt("pl")
-                if (playerType >= 10) {
-                    view?.releasePlayer()
-                    val series = if (vod() == null || vod()!!.seriesMap == null) {
-                        null
-                    } else {
-                        vod()!!.seriesMap!![vod()!!.playFlag]
-                    }
-                    val vs = if (series == null || vod()!!.playIndex < 0 || vod()!!.playIndex >= series.size) {
-                        null
-                    } else {
-                        series[vod()!!.playIndex]
-                    }
-                    val playTitle = vod()!!.name + if (vs == null) "" else " " + vs.name
-                    view?.showTip(str(R.string.player_call_external_play, PlayerHelper.getPlayerName(playerType)), true, false)
-                    val progress = getSavedProgress(progressKey())
-                    val callResult = view?.playExternalPlayer(
-                        playerType, targetUrl, playTitle, playSubtitle(), headers, progress
-                    ) ?: false
-                    view?.showTip(
-                        str(
-                            R.string.player_call_external_result,
-                            PlayerHelper.getPlayerName(playerType),
-                            if (callResult) str(R.string.common_success) else str(R.string.common_failed)
-                        ),
-                        callResult,
-                        !callResult
-                    )
-                    return@Runnable
-                }
-            } catch (e: JSONException) {
-                LOG.e("PlaybackController", e)
-            }
-            setPlayTimeoutBasePosition(getSavedProgress(progressKey()))
-            val forceExoPlayer = targetUrl.startsWith("data:application/dash+xml;base64,")
-                || targetUrl.contains(".mpd") || targetUrl.contains("type=mpd")
-            if (targetUrl.startsWith("data:application/dash+xml;base64,")) {
-                view?.applyPlayerConfigToView(2)
-                App.getInstance()!!.setDashData(targetUrl.split("base64,")[1])
-                targetUrl = ControlManager.get().getAddress(true) + "dash/proxy.mpd"
-            } else if (targetUrl.contains(".mpd") || targetUrl.contains("type=mpd")) {
-                view?.applyPlayerConfigToView(2)
-            } else {
-                view?.applyPlayerConfigToView(0)
-            }
-            if (looksLikeAudioUrl(targetUrl)) {
-                view?.useTextureRenderForAudio()
-            }
-            view?.startVideoPlayback(targetUrl, headers, forceExoPlayer)
-        })
-    }
-
-    private fun attachProxySiteKey(url: String): String {
-        if (TextUtils.isEmpty(url) || TextUtils.isEmpty(sourceKey())) return url
-        if (!url.startsWith(ControlManager.get().getAddress(true) + "proxy?")) return url
-        if (url.contains("siteKey=")) return url
-        return try {
-            url + (if (url.contains("?")) "&" else "?") + "siteKey=" + URLEncoder.encode(sourceKey(), "UTF-8")
-        } catch (th: Throwable) {
-            url + (if (url.contains("?")) "&" else "?") + "siteKey=" + sourceKey()
-        }
+        starter.goPlayUrl(url, headers)
     }
 
     private val preload: PlaybackPreload = PlaybackPreload(object : PlaybackPreload.Host {
