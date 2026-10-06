@@ -136,7 +136,18 @@ dependencies {
     implementation(libs.mmkv)
     implementation(libs.danmaku.flame.master)
 
-    implementation(project(":player"))
+    // media3 播放内核(M10 起由本模块直接声明,此前经 :player 模块的 api 传递)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.dash)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.exoplayer.rtsp)
+    implementation(libs.media3.datasource)
+    // rtmp 扩展:DefaultDataSource 反射加载 RtmpDataSource;其自带的 io.antmedia:rtmp-client 由下方 exclude 换成本地 16KB 版
+    implementation(libs.media3.datasource.rtmp)
+    implementation(libs.media3.database)
+    implementation(libs.media3.ui)
+    // jellyfin ffmpeg 软解:DefaultRenderersFactory 反射发现 FfmpegAudioRenderer
+    implementation(libs.media3.ffmpeg.decoder)
     // 画质参数(调色)的着色器效果:ExoPlayer#setVideoEffects 在运行期反射查找效果模块,必须打进包
     implementation(libs.media3.effect)
     implementation(project(":quickjs"))

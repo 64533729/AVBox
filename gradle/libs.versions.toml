@@ -44,7 +44,6 @@ desugarJdkLibs = "2.1.5"
 media3 = "1.11.1"
 media3FfmpegDecoder = "1.9.0+1"
 androidxAnnotation = "1.11.0"
-dkplayerUi = "3.3.7"
 quickjsWrapper = "3.2.3"
 composeBom = "2026.09.00"
 material3 = "1.5.0-alpha29"
@@ -108,7 +107,6 @@ media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "medi
 # 画质参数(调色):ExoPlayer#setVideoEffects 要求效果模块在运行期类路径上,且版本必须与其他 media3 一致
 media3-effect = { group = "androidx.media3", name = "media3-effect", version.ref = "media3" }
 media3-ffmpeg-decoder = { group = "org.jellyfin.media3", name = "media3-ffmpeg-decoder", version.ref = "media3FfmpegDecoder" }
-dkplayer-ui = { group = "xyz.doikki.android.dkplayer", name = "dkplayer-ui", version.ref = "dkplayerUi" }
 quickjs-wrapper-android = { group = "wang.harlon.quickjs", name = "wrapper-android", version.ref = "quickjsWrapper" }
 quickjs-wrapper-java = { group = "wang.harlon.quickjs", name = "wrapper-java", version.ref = "quickjsWrapper" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidxActivityCompose" }

@@ -29,6 +29,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 14+ 带类型前台服务必需：mediaPlayback 类型服务的专用权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- PlaybackService 的 PARTIAL_WAKE_LOCK(原由 player 模块清单声明,M10 拆除后归位此处) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Android 13+ 通知为运行时权限:清单声明之外,还须 PermissionHelper.requestNotificationIfNeeded 显式申请 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 17(API 37)起,targetSdk 37+ 的应用访问局域网(投屏/DLNA、clan://<ip>)被默认屏蔽,

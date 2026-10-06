@@ -104,7 +104,6 @@ updates:
           - "org.jsoup:*"
           - "commons-io:*"
           - "com.googlecode.juniversalchardet:*"
-          - "xyz.doikki.android.dkplayer:*"
           - "wang.harlon.quickjs:*"
           - "javax.*"
     commit-message:

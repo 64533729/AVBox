@@ -35,7 +35,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "AVBox"
 include(":app")
-include(":player")
 include(":quickjs")
 include(":pyramid")
 include(":libs:backdrop")
