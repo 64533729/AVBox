@@ -173,6 +173,36 @@ class HttpTest {
     }
 
     @Test
+    fun getRaw_throwsHttpExceptionForServerError() = runBlocking {
+        try {
+            Http.executeRawWithRetry(request(), clientReturning(503, "unavailable"))
+            fail("expected HttpException")
+        } catch (e: HttpException) {
+            assertEquals(503, e.code)
+        }
+    }
+
+    @Test
+    fun getRaw_retriesSocketTimeoutUpToFourAttempts() = runBlocking {
+        val attempts = AtomicInteger()
+        val client = OkHttpClient.Builder().addInterceptor {
+            attempts.incrementAndGet()
+            throw SocketTimeoutException("read timed out")
+        }.build()
+        try {
+            Http.executeRawWithRetry(request(), client)
+            fail("expected SocketTimeoutException")
+        } catch (e: SocketTimeoutException) {
+        }
+        assertEquals(4, attempts.get())
+    }
+
+    @Test
+    fun getRaw_returnsEmptyBody() = runBlocking {
+        assertEquals(0, Http.executeRawWithRetry(request(), clientReturning(200, "")).body.size)
+    }
+
+    @Test
     fun get_cancelPropagatesCancellationWithoutOtherFailure() = runBlocking {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
