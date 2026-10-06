@@ -16,6 +16,7 @@ import com.github.tvbox.osc.player.state.PlaybackStateMachine
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
+import kotlinx.coroutines.flow.StateFlow
 
 class ExoPlayer(context: Context) : KernelPlayer() {
 
@@ -24,6 +25,12 @@ class ExoPlayer(context: Context) : KernelPlayer() {
     private var engine: PlayerEngine? = null
 
     val stateMachine = PlaybackStateMachine()
+
+    override val playState: PlayState
+        get() = stateMachine.currentState
+
+    override val stateFlow: StateFlow<PlayState>
+        get() = stateMachine.state
 
     private var onCuesListener: OnCuesListener? = null
 

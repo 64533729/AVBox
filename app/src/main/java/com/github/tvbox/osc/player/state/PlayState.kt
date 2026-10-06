@@ -26,6 +26,19 @@ enum class PlayState {
     START_ABORT,
     ;
 
+    fun toLegacy(): Int = when (this) {
+        ERROR -> -1
+        IDLE -> 0
+        PREPARING -> 1
+        PREPARED -> 2
+        PLAYING -> 3
+        PAUSED -> 4
+        COMPLETED -> 5
+        BUFFERING -> 6
+        BUFFERED -> 7
+        START_ABORT -> 8
+    }
+
     companion object {
 
         fun fromLegacy(state: Int): PlayState = when (state) {

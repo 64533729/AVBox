@@ -32,6 +32,13 @@ class PlayStateTest {
     }
 
     @Test
+    fun toLegacyMirrorsLegacyConstants() {
+        for (value in -1..8) {
+            assertEquals(value, PlayState.fromLegacy(value).toLegacy())
+        }
+    }
+
+    @Test
     fun enumMembersArePinned() {
         assertEquals(
             listOf("IDLE", "PREPARING", "PREPARED", "PLAYING", "PAUSED", "COMPLETED", "BUFFERING", "BUFFERED", "ERROR", "START_ABORT"),

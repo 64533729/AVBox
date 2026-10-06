@@ -70,7 +70,8 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected var mCurrentPosition = 0L
 
-    protected var mCurrentPlayState = STATE_IDLE
+    protected val mCurrentPlayState: Int
+        get() = mMediaPlayer?.playState?.toLegacy() ?: STATE_IDLE
 
     private var mPausedBeforeSeek = false
 
@@ -268,12 +269,13 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun release() {
+        val hadActiveState = !isInIdleState()
         mPausedBeforeSeek = false
         mAudioFocusHelper?.abandonFocus()
         mAudioFocusHelper = null
         mMediaPlayer?.release()
         mMediaPlayer = null
-        if (!isInIdleState()) {
+        if (hadActiveState) {
             mRenderView?.let { render ->
                 mPlayerContainer.removeView(render.getView())
                 render.release()
@@ -498,7 +500,6 @@ open class AppPlayerView @JvmOverloads constructor(
     open fun setMute(isMute: Boolean) = Unit
 
     protected fun setPlayState(playState: Int) {
-        mCurrentPlayState = playState
         mVideoController?.setPlayState(playState)
         mOnStateChangeListeners?.let { listeners ->
             for (listener in it2snapshot(listeners)) {

@@ -2,6 +2,8 @@ package com.github.tvbox.osc.player
 
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.github.tvbox.osc.player.state.PlayState
+import kotlinx.coroutines.flow.StateFlow
 
 abstract class KernelPlayer {
 
@@ -55,6 +57,10 @@ abstract class KernelPlayer {
     open fun resetTrackSelection() {}
 
     abstract val isPlaying: Boolean
+
+    abstract val playState: PlayState
+
+    abstract val stateFlow: StateFlow<PlayState>
 
     abstract fun seekTo(time: Long)
 

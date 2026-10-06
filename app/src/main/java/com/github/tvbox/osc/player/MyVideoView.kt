@@ -67,7 +67,7 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
     }
 
     val playState: PlayState
-        get() = exoPlayer?.stateMachine?.currentState ?: PlayState.IDLE
+        get() = mMediaPlayer?.playState ?: PlayState.IDLE
 
     fun isKernelErrored(): Boolean = mMediaPlayer != null && playState == PlayState.ERROR
 
