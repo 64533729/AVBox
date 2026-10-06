@@ -268,14 +268,14 @@ class SortLoader(
                         }
 
                         override fun onResponse(call: Call, response: okhttp3.Response) {
-                            try {
-                                response.use {
-                                    cont.resume(it.body.string())
-                                }
+                            val body = try {
+                                response.use { it.body.string() }
                             } catch (e: IOException) {
                                 LOG.i("echo--getSort-post-fail:" + sourceKey + " ex=" + e)
                                 cont.resumeWithException(e)
+                                return
                             }
+                            cont.resume(body)
                         }
                     })
                 }

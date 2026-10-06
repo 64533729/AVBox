@@ -107,7 +107,7 @@ class SubtitleViewModel : ViewModel() {
                 params("page", page.toString())
                 params("no_redir", "1")
             }
-            withContext(Dispatchers.IO) {
+            val parsedPagesTotal = withContext(Dispatchers.IO) {
                 try {
                     val doc = Jsoup.parse(content)
                     val items = doc.select(".resultcard .sublist_box_title a.introtitle")
@@ -127,13 +127,15 @@ class SubtitleViewModel : ViewModel() {
                     if (pages.size > 0) {
                         val ps = pages.last()!!.text().split("/", limit = 2)
                         if (ps.size == 2 && !TextUtils.isEmpty(ps[1])) {
-                            pagesTotal = ps[1].trim { it <= ' ' }.toInt()
-                        }
-                    }
+                            ps[1].trim { it <= ' ' }.toInt()
+                        } else -1
+                    } else -1
                 } catch (th: Throwable) {
                     LOG.e("SubtitleViewModel", th)
+                    -1
                 }
             }
+            if (parsedPagesTotal > 0) pagesTotal = parsedPagesTotal
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
