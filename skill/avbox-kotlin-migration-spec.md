@@ -772,12 +772,14 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 | --- | --- | --- |
 | `0db00b04…`（1.86 MB / 3772 类） | 全功能爬虫 jar | 109 个 `com.github.catvod.spider.*`（含 `PanAli/PanQuark/PanUC/PanTianyi/PanXunlei/QuarkPan/UCPan` 等网盘源）、`spider.Init`、`spider.Proxy`、`js.Function`、`parser.{JsonBasic,JsonParallel,JsonSequence,MixDemo,MixWeb}`、`spider.Danmu` |
 | `b8f0b528…`（1.0 MB / 139 类） | wexguard 加固的网盘/媒体 jar | `spider.Init`、`spider.Proxy`、**`WebDAVGuard`、`AListGuard`、`SambaGuard`、`Emby*`**、`DexNative` + `assets/{wexguard_v7.so,wexguard_v8.so,wexshinidie.guard}` |
+| `源码/1.jar`（4.1 MB / 1413 类） | FishGuard 加固的全功能 jar | 96 个 `com.github.catvod.spider.*`（`AList`、`Pan115/Pan123/PanWebShare*`、`Quark`、`UC`、`XunleiPan`、`TianYi`、`Cloud`、`Bili`、`Libvio`、`XPath*`…）、`spider.Init`/`InitOrigin`/`Proxy`/`ProxyOrigin`、`js.Method`、`utils.FishNative` + `assets/FishGuard-{v7,v8}.so`；**无 `spider.Danmaku`** |
 
-- **jar 对宿主的继承关系实测只有一条**：`Superclass: Lcom/github/catvod/crawler/Spider;`（两 jar 共 111 个 spider 类全部如此），**没有任何 jar 类实现宿主接口、也没有别的宿主父类** ⇒ 全仓只有 `Spider` 必须保持非 final。
+- **jar 对宿主的继承关系实测只有一条**：`Superclass: Lcom/github/catvod/crawler/Spider;`（三个 jar 共 179 个 spider 类全部如此），**没有任何 jar 类实现宿主接口、也没有别的宿主父类** ⇒ 全仓只有 `Spider` 必须保持非 final。
+- **`源码/1.jar` 的 Tier A 引用面是三个 jar 的交集子集**（`Spider.<init>()V`、`Spider.init(Context,String)V`、`SpiderDebug.log(String)V`、`SpiderDebug.log(Throwable)V`），无 `Lcom/github/tvbox/osc/*` 反向引用 ⇒ 三 jar 独立复核一致。
 - **jar 引用的 `Spider` 成员（14 项）**：`<init>()V`、`init(Context)V`、`init(Context,String)V`、`initApi(SpiderApi)V`、`safeDns()Lokhttp3/Dns;`（静态）、`homeContent(Z)String`、`homeVideoContent()String`、`categoryContent(String,String,Z,HashMap)String`、`detailContent(List)String`、`searchContent(String,Z)String`、`searchContent(String,Z,String)String`、`playerContent(String,String,List)String`、`action(String)String`、`destroy()V`。
 - **jar 引用的 `SpiderApi`（5 项）**：`getAddress(Z)String`、`getPort()String`、`log(String)V`、`multiReq(JsonArray)String`、`webParse(String,String)String`。
 - **jar 引用的 `SpiderDebug`（2 项）**：`log(String)V`、`log(Throwable)V`。
-- **⚠️ 设备上两个 jar 都没有 `com.github.catvod.spider.Danmaku`**（只有 `spider.Danmu`，那是数据类不是 UI 钩子）⇒ 计划要求的「带 danmaku 的 jar」**当前不具备**，`JarLoader.hasDanmuSearchUi()`/`searchDanmuUi()` 这条反射链**无法用现有 jar 回归**（见未验证面）。
+- **⚠️ 三个 jar 都没有 `com.github.catvod.spider.Danmaku`**（设备 jar A 只有 `spider.Danmu`，那是站点类不是 UI 钩子；`源码/1.jar` 只有站点自带的 `HonHonDanmu`/`DanmuApi` 内部实现，dex 里既无该类定义也无类型引用）。**这个钩子是上游 TVBox 的约定**（`示例文件/上游项目/.../crawler/JarLoader.java:137` 与本项目 `JarLoader.invokeDanmaku` 逐字相同）⇒ 只有 TVBox 血统的 jar 才可能有，fongmi 血统没有。**已备契约桩 jar**：`日志/danmaku-stub/Danmaku.jar`（`javac` + `d8` 打的 dex-in-jar，1.5 KB；`com.github.catvod.spider.Danmaku` 的 `onClick`/`onLongClick` 经 `dexdump` 实测为 `PUBLIC STATIC`，正是 `getMethod(name, String.class, String.class)` + `invoke(null, …)` 需要的形态）—— 真机上拿它当某站点的 `jar` 即可验通这条反射链。
 
 ## 登记的产物差异（debug 侧；全部为 Kotlin 必然产物或已证明等价的改写）
 
@@ -827,7 +829,7 @@ fromTopBand=false|UNDECIDED -> 2 次 ← 位移未越起判阈值
 
 1. **真机走查未做**（本轮只做只读抓取，未安装、未启动界面）：需在设备上验证 `jar 源 / js 源 / py 源` 各开一次，含搜索、分类、详情、播放、直播、DLNA、代理（`/proxy`）。
 2. **`assembleRelease` 未跑**（需用户明确许可）：契约层的 release 侧 `javap`（R8/keep 覆盖）**只做了 debug 侧**。计划 §7.1 规则 j 要求 debug + release 各一次 ⇒ 这一半**空缺**。
-3. **danmaku 反射链无 jar 可验**：设备上两个 jar 都没有 `com.github.catvod.spider.Danmaku`，`JarLoader.hasDanmuSearchUi()`/`searchDanmuUi()` 只能在拿到带弹幕的 jar 后再验。
+3. **danmaku 反射链**：三个 jar 都没有 `com.github.catvod.spider.Danmaku` ⇒ **已改为用契约桩 jar 验**（`日志/danmaku-stub/Danmaku.jar`，形态已 `dexdump` 实证）。真机上把它挂成某站点的 `jar`，进播放器点/长按弹幕搜索按钮，应看到 `DanmakuStub` 的 toast + `JarLoader.hasDanmuSearchUi()` 为 true。**该链真机未跑。**
 4. **wexguard 加固 jar 的 native 解密路径**（`assets/wexguard_*.so` + `DexNative`）未在真机验证。
 5. **`spider.Danmu`（数据类）与 `PanWebShare*` 等网盘源的真实调用**未验（需真实站点与账号）。
 6. **`OkHttp.reset()/resetClient()` 的 Class 锁在 release 混淆下**未验（debug 侧已确证锁对象一致）。
