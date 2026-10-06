@@ -193,7 +193,7 @@ class PlayLoader(
     ) {
         val extend = SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
 
-        val request = SourceHelper.siteGet(sourceBean)
+        val request = SourceHelper.siteGetRequest(sourceBean)
             .tag(requestTag)
             .params("play", requestUrl)
             .params("flag", playFlag)

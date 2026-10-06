@@ -9,25 +9,25 @@ import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.AbsJson
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
+import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.thunder.Thunder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
 import java.util.ArrayList
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 class PushDetailResolver(private val gson: Gson, private val detailResult: SourceChannel<AbsXml?>) {
 
-    fun checkPush(data: AbsXml): AbsXml {
+    suspend fun checkPush(data: AbsXml): AbsXml {
         val videoList = data.movie?.videoList
         if (videoList != null && videoList.size > 0) {
             val video = videoList[0]
@@ -51,76 +51,9 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                                     pushUrl = URLDecoder.decode(pushUrl)
                                 }
 
-                                val resData = arrayOfNulls<AbsXml>(1)
+                                val sb = ApiConfig.get().getSource("push_agent")
+                                val res = if (sb == null) null else fetchPushDetail(sb, pushUrl)
 
-                                val countDownLatch = CountDownLatch(1)
-                                val threadPool = Executors.newSingleThreadExecutor()
-                                val finalPushUrl = pushUrl
-                                threadPool.execute(Runnable {
-                                    val sb = ApiConfig.get().getSource("push_agent")
-                                    if (sb == null) {
-                                        countDownLatch.countDown()
-                                        return@Runnable
-                                    }
-                                    if (sb.type == 4) {
-                                        SourceHelper.siteGet(sb)
-                                            .tag("detail")
-                                            .params("ac", "detail")
-                                            .params("ids", finalPushUrl)
-                                            .execute(object : AbsCallback<String>() {
-                                                override fun convertResponse(response: okhttp3.Response): String {
-                                                    val body = response.body
-                                                    return if (body != null) body.string() else ""
-                                                }
-
-                                                override fun onSuccess(response: Response<String>) {
-                                                    val res = response.body()
-                                                    if (!TextUtils.isEmpty(res)) {
-                                                        try {
-                                                            val absJson = gson.fromJson<AbsJson>(res, object : TypeToken<AbsJson>() {}.type)
-                                                            resData[0] = absJson.toAbsXml()
-                                                            SourceHelper.absXml(resData[0]!!, sb.key)
-                                                        } catch (e: Exception) {
-                                                            LOG.e("SourceViewModel", e)
-                                                        }
-                                                    }
-                                                    countDownLatch.countDown()
-                                                }
-
-                                                override fun onError(response: Response<String>) {
-                                                    super.onError(response)
-                                                    countDownLatch.countDown()
-                                                }
-                                            })
-                                    } else {
-                                        try {
-                                            val sp = ApiConfig.get().getCSP(sb)
-                                            val ids = ArrayList<String>()
-                                            ids.add(finalPushUrl)
-                                            val res = sp.detailContent(ids)
-                                            if (!TextUtils.isEmpty(res)) {
-                                                try {
-                                                    val absJson = gson.fromJson<AbsJson>(res, object : TypeToken<AbsJson>() {}.type)
-                                                    resData[0] = absJson.toAbsXml()
-                                                    SourceHelper.absXml(resData[0]!!, sb.key)
-                                                } catch (e: Exception) {
-                                                    LOG.e("SourceViewModel", e)
-                                                }
-                                            }
-                                        } catch (th: Throwable) {
-                                            LOG.e("SourceViewModel", th)
-                                        }
-                                        countDownLatch.countDown()
-                                    }
-                                })
-                                try {
-                                    countDownLatch.await(15, TimeUnit.SECONDS)
-                                } catch (e: InterruptedException) {
-                                    LOG.e("SourceViewModel", e)
-                                } finally {
-                                    threadPool.shutdown()
-                                }
-                                val res = resData[0]
                                 if (res != null) {
                                     val resVideoList = res.movie?.videoList
                                     if (resVideoList != null && resVideoList.size > 0) {
@@ -151,6 +84,45 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
             }
         }
         return data
+    }
+
+    private suspend fun fetchPushDetail(sourceBean: SourceBean, pushUrl: String): AbsXml? {
+        return try {
+            if (sourceBean.type == 4) {
+                withTimeoutOrNull(PUSH_DETAIL_TIMEOUT_MS) {
+                    val res = SourceHelper.siteGet(sourceBean) {
+                        params("ac", "detail")
+                        params("ids", pushUrl)
+                    }
+                    if (TextUtils.isEmpty(res)) null else parsePushDetail(res, sourceBean.key)
+                }
+            } else {
+                val res = withContext(Dispatchers.IO) {
+                    val sp = ApiConfig.get().getCSP(sourceBean)
+                    val ids = ArrayList<String>()
+                    ids.add(pushUrl)
+                    sp.detailContent(ids)
+                }
+                if (TextUtils.isEmpty(res)) null else parsePushDetail(res, sourceBean.key)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (th: Throwable) {
+            LOG.e("SourceViewModel", th)
+            null
+        }
+    }
+
+    private fun parsePushDetail(res: String?, sourceKey: String?): AbsXml? {
+        return try {
+            val absJson = gson.fromJson<AbsJson>(res, object : TypeToken<AbsJson>() {}.type)
+            val data = absJson.toAbsXml()
+            SourceHelper.absXml(data, sourceKey)
+            data
+        } catch (e: Exception) {
+            LOG.e("SourceViewModel", e)
+            null
+        }
     }
 
     fun checkThunder(data: AbsXml, index: Int) {
@@ -224,6 +196,8 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
     }
 
     companion object {
+
+        private const val PUSH_DETAIL_TIMEOUT_MS = 15_000L
 
         private fun str(resId: Int, vararg args: Any?): String {
             val app = App.getInstance()

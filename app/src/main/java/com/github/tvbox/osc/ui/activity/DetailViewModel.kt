@@ -19,7 +19,6 @@ import com.github.tvbox.osc.util.HistoryWriter
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.SearchHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
-import com.lzy.okgo.OkGo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -431,9 +430,7 @@ class DetailViewModel : ViewModel() {
                             pendingSearchDone.put(bean.key.orEmpty(), done)?.complete(Unit)
                             try {
                                 withTimeoutOrNull(SOURCE_SEARCH_TIMEOUT_MS) {
-                                    withContext(Dispatchers.IO) {
-                                        searchCaller.getSearch(bean.key, title, tokenStr)
-                                    }
+                                    searchCaller.getSearch(bean.key, title, tokenStr)
                                     done.await()
                                 }
                             } finally {
@@ -609,7 +606,7 @@ class DetailViewModel : ViewModel() {
             detailTimeoutScheduled = false
             if (fallbackLoadingCandidate) {
                 fallbackLoadingCandidate = false
-                OkGo.getInstance().cancelTag("detail")
+                sourceViewModel.cancelDetail()
                 loadNextFallbackCandidate()
             }
         }, DETAIL_FALLBACK_DETAIL_TIMEOUT_MS)
@@ -672,8 +669,8 @@ class DetailViewModel : ViewModel() {
 
     fun destroyEngine() {
         cancelDetailTimeout()
-        OkGo.getInstance().cancelTag("detail")
-        OkGo.getInstance().cancelTag("search")
+        sourceViewModel.cancelDetail()
+        searchCaller.cancelSearch()
     }
 
     private fun candidateKey(video: Movie.Video): String =

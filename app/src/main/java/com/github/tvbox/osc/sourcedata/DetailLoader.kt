@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.sourcedata
 
-import android.os.Looper
 import android.util.Base64
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsXml
@@ -9,8 +8,9 @@ import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
 import java.util.ArrayList
@@ -24,23 +24,15 @@ class DetailLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    fun getDetail(sourceKey: String?, urlid: String) {
+    suspend fun getDetail(sourceKey: String?, urlid: String) {
         getDetail(sourceKey, urlid, false)
     }
 
-    fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean) {
+    suspend fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean) {
         getDetail(sourceKey, urlid, fallback, null)
     }
 
-    fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean, requestToken: Int?) {
-        if (Looper.myLooper() === Looper.getMainLooper()) {
-            val key = sourceKey
-            val id = urlid
-            SourceHelper.PREPARE_POOL.execute {
-                getDetail(key, id, fallback, requestToken)
-            }
-            return
-        }
+    suspend fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean, requestToken: Int?) {
         var key = sourceKey
         var id = urlid
         if (id.startsWith("push://") && ApiConfig.get().getSource(PushUrlParser.PUSH_AGENT) != null) {
@@ -80,9 +72,8 @@ class DetailLoader(
         }
     }
 
-    private fun getDetailFromSpider(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
-
-        SourceHelper.SPIDER_POOL.execute {
+    private suspend fun getDetailFromSpider(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
+        withContext(Dispatchers.IO) {
             val json = BoundedCall.call(Callable<String> {
                 val sp = ApiConfig.get().getCSP(sourceBean)
                 val ids = ArrayList<String>()
@@ -98,45 +89,38 @@ class DetailLoader(
         }
     }
 
-    private fun getDetailFromApi(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
+    private suspend fun getDetailFromApi(sourceBean: SourceBean, id: String, fallback: Boolean, requestToken: Int?) {
         val type = sourceBean.type
 
-        val extend = if (fallback) {
-            SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, 6L)
-        } else {
-            SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
-        }
-
-        val request = SourceHelper.siteGet(sourceBean)
-            .tag("detail")
-            .params("ac", if (type == 0) "videolist" else "detail")
-            .params("ids", id)
-        if (extend != null && !extend.isEmpty()) {
-            request.params("extend", extend)
-        }
-        request.execute(object : AbsCallback<String>() {
-
-            override fun convertResponse(response: okhttp3.Response): String {
-                val body = response.body
-                return if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)
+        val extend = withContext(Dispatchers.IO) {
+            if (fallback) {
+                SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, 6L)
+            } else {
+                SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
             }
+        }
 
-            override fun onSuccess(response: Response<String>) {
-                if (type == 0) {
-                    val xml = response.body()
-                    resultParser.xml(detailResult, xml, sourceBean.key, "", requestToken)
-                } else {
-                    val json = response.body()
-                    LOG.i(json)
-                    resultParser.json(detailResult, json, sourceBean.key, "", requestToken)
+        try {
+            val body = SourceHelper.siteGet(sourceBean) {
+                params("ac", if (type == 0) "videolist" else "detail")
+                params("ids", id)
+                if (extend != null && extend.isNotEmpty()) {
+                    params("extend", extend)
                 }
             }
-
-            override fun onError(response: Response<String>) {
-                super.onError(response)
-                resultParser.json(detailResult, "", sourceBean.key, "", requestToken)
+            withContext(Dispatchers.IO) {
+                if (type == 0) {
+                    resultParser.xml(detailResult, body, sourceBean.key, "", requestToken)
+                } else {
+                    LOG.i(body)
+                    resultParser.json(detailResult, body, sourceBean.key, "", requestToken)
+                }
             }
-        })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            withContext(Dispatchers.IO) { resultParser.json(detailResult, "", sourceBean.key, "", requestToken) }
+        }
     }
 
     private fun createEmptyDetail(sourceKey: String?, requestToken: Int?): AbsXml {

@@ -2,14 +2,19 @@ package com.github.tvbox.osc.sourcedata
 
 import android.text.TextUtils
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 
 import com.github.tvbox.osc.bean.Subtitle
 import com.github.tvbox.osc.bean.SubtitleData
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.OkGoHelper
 import com.github.tvbox.osc.util.SubtitleFilePicker
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.AbsCallback
+import com.github.tvbox.osc.util.net.Http
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import org.jsoup.Jsoup
 
@@ -31,18 +36,17 @@ class SubtitleViewModel : ViewModel() {
         fun loadSubtitle(subtitle: Subtitle)
     }
 
-    private fun interface FilesCallback {
-        fun onFiles(files: List<Subtitle>?, error: Boolean)
-    }
-
     val searchResult = SourceChannel<SubtitleData?>()
 
     fun searchResult(title: String?, page: Int) {
-        searchResultFromAssrt(title, page)
+        viewModelScope.launch { searchResultFromAssrt(title, page) }
     }
 
     fun getSearchResultSubtitleUrls(subtitle: Subtitle) {
-        getSearchResultSubtitleUrlsFromAssrt(subtitle)
+        viewModelScope.launch {
+            val (files, error) = fetchSubtitleFiles(subtitle)
+            setSearchListData(files, true, error)
+        }
     }
 
     fun getSubtitleUrl(subtitle: Subtitle, subtitleLoader: SubtitleLoader) {
@@ -55,22 +59,23 @@ class SubtitleViewModel : ViewModel() {
             if (onFailed != null) onFailed.run()
             return
         }
-        val release = Subtitle()
-        release.url = releaseUrl
-        getSearchResultSubtitleUrlsFromAssrt(release, FilesCallback { files, error ->
+        viewModelScope.launch {
+            val release = Subtitle()
+            release.url = releaseUrl
+            val (files, error) = fetchSubtitleFiles(release)
             if (error || files == null || files.isEmpty()) {
                 if (onFailed != null) onFailed.run()
-                return@FilesCallback
+                return@launch
             }
             val names = ArrayList<String>()
             for (item in files) names.add(item.name ?: "")
             val index = SubtitleFilePicker.pick(names, episodeName, fileNameHint)
             if (index < 0) {
                 if (onFailed != null) onFailed.run()
-                return@FilesCallback
+                return@launch
             }
             getSubtitleUrlFromAssrt(files[index], onPicked, onFailed)
-        })
+        }
     }
 
     private fun setSearchListData(data: List<Subtitle>?, isNew: Boolean, isZip: Boolean) {
@@ -88,7 +93,7 @@ class SubtitleViewModel : ViewModel() {
 
     private var pagesTotal = -1
 
-    private fun searchResultFromAssrt(title: String?, page: Int) {
+    private suspend fun searchResultFromAssrt(title: String?, page: Int) {
         try {
             if (pagesTotal > 0 && page > pagesTotal) {
                 setSearchListData(ArrayList(), page <= 1, true)
@@ -96,103 +101,85 @@ class SubtitleViewModel : ViewModel() {
             }
             if (page == 1) pagesTotal = -1
             val searchApiUrl = "https://secure.assrt.net/sub/"
-            OkGo.get<String>(searchApiUrl)
-                .params("searchword", title)
-                .params("sort", "rank")
-                .params("page", page)
-                .params("no_redir", "1")
-                .execute(object : AbsCallback<String>() {
-                    override fun onSuccess(response: com.lzy.okgo.model.Response<String>) {
-                        try {
-                            val content = response.body()
-                            val doc = Jsoup.parse(content)
-                            val items = doc.select(".resultcard .sublist_box_title a.introtitle")
-                            val data = ArrayList<Subtitle>()
-                            for (item in items) {
-                                val subtitleTitle = item.attr("title")
-                                val href = item.attr("href")
-                                if (TextUtils.isEmpty(href) || !containsSearchWord(subtitleTitle, title)) continue
-                                val one = Subtitle()
-                                one.name = subtitleTitle
-                                one.url = "https://assrt.net" + href
-                                one.isZip = true
-                                data.add(one)
-                            }
-                            setSearchListData(data, page <= 1, true)
-                            val pages = doc.select(".pagelinkcard a")
-                            if (pages.size > 0) {
-                                val ps = pages.last()!!.text().split("/", limit = 2)
-                                if (ps.size == 2 && !TextUtils.isEmpty(ps[1])) {
-                                    pagesTotal = ps[1].trim { it <= ' ' }.toInt()
-                                }
-                            }
-                        } catch (th: Throwable) {
-                            LOG.e("SubtitleViewModel", th)
+            val content = Http.get(searchApiUrl) {
+                params("searchword", title)
+                params("sort", "rank")
+                params("page", page.toString())
+                params("no_redir", "1")
+            }
+            withContext(Dispatchers.IO) {
+                try {
+                    val doc = Jsoup.parse(content)
+                    val items = doc.select(".resultcard .sublist_box_title a.introtitle")
+                    val data = ArrayList<Subtitle>()
+                    for (item in items) {
+                        val subtitleTitle = item.attr("title")
+                        val href = item.attr("href")
+                        if (TextUtils.isEmpty(href) || !containsSearchWord(subtitleTitle, title)) continue
+                        val one = Subtitle()
+                        one.name = subtitleTitle
+                        one.url = "https://assrt.net" + href
+                        one.isZip = true
+                        data.add(one)
+                    }
+                    setSearchListData(data, page <= 1, true)
+                    val pages = doc.select(".pagelinkcard a")
+                    if (pages.size > 0) {
+                        val ps = pages.last()!!.text().split("/", limit = 2)
+                        if (ps.size == 2 && !TextUtils.isEmpty(ps[1])) {
+                            pagesTotal = ps[1].trim { it <= ' ' }.toInt()
                         }
                     }
-
-                    override fun convertResponse(response: Response): String {
-                        return response.body.string()
-                    }
-
-                    override fun onError(response: com.lzy.okgo.model.Response<String>) {
-                        super.onError(response)
-                        setSearchListData(null, page <= 1, true)
-                    }
-                })
+                } catch (th: Throwable) {
+                    LOG.e("SubtitleViewModel", th)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             LOG.e("SubtitleViewModel", e)
+            setSearchListData(null, page <= 1, true)
         }
     }
 
     private val regexShooterFileOnclick = Pattern.compile("onthefly\\(\"(\\d+)\",\"(\\d+)\",\"([\\s\\S]*)\"\\)")
 
-    private fun getSearchResultSubtitleUrlsFromAssrt(subtitle: Subtitle) {
-        getSearchResultSubtitleUrlsFromAssrt(subtitle, FilesCallback { files, error ->
-            setSearchListData(files, true, error)
-        })
-    }
-
-    private fun getSearchResultSubtitleUrlsFromAssrt(subtitle: Subtitle, callback: FilesCallback) {
-        try {
-            val url = subtitle.url
-            OkGo.get<String>(url!!).execute(object : AbsCallback<String>() {
-                override fun onSuccess(response: com.lzy.okgo.model.Response<String>) {
-                    try {
-                        val content = response.body()
-                        val data = ArrayList<Subtitle>()
-                        val doc = Jsoup.parse(content)
-                        val items = doc.select("#detail-filelist .waves-effect")
-                        if (items.size > 0) {
-                            for (item in items) {
-                                val onclick = item.attr("onclick")
-                                if (TextUtils.isEmpty(onclick)) continue
-                                val matcher = regexShooterFileOnclick.matcher(onclick)
-                                if (matcher.find()) {
-                                    val fileName = matcher.group(3)
-                                    if (!isSupportedSubtitleFile(fileName)) continue
-                                    val downloadUrl = String.format("https://secure.assrt.net/download/%s/-/%s/%s", matcher.group(1), matcher.group(2), matcher.group(3))
-                                    val one = Subtitle()
-                                    val name = item.selectFirst("#filelist-name")
-                                    one.name = if (name == null) fileName else name.text()
-                                    one.url = downloadUrl
-                                    one.isZip = false
-                                    data.add(one)
-                                }
+    private suspend fun fetchSubtitleFiles(subtitle: Subtitle): Pair<List<Subtitle>?, Boolean> {
+        val url = subtitle.url ?: return null to true
+        return try {
+            val content = Http.get(url)
+            withContext(Dispatchers.IO) {
+                try {
+                    val data = ArrayList<Subtitle>()
+                    val doc = Jsoup.parse(content)
+                    val items = doc.select("#detail-filelist .waves-effect")
+                    if (items.size > 0) {
+                        for (item in items) {
+                            val onclick = item.attr("onclick")
+                            if (TextUtils.isEmpty(onclick)) continue
+                            val matcher = regexShooterFileOnclick.matcher(onclick)
+                            if (matcher.find()) {
+                                val fileName = matcher.group(3)
+                                if (!isSupportedSubtitleFile(fileName)) continue
+                                val downloadUrl = String.format("https://secure.assrt.net/download/%s/-/%s/%s", matcher.group(1), matcher.group(2), matcher.group(3))
+                                val one = Subtitle()
+                                val name = item.selectFirst("#filelist-name")
+                                one.name = if (name == null) fileName else name.text()
+                                one.url = downloadUrl
+                                one.isZip = false
+                                data.add(one)
                             }
-                            callback.onFiles(data, false)
+                        }
+                        data to false
+                    } else {
+                        val item = doc.selectFirst(".download a#btn_download")
+                        if (item == null) {
+                            null to false
                         } else {
-                            val item = doc.selectFirst(".download a#btn_download")
-                            if (item == null) {
-                                callback.onFiles(null, false)
-                                return
-                            }
                             val href = item.attr("href")
-                            if (TextUtils.isEmpty(href)) {
-                                callback.onFiles(null, false)
-                                return
-                            }
-                            if (isSupportedSubtitleFile(href)) {
+                            if (TextUtils.isEmpty(href) || !isSupportedSubtitleFile(href)) {
+                                null to false
+                            } else {
                                 val downloadUrl = "https://assrt.net" + href
                                 val one = Subtitle()
                                 val title = href.substring(href.lastIndexOf("/") + 1)
@@ -200,29 +187,20 @@ class SubtitleViewModel : ViewModel() {
                                 one.url = downloadUrl
                                 one.isZip = false
                                 data.add(one)
-                                callback.onFiles(data, false)
-                            } else {
-                                callback.onFiles(null, false)
+                                data to false
                             }
                         }
-                    } catch (th: Throwable) {
-                        LOG.e("SubtitleViewModel", th)
-                        callback.onFiles(null, true)
                     }
+                } catch (th: Throwable) {
+                    LOG.e("SubtitleViewModel", th)
+                    null to true
                 }
-
-                override fun convertResponse(response: Response): String {
-                    return response.body.string()
-                }
-
-                override fun onError(response: com.lzy.okgo.model.Response<String>) {
-                    super.onError(response)
-                    callback.onFiles(null, true)
-                }
-            })
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             LOG.e("SubtitleViewModel", e)
-            callback.onFiles(null, true)
+            null to true
         }
     }
 

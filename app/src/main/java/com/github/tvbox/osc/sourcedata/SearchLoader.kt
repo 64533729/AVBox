@@ -6,8 +6,9 @@ import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.UnsupportedEncodingException
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
@@ -19,15 +20,15 @@ class SearchLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    fun getSearch(sourceKey: String?, wd: String?) {
+    suspend fun getSearch(sourceKey: String?, wd: String?) {
         getSearch(sourceKey, wd, "")
     }
 
-    fun getSearch(sourceKey: String?, wd: String?, searchToken: String?) {
-        getSearch(sourceKey, wd, searchToken, searchResult, "search")
+    suspend fun getSearch(sourceKey: String?, wd: String?, searchToken: String?) {
+        getSearch(sourceKey, wd, searchToken, searchResult)
     }
 
-    private fun getSearch(sourceKey: String?, wd: String?, searchToken: String?, result: SourceChannel<AbsXml?>, requestTag: String?) {
+    private suspend fun getSearch(sourceKey: String?, wd: String?, searchToken: String?, result: SourceChannel<AbsXml?>) {
         val sourceBean = ApiConfig.get().getSource(sourceKey)
         if (sourceBean == null) {
             resultParser.postEmptySearchResult(result, sourceKey, searchToken)
@@ -37,101 +38,85 @@ class SearchLoader(
         if (type == 3) {
             searchFromSpider(sourceBean, wd, result, searchToken)
         } else if (type == 0 || type == 1) {
-            searchFromApi(sourceBean, wd, result, searchToken, requestTag)
+            searchFromApi(sourceBean, wd, result, searchToken)
         } else if (type == 4) {
-            searchFromExtendedApi(sourceBean, wd, result, searchToken, requestTag)
+            searchFromExtendedApi(sourceBean, wd, result, searchToken)
         } else {
             resultParser.postEmptySearchResult(result, sourceBean.key, searchToken)
         }
     }
 
-    private fun searchFromSpider(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
-
+    private suspend fun searchFromSpider(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
         try {
-            val sp = ApiConfig.get().getCSP(sourceBean)
-            val search = sp.searchContent(wd, false)
-            if (!TextUtils.isEmpty(search)) {
-                resultParser.json(result, search, sourceBean.key, searchToken)
-            } else {
-                resultParser.json(result, "", sourceBean.key, searchToken)
+            val search = withContext(Dispatchers.IO) {
+                ApiConfig.get().getCSP(sourceBean).searchContent(wd, false)
             }
+            withContext(Dispatchers.IO) {
+                if (!TextUtils.isEmpty(search)) {
+                    resultParser.json(result, search, sourceBean.key, searchToken)
+                } else {
+                    resultParser.json(result, "", sourceBean.key, searchToken)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (th: Throwable) {
             LOG.e("SourceViewModel", th)
-            resultParser.json(result, "", sourceBean.key, searchToken)
+            withContext(Dispatchers.IO) { resultParser.json(result, "", sourceBean.key, searchToken) }
         }
     }
 
-    private fun searchFromApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?, requestTag: String?) {
+    private suspend fun searchFromApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
         val type = sourceBean.type
 
-        SourceHelper.siteGet(sourceBean)
-            .params("wd", wd)
-            .params(if (type == 1) "ac" else null, if (type == 1) "detail" else null)
-            .tag(requestTag)
-            .execute(object : AbsCallback<String>() {
-                override fun convertResponse(response: okhttp3.Response): String {
-                    val body = response.body
-                    return if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)
+        try {
+            val body = SourceHelper.siteGet(sourceBean) {
+                params("wd", wd)
+                if (type == 1) {
+                    params("ac", "detail")
                 }
-
-                override fun onSuccess(response: Response<String>) {
-                    if (type == 0) {
-                        val xml = response.body()
-                        resultParser.xml(result, xml, sourceBean.key, searchToken)
-                    } else {
-                        val json = response.body()
-                        resultParser.json(result, json, sourceBean.key, searchToken)
-                    }
+            }
+            withContext(Dispatchers.IO) {
+                if (type == 0) {
+                    resultParser.xml(result, body, sourceBean.key, searchToken)
+                } else {
+                    resultParser.json(result, body, sourceBean.key, searchToken)
                 }
-
-                override fun onError(response: Response<String>) {
-                    super.onError(response)
-                    resultParser.postEmptySearchResult(result, sourceBean.key, searchToken)
-                }
-            })
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            resultParser.postEmptySearchResult(result, sourceBean.key, searchToken)
+        }
     }
 
-    private fun searchFromExtendedApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?, requestTag: String?) {
+    private suspend fun searchFromExtendedApi(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
 
-        SourceHelper.PREPARE_POOL.execute {
-            var extend = sourceBean.ext
-            extend = SourceHelper.getFixUrlDirect(extendCache, gson, extend)
+        val (extend, queryWd) = withContext(Dispatchers.IO) {
             var queryWd = wd
             try {
                 queryWd = URLEncoder.encode(queryWd, "UTF-8")
             } catch (e: UnsupportedEncodingException) {
                 LOG.e("SourceViewModel", e)
             }
+            SourceHelper.getFixUrlDirect(extendCache, gson, sourceBean.ext) to queryWd
+        }
 
-            val request = SourceHelper.siteGet(sourceBean)
-                .tag(requestTag)
-                .params("wd", queryWd)
-                .params("ac", "detail")
-                .params("quick", "false")
-            if (extend != null && !extend.isEmpty()) {
-                request.params("extend", extend)
+        try {
+            val body = SourceHelper.siteGet(sourceBean) {
+                params("wd", queryWd)
+                params("ac", "detail")
+                params("quick", "false")
+                if (extend != null && extend.isNotEmpty()) {
+                    params("extend", extend)
+                }
             }
-            request.execute(object : AbsCallback<String>() {
-                override fun convertResponse(response: okhttp3.Response): String {
-                    val body = response.body
-                    return if (body != null) body.string()
-                    else {
-                        LOG.i("echo-t4 search-网络请求错误")
-                        throw IllegalStateException(SourceHelper.ERR_NETWORK)
-                    }
-                }
-
-                override fun onSuccess(response: Response<String>) {
-                    val json = response.body()
-                    resultParser.json(result, json, sourceBean.key, searchToken)
-                }
-
-                override fun onError(response: Response<String>) {
-                    LOG.i("echo-t4 search-onError")
-                    super.onError(response)
-                    resultParser.postEmptySearchResult(result, sourceBean.key, searchToken)
-                }
-            })
+            withContext(Dispatchers.IO) { resultParser.json(result, body, sourceBean.key, searchToken) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.i("echo-t4 search-onError")
+            resultParser.postEmptySearchResult(result, sourceBean.key, searchToken)
         }
     }
 }

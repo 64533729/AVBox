@@ -11,6 +11,8 @@ import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
+import com.github.tvbox.osc.util.net.Http
+import com.github.tvbox.osc.util.net.HttpRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.lzy.okgo.OkGo
@@ -37,8 +39,17 @@ object SourceHelper {
     /** i18n: keep —— 只进日志(convertResponse → onError → LOG.i),无 UI 出口 */
     const val ERR_NETWORK = "网络请求错误"
 
+    suspend fun siteGet(sourceBean: SourceBean, init: HttpRequest.() -> Unit = {}): String {
+        return Http.get(sourceBean.api!!) {
+            for ((key, value) in sourceBean.header!!) {
+                headers(key, value)
+            }
+            init()
+        }
+    }
+
     @JvmStatic
-    fun siteGet(sourceBean: SourceBean): GetRequest<String> {
+    fun siteGetRequest(sourceBean: SourceBean): GetRequest<String> {
         val request = OkGo.get<String>(sourceBean.api!!)
         for ((key, value) in sourceBean.header!!) {
             request.headers(key, value)

@@ -8,6 +8,10 @@ import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 class SourceViewModel : ViewModel() {
@@ -42,28 +46,43 @@ class SourceViewModel : ViewModel() {
     private val searchLoader = SearchLoader(gson, SourceRuntimeState.extendCache, searchResult, resultParser)
     private val playLoader = PlayLoader(gson, SourceRuntimeState.extendCache, playResult, preloadResult)
 
+    private val rootJob = SupervisorJob()
+
+    private val requestScope: CoroutineScope by lazy { CoroutineScope(rootJob + Dispatchers.Main.immediate) }
+
+    @Volatile
+    private var detailChain = SupervisorJob(rootJob)
+
+    @Volatile
+    private var searchChain = SupervisorJob(rootJob)
+
     fun getSort(sourceKey: String?) {
-        sortLoader.getSort(sourceKey)
+        getSort(sourceKey, true)
     }
 
     fun getSort(sourceKey: String?, withRec: Boolean) {
-        sortLoader.getSort(sourceKey, withRec)
+        requestScope.launch { sortLoader.getSort(sourceKey, withRec) }
     }
 
     fun getList(sortData: MovieSort.SortData?, page: Int) {
-        listLoader.getList(sortData, page)
+        requestScope.launch { listLoader.getList(sortData, page) }
     }
 
     fun getDetail(sourceKey: String?, urlid: String) {
-        detailLoader.getDetail(sourceKey, urlid)
+        getDetail(sourceKey, urlid, false)
     }
 
     fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean) {
-        detailLoader.getDetail(sourceKey, urlid, fallback)
+        getDetail(sourceKey, urlid, fallback, null)
     }
 
     fun getDetail(sourceKey: String?, urlid: String, fallback: Boolean, requestToken: Int?) {
-        detailLoader.getDetail(sourceKey, urlid, fallback, requestToken)
+        requestScope.launch(detailChain) { detailLoader.getDetail(sourceKey, urlid, fallback, requestToken) }
+    }
+
+    fun cancelDetail() {
+        detailChain.cancel()
+        detailChain = SupervisorJob(rootJob)
     }
 
     fun action(sourceKey: String?, action: String?) {
@@ -89,11 +108,16 @@ class SourceViewModel : ViewModel() {
     }
 
     fun getSearch(sourceKey: String?, wd: String?) {
-        searchLoader.getSearch(sourceKey, wd)
+        getSearch(sourceKey, wd, "")
     }
 
     fun getSearch(sourceKey: String?, wd: String?, searchToken: String?) {
-        searchLoader.getSearch(sourceKey, wd, searchToken)
+        requestScope.launch(searchChain) { searchLoader.getSearch(sourceKey, wd, searchToken) }
+    }
+
+    fun cancelSearch() {
+        searchChain.cancel()
+        searchChain = SupervisorJob(rootJob)
     }
 
     fun getPlay(sourceKey: String?, playFlag: String?, progressKey: String?, url: String?, subtitleKey: String?) {

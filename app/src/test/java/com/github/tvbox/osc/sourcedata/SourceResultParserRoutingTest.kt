@@ -46,7 +46,7 @@ class SourceResultParserRoutingTest {
         val recorder = EventRecorder()
         EventBus.getDefault().register(recorder)
         try {
-            newParser(search, detail).json(search, payload, "src", "token")
+            runBlocking { newParser(search, detail).json(search, payload, "src", "token") }
         } finally {
             EventBus.getDefault().unregister(recorder)
         }
@@ -61,7 +61,7 @@ class SourceResultParserRoutingTest {
     fun detailChannelReceivesParsedDetail() {
         val search = RecordingChannel()
         val detail = RecordingChannel()
-        newParser(search, detail).json(detail, payload, "src")
+        runBlocking { newParser(search, detail).json(detail, payload, "src") }
         assertEquals(1, detail.posted.size)
         val data = detail.posted[0]!!
         val videos = data.movie!!.videoList!!
@@ -75,7 +75,7 @@ class SourceResultParserRoutingTest {
         val search = RecordingChannel()
         val detail = RecordingChannel()
         val list = RecordingChannel()
-        newParser(search, detail).json(list, payload, "src")
+        runBlocking { newParser(search, detail).json(list, payload, "src") }
         assertEquals(1, list.posted.size)
         assertEquals("src", list.posted[0]!!.sourceKey)
     }

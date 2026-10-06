@@ -15,6 +15,7 @@ import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.thoughtworks.xstream.XStream
 import com.thoughtworks.xstream.io.xml.DomDriver
+import kotlinx.coroutines.CancellationException
 
 import org.greenrobot.eventbus.EventBus
 
@@ -107,15 +108,15 @@ class SourceResultParser(
         }
     }
 
-    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?): AbsXml? {
+    suspend fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?): AbsXml? {
         return xml(result, xml, sourceKey, "")
     }
 
-    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?): AbsXml? {
+    suspend fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?): AbsXml? {
         return xml(result, xml, sourceKey, searchToken, null)
     }
 
-    fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
+    suspend fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         var text: String? = xml
         try {
             val xstream = listXStream.get()!!
@@ -141,6 +142,8 @@ class SourceResultParser(
                 }
             }
             return data
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (result != null) {
                 val head = if (text == null) "null" else text.substring(0, Math.min(200, text.length))
@@ -159,15 +162,15 @@ class SourceResultParser(
         }
     }
 
-    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?): AbsXml? {
+    suspend fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?): AbsXml? {
         return json(result, json, sourceKey, "")
     }
 
-    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?): AbsXml? {
+    suspend fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?): AbsXml? {
         return json(result, json, sourceKey, searchToken, null)
     }
 
-    fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
+    suspend fun json(result: SourceChannel<AbsXml?>?, json: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         try {
             if (json == null || json.trim { it <= ' ' }.isEmpty()) {
                 if (result != null) {
@@ -200,6 +203,8 @@ class SourceResultParser(
                 }
             }
             return data
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (result != null) {
                 val head = if (json == null) "null" else json.substring(0, Math.min(200, json.length))

@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.sourcedata
 
-import android.os.Looper
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.Movie
@@ -9,8 +8,10 @@ import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.RemoteTVBox
 import com.google.gson.Gson
-import com.lzy.okgo.callback.AbsCallback
-import com.lzy.okgo.model.Response
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import java.io.IOException
 import java.net.URLEncoder
@@ -18,6 +19,7 @@ import java.util.ArrayList
 import java.util.HashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
 
 class SortLoader(
     private val gson: Gson,
@@ -86,17 +88,11 @@ class SortLoader(
         return SourceHelper.isHomeSource(sourceKey) && SourceHelper.isDoubanSource(sourceBean)
     }
 
-    fun getSort(sourceKey: String?) {
+    suspend fun getSort(sourceKey: String?) {
         getSort(sourceKey, true)
     }
 
-    fun getSort(sourceKey: String?, withRec: Boolean) {
-        if (Looper.myLooper() === Looper.getMainLooper()) {
-            SourceHelper.PREPARE_POOL.execute {
-                getSort(sourceKey, withRec)
-            }
-            return
-        }
+    suspend fun getSort(sourceKey: String?, withRec: Boolean) {
         if (sourceKey == null) {
             sortResult.postValue(AbsSortXml())
             return
@@ -140,160 +136,122 @@ class SortLoader(
         }
     }
 
-    private fun getSortFromSpider(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
-        val waitResponse = Runnable {
-            val sortJson = BoundedCall.call(Callable<String> {
+    private suspend fun getSortFromSpider(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
+        val sortJson = withContext(Dispatchers.IO) {
+            BoundedCall.call(Callable<String> {
                 val sp = ApiConfig.get().getCSP(sourceBean)
                 val json = sp.homeContent(true)
                 json
             }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getSort--" + sourceBean.key)
-            if (sortJson != null) {
-                val sortXml = resultParser.sortJson(sortResult, sortJson)
-                attachSortSource(sourceKey, sortXml)
-                if (sortXml != null) {
-                    val absXml = resultParser.json(null, sortJson, sourceBean.key)
-                    val absVideoList = absXml?.movie?.videoList
-                    if (!withRec) {
-                        postSortResult(sourceKey, sortXml)
-                        cacheSort(sourceKey, sortXml)
-                    } else if (absVideoList != null && absVideoList.size > 0) {
-                        sortXml.videoList = absVideoList
-                        postSortResult(sourceKey, sortXml)
-                        cacheSort(sourceKey, sortXml)
-                    } else if (sortXml.classes != null) {
-                        postSortResult(sourceKey, sortXml)
-                        cacheSort(sourceKey, sortXml)
-                    } else {
-                        listLoader.getHomeRecList(sourceBean, null, object : ListLoader.HomeRecCallback {
-                            override fun done(videos: MutableList<Movie.Video>?) {
-                                sortXml.videoList = videos
-                                postSortResult(sourceKey, sortXml)
-                                cacheSort(sourceKey, sortXml)
-                            }
-                        })
-                    }
+        }
+        if (sortJson == null) {
+            LOG.i("echo--getSort-spider-null:$sourceKey")
+            postSortFailure(sourceKey)
+            return
+        }
+        val sortXml = withContext(Dispatchers.IO) { resultParser.sortJson(sortResult, sortJson) }
+        attachSortSource(sourceKey, sortXml)
+        if (sortXml == null) {
+            postSortFailure(sourceKey)
+            return
+        }
+        val absVideoList = withContext(Dispatchers.IO) { resultParser.json(null, sortJson, sourceBean.key)?.movie?.videoList }
+        if (!withRec) {
+            postSortResult(sourceKey, sortXml)
+            cacheSort(sourceKey, sortXml)
+        } else if (absVideoList != null && absVideoList.size > 0) {
+            sortXml.videoList = absVideoList
+            postSortResult(sourceKey, sortXml)
+            cacheSort(sourceKey, sortXml)
+        } else if (sortXml.classes != null) {
+            postSortResult(sourceKey, sortXml)
+            cacheSort(sourceKey, sortXml)
+        } else {
+            sortXml.videoList = listLoader.getHomeRecList(sourceBean, null)
+            postSortResult(sourceKey, sortXml)
+            cacheSort(sourceKey, sortXml)
+        }
+    }
+
+    private suspend fun getSortFromApi(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
+        val type = sourceBean.type
+        try {
+            val body = SourceHelper.siteGet(sourceBean) {}
+            val sortXml: AbsSortXml? = withContext(Dispatchers.IO) {
+                if (type == 0) {
+                    resultParser.sortXml(sortResult, body)
+                } else if (type == 1) {
+                    resultParser.sortJson(sortResult, body)
                 } else {
-                    postSortFailure(sourceKey)
+                    null
                 }
+            }
+            attachSortSource(sourceKey, sortXml)
+            if (sortXml == null) {
+                postSortFailure(sourceKey)
+                return
+            }
+            val recVideoList = sortXml.list?.videoList
+            if (withRec && recVideoList != null && recVideoList.size > 0) {
+                val ids = ArrayList<String?>()
+                for (vod in recVideoList) {
+                    ids.add(vod.id)
+                }
+                sortXml.videoList = listLoader.getHomeRecList(sourceBean, ids)
+                postSortResult(sourceKey, sortXml)
+                cacheSort(sourceKey, sortXml)
+            } else if (sortXml.classes != null) {
+                postSortResult(sourceKey, sortXml)
+                cacheSort(sourceKey, sortXml)
             } else {
-                LOG.i("echo--getSort-spider-null:$sourceKey")
                 postSortFailure(sourceKey)
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.i(
+                "echo--getSort-api-error:" + sourceKey + " ex=" + e
+            )
+            postSortFailure(sourceKey)
         }
-        SourceHelper.PREPARE_POOL.execute(waitResponse)
     }
 
-    private fun getSortFromApi(sourceKey: String, sourceBean: SourceBean, withRec: Boolean) {
-        val type = sourceBean.type
-        SourceHelper.siteGet(sourceBean)
-            .tag(sourceBean.key + "_sort")
-            .execute(object : AbsCallback<String>() {
-                override fun convertResponse(response: okhttp3.Response): String {
-                    val body = response.body
-                    return if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)
-                }
-
-                override fun onSuccess(response: Response<String>) {
-                    val sortXml: AbsSortXml? = if (type == 0) {
-                        val xml = response.body()
-                        resultParser.sortXml(sortResult, xml)
-                    } else if (type == 1) {
-                        val json = response.body()
-                        resultParser.sortJson(sortResult, json)
-                    } else {
-                        null
-                    }
-                    attachSortSource(sourceKey, sortXml)
-                    if (sortXml != null) {
-                        val recVideoList = sortXml.list?.videoList
-                        if (withRec && recVideoList != null && recVideoList.size > 0) {
-                            val ids = ArrayList<String?>()
-                            for (vod in recVideoList) {
-                                ids.add(vod.id)
-                            }
-                            listLoader.getHomeRecList(sourceBean, ids, object : ListLoader.HomeRecCallback {
-                                override fun done(videos: MutableList<Movie.Video>?) {
-                                    sortXml.videoList = videos
-                                    postSortResult(sourceKey, sortXml)
-                                    cacheSort(sourceKey, sortXml)
-                                }
-                            })
-                        } else if (sortXml.classes != null) {
-                            postSortResult(sourceKey, sortXml)
-                            cacheSort(sourceKey, sortXml)
-                        } else {
-                            postSortFailure(sourceKey)
-                        }
-                    } else {
-                        postSortFailure(sourceKey)
-                    }
-                }
-
-                override fun onError(response: Response<String>) {
-                    super.onError(response)
-                    LOG.i(
-                        "echo--getSort-api-error:" + sourceKey + " code=" + response.code()
-                            + " ex=" + response.exception
-                    )
-                    postSortFailure(sourceKey)
-                }
-            })
-    }
-
-    private fun getSortFromExtendedApi(sourceKey: String, sourceBean: SourceBean) {
-        var extend = sourceBean.ext
-        extend = SourceHelper.getFixUrl(extendCache, gson, extend, sourceBean.getPlayTimeoutSeconds().toLong())
+    private suspend fun getSortFromExtendedApi(sourceKey: String, sourceBean: SourceBean) {
+        val extend = withContext(Dispatchers.IO) {
+            SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
+        }
         if (URLEncoder.encode(extend).length < 1000) {
-            val request = SourceHelper.siteGet(sourceBean)
-                .tag(sourceBean.key + "_sort")
-                .params("filter", "true")
-            if (extend != null && !extend.isEmpty()) {
-                request.params("extend", extend)
-            }
-            request.execute(object : AbsCallback<String>() {
-                override fun convertResponse(response: okhttp3.Response): String {
-                    val body = response.body
-                    return if (body != null) body.string() else throw IllegalStateException(SourceHelper.ERR_NETWORK)
-                }
-
-                override fun onSuccess(response: Response<String>) {
-                    val sortJson = response.body()
-                    if (sortJson != null) {
-                        val sortXml = resultParser.sortJson(sortResult, sortJson)
-                        attachSortSource(sourceKey, sortXml)
-                        if (sortXml != null) {
-                            val absXml = resultParser.json(null, sortJson, sourceBean.key)
-                            val absVideoList = absXml?.movie?.videoList
-                            if (absVideoList != null && absVideoList.size > 0) {
-                                sortXml.videoList = absVideoList
-                                postSortResult(sourceKey, sortXml)
-                                cacheSort(sourceKey, sortXml)
-                            } else {
-                                listLoader.getHomeRecList(sourceBean, null, object : ListLoader.HomeRecCallback {
-                                    override fun done(videos: MutableList<Movie.Video>?) {
-                                        sortXml.videoList = videos
-                                        postSortResult(sourceKey, sortXml)
-                                        cacheSort(sourceKey, sortXml)
-                                    }
-                                })
-                            }
-                        } else {
-                            postSortFailure(sourceKey)
-                        }
-                    } else {
-                        postSortFailure(sourceKey)
+            try {
+                val body = SourceHelper.siteGet(sourceBean) {
+                    params("filter", "true")
+                    if (extend != null && extend.isNotEmpty()) {
+                        params("extend", extend)
                     }
                 }
-
-                override fun onError(response: Response<String>) {
-                    super.onError(response)
-                    LOG.i(
-                        "echo--getSort-ext-error:" + sourceKey + " code=" + response.code()
-                            + " ex=" + response.exception
-                    )
+                val sortXml = withContext(Dispatchers.IO) { resultParser.sortJson(sortResult, body) }
+                attachSortSource(sourceKey, sortXml)
+                if (sortXml == null) {
                     postSortFailure(sourceKey)
+                    return
                 }
-            })
+                val absVideoList = withContext(Dispatchers.IO) { resultParser.json(null, body, sourceBean.key)?.movie?.videoList }
+                if (absVideoList != null && absVideoList.size > 0) {
+                    sortXml.videoList = absVideoList
+                    postSortResult(sourceKey, sortXml)
+                    cacheSort(sourceKey, sortXml)
+                } else {
+                    sortXml.videoList = listLoader.getHomeRecList(sourceBean, null)
+                    postSortResult(sourceKey, sortXml)
+                    cacheSort(sourceKey, sortXml)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LOG.i(
+                    "echo--getSort-ext-error:" + sourceKey + " ex=" + e
+                )
+                postSortFailure(sourceKey)
+            }
         } else {
             try {
                 val params = HashMap<String, String>()
@@ -301,36 +259,43 @@ class SortLoader(
                 if (extend != null && !extend.isEmpty()) {
                     params["extend"] = extend
                 }
-                RemoteTVBox.post(sourceBean.api, params, sourceBean.header, object : okhttp3.Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        LOG.i("echo--getSort-post-fail:" + sourceKey + " ex=" + e)
-                        postSortFailure(sourceKey)
-                    }
-
-                    override fun onResponse(call: Call, response: okhttp3.Response) {
-                        val body = response.body
-                        assert(body != null)
-                        val sortJson = body.string()
-                        val sortXml = resultParser.sortJson(sortResult, sortJson)
-                        attachSortSource(sourceKey, sortXml)
-                        if (sortXml != null) {
-                            val absXml = resultParser.json(null, sortJson, sourceBean.key)
-                            val absVideoList = absXml?.movie?.videoList
-                            if (absVideoList != null && absVideoList.size > 0) {
-                                sortXml.videoList = absVideoList
-                                postSortResult(sourceKey, sortXml)
-                                cacheSort(sourceKey, sortXml)
-                            } else if (sortXml.classes != null) {
-                                postSortResult(sourceKey, sortXml)
-                                cacheSort(sourceKey, sortXml)
-                            } else {
-                                postSortFailure(sourceKey)
-                            }
-                        } else {
-                            postSortFailure(sourceKey)
+                val sortJson = suspendCancellableCoroutine<String?> { cont ->
+                    RemoteTVBox.post(sourceBean.api, params, sourceBean.header, object : okhttp3.Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            LOG.i("echo--getSort-post-fail:" + sourceKey + " ex=" + e)
+                            cont.resume(null)
                         }
-                    }
-                })
+
+                        override fun onResponse(call: Call, response: okhttp3.Response) {
+                            response.use {
+                                cont.resume(it.body.string())
+                            }
+                        }
+                    })
+                }
+                if (sortJson == null) {
+                    postSortFailure(sourceKey)
+                    return
+                }
+                val sortXml = withContext(Dispatchers.IO) { resultParser.sortJson(sortResult, sortJson) }
+                attachSortSource(sourceKey, sortXml)
+                if (sortXml == null) {
+                    postSortFailure(sourceKey)
+                    return
+                }
+                val absVideoList = withContext(Dispatchers.IO) { resultParser.json(null, sortJson, sourceBean.key)?.movie?.videoList }
+                if (absVideoList != null && absVideoList.size > 0) {
+                    sortXml.videoList = absVideoList
+                    postSortResult(sourceKey, sortXml)
+                    cacheSort(sourceKey, sortXml)
+                } else if (sortXml.classes != null) {
+                    postSortResult(sourceKey, sortXml)
+                    cacheSort(sourceKey, sortXml)
+                } else {
+                    postSortFailure(sourceKey)
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (ignored: Exception) {
                 postSortFailure(sourceKey)
             }

@@ -227,7 +227,7 @@ class SearchViewModel : ViewModel() {
             LOG.d("SearchViewModel", "JsLoader.stopAll failed, continue new search")
         }
         try {
-            OkGo.getInstance().cancelTag("search")
+            searchCaller.cancelSearch()
         } catch (ignored: Throwable) {
             LOG.d("SearchViewModel", "cancel previous search requests failed")
         }
