@@ -14,7 +14,7 @@ import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
-import com.lzy.okgo.OkGo
+import com.github.tvbox.osc.util.net.Http
 
 import org.json.JSONObject
 
@@ -336,7 +336,7 @@ class JarLoader {
         var inputStream: InputStream? = null
         var outputStream: FileOutputStream? = null
         try {
-            val response = OkGo.get<File>(url).execute()
+            val response = Http.getSync(url)
             val input = response.body.byteStream()
             inputStream = input
             val output = FileOutputStream(create(file))

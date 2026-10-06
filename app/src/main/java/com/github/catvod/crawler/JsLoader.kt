@@ -8,7 +8,7 @@ import com.github.tvbox.osc.util.FileUtils
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
-import com.lzy.okgo.OkGo
+import com.github.tvbox.osc.util.net.Http
 
 import java.io.File
 import java.io.FileOutputStream
@@ -100,7 +100,7 @@ class JsLoader {
             }
         }
         try {
-            val response = OkGo.get<File>(jar).execute()
+            val response = Http.getSync(jar)
             val inputStream = response.body.byteStream()
             val outputStream = FileOutputStream(cache)
             try {

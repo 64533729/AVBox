@@ -203,6 +203,29 @@ class HttpTest {
     }
 
     @Test
+    fun getSync_returnsRawResponseForFailCodes() {
+        Http.getSync(request(), clientReturning(404, "missing")).use { response ->
+            assertEquals(404, response.code)
+            assertEquals("missing", response.body.string())
+        }
+    }
+
+    @Test
+    fun getSync_doesNotRetryOnTimeout() {
+        val attempts = AtomicInteger()
+        val client = OkHttpClient.Builder().addInterceptor {
+            attempts.incrementAndGet()
+            throw SocketTimeoutException("read timed out")
+        }.build()
+        try {
+            Http.getSync(request(), client)
+            fail("expected SocketTimeoutException")
+        } catch (e: SocketTimeoutException) {
+        }
+        assertEquals(1, attempts.get())
+    }
+
+    @Test
     fun get_cancelPropagatesCancellationWithoutOtherFailure() = runBlocking {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)

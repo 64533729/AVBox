@@ -5,7 +5,6 @@ import android.util.Base64
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.OkGoHelper
 import com.google.common.net.HttpHeaders
-import com.lzy.okgo.OkGo
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.JSUtils
 import com.whl.quickjs.wrapper.QuickJSContext
@@ -142,7 +141,6 @@ class Connect {
                         }
                     }
                 }
-                OkGo.getInstance().cancelTag(tag)
                 cancelDefaultClient(tag)
             } catch (e: Exception) {
                 LOG.d("Connect", "cancel tag failed")

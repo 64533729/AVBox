@@ -32,7 +32,11 @@ object Http {
     }
 
     fun getSync(url: String, init: HttpRequest.() -> Unit = {}): Response {
-        return client().newCall(HttpRequest(url).apply(init).build()).execute()
+        return getSync(HttpRequest(url).apply(init).build(), client())
+    }
+
+    internal fun getSync(request: Request, client: OkHttpClient): Response {
+        return client.newCall(request).execute()
     }
 
     internal suspend fun executeWithRetry(request: Request, client: OkHttpClient): String {
