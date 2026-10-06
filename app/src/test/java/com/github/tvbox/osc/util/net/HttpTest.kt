@@ -5,11 +5,15 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
+import okio.BufferedSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -21,6 +25,7 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class HttpTest {
 
@@ -81,6 +86,24 @@ class HttpTest {
     }
 
     @Test
+    fun get_readsResponseBodyOffCallerThread() = runBlocking {
+        val caller = Thread.currentThread()
+        val readOn = AtomicReference<Thread>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("test")
+                .body(threadRecordingBody("ok", readOn))
+                .build()
+        }.build()
+        assertEquals("ok", Http.executeWithRetry(request(), client))
+        val readThread = readOn.get()
+        assertTrue("响应体读取不应落在调用线程上", readThread != null && readThread !== caller)
+    }
+
+    @Test
     fun get_cancelPropagatesCancellationWithoutOtherFailure() = runBlocking {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -122,5 +145,18 @@ class HttpTest {
                 .body(body.toResponseBody(null))
                 .build()
         }.build()
+    }
+
+    private fun threadRecordingBody(text: String, readOn: AtomicReference<Thread>): ResponseBody {
+        return object : ResponseBody() {
+            override fun contentType(): MediaType? = null
+
+            override fun contentLength(): Long = text.toByteArray().size.toLong()
+
+            override fun source(): BufferedSource {
+                readOn.set(Thread.currentThread())
+                return Buffer().apply { writeUtf8(text) }
+            }
+        }
     }
 }

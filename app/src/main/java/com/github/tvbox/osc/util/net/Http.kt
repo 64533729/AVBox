@@ -9,7 +9,9 @@ import java.util.LinkedHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 import okhttp3.Call
 import okhttp3.Callback
@@ -32,9 +34,11 @@ object Http {
         var retryCount = 0
         while (true) {
             try {
-                return execute(request, client).use { response ->
-                    if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
-                    response.body.string()
+                return withContext(Dispatchers.IO) {
+                    execute(request, client).use { response ->
+                        if (HttpPolicy.shouldFail(response.code)) throw HttpException(response.code)
+                        response.body.string()
+                    }
                 }
             } catch (e: SocketTimeoutException) {
                 if (!HttpPolicy.shouldRetry(retryCount, e)) throw e
