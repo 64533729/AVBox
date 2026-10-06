@@ -16,7 +16,6 @@ import com.github.tvbox.osc.sourcedata.SourceHelper
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
-import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.ImgUtil
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
@@ -41,9 +40,15 @@ class PlaybackController {
     private var sourceKey: String = ""
     private var sourceBean: SourceBean? = null
 
-    private var progressKey: String? = null
+    private val progress: PlaybackProgressTracker = PlaybackProgressTracker(object : PlaybackProgressTracker.Host {
+        override fun playerCfg(): JSONObject? = this@PlaybackController.playerCfg
 
-    private var progressOwner: String? = null
+        override fun vod(): VodInfo? = this@PlaybackController.vod
+
+        override fun currentSession(): PlaybackSession? = this@PlaybackController.currentSession
+
+        override fun attemptState(): PlaybackAttemptState = st
+    })
 
     private var subtitleCacheKey: String? = null
     private var playSubtitle: String? = null
@@ -55,9 +60,6 @@ class PlaybackController {
     private var m3u8ProxyUrl: String? = null
     private var m3u8SourceUrl: String? = null
 
-    private var inheritProgressKey: String? = null
-    private var inheritProgress: Long = 0
-
     fun startSession(session: PlaybackSession) {
         cancelInFlight()
         timeouts.cancelPendingCompletionDrop()
@@ -67,7 +69,7 @@ class PlaybackController {
             st.audioOnlyConfirmed = false
         }
         currentSession = session
-        startedPlaybackKey = null
+        progress.clearStartedPlaybackKey()
         st.beginSession()
         clearM3u8ProxyUrl()
         vod = session.vod()
@@ -82,43 +84,18 @@ class PlaybackController {
     }
 
     fun getSavedProgress(url: String?): Long {
-        val skip = (playerCfg?.optInt("st", 0) ?: 0) * 1000L
-        if (HistoryHelper.isIncognito()) return skip
-        WatchProgressStore.awaitWrites()
-        val theCache = AppGraph.cacheRepository.get(MD5.string2MD5(url))
-        if (theCache == null) {
-            return skip
-        }
-        var rec = 0L
-        if (theCache is Long) {
-            rec = theCache
-        } else if (theCache is String) {
-            try {
-                rec = theCache.toLong()
-            } catch (e: NumberFormatException) {
-                LOG.i("echo-String value is not a valid long.")
-            }
-        } else {
-            LOG.i("echo-Value cannot be converted to long.")
-        }
-        return Math.max(rec, skip)
+        return progress.getSavedProgress(url)
     }
 
     fun inheritProgressFrom(key: String?, position: Long) {
-        inheritProgressKey = key
-        inheritProgress = position
+        progress.inheritProgressFrom(key, position)
     }
 
     fun inheritProgressIfNeeded() {
-        try {
-            WatchProgressStore.inherit(progressOwner(), inheritProgressKey, progressKey, inheritProgress)
-        } finally {
-            inheritProgressKey = null
-            inheritProgress = 0
-        }
+        progress.inheritProgressIfNeeded()
     }
 
-    fun progressOwner(): String? = progressOwner
+    fun progressOwner(): String? = progress.progressOwner()
 
     fun currentSeries(flag: String?, index: Int): VodInfo.VodSeries? {
         val currentVod = vod ?: return null
@@ -132,9 +109,9 @@ class PlaybackController {
 
     fun isStalePlayResult(info: JSONObject): Boolean {
         val currentVod = vod
-        if (currentVod == null || currentVod.seriesMap == null || TextUtils.isEmpty(progressKey)) return false
+        if (currentVod == null || currentVod.seriesMap == null || TextUtils.isEmpty(progress.progressKey())) return false
         val resultKey = info.optString("proKey", "")
-        if (!TextUtils.isEmpty(resultKey) && progressKey != resultKey) return true
+        if (!TextUtils.isEmpty(resultKey) && progress.progressKey() != resultKey) return true
         val resultFlag = info.optString("flag", "")
         if (!TextUtils.isEmpty(resultFlag) && resultFlag != currentVod.playFlag) return true
         val sourceUrl = info.optString("key", "")
@@ -195,11 +172,10 @@ class PlaybackController {
 
     fun sourceKey(): String = sourceKey
 
-    fun progressKey(): String? = progressKey
+    fun progressKey(): String? = progress.progressKey()
 
     fun setProgressKey(progressKey: String?) {
-        this.progressKey = progressKey
-        this.progressOwner = WatchProgressStore.ownerOf(vod)
+        progress.setProgressKey(progressKey)
     }
 
     fun subtitleCacheKey(): String? = subtitleCacheKey
@@ -272,7 +248,7 @@ class PlaybackController {
         override fun currentSeries(flag: String?, index: Int): VodInfo.VodSeries? =
             this@PlaybackController.currentSeries(flag, index)
 
-        override fun progressKey(): String? = this@PlaybackController.progressKey
+        override fun progressKey(): String? = this@PlaybackController.progressKey()
 
         override fun getSavedProgress(url: String): Long = this@PlaybackController.getSavedProgress(url)
 
@@ -514,27 +490,17 @@ class PlaybackController {
 
     private var currentSession: PlaybackSession? = null
 
-    private var startedPlaybackKey: String? = null
-
-    private var startedProgressKey: String? = null
-
     fun markContentStarted() {
-        startedPlaybackKey = currentSession?.playbackKey()
-        startedProgressKey = progressKey
+        progress.markContentStarted()
     }
 
     fun clearStartedContent() {
-        startedPlaybackKey = null
-        startedProgressKey = null
+        progress.clearStartedContent()
     }
 
-    fun startedPlaybackKey(): String? = startedPlaybackKey
+    fun startedPlaybackKey(): String? = progress.startedPlaybackKey()
 
-    private fun startedProgressKey(): String? = startedProgressKey
-
-    fun isSameStartedContent(): Boolean {
-        return startedProgressKey != null && TextUtils.equals(startedProgressKey, progressKey())
-    }
+    fun isSameStartedContent(): Boolean = progress.isSameStartedContent()
 
     fun initFetch() {
         fetch.init()
@@ -597,8 +563,7 @@ class PlaybackController {
     }
 
     fun setPendingInherit(key: String?, progress: Long) {
-        st.pendingInheritKey = key
-        st.pendingInheritProgress = progress
+        this.progress.setPendingInherit(key, progress)
     }
 
     fun publishTitle() {
@@ -617,7 +582,7 @@ class PlaybackController {
         val idleKernelReused = isIdleKernelReusable(kernelPresent)
         val crossContentReuseAllowed = isCrossContentReuseAllowed()
         val reuseAllowed = consumeReusePlayerOnSwitch() || idleKernelReused || crossContentReuseAllowed
-        val startedKey = startedProgressKey()
+        val startedKey = progress.startedProgressKey()
         val sameContentReuse = startedKey != null
             && !KernelReusePolicy.isCrossContentSwitch(startedKey, progressKey())
         val reusePlayer = KernelReusePolicy.decide(kernelPresent, false, false, reuseAllowed) == KernelDecision.REUSE
@@ -670,8 +635,7 @@ class PlaybackController {
         st.pendingInheritKey = null
         st.pendingInheritProgress = 0
         if (reset) {
-            inheritProgressKey = null
-            inheritProgress = 0
+            progress.clearInheritProgress()
             WatchProgressStore.clear(progressOwner(), progressKey())
             AppGraph.cacheRepository.delete(MD5.string2MD5(subtitleCacheKey()), 0)
         } else {
