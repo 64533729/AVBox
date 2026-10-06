@@ -135,9 +135,9 @@ class Connect {
         @JvmStatic
         fun cancelByTag(tag: Any?) {
             try {
-                // tag 为 null 时 Java 版在 equals 处抛 NPE 并由本 catch 兜底,这里用 !! 保持同一抛点
-                val target = tag!!
                 if (client != null) {
+                    // tag 为 null 时 Java 版在 equals 处抛 NPE 并由本 catch 兜底,!! 必须留在分支内才同抛点
+                    val target = tag!!
                     for (call in client!!.dispatcher.queuedCalls()) {
                         if (target == call.request().tag()) {
                             call.cancel()
@@ -149,8 +149,8 @@ class Connect {
                         }
                     }
                 }
-                OkGo.getInstance().cancelTag(target)
-                cancelDefaultClient(target)
+                OkGo.getInstance().cancelTag(tag)
+                cancelDefaultClient(tag)
             } catch (e: Exception) {
                 LOG.d("Connect", "cancel tag failed")
             }
