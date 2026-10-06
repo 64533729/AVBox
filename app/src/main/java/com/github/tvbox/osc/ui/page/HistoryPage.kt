@@ -100,7 +100,7 @@ fun HistoryPage(
 
     LaunchedEffect(Unit) {
         AppBootstrap.state.collect { boot ->
-            if (boot == AppBootstrap.Boot.Ready) vm.resolveSourceNames()
+            if (boot is AppBootstrap.Boot.Ready) vm.resolveSourceNames()
         }
     }
 

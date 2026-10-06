@@ -527,13 +527,15 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
             val rebuildKernel = videoView.consumeKernelRebuildRequired()
             val reusePlayer =
                 KernelReusePolicy.decide(kernelPresent, rebuildKernel, forceExoPlayer, true) == KernelDecision.REUSE
+            val sameContent = reusePlayer && controller.isSameStartedContent()
             if (!reusePlayer && kernelPresent) releasePlayer()
             controller.markContentStarted()
             videoView.setTrackMemoryKey("")
             videoView.setUrl(url, headers)
             if (reusePlayer) {
                 if (controller.isSameStartedContent()) videoView.saveCurrentProgress()
-                videoView.skipPositionWhenPlay(controller.playTimeoutBasePosition().toInt())
+                val base = controller.playTimeoutBasePosition()
+                videoView.skipPositionWhenPlay((if (sameContent) videoView.resumePositionForReplay(base) else base).toInt())
                 videoView.replay(false)
             } else {
                 videoView.start()

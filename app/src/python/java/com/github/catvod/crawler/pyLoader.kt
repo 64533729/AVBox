@@ -10,18 +10,21 @@ import com.undcover.freedom.pyramid.PythonLoader
 import com.undcover.freedom.pyramid.PythonSpider
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 class pyLoader : IPyLoader {
     private var pythonLoader: PythonLoader? = null
     private val spiders: ConcurrentHashMap<String, Spider> = ConcurrentHashMap()
     private var lastConfig: String? = null // 记录上次的配置
+    private val clearGeneration: AtomicLong = AtomicLong(0)
+    private val creationLock: Any = Any()
 
-    @Synchronized
     override fun clear() {
+        clearGeneration.incrementAndGet()
         spiders.clear()
-        pythonLoader?.clear()
         lastConfig = null
         recentPyKey = null
+        pythonLoader?.invalidate()
     }
 
     override fun setConfig(jsonStr: String?) {
@@ -42,27 +45,31 @@ class pyLoader : IPyLoader {
         recentPyKey = key
     }
 
-    @Synchronized
     override fun getSpider(key: String, cls: String?, ext: String?): Spider {
         if (!isPythonSupported()) {
             Log.w("PyLoader", "python32 is disabled on Android 16+ 32-bit process.")
             return SpiderNull()
         }
-        if (spiders.containsKey(key)) {
+        val cached = spiders[key]
+        if (cached != null) {
             Log.i("PyLoader", "echo-getSpider spider缓存: $key")
-            return spiders.getValue(key)
+            return cached
         }
+        val generation = clearGeneration.get()
+        val sp: Spider
         try {
             Log.i("PyLoader", "echo-getSpider url: $cls")
-            val sp = getPythonLoader().getSpider(key, cls, ext)
-            if (sp is SpiderNull) return sp
-            spiders[key] = sp
-            Log.i("PyLoader", "echo-getSpider 加载spider: $key")
-            return sp
+            sp = synchronized(creationLock) {
+                spiders[key] ?: getPythonLoader().getSpider(key, cls, ext)
+            }
         } catch (th: Throwable) {
             LOG.e("pyLoader", th)
+            return SpiderNull()
         }
-        return SpiderNull()
+        if (sp is SpiderNull) return sp
+        if (generation != clearGeneration.get()) return SpiderNull()
+        Log.i("PyLoader", "echo-getSpider 加载spider: $key")
+        return spiders.putIfAbsent(key, sp) ?: sp
     }
 
     override fun proxyInvoke(params: Map<String, String>?): Array<Any?>? {

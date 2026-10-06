@@ -48,12 +48,17 @@ import java.util.LinkedHashMap
 import java.util.Locale
 
 class ApiConfig private constructor() {
-    private val sourceBeanList: LinkedHashMap<String?, SourceBean>
+    @Volatile
+    private var sourceBeanList: LinkedHashMap<String?, SourceBean>
     @Volatile
     private var mHomeSource: SourceBean? = null
+    @Volatile
     private var mDefaultParse: ParseBean? = null
-    private val liveChannelGroupList: MutableList<LiveChannelGroup>
-    val parseBeanList: MutableList<ParseBean>
+    @Volatile
+    private var liveChannelGroupList: MutableList<LiveChannelGroup>
+    @Volatile
+    var parseBeanList: MutableList<ParseBean>
+    @Volatile
     private var vipParseFlags: MutableList<String>? = null
     @Volatile
     private var vodHosts: MutableMap<String, String>? = null
@@ -79,9 +84,11 @@ class ApiConfig private constructor() {
 
     private val configLoader = ConfigLoader(this)
     private val gson: Gson
+    @Volatile
     private var searchSourceBeanList: MutableList<SourceBean> = ArrayList()
 
-    val liveSettingGroupList: MutableList<LiveSettingGroup> = ArrayList()
+    @Volatile
+    var liveSettingGroupList: MutableList<LiveSettingGroup> = ArrayList()
 
     init {
         clearLoader()
@@ -114,7 +121,7 @@ class ApiConfig private constructor() {
     }
 
     fun invalidateLiveConfig() {
-        liveChannelGroupList.clear()
+        liveChannelGroupList = ArrayList()
         loadedLiveConfigUrl = ""
     }
 
@@ -123,7 +130,7 @@ class ApiConfig private constructor() {
     }
 
     fun clearLiveConfigResult() {
-        liveChannelGroupList.clear()
+        liveChannelGroupList = ArrayList()
         spiderLoader.setLiveSpider("")
         spiderLoader.resetCurrentLiveSpider()
         initLiveSettings()
@@ -135,9 +142,9 @@ class ApiConfig private constructor() {
         clearSpiderCache()
         proxyEntry.setCurrentPlaySourceKey("")
         configLogo = ""
-        sourceBeanList.clear()
-        liveChannelGroupList.clear()
-        parseBeanList.clear()
+        sourceBeanList = LinkedHashMap()
+        liveChannelGroupList = ArrayList()
+        parseBeanList = ArrayList()
         searchSourceBeanList = ArrayList()
         KV.put(HawkConfig.LIVE_GROUP_LIST, JsonArray())
         vodHosts = null
@@ -205,9 +212,11 @@ class ApiConfig private constructor() {
         spiderLoader.setJarCache(DefaultConfig.safeJsonString(infoJson, "jarCache", "true"))
         danmaku = DefaultConfig.safeJsonString(infoJson, "danmaku", "")
         val sites = ConfigParser.parseSites(infoJson)
+        val siteMap = LinkedHashMap<String?, SourceBean>()
         for (sb in sites) {
-            sourceBeanList[sb.key] = sb
+            siteMap[sb.key] = sb
         }
+        sourceBeanList = siteMap
         val firstSite = firstVisibleSite(sites)
         if (sourceBeanList.size > 0) {
             val home = KV.get(HawkConfig.HOME_API, "")
@@ -220,23 +229,24 @@ class ApiConfig private constructor() {
             }
         }
         vipParseFlags = DefaultConfig.safeJsonStringList(infoJson, "flags")
-        parseBeanList.clear()
+        val parses = ArrayList<ParseBean>()
         val parsedParses = ConfigApplier.parseParseBeans(infoJson)
         if (!parsedParses.isEmpty()) {
-            parseBeanList.addAll(parsedParses)
-            addSuperParse()
+            parses.addAll(parsedParses)
+            addSuperParse(parses)
         }
-        if (parseBeanList.size > 0) {
+        parseBeanList = parses
+        if (parses.size > 0) {
             val defaultParse = KV.get(HawkConfig.DEFAULT_PARSE, "")
             if (!TextUtils.isEmpty(defaultParse)) {
-                for (pb in parseBeanList) {
+                for (pb in parses) {
                     if (pb.name == defaultParse) {
                         setDefaultParse(pb)
                     }
                 }
             }
             if (mDefaultParse == null) {
-                setDefaultParse(parseBeanList[0])
+                setDefaultParse(parses[0])
             }
         }
 
@@ -320,7 +330,7 @@ class ApiConfig private constructor() {
     }
 
     private fun parseLiveText(apiUrl: String, content: String) {
-        liveChannelGroupList.clear()
+        liveChannelGroupList = ArrayList()
         spiderLoader.setLiveSpider("")
         spiderLoader.resetCurrentLiveSpider()
         initLiveSettings()
@@ -335,7 +345,7 @@ class ApiConfig private constructor() {
     }
 
     private fun parseLiveJson(apiUrl: String, jsonStr: String) {
-        liveChannelGroupList.clear()
+        liveChannelGroupList = ArrayList()
         val infoJson = gson.fromJson(jsonStr, JsonObject::class.java)
         spiderLoader.setLiveSpider(DefaultConfig.safeJsonString(infoJson, "spider", ""))
         initLiveSettings()
@@ -397,7 +407,7 @@ class ApiConfig private constructor() {
         itemsArrayList.add(yumItems)
         itemsArrayList.add(liveApiHistoryItems)
 
-        liveSettingGroupList.clear()
+        val groups = ArrayList<LiveSettingGroup>()
         for (i in groupNames.indices) {
             val liveSettingGroup = LiveSettingGroup()
             val liveSettingItemList = ArrayList<LiveSettingItem>()
@@ -410,8 +420,9 @@ class ApiConfig private constructor() {
                 liveSettingItemList.add(liveSettingItem)
             }
             liveSettingGroup.liveSettingItems = liveSettingItemList
-            liveSettingGroupList.add(liveSettingGroup)
+            groups.add(liveSettingGroup)
         }
+        liveSettingGroupList = groups
         refreshLiveApiHistoryItems()
     }
 
@@ -461,7 +472,7 @@ class ApiConfig private constructor() {
     }
 
     fun loadLives(livesArray: JsonArray) {
-        liveChannelGroupList.clear()
+        val groups = ArrayList<LiveChannelGroup>()
         var groupIndex = 0
         var channelIndex: Int
         var channelNum = 0
@@ -545,8 +556,9 @@ class ApiConfig private constructor() {
                     liveChannelItem.channelNum = ++channelNum
                 }
             }
-            liveChannelGroupList.add(liveChannelGroup)
+            groups.add(liveChannelGroup)
         }
+        liveChannelGroupList = groups
     }
 
     private fun mergeLiveChannel(channelItems: ArrayList<LiveChannelItem>, newItem: LiveChannelItem): Boolean {
@@ -600,7 +612,7 @@ class ApiConfig private constructor() {
     fun loadLiveApi(livesOBJ: JsonObject) {
         try {
             LOG.i("echo-loadLiveApi")
-            liveChannelGroupList.clear()
+            liveChannelGroupList = ArrayList()
             spiderLoader.resetCurrentLiveSpider()
             val lives = livesOBJ.toString()
             val index = lives.indexOf("proxy://")
@@ -678,8 +690,7 @@ class ApiConfig private constructor() {
             }
             val liveChannelGroup = LiveChannelGroup()
             liveChannelGroup.groupName = url
-            liveChannelGroupList.clear()
-            liveChannelGroupList.add(liveChannelGroup)
+            liveChannelGroupList = arrayListOf(liveChannelGroup)
         } catch (th: Throwable) {
             LOG.e("ApiConfig", th)
         }
@@ -818,12 +829,13 @@ class ApiConfig private constructor() {
     fun getSearchSourceBeanList(): List<SourceBean> {
         if (searchSourceBeanList.isEmpty()) {
             LOG.i("echo-第一次getSearchSourceBeanList")
-            searchSourceBeanList = ArrayList()
+            val list = ArrayList<SourceBean>()
             for (bean in sourceBeanList.values) {
                 if (bean.isSearchable()) {
-                    searchSourceBeanList.add(bean)
+                    list.add(bean)
                 }
             }
+            searchSourceBeanList = list
         }
         return searchSourceBeanList
     }
@@ -863,7 +875,7 @@ class ApiConfig private constructor() {
         spiderLoader.clearJarLoader()
     }
 
-    private fun addSuperParse() {
+    private fun addSuperParse(parseBeanList: MutableList<ParseBean>) {
         val superPb = ParseBean()
         // i18n: keep —— 解析名参与 DEFAULT_PARSE 持久化与比较(见 setDefaultParse),不能翻
         superPb.name = "超级解析"
@@ -871,6 +883,10 @@ class ApiConfig private constructor() {
         superPb.ext = ""
         superPb.type = 4
         parseBeanList.add(0, superPb)
+    }
+
+    fun clearLiveChannelGroups() {
+        liveChannelGroupList = ArrayList()
     }
 
     fun clearLoader() {

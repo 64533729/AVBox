@@ -27,45 +27,50 @@ class ListLoader(
     private val resultParser: SourceResultParser,
 ) {
 
-    suspend fun getList(sortData: MovieSort.SortData?, page: Int) {
+    suspend fun getList(sourceKey: String?, sortData: MovieSort.SortData?, page: Int) {
         if (sortData == null) {
             LOG.i("echo-getList-sortData-null")
             listResult.postValue(null)
             return
         }
-        val homeSourceBean = ApiConfig.get().getHomeSourceBean()
-        val type = homeSourceBean.type
+        val sourceBean = ApiConfig.get().getSource(sourceKey)
+        if (sourceBean == null) {
+            LOG.i("echo--getList-source-missing:$sourceKey sort=${sortData.id} pg=$page")
+            listResult.postValue(null)
+            return
+        }
+        val type = sourceBean.type
         if (type == 3) {
-            getListFromSpider(homeSourceBean, sortData, page)
+            getListFromSpider(sourceBean, sortData, page)
         } else if (type == 0 || type == 1) {
-            getListFromApi(homeSourceBean, sortData, page)
+            getListFromApi(sourceBean, sortData, page)
         } else if (type == 4) {
-            getListFromExtendedApi(homeSourceBean, sortData, page)
+            getListFromExtendedApi(sourceBean, sortData, page)
         } else {
             listResult.postValue(null)
         }
     }
 
-    private suspend fun getListFromSpider(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
+    private suspend fun getListFromSpider(sourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
         val json = withContext(Dispatchers.IO) {
             BoundedCall.call(Callable<String> {
-                val sp = ApiConfig.get().getCSP(homeSourceBean)
+                val sp = ApiConfig.get().getCSP(sourceBean)
                 sp.categoryContent(sortData.id, page.toString(), true, sortData.filterSelect)
-            }, homeSourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getList--" + homeSourceBean.key)
+            }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getList--" + sourceBean.key)
         }
         if (json != null) {
-            withContext(Dispatchers.IO) { resultParser.json(listResult, json, homeSourceBean.key) }
+            withContext(Dispatchers.IO) { resultParser.json(listResult, json, sourceBean.key) }
         } else {
-            LOG.i("echo--list-spider-null:" + homeSourceBean.key + " sort=" + sortData.id + " pg=" + page)
+            LOG.i("echo--list-spider-null:" + sourceBean.key + " sort=" + sortData.id + " pg=" + page)
             listResult.postValue(null)
         }
     }
 
-    private suspend fun getListFromApi(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
-        val type = homeSourceBean.type
+    private suspend fun getListFromApi(sourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
+        val type = sourceBean.type
 
         try {
-            val body = SourceHelper.siteGet(homeSourceBean) {
+            val body = SourceHelper.siteGet(sourceBean) {
                 params("ac", if (type == 0) "videolist" else "detail")
                 params("t", sortData.id)
                 params("pg", page.toString())
@@ -78,27 +83,27 @@ class ListLoader(
             }
             withContext(Dispatchers.IO) {
                 if (type == 0) {
-                    resultParser.xml(listResult, body, homeSourceBean.key)
+                    resultParser.xml(listResult, body, sourceBean.key)
                 } else {
-                    resultParser.json(listResult, body, homeSourceBean.key)
+                    resultParser.json(listResult, body, sourceBean.key)
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             LOG.i(
-                "echo--list-api-error:" + homeSourceBean.key + " t=" + sortData.id + " pg=" + page
+                "echo--list-api-error:" + sourceBean.key + " t=" + sortData.id + " pg=" + page
                     + " ex=" + e
             )
             listResult.postValue(null)
         }
     }
 
-    private suspend fun getListFromExtendedApi(homeSourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
+    private suspend fun getListFromExtendedApi(sourceBean: SourceBean, sortData: MovieSort.SortData, page: Int) {
 
         var ext = ""
         val extend = withContext(Dispatchers.IO) {
-            SourceHelper.getFixUrl(extendCache, gson, homeSourceBean.ext, homeSourceBean.getPlayTimeoutSeconds().toLong())
+            SourceHelper.getFixUrl(extendCache, gson, sourceBean.ext, sourceBean.getPlayTimeoutSeconds().toLong())
         }
         if (sortData.filterSelect.size > 0) {
             try {
@@ -112,7 +117,7 @@ class ListLoader(
         }
 
         try {
-            val body = SourceHelper.siteGet(homeSourceBean) {
+            val body = SourceHelper.siteGet(sourceBean) {
                 params("ac", "detail")
                 params("filter", "true")
                 params("t", sortData.id)
@@ -122,12 +127,12 @@ class ListLoader(
                     params("extend", extend)
                 }
             }
-            withContext(Dispatchers.IO) { resultParser.json(listResult, body, homeSourceBean.key) }
+            withContext(Dispatchers.IO) { resultParser.json(listResult, body, sourceBean.key) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             LOG.i(
-                "echo--list-ext-error:" + homeSourceBean.key + " t=" + sortData.id + " pg=" + page
+                "echo--list-ext-error:" + sourceBean.key + " t=" + sortData.id + " pg=" + page
                     + " ex=" + e
             )
             listResult.postValue(null)

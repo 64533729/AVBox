@@ -134,7 +134,12 @@ internal class PlayerConfigDelegate(private val host: ComposeVideoController) {
     }
 
     private fun restartForPictureIfNeeded() {
-        if (PictureEffects.consumeRestartNeeded()) host.listener?.replay(false)
+        if (!PictureEffects.consumeRestartNeeded()) return
+        host.videoView?.let {
+            it.requireKernelRebuild()
+            LOG.i("echo-picture-effects: rebuild kernel on next start")
+        }
+        host.listener?.replay(false)
     }
 
     private fun decodeChoice(cfg: JSONObject): ParamsChoice {

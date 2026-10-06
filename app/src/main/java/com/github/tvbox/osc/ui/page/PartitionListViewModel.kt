@@ -2,6 +2,7 @@ package com.github.tvbox.osc.ui.page
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.MovieSort
@@ -43,6 +44,7 @@ class PartitionListVM : ViewModel() {
     var sort: MovieSort.SortData? = null
         private set
 
+    private var sourceKey: String? = null
     private val scope = viewModelScope
     private var initialized = false
 
@@ -97,11 +99,11 @@ class PartitionListVM : ViewModel() {
             loaderScope.cancel()
         }
 
-        fun request(page: Int, data: MovieSort.SortData, onDone: (LoaderResult) -> Unit) {
+        fun request(page: Int, data: MovieSort.SortData, sourceKey: String?, onDone: (LoaderResult) -> Unit) {
             pending?.invoke(LoaderResult(true, null))
             pending = onDone
             busy = true
-            svm.getList(data, page)
+            svm.getList(sourceKey, data, page)
         }
     }
 
@@ -123,6 +125,7 @@ class PartitionListVM : ViewModel() {
         if (initialized) return
         initialized = true
         this.sort = sort
+        sourceKey = ApiConfig.get().getHomeSourceBean().key
         request(FIRST_PAGE)
     }
 
@@ -144,7 +147,7 @@ class PartitionListVM : ViewModel() {
         val data = sort ?: return
         scope.launch {
             val result = suspendCancellableCoroutine<LoaderResult> { cont ->
-                loader.request(page, data) { r -> if (cont.isActive) cont.resume(r) }
+                loader.request(page, data, sourceKey) { r -> if (cont.isActive) cont.resume(r) }
             }
             if (!result.stale) applyResult(page, result.absXml)
         }

@@ -34,6 +34,27 @@ import okhttp3.Response
 class PythonLoader {
     private val spiders = ConcurrentHashMap<String, Spider>()
 
+    @Volatile
+    private var generation: Long = 0
+
+    private val destroyExecutor = Executors.newSingleThreadExecutor()
+
+    fun invalidate() {
+        generation++
+        val stale = ArrayList(spiders.values)
+        spiders.clear()
+        if (stale.isEmpty()) return
+        destroyExecutor.execute {
+            for (spider in stale) {
+                try {
+                    spider.destroy()
+                } catch (th: Throwable) {
+                    LOG.e("PythonLoader", th)
+                }
+            }
+        }
+    }
+
     @JvmField
     var pyInstance: Python? = null
 
@@ -146,6 +167,7 @@ class PythonLoader {
             return spiders.getValue(key)
         }
 
+        val startGeneration = generation
         val executor = Executors.newSingleThreadExecutor()
         var future: Future<*>? = null
         var sp: PythonSpider? = null
@@ -163,6 +185,7 @@ class PythonLoader {
 
             future.get(30, TimeUnit.SECONDS)
 
+            if (startGeneration != generation) return SpiderNull()
             if (!spider.isLoadSuccess()) return SpiderNull()
             spiders[key] = spider
             return spider
@@ -174,7 +197,7 @@ class PythonLoader {
                 try {
                     initFuture!!.get()
                     val done = pending
-                    if (done!!.isLoadSuccess()) {
+                    if (done!!.isLoadSuccess() && startGeneration == generation) {
                         spiders.putIfAbsent(key, done)
                     }
                 } catch (th: Throwable) {

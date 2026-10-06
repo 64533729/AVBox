@@ -441,6 +441,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         if (url != null && !url.isEmpty()) {
             scheduler.stopParse()
             scheduler.initParseLoadFound()
+            mVideoView?.saveCurrentProgress()
             if (!scheduler.isCrossContentReuseAllowed()) releasePlayerKernel()
             scheduler.goPlayUrl(url, scheduler.webHeaderMap())
         } else {

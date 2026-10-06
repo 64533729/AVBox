@@ -140,7 +140,6 @@ class ConfigManageViewModel : ViewModel() {
             liveActiveUrl.value = ""
             liveFollow.value = true
         }
-        toastEvent.value = str(R.string.config_switched_to, item.name)
     }
 
     private fun switchToLive(item: SubscribeSource) {
@@ -148,7 +147,6 @@ class ConfigManageViewModel : ViewModel() {
         applyLiveSource(item)
         liveActiveUrl.value = item.url
         liveFollow.value = false
-        toastEvent.value = str(R.string.config_switched_to, item.name)
     }
 
     fun requestSwitch(item: SubscribeSource, vod: Boolean) {

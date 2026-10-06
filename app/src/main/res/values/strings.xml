@@ -389,7 +389,6 @@
     <string name="live_source_index_name">源%1$d</string>
 
     <string name="config_no_source">未配置</string>
-    <string name="config_switched_to">已切换到:%1$s</string>
     <string name="config_switch_repo">换仓</string>
     <string name="config_add_subscribe">添加订阅</string>
     <string name="config_add_live_source">添加直播源</string>

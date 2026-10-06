@@ -275,8 +275,6 @@ class ComposeVideoController @JvmOverloads constructor(
         PlayState.IDLE -> {
             savePlaybackProgress(notifyHistory = true)
             state.locked = false
-            state.duration = 0
-            state.position = 0
         }
         PlayState.PLAYING -> {
             initOrientationState()
@@ -329,8 +327,8 @@ class ComposeVideoController @JvmOverloads constructor(
     private fun onProgressTick(duration: Long, position: Long) {
         val durationMs = PlayerUtils.safeTimeMs(duration)
         val positionMs = PlayerUtils.safeTimeMs(position)
-        state.duration = durationMs
-        state.position = positionMs
+        if (durationMs > 0) state.duration = durationMs
+        if (positionMs > 0 || durationMs > 0) state.position = positionMs
         PlaybackProgress.onProgress(positionMs, durationMs)
         if (skipEnd && positionMs != 0 && durationMs != 0) {
             val et = playerConfig?.optInt("et", 0) ?: 0
@@ -482,6 +480,8 @@ class ComposeVideoController @JvmOverloads constructor(
     override fun onNewPlayStarted() {
         val size = runCatching { videoView?.videoSize }.getOrNull() ?: intArrayOf(0, 0)
         state.videoSize = videoSizeGate.onNewSession(size[0], size[1])
+        state.position = 0
+        state.duration = 0
     }
 
     override fun setLifecyclePaused(paused: Boolean) {

@@ -13,6 +13,8 @@ import com.github.tvbox.osc.util.net.Http
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 import dalvik.system.DexClassLoader
 import com.whl.quickjs.wrapper.QuickJSContext
@@ -22,15 +24,27 @@ class JsLoader {
     @Volatile
     private var recentKey: String = ""
 
-    @Synchronized
+    private val clearGeneration: AtomicLong = AtomicLong(0)
+    private val creationLock: Any = Any()
+    private val destroyExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "js-loader-destroy") }
+
     fun clear() {
-        for (spider in spiders.values) {
-            spider.cancelByTag()
-            spider.destroy()
-        }
+        clearGeneration.incrementAndGet()
+        val stale = ArrayList(spiders.values)
         spiders.clear()
         classes.clear()
         recentKey = ""
+        if (stale.isEmpty()) return
+        destroyExecutor.execute {
+            for (spider in stale) {
+                try {
+                    spider.cancelByTag()
+                    spider.destroy()
+                } catch (ignored: Throwable) {
+                    LOG.d("JsLoader", "destroy spider failed")
+                }
+            }
+        }
     }
 
     private fun loadClassLoader(jar: String, key: String): Boolean {
@@ -125,41 +139,59 @@ class JsLoader {
         return null
     }
 
-    @Synchronized
     fun getSpider(key: String?, api: String?, ext: String?, jar: String?): Spider {
         recentKey = key!!
-        if (spiders.containsKey(key)) {
+        spiders[key]?.let {
             Log.i("JSLoader", "echo-getSpider cached " + key)
-            return spiders.getValue(key)
+            return it
         }
-        var classLoader: Class<*>? = null
-        if (!jar!!.isEmpty()) {
-            val urls = RegexUtils.getPattern(";md5;").split(jar)
-            val jarUrl = urls[0]
-            val jarKey = MD5.string2MD5(jarUrl)!!
-            val jarMd5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
-            classLoader = loadJarInternal(jarUrl, jarMd5, jarKey)
-        }
-        var sp: Spider? = null
-        try {
-            Log.i("JSLoader", "echo-getSpider load")
-            val created = JsSpider(key, api!!, classLoader)
-            sp = created
-            created.siteKey = key
-            created.init(AppContextHolder.context(), ext)
-            spiders[key] = created
-            return created
-        } catch (th: Throwable) {
-            LOG.i("echo-getSpider-error " + th.message)
-            if (sp != null) {
-                try {
-                    sp!!.destroy()
-                } catch (ignored: Throwable) {
-                    LOG.d("JsLoader", "destroy spider failed")
+        val generation = clearGeneration.get()
+        synchronized(creationLock) {
+            val cached = spiders[key]
+            if (cached != null) {
+                Log.i("JSLoader", "echo-getSpider cached " + key)
+                return cached
+            }
+            var classLoader: Class<*>? = null
+            if (!jar!!.isEmpty()) {
+                val urls = RegexUtils.getPattern(";md5;").split(jar)
+                val jarUrl = urls[0]
+                val jarKey = MD5.string2MD5(jarUrl)!!
+                val jarMd5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
+                classLoader = loadJarInternal(jarUrl, jarMd5, jarKey)
+            }
+            var sp: Spider? = null
+            try {
+                Log.i("JSLoader", "echo-getSpider load")
+                val created = JsSpider(key, api!!, classLoader)
+                sp = created
+                created.siteKey = key
+                created.init(AppContextHolder.context(), ext)
+                if (generation == clearGeneration.get()) {
+                    spiders[key] = created
+                    return created
+                }
+                destroyLater(created)
+                return SpiderNull()
+            } catch (th: Throwable) {
+                LOG.i("echo-getSpider-error " + th.message)
+                if (sp != null) {
+                    destroyLater(sp!!)
                 }
             }
+            return SpiderNull()
         }
-        return SpiderNull()
+    }
+
+    private fun destroyLater(spider: Spider) {
+        destroyExecutor.execute {
+            try {
+                spider.cancelByTag()
+                spider.destroy()
+            } catch (ignored: Throwable) {
+                LOG.d("JsLoader", "destroy spider failed")
+            }
+        }
     }
 
     fun proxyInvoke(params: Map<String, String>?): Array<Any?>? {

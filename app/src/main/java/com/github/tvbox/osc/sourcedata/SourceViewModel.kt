@@ -64,8 +64,8 @@ class SourceViewModel : ViewModel() {
         requestScope.launch { sortLoader.getSort(sourceKey, withRec) }
     }
 
-    fun getList(sortData: MovieSort.SortData?, page: Int) {
-        requestScope.launch { listLoader.getList(sortData, page) }
+    fun getList(sourceKey: String?, sortData: MovieSort.SortData?, page: Int) {
+        requestScope.launch { listLoader.getList(sourceKey, sortData, page) }
     }
 
     fun getDetail(sourceKey: String?, urlid: String) {

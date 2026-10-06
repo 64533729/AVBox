@@ -3,8 +3,6 @@ package com.github.tvbox.osc.api
 import android.app.Activity
 import android.net.Uri
 import android.os.Environment
-import android.os.Handler
-import android.os.Looper
 import android.text.TextUtils
 
 import com.github.tvbox.osc.R
@@ -32,10 +30,13 @@ import java.util.concurrent.Executors
 import java.util.function.Supplier
 
 class ConfigLoader(private val owner: ApiConfig) {
-    private val mainHandler = Handler(Looper.getMainLooper())
     private val configLoadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     fun loadConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback, activity: Activity?) {
+        configLoadExecutor.execute(Runnable { runLoadConfig(useCache, callback, activity) })
+    }
+
+    private fun runLoadConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback, activity: Activity?) {
         val apiUrl = KV.get(HawkConfig.API_URL, "")
         if (apiUrl.isEmpty()) {
             callback.error("-1")
@@ -46,7 +47,7 @@ class ConfigLoader(private val owner: ApiConfig) {
             try {
                 val json = readConfigFile(cache)
                 if (switchApiCollectionIfNeeded(apiUrl, json)) {
-                    loadConfig(false, callback, activity)
+                    runLoadConfig(false, callback, activity)
                     return
                 }
                 clearApiLinesIfUnmatched(apiUrl)
@@ -66,7 +67,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                 try {
                     if (switchApiCollectionIfNeeded(apiUrl, body)) {
                         FileUtils.saveCache(cache, body)
-                        loadConfig(false, callback, activity)
+                        runLoadConfig(false, callback, activity)
                         return
                     }
                     clearApiLinesIfUnmatched(apiUrl)
@@ -92,7 +93,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                     try {
                         val json = readConfigFile(cache)
                         if (switchApiCollectionIfNeeded(apiUrl, json)) {
-                            loadConfig(false, callback, activity)
+                            runLoadConfig(false, callback, activity)
                             return
                         }
                         clearApiLinesIfUnmatched(apiUrl)
@@ -109,6 +110,10 @@ class ConfigLoader(private val owner: ApiConfig) {
     }
 
     fun loadLiveConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback) {
+        configLoadExecutor.execute(Runnable { runLoadLiveConfig(useCache, callback) })
+    }
+
+    private fun runLoadLiveConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback) {
         val apiUrl = ApiConfig.getEffectiveLiveUrl()
         if (apiUrl.isEmpty()) {
             callback.error("-1")
@@ -124,7 +129,7 @@ class ConfigLoader(private val owner: ApiConfig) {
             try {
                 val json = readConfigFile(live_cache)
                 if (switchLiveApiCollectionIfNeeded(liveApiUrl, json)) {
-                    loadLiveConfig(false, callback)
+                    runLoadLiveConfig(false, callback)
                     return
                 }
                 clearLiveApiLinesIfUnmatched(liveApiUrl)
@@ -143,7 +148,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                 try {
                     if (switchLiveApiCollectionIfNeeded(liveApiUrl, body)) {
                         FileUtils.saveCache(live_cache, body)
-                        loadLiveConfig(false, callback)
+                        runLoadLiveConfig(false, callback)
                         return
                     }
                     clearLiveApiLinesIfUnmatched(liveApiUrl)
@@ -174,7 +179,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                     try {
                         val json = readConfigFile(live_cache)
                         if (switchLiveApiCollectionIfNeeded(liveApiUrl, json)) {
-                            loadLiveConfig(false, callback)
+                            runLoadLiveConfig(false, callback)
                             return
                         }
                         clearLiveApiLinesIfUnmatched(liveApiUrl)
@@ -353,13 +358,11 @@ class ConfigLoader(private val owner: ApiConfig) {
             }
             val finalResult = result
             val finalError = error
-            mainHandler.post(Runnable {
-                if (TextUtils.isEmpty(finalError)) {
-                    callback.success(finalResult)
-                } else {
-                    callback.error(finalError)
-                }
-            })
+            if (TextUtils.isEmpty(finalError)) {
+                callback.success(finalResult)
+            } else {
+                callback.error(finalError)
+            }
         })
     }
 

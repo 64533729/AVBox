@@ -26,6 +26,8 @@ import java.lang.reflect.Method
 import java.util.HashMap
 import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 import dalvik.system.DexClassLoader
 
@@ -42,6 +44,9 @@ class JarLoader {
 
     @Volatile
     private var recent: String = MAIN_KEY
+
+    private val clearGeneration: AtomicLong = AtomicLong(0)
+    private val destroyExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "jar-loader-destroy") }
 
     fun load(cache: String): Boolean {
         val success = load(MAIN_KEY, File(cache))
@@ -62,13 +67,8 @@ class JarLoader {
     }
 
     fun clear() {
-        for (spider in spiders.values) {
-            try {
-                spider.destroy()
-            } catch (ignored: Throwable) {
-                LOG.d("JarLoader", "destroy spider failed")
-            }
-        }
+        clearGeneration.incrementAndGet()
+        val stale = ArrayList(spiders.values)
         loaders.clear()
         proxyMethods.clear()
         danmuClickMethods.clear()
@@ -78,6 +78,16 @@ class JarLoader {
         siteJarKeys.clear()
         aliases.clear()
         recent = MAIN_KEY
+        if (stale.isEmpty()) return
+        destroyExecutor.execute {
+            for (spider in stale) {
+                try {
+                    spider.destroy()
+                } catch (ignored: Throwable) {
+                    LOG.d("JarLoader", "destroy spider failed")
+                }
+            }
+        }
     }
 
     private fun load(key: String, file: File): Boolean {
@@ -206,6 +216,7 @@ class JarLoader {
         }
 
         val lock = locks.computeIfAbsent(spKey) { Any() }
+        val generation = clearGeneration.get()
         synchronized(lock) {
             val cachedAgain = spiders[spKey]
             if (cachedAgain != null) return cachedAgain
@@ -217,6 +228,7 @@ class JarLoader {
                 spider.siteKey = spiderKey
                 spider.initApi(SpiderApi())
                 spider.init(AppContextHolder.context(), spiderExt)
+                if (generation != clearGeneration.get()) return SpiderNull()
                 spiders[spKey] = spider
                 Log.i(TAG, "getSpider success key=" + spKey)
                 return spider

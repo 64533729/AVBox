@@ -423,12 +423,20 @@ class SpiderLoader {
     }
 
     fun clearLoader() {
+        val startedAt = System.currentTimeMillis()
         jarLoader.clear()
+        val jarDone = System.currentTimeMillis()
         pyLoader.clear()
+        val pyDone = System.currentTimeMillis()
         jsLoader.clear()
+        val jsDone = System.currentTimeMillis()
         synchronized(warmedSearchSpiderKeys) {
             warmedSearchSpiderKeys.clear()
         }
+        LOG.i(
+            "echo-switch: clear jar=" + (jarDone - startedAt) + "ms py=" + (pyDone - jarDone) +
+                "ms js=" + (jsDone - pyDone) + "ms"
+        )
     }
 
     fun clearSpiderCache() {

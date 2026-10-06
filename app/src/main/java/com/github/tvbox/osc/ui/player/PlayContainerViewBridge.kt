@@ -178,9 +178,10 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         val reusePlayer =
             KernelReusePolicy.decide(kernelPresent, rebuildKernel, forceExoPlayer, true) == KernelDecision.REUSE
         if (!reusePlayer) container.hideTip()
+        val sameContent = reusePlayer && container.scheduler.isSameStartedContent()
         if (!reusePlayer && kernelPresent) {
             container.releasePlayerKernel()
-        } else if (reusePlayer && container.scheduler.isSameStartedContent()) {
+        } else if (sameContent) {
             view.saveCurrentProgress()
         }
         view.setProgressKey(container.scheduler.progressKey())
@@ -193,7 +194,8 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
         }
         container.scheduler.startSwitchLinePlayTimeout()
         if (reusePlayer) {
-            view.skipPositionWhenPlay(container.scheduler.playTimeoutBasePosition().toInt())
+            val base = container.scheduler.playTimeoutBasePosition()
+            view.skipPositionWhenPlay((if (sameContent) view.resumePositionForReplay(base) else base).toInt())
             view.replay(false)
         } else {
             view.start()

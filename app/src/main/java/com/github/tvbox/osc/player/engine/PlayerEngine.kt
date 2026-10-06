@@ -263,7 +263,7 @@ class PlayerEngine(
         }
         currentPlayPath = playPath
         currentHeaders = copyHeaders(headers)
-        retriedAsHls = false
+        resetSessionFlags()
         trackSelection.resetForNewContent()
         resetPlaybackStats()
         mediaSource = mediaSources.getMediaSource(playPath, copyHeaders(currentHeaders))
@@ -291,6 +291,13 @@ class PlayerEngine(
         }
         mediaSource = cached
         LOG.i((if (mode == SourcePolicy.CacheMode.PRELOAD_TARGET) "echo-preload-disk-source: " else "echo-play-cache-source: ") + playPath)
+    }
+
+    private fun resetSessionFlags() {
+        retriedAsHls = false
+        videoEffectsOpen = false
+        pictureHdrSource = false
+        lastErrorKindValue = ERROR_KIND_UNKNOWN
     }
 
     private fun resetPlaybackStats() {
@@ -346,7 +353,7 @@ class PlayerEngine(
             it.stop()
             it.clearMediaItems()
         }
-        retriedAsHls = false
+        resetSessionFlags()
     }
 
     fun release() {

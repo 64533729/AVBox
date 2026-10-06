@@ -91,6 +91,7 @@ class HomeViewModel : ViewModel() {
     private val loadSemaphore = Semaphore(2)
     private var loadGeneration = 0
     private var loadingSourceKey: String? = null
+    private var configReloading = false
     private var watchdogJob: Job? = null
 
     var activeSortId: String? = null
@@ -119,7 +120,10 @@ class HomeViewModel : ViewModel() {
         scope.launch {
             AppBootstrap.state.collect {
                 bootReady.value = it is AppBootstrap.Boot.Ready
-                if (it is AppBootstrap.Boot.Ready) loadHome()
+                if (it is AppBootstrap.Boot.Ready) {
+                    configReloading = false
+                    loadHome()
+                }
             }
         }
         scope.launch {
@@ -143,6 +147,7 @@ class HomeViewModel : ViewModel() {
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onRefreshEvent(event: RefreshEvent) {
         if (event.type == RefreshEvent.TYPE_API_URL_CHANGE) {
+            configReloading = true
             reload()
         }
     }
@@ -253,7 +258,8 @@ class HomeViewModel : ViewModel() {
     private fun onSortResult(absXml: AbsSortXml?) {
         val key = loadingSourceKey
         if (key == null) {
-            LOG.i("echo--sort-null-key: srcName=${currentSource.value?.name} srcCount=${sources.value.size} absXml=${absXml != null}")
+            LOG.i("echo--sort-null-key: srcName=${currentSource.value?.name} srcCount=${sources.value.size} absXml=${absXml != null} reloading=$configReloading")
+            if (configReloading) return
             rec.value = Rec(PartitionState.Empty, emptyList())
             partitions.value = emptyList()
             sorts.value = emptyList()
@@ -364,10 +370,11 @@ class HomeViewModel : ViewModel() {
 
     private fun requestPartition(current: Partition, page: Int) {
         val generation = loadGeneration
-        val loader = loaders.getOrPut(current.sort.id.orEmpty()) { PartitionLoader(current.sort) }
+        val sourceKey = loadingSourceKey
+        val loader = loaders.getOrPut(current.sort.id.orEmpty()) { PartitionLoader(sourceKey, current.sort) }
         scope.launch {
             loadSemaphore.withPermit {
-                if (generation != loadGeneration || loader.released) return@withPermit
+                if (generation != loadGeneration || loader.released || loader.sourceKey != loadingSourceKey) return@withPermit
                 armWatchdog()
                 val result = suspendCancellableCoroutine<LoaderResult> { cont ->
                     loader.request(page) { r -> if (cont.isActive) cont.resume(r) }
@@ -449,7 +456,7 @@ class HomeViewModel : ViewModel() {
         targets.forEach { p -> requestPartition(p, Partition.FIRST_PAGE) }
     }
 
-    private inner class PartitionLoader(val sort: MovieSort.SortData) {
+    private inner class PartitionLoader(val sourceKey: String?, val sort: MovieSort.SortData) {
         private val svm = SourceViewModel()
         @Volatile
         private var pending: ((LoaderResult) -> Unit)? = null
@@ -481,7 +488,7 @@ class HomeViewModel : ViewModel() {
             pending?.invoke(LoaderResult(stale = true, absXml = null))
             pending = onDone
             busy = true
-            svm.getList(sort, page)
+            svm.getList(sourceKey, sort, page)
         }
 
         fun release() {

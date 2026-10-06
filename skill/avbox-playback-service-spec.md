@@ -114,18 +114,22 @@ PlaybackService(前台服务,托管生命周期)
 ### 3.3 归属判定、内核复用与空闲释放
 
 - **归属键** = `PlaybackSession.playbackKey()` = `源|片id|线路|集号`。页面 attach 时判断"引擎里正在播的是不是我要的这一集"(同键 = 只接管续播;不同 = 用户显式换片,走 `setData` 重播)。页面侧另有 `handedOver`(交给音乐页后 `hostDestroy` 不得再 detach)与 `ownsEngineContent()`。
-- **内核复用** = `KernelReusePolicy.decide(kernelPresent, rebuildRequired, dedicatedPath, reuseAllowed)`,是**唯一判定**:调度层的释放决策与各起播点的 `replay`/`start` 决策共用它(分散判定会造成"上游保留、下游又释放"的动作分裂)。`REBUILD` 是强结论;`REUSE` 是弱结论,起播点现场发现"必须重建"标记时允许升级。**换线/换源/换片不再重建内核**(2026-10-03 D8);只有 `isKernelErrored()` 与 `requireKernelRebuild()`(渲染方式/EXO 解码方式变更)两条强重建条件。
+- **内核复用** = `KernelReusePolicy.decide(kernelPresent, rebuildRequired, dedicatedPath, reuseAllowed)`,是**唯一判定**:调度层的释放决策与各起播点的 `replay`/`start` 决策共用它(分散判定会造成"上游保留、下游又释放"的动作分裂)。`REBUILD` 是强结论;`REUSE` 是弱结论,起播点现场发现"必须重建"标记时允许升级。**换线/换源/换片不再重建内核**(2026-10-03 D8);只有 `isKernelErrored()` 与 `requireKernelRebuild()`(渲染方式/EXO 解码方式变更/**画面开关重播**)两条强重建条件。**画面开关(调色/超分)的开关重播必须走重建**(2026-10-07 真机实锤):效果列表挂在渲染器实例上(media3 `MediaCodecVideoRenderer.videoEffects` 唯一写入点 = `setVideoEffects`,reset/prepare 都不清),关闭态又按"未启用不下发"规则不调 ⇒ 复用内核重播时旧链原样继续跑(GPU ~34% 下不来、日志无 `draw: tier=off`);载体 `PlayerConfigDelegate.restartForPictureIfNeeded()`(置 `requireKernelRebuild()` + 日志 `echo-picture-effects: rebuild kernel on next start`),细节见 `avbox-mobile-ui-spec.md` §6.17。
+- ⚠️ **复用内核时"会话标志"必须在 `setDataSource`/`reset` 复位(2026-10-07)**:`PlayerEngine` 的 `videoEffectsOpen`/`pictureHdrSource`/`lastErrorKindValue` 都只在特定时点写(下发成功 / 挂链后的 tracks 回调 / 播放错误),复用内核重播(换集/换源/重播)会读到上集残值 ⇒ `isPictureEffectsActive` 假阳性、HDR 片之后开超分被 `consumeRestartNeeded` 早退挡住不生效、上集解码错误类型残留会让超时/换线重试误触发软解回退。三条已收口在 `resetSessionFlags()`(`setDataSource` 与 `reset()` 两处都调);**今后给 `PlayerEngine`/内核桥新增"会话级"字段时必须在同一处登记复位**(内核重建路径本就 new 实例,无需处理)。
 - `isCrossContentSwitch(startedKey, targetKey)` 只用来分辨提示语与进度落盘口径(换片/换源/换线 vs 同片同线路换集)。
 - **空闲释放**(`IDLE_RELEASE_DELAY_MS = 60_000`):摘下页面后若一直没人再来取,到点释放内核并回调 `PlaybackService.onEngineReleased`(清静态引擎引用 + 撤会话,**不 stopSelf** —— 服务为托管引擎而常驻,引擎可重建;`stopSelf` 到 `onDestroy` 之间有窗口会把新引擎误释放 ⇒ 黑屏)。**预热开关开启时抑制空闲释放**(`PrewarmPolicy`)。
 - **服务常驻语义**:`onStartCommand` 恒返回 `START_NOT_STICKY`(进程被回收后引擎已不存在,重启服务只会留下空壳);`onTaskRemoved` = 停会话 + `stopSelf`;`onDestroy` = 停会话 + `releaseEngine()`。
 
-### 3.4 进度落盘(三处)
+### 3.4 进度落盘(四处)与复用重播恢复点
 
 1. **切集/换源前**(键易主前先落旧键);
 2. **页面 detach 时**显式 `saveCurrentProgress()`(不 release 就没人触发落盘);
-3. **引擎 release 时**(释放内核之后落盘)。
+3. **引擎 release 时**(释放内核之后落盘);
+4. **同地址重播前**(`PlayContainer.replayCurrentAddress()` 先落一次,2026-10-07 补 —— 复用重播的恢复点靠它拿到"当前"位置)。
 
-`ProgressSink` 由 `PlaybackEngine` 注入 `MyVideoView`,语义逐条保留:位置 > 0 才落盘、`onCompletion` 显式清 0、release 在释放内核后落盘。**直播期间摘下进度管理器**(`setProgressSink(null)`),且 `release()` 必须在还回点播进度管理器**之前**执行 —— 否则会把直播 position 写进点播进度缓存(看剧→进直播→返回,续播位置被污染)。
+`ProgressSink` 由 `PlaybackEngine` 注入 `MyVideoView`,语义逐条保留:位置 > 0 才落盘、`onCompletion` 显式清 0、release 在释放内核后落盘。**落盘值口径(2026-10-07)**:优先抓**内核实时位置**(`AppPlayerView.captureLivePosition()`,`release()` 开头与 `saveProgress()` 内各抓一次),抓不到(内核已释放/非播放态)才回落 UI 轮询缓存 `mCurrentPosition` —— 旧口径只信该缓存(每秒更新,暂停/seek 窗口会滞后),重建时可能把几秒前的位置写回。**直播期间摘下进度管理器**(`setProgressSink(null)`),且 `release()` 必须在还回点播进度管理器**之前**执行 —— 否则会把直播 position 写进点播进度缓存(看剧→进直播→返回,续播位置被污染)。
+
+**复用重播的恢复点(2026-10-07)**:`skipPositionWhenPlay` 的值分两种 —— **同内容**(换线/画面开关等重播,判据 `isSameStartedContent()`,必须在 `markContentStarted()` **之前**捕获)用 `MyVideoView.resumePositionForReplay(库内值)`(实时位置优先);**跨内容**(换集/换歌)继续用 `goPlayUrl` 时读出的库内值 `playTimeoutBasePosition`。旧口径一律用库内值,而"保存当前位置"发生在读它**之后** ⇒ 恢复的是"上次写库时的位置"(真机日志实测回退约 30 秒;本集从未写过库时恢复 0 = 从 0 开始播放)。三处复用起点(`PlayContainerViewBridge` / `PlaybackEngine.HeadlessView` / `MusicPlayerActivity`)同口径。
 
 ### 3.5 媒体会话、通知与前台服务
 
@@ -280,3 +284,4 @@ fongmi 的关键实现点(仍具参考价值):服务侧建/释放内核、`bindP
 | 2026-10-05~06 | **M7 播放栈自研替换(A 路线 / D12)全切片落地**:doikki fork 退出历史,内核唯一 = media3 `ExoPlayer`;`app/src` 零 `xyz.doikki` 引用;`PlayState` 取代 doikki `STATE_*` 读取面。逐切片记录见 `avbox-kotlin-migration-spec.md` §7.13–§7.18 |
 | 2026-10-06 | **M10 拆除**:`player` 模块 + `dkplayer-ui` 删除;media3 依赖 / `WAKE_LOCK` 权限 / 3 个原生库归位 app(见 §7.3) |
 | 2026-10-06 | **本文重写为 as-built 规范**:组件表、所有权/线程/数据流、挂摘协议与运行机制按现栈重述;§4 走查清单保留原编号并补 M7 换代后的走查重点(15–18);D1 作废、新增 D9;**§4 节号与 1–14 编号保持不变**(外部文档按「§4 清单」引用)。历史方案与 fongmi 对照压到 §7 |
+| 2026-10-07 | 画面开关(调色/超分)重播改走 `requireKernelRebuild()`:复用内核下关闭态不下发效果列表 ⇒ 旧链残留(GPU ~34% 下不来);§3.3 强重建条件补点,细节见 `avbox-mobile-ui-spec.md` §6.17 |

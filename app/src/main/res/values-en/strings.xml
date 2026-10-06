@@ -389,7 +389,6 @@
     <string name="live_source_index_name">Source %1$d</string>
 
     <string name="config_no_source">Not configured</string>
-    <string name="config_switched_to">Switched to: %1$s</string>
     <string name="config_switch_repo">Switch Repo</string>
     <string name="config_add_subscribe">Add Subscription</string>
     <string name="config_add_live_source">Add Live Source</string>

@@ -178,7 +178,7 @@ internal class LiveChannelSourceLoader(
         host.currentLiveLookBackIndex = -1
         host.currentLiveChangeSourceTimes = 0
         host.liveChannelGroupList.clear()
-        ApiConfig.get().channelGroupList.clear()
+        ApiConfig.get().clearLiveChannelGroups()
         handler.removeCallbacks(host.mConnectTimeoutChangeSourceRun)
         host.epgController.cancelPending()
         host.overlay.hideSwitchChannelSnapshot()

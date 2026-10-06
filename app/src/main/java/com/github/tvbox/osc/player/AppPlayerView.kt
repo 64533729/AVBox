@@ -254,6 +254,7 @@ open class AppPlayerView @JvmOverloads constructor(
 
     open fun release() {
         val hadActiveState = mLastReportedPlayState != PlayState.IDLE
+        if (hadActiveState) captureLivePosition()
         mAudioFocusHelper?.abandonFocus()
         mAudioFocusHelper = null
         mMediaPlayer?.release()
@@ -275,10 +276,26 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected fun saveProgress() {
         val sink = mProgressSink ?: return
+        captureLivePosition()
         if (mCurrentPosition > 0) {
             LOG.d("AppPlayerView", "saveProgress: " + mCurrentPosition)
             sink.saveProgress(progressKey(), mCurrentPosition)
         }
+    }
+
+    private fun captureLivePosition() {
+        if (!isInPlaybackState()) return
+        val live = mMediaPlayer?.currentPosition ?: 0L
+        if (live > 0) mCurrentPosition = live
+    }
+
+    open fun resumePositionForReplay(fallback: Long): Long {
+        if (isInPlaybackState()) {
+            val live = mMediaPlayer?.currentPosition ?: 0L
+            if (live > 0) return live
+        }
+        if (mCurrentPosition > 0) return mCurrentPosition
+        return fallback
     }
 
     protected fun progressKey(): String? = mProgressKey ?: mUrl

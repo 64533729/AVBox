@@ -4328,3 +4328,111 @@ new-instance v2, Lorg/json/JSONArray;  invoke-direct {v2, v1}      # new JSONArr
 **规范同步**：`skill/SKILL.md`「注释」条目由"极简（单条 ≤2 行）"改写为**零注释 + 三类例外**（附工具用法）；`skill/avbox-code-review-spec.md` 的既定约定 2 条改写为"「存在解释性注释」才是问题"；`.codebuddy/skills/android/` 镜像已同步（同步前 diff 确认副本 = HEAD，可无损覆盖）。
 
 **未验证面**：真机走查未做（纯注释改动，无行为面）；`:app:assembleRelease` 未跑（需用户许可）。
+
+---
+
+## 画质开关关闭失效修复：重播改走内核重建（2026-10-07）
+
+**现象**：用户报"播放中关闭调色 + Anime4K 超分后 GPU 仍 ~34%，怀疑没关掉"。设备（vivo 10AF1J04JX0016G）证据链：MMKV `anime4k_enabled=false` / `picture_preset=Original`（开关确实关了）；`/sys/class/kgsl/kgsl-3d0/gpubusy` 采样 6 次 ≈ 34%（对照 10-01 实测：只挂调色 7~18%、调色+超分 44~46%）；日志里 04:24:53 是唯一一次建链（`echo-anime4k chain: tier=Standard passes=13 in=1280x720 out=2240x1260 ... deblur=0`），之后开去模糊/关超分的两次重播**无 `release player kernel`**、也**无** `draw: tier=off (passthrough)` ⇒ 旧链（已编译的 13 个 Standard pass）原样继续跑。
+
+**根因（三件事叠加，非 M7 迁移引入）**：① 2026-10-03 `7baeeb3`（D8"换线/换源/换片一律复用内核"）把 `PlayContainer.replayCurrentAddress()` 的无条件 `releasePlayerKernel()` 改成 `if (!scheduler.isCrossContentReuseAllowed())` ⇒ 同内容重播复用同一 ExoPlayer 实例；② `PictureEffects.onPrepare` 关闭态按"未启用不下发"规则**不调** `setVideoEffects`（10-01 `4bea60e` 修正，前提是"重播=新内核"）；③ media3 1.11.1 字节码实证：`MediaCodecVideoRenderer.videoEffects` 全类唯一写入点就是 `setVideoEffects` 的 putfield（reset/prepare/onEnabled 都不清空），复用实例 = 旧列表沿用；且 `Anime4kChainProgram.tier` 是构造时固化，关闭态置 `tier=null` 管不到已编译实例。10-01 修复时的真机验证（选回原始 → 重播 → 回直通）通过，是因为当时重播仍释放内核 ⇒ 本次是该前提被 10-03 改动破坏后的首次暴露。
+
+**修法（用户拍板 A）**：`PlayerConfigDelegate.restartForPictureIfNeeded()` 在 `replay(false)` 前 `host.videoView?.requireKernelRebuild()` + 日志 `echo-picture-effects: rebuild kernel on next start`（复用 §6.19 既有强重建通道：`startVideoPlayback` 消费 `consumeKernelRebuildRequired()` → REBUILD → `releasePlayerKernel()` + `view.start()`）。关闭态新内核不下发 = 回直通；开启态 = 新内核首次下发；按住对比/滑条不满足 `consumeRestartNeeded()`，不受影响。**否决的备选 B**：关闭态下发空列表摘链（违反"绝不下发空列表"硬口径，空列表仍建 VideoSink、反复切还会拆建 GL 链）。
+
+**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` **678 / 0 失败 / 0 错误 / 85 套件**；装机 Success（vivo 10AF1J04JX0016G）。**真机走查未做**，要点：开→关开关应出现 `echo-picture-effects: rebuild kernel on next start` + `release player kernel`，随之 `echo-picture-size` 消失（回直通）、GPU 回落；开→关→开连续操作正常；按住对比与拖滑条不应触发重建。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.17 新增本约束条 + §6.19 强重建条件补点；`skill/avbox-playback-service-spec.md` §3.3 同补 + §8 修订记录一行；`.codebuddy` / `.trae` 两镜像已同步；本条为实施与定位记录。
+
+---
+
+## 复用内核会话标志复位（2026-10-07，三条）
+
+**来源**：用户问"还有没有类似照搬 java 逻辑导致的 bug"→ 三方向并行排查（player 栈陈旧状态 / 播放外圈复用假设 / Kotlin 语义差异）+ 主代理用 `git show` 对照旧 Java 闭环。确认 `PlayerEngine` 三处跨会话标志不复位：① `videoEffectsOpen`（关闭态重建内核后仍 true → `isPictureEffectsActive()` 假阳性，面板/日志误导、放行一次空操作 REDRAW）；② `pictureHdrSource`（HDR 片挂链后残留 true → `PictureEffects.consumeRestartNeeded()` 开头 `isPictureHdrSource()` 早退 → 后续直通会话里开超分不重播、不生效）；③ `lastErrorKindValue`（上集 `ERROR_KIND_DECODE` 残留 → 超时/换线类重试被 `PlaybackRetryDelegate` 误判 → 跳过"原样重播"直切软解 + 重建内核）。
+
+**修法**：新增 `PlayerEngine.resetSessionFlags()`（`retriedAsHls` / `videoEffectsOpen` / `pictureHdrSource` / `lastErrorKindValue` 四项），由 `setDataSource`（换内容）与 `reset()`（stop + clearMediaItems）两处调用；内核重建路径本就 `ExoPlayer.initPlayer()` 新建 `PlayerEngine` 实例，无需处理。
+
+**同轮证否（不要再查）**：`bean/LivePlayerManager` 的默认配置字段（旧 Java 即实例字段）、`PlayerUtils.safeTimeMs`（doikki 旧版就有 `Int.MAX_VALUE` 钳位）、`EpgUtil` 无 volatile/锁与 `PlaybackService` 实例静态位非 volatile（旧 Java 同形）——均非迁移回归。低风险残留（未修，已登记）与待闭环清单见排查记录。
+
+**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` **678 / 0 失败 / 0 错误 / 85 套件**；装机 Success。**真机走查未做**，要点：HDR 片之后换 SDR 片开超分应正常重播生效；复用内核重播后 HDR 提示/`isPictureEffectsActive` 不误报；错误重试不再莫名切软解。
+
+**文档同步**：`skill/avbox-playback-service-spec.md` §3.3 新增"会话标志复位"条；`.codebuddy` / `.trae` 两镜像已同步；本条为实施与排查记录。
+
+---
+
+## 首页加载中切源竞态（2026-10-07，两批，均已装机）
+
+**来源**：用户报"首页正在加载中时立刻切换源会出问题，抓日志看看"。vivo 吞 logcat（`-b all` 里本 App 只剩 26 行），实读应用内文件日志 `files/preload_debug.log`，04:45–04:52 窗口完整还原：04:49:18 首页在 `Douban` 源加载（7 个分区只回来 1 个）→ 04:49:23.774 与 27.216 两次切源（`echo--sort-reload` + `sort-loadHome: key=null` + `sort-null-key`）→ 27.448 `sort-loadHome: key=js_douban srcCount=666` → 30.029 出 7 个分区 → **30.1–32.6 的 8 次请求解析键全是 `Douban`（`parse-empty-body:Douban`）而当前源是 `js_douban`**，对应 4 组 `list-retry/list-failed: sort=hotmovie`（用户连点分区"重试"）→ 04:52:07 手动下拉刷新才出现 `sort-loadHome: key=Douban srcCount=96`，即中途配置早已换回 96 站点那份、首页一直没跟着重载。
+
+**根因（日志闭环）**：① 两次快速切源 = 两个 `AppBootstrap.startInit` 并发，先完成的那份把 `_state` 置 `Boot.Ready` 并触发 `HomeViewModel.loadHome()`；② 后完成的那份配置在 `parseJson` 里静默 `setSourceBean` 覆盖 ApiConfig（站点表 + home 源），它再置 `Boot.Ready` 时**与当前值相等** → `MutableStateFlow` conflate 不发新值 → 首页不重载；③ 首页残留上一代源的 sort 分区、ApiConfig 已换新 ⇒ 请求按"新配置的 home 站点 + 旧 sort id"发出 → 秒回空响应 → 分区全失败、点重试也必失败。次要隐患：`startInit` 的对象级 `dataInitOk/jarInitOk` 会被并发 init 互相短路（第二个可能直接跳过配置加载）；`ListLoader.getList` 在请求执行时才读 `getHomeSourceBean()`，跨代请求无法自证归属。另有一条独立观察（非本竞态）：同窗口手动刷新时 Douban 源连续三次 `sortSize=0`（`empty-retry`→`empty-final`），疑源侧返回空 class 列表。
+
+**第一批（治本，`ui/page/AppBootstrap.kt` + 新增 `ui/page/BootGeneration.kt`）**：`startInit` 领代次、**只有最新代次**可写 `_state`（Ready/Error）；`Boot.Ready` 由 `data object` 改 `data class Ready(val epoch: Long)`（每次完成都是新值，StateFlow 不再吞）；`dataInitOk`/`jarInitOk` 改每次 init 的局部变量（`continueOffline` 走 `offline` 参数）。连带：`HistoryPage` 的 `boot == Boot.Ready` 改 `is`。新增 `BootGenerationTest` 4 例（只认最新代次 / Ready 值可区分 / 相同 Ready 会被 conflate / 过期 init 不发布 Ready）。
+
+**第二批（纵深防御）**：④ `ListLoader.getList(sourceKey, …)` 由 `ApiConfig.getSource(sourceKey)` 决定站点，缺失即丢弃并记 `echo--getList-source-missing`（`SourceViewModel.getList` 与两处调用点同步）；⑤ `HomeViewModel.PartitionLoader` 记 `sourceKey`，`requestPartition` 在既有代次检查处加 `loader.sourceKey != loadingSourceKey` 早退（跨代分区含用户点重试不再发请求）；⑥ `RefreshEvent.TYPE_API_URL_CHANGE` 置 `configReloading`，null-key 分支在重载窗口内保留 loading 不清空，新配置 `Ready` 到达时清标志。
+
+**未做（已登记）**：`ConfigLoader` 仍无"本次加载的 URL 是否仍是当前 URL"校验；本轮未命中（`retry()` 一律走网络 + `configLoadExecutor` 单线程 FIFO，解析顺序与切换顺序一致）。
+
+**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` **682 / 0 失败 / 0 错误 / 1 跳过 / 86 套件**（+4 为本轮新增）；两批各装机 Success（vivo 10AF1J04JX0016G，lastUpdateTime 05:04:44）。**真机走查未做**，判据：切源后 `preload_debug.log` 必须出现 `sort-loadHome: key=<最终选中的源>`，`parse-empty-body:<非当前源>` 不再与 `list-retry` 成对出现，首页不闪空、分区不再全失败。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.11 新增两条约束 + 一条体验项；`.codebuddy` / `.trae` 两镜像已同步；本条为实施与定位记录。
+
+---
+
+## 切源 ANR（pyLoader 锁 + 主线程作废/解析，2026-10-07 第一批已修并装机）
+
+**来源**：用户报"快速切换订阅源时概率性界面卡死、偶尔闪退（通常能恢复）"，抓日志。**不是崩溃而是 ANR**：`am_anr 05:05:58.800`（`ConfigManageActivity` 输入派发超时 5001ms）→ 05:06:01.411 `am_kill [14460, com.github.avbox.osc, "user request after error"]`（用户点掉 ANR 弹窗）→ 进程重启（新 PID 16698，05:06:02.816 重新 jar-load + `loadHome: 豆瓣`）。
+
+**现场（`dumpsys dropbox` 的 `data_app_anr` + 设备 `/data/anr/anr_2026-10-07-05-05-58-814`）**：主线程 `"main" tid=1 Blocked` 栈 = `pyLoader.clear()` 等锁 → `SpiderLoader.clearLoader` → `clearSpiderCache` → `ApiConfig.resetConfigData` → `invalidateVodConfig` → `AppBootstrap.onApiUrlChanged` → `ConfigManageViewModel.requestSwitch`（用户点订阅源那一刻）；持锁线程 `"bounded-call" tid=47 TimedWaiting` 栈 = `pyLoader.getSpider()` **持有 pyLoader 实例锁**并在 `com.undcover.freedom.pyramid.PythonLoader.getSpider` 的 `FutureTask.get` 上等 Python 侧返回，调用方是 `SortLoader$2$1`（某个 py 源的首页分类请求，BoundedCall 上限 15s）。`clear()` 与 `getSpider()` 都在 `app/src/python/java/com/github/catvod/crawler/pyLoader.kt` 标了 `@Synchronized`。dropbox 里 **2026-10-05 23:07:47 已有同主题 ANR**，故非本轮引入。概率性成立条件：①在途 py 调用正卡在 Python 侧；②此刻正好在配置页点切源；③该调用耗时 > 5s。
+
+**同源第二入口**：`parseJson()` 第一行也是 `resetConfigData() → clearSpiderCache()`，而网络分支的 `parseJson` 原本跑在主线程（`fetchConfigAsync` 末尾 `mainHandler.post`）。
+
+**修法（第一批，不动契约层）**：① `AppBootstrap.onApiUrlChanged()` 主线程只 `bootGeneration.next()` + 置 `Boot.Loading`，「作废 → 广播 → retry」整段进后台协程按序执行（`startInit` 新增可选 `generation` 参数，避免作废窗口内旧 init 抢先发 Ready）；② `ConfigLoader` 的 `loadConfig`/`loadLiveConfig` 整段（缓存分支 + 网络分支解析）改到 `configLoadExecutor`，删掉 `mainHandler`，回调不再回主线程（四个实现方已自行 postToMain / 只 resume 协程）；③ 配套把跨线程共享的配置集合改成 **`@Volatile` + 整份换引用**：`sourceBeanList`（先在本地 LinkedHashMap 建好再赋值，保留站点顺序）、`liveChannelGroupList`（`loadLives` 本地列表聚合后发布、`loadLiveApi` 单元素列表发布）、`parseBeanList`（`addSuperParse(parses)` 挂到待发布列表）、`searchSourceBeanList`（构建完成后赋值）、`vipParseFlags`/`mDefaultParse`；清直播分组新增 `ApiConfig.clearLiveChannelGroups()` 并改掉 `LiveChannelSourceLoader` 的原地 `clear()`。
+
+**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` **682 / 0 失败 / 0 错误 / 86 套件**；装机 Success（vivo 10AF1J04JX0016G，lastUpdateTime 05:16:09）。本轮为线程调度改动，无可行的纯 JVM 单测（依赖 KV/OkHttp/Android 单例）。**真机走查未做**，判据：配置页连点切源不再出现输入超时/ANR；`dumpsys dropbox` 无新增 `data_app_anr`；切源后首页仍能正常出内容（无回归）。
+
+**未做（留批 2）**：`ConfigManageViewModel` 删空点播列表后的 `clearVodConfig()`（主线程，与紧随的 `retry()` 有先后依赖）。另记独立缺陷：`echo--parse-fail-json:js_douban ex=java.lang.NullPointerException head={}`（解析失败路径自身 NPE）。
+
+**批 2 第 3 条（同日，已装机）**：用户报"切源偶发延迟二三十秒、换完首页还是旧源海报，抓日志看看"。文件日志空窗对上 `GAP 12.7s/13.1s/41.6s`（广播前无任何日志），且 05:16:46 的 6ms 内三条 `sort-reload` = 连点三次、第一次被卡十几秒。根因（代码级）：`PythonLoader.getSpider` 的 `future.get(30, TimeUnit.SECONDS)`（`app/src/python/java/com/undcover/freedom/pyramid/PythonLoader.kt`）决定 py 蜘蛛创建最长 30s，而 `pyLoader.getSpider()`/`clear()` 同为实例级 `@Synchronized` ⇒ 切源链路的 `clear()` 陪等整段创建 —— 批 1 只是把这段等待从主线程搬到了后台（冻结变延迟），等待本身仍在关键路径上。**修法**：`pyLoader.clear()` 改「`clearGeneration++` + `spiders.clear()` + `lastConfig`/`recentPyKey` 置空 + `PythonLoader.invalidate()`」立即返回；`PythonLoader.invalidate()` 递增代次 + 摘旧缓存引用 + 独立线程做 `spider.destroy()`；`PythonLoader.getSpider` 安装前（含超时迟到路径）校验代次；`pyLoader.getSpider()` 去 `@Synchronized`、创建改由独立 `creationLock` 串行化（防同 key 并发 init 撞 py 缓存文件）、安装前校验代次；`AppBootstrap.onApiUrlChanged` 加 `echo-switch: request / invalidate dt / broadcast dt` 三行计时日志。**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` 682 / 0 失败 / 86 套件；装机 Success（lastUpdateTime 05:23:00）。**真机走查未做**，判据：切源后 `echo-switch: invalidate dt=` 应为个位数毫秒，首页立刻切到新源（不再出现十几秒空窗）。
+
+**批 2 第 3 条收尾（同日，js/jar 同病灶，已装机 05:28:16）**：装上 py 非阻塞 clear 后用户复现"还是不太ok"。新加的计时日志直接给出答案：多数切源 `invalidate dt=0~1ms`（py 那一刀生效），但偶发一次 `05:24:35.994 echo-switch: request → 05:24:56.326 invalidate dt=20331ms`，且这 20 秒窗口内文件日志一行都没有（说明不是请求层，而是 clear 自身在等锁）。逐个排查 crawler 层同步点后确认同病灶还在两处：`JsLoader.clear()` 与 `JsLoader.getSpider()` 同为 `@Synchronized`（JS 蜘蛛创建要加载 dex/jar + 建 QuickJS 上下文 + eval，可几十秒），`JarLoader.clear()` 会原地执行第三方 jar 的 `spider.destroy()`（不可控）。**修法**：`JsLoader.clear()` 去 `@Synchronized`、立即摘 `spiders`/`classes` + `clearGeneration++`、`cancelByTag()+destroy()` 交独立线程；`JsLoader.getSpider()` 去 `@Synchronized`、创建改私有 `creationLock` 串行化（保住"同一 key 不并发创建"的既有防御）、安装前校验代次（含失败回滚路径改用异步销毁）；`JarLoader.clear()` 先摘全部缓存（含 `loaders`/`proxyMethods`/`locks`/`siteJarKeys`/`aliases`）再异步销毁，`JarLoader.getSpider()` 安装前校验代次；`SpiderLoader.clearLoader()` 增加分段计时 `echo-switch: clear jar=…ms py=…ms js=…ms` 便于下次定位。**验证**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` 682 / 0 失败 / 86 套件；装机 Success（lastUpdateTime 05:28:16）。**真机走查未做**，判据：`echo-switch: invalidate dt=` 与 `echo-switch: clear` 的分段值都应是个位数毫秒。
+
+**真机验证（2026-10-07 当日回填）**：用户多轮复现后确认"应该是修好了" —— 切换订阅源不再卡死（无新增 `data_app_anr`）、不再有二三十秒延迟，首页随新源立即刷新。至此三刀（主线程作废/解析外移 → py 非阻塞 clear → js/jar 同口径）闭环。`echo-switch` 计时行按设计保留（debug-only 文件日志，每次切源 4 行，是这类"偶发等锁"问题的唯一随时可读仪表）。仍留残留：`ConfigManageViewModel` 删空点播列表后的 `clearVodConfig()` 仍在主线程；`echo--parse-fail-json:js_douban ex=java.lang.NullPointerException` 未查。
+
+---
+
+## 配置管理页切源不再弹 toast（2026-10-07）
+
+**来源**：用户反馈"配置管理页面切换订阅源时能不能不要弹出 toast 提示，好烦人"。移除 `ConfigManageViewModel.switchToVod` / `switchToLive` 里的 `toastEvent.value = str(R.string.config_switched_to, item.name)`（点播/直播两处），并删掉随之变死的 `config_switched_to` 文案（`values` / `values-b+zh+Hant` / `values-en` 三份）。同页另外两条提示保留：禁用源确认（`toast_source_in_use`）、直播跟随点播（`toast_live_follow_vod`），删除在用源时的提示也不动。确认手段仍是卡片开关态与「使用中」标记。
+
+**验证**：`.codebuddy/tools/i18n_check_keys.py` 无新增死键、无"引用未声明"（存量 `toast_permission_required` 死键与此无关，未动）；`:app:assembleDebug` BUILD SUCCESSFUL；装机 Success（lastUpdateTime 05:33:19）。**真机走查未做**（判据：配置页切点播/直播源均无 toast，开关态正常切换）。
+
+---
+
+## 当日改动自审轮（2026-10-07；1 条中已修，可收尾）
+
+**范围**：当日三刀（主线程作废/解析外移 → py 非阻塞 clear → js/jar 同口径）+ 集合换引用改造 + 切源去 toast，共 16 个源码/资源文件改动（另有 3 个文档）。
+
+**发现并已修（中 / 既有被放大）**：`ApiConfig.liveSettingGroupList` 当时漏进"整份换引用"名单 —— `initLiveSettings()` 原地 `clear()`+`add()`，而 `LivePlayActivity.initLiveSettingGroupList()` 是 `liveSettingGroupList = ApiConfig.get().liveSettingGroupList` 直接持引用、主线程遍历（`LiveSettingsRules.visibleGroups`）。解析搬到后台后，直播页可见期间撞上解析（含切直播源、换仓）即 CME 面（旧行为只在冷启动缓存分支有）。**修法**：`@Volatile var` + `initLiveSettings()` 本地建好再赋值。构建 + 单测 682 绿 + 装机（05:37:24）。
+
+**核对后判定无问题的点**：`parseBeanList.add(0, superPb)` 现在作用于待发布的局部表（`addSuperParse(parseBeans)` 传参）；`JsLoader.destroy()` 只在 `App.onTerminate()` 调用（进程退出、可阻塞）；`JarLoader.getSpider` 用 per-key 锁、`clear()` 本来就不持全局锁；`PythonLoader.getSpider` 的迟到 `putIfAbsent` 已带代次校验；`SourceViewModel.getList` 调用方 2 处且都带 key（编译期保证）。
+
+**遗留（既有，不阻塞收尾）**：①`ConfigManageViewModel` 删空点播列表后的 `clearVodConfig()` 仍在主线程（与紧随的 `retry()` 有先后依赖）；②`echo--parse-fail-json:js_douban ex=NPE`；③`PythonLoader.clear()` 因本次改造失去调用方（阻塞版入口，建议后续改为委托 `invalidate()`）；④`ApiConfig.clearConfig()` 无调用方（既有死代码）；⑤`HomeViewModel` 449→502 行，本次改动净增 7 行越过 500 阈值（度量类）。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.11 新增两条约束；`.codebuddy` / `.trae` 两镜像已同步；本条为定位与实施记录。
+
+---
+
+## 复用重播的位置回退与进度条回缩修复（2026-10-07，A+B 已实施）
+
+**来源**：用户报"开关调色 / 开关 Anime4K 超分时进度条往回缩（如 32 分钟→0 再回来），有概率从 0 开始播放"。
+
+**审查结论（真机日志对账）**：两层——①"回缩到 0 再回来" = 重建窗口 `ComposeVideoController.applyPlayState(IDLE)` 强置 `state.position`/`state.duration = 0`（每次重建必现，日志即 `echo-music session gate … state=IDLE pos=0` 那一行）；②"位置回退 / 从 0 起播" = 复用重播的恢复点取库内陈旧值：`PlaybackStarter.goPlayUrl` 先 `getSavedProgress` 读库（`setPlayTimeoutBasePosition`），而 `saveCurrentProgress` 在 `startVideoPlayback` 里才执行（读在前、存在后）⇒ 恢复的是"上次写库时的位置"。日志实锤（04:24 段复用重播，无 `release player kernel`）：04:24:38 恢复 75009 而当时真实位置 ≈105005（回退约 30 秒）；04:24:52 恢复 79021（再回退）；本集从未写过库时库内无值 ⇒ 恢复 0（从 0 开始播放）。修复前已装的"画面开关走重建"包（04:31–04:33 六次开关）逐次对账恢复位置全部正确，未受此问题影响。
+
+**实施（A+B，6 文件）**：A1 `PlayContainer.replayCurrentAddress()` 重播前先 `saveCurrentProgress()`；A2 三处复用起点（`PlayContainerViewBridge` / `PlaybackEngine.HeadlessView` / `MusicPlayerActivity`）恢复点改为 `sameContent（须在 markContentStarted 前捕获）? MyVideoView.resumePositionForReplay(库值) : 库值`；A3 `AppPlayerView` 新增 `captureLivePosition()`（`release()` 开头与 `saveProgress()` 内优先抓内核实时位置，抓不到才回落 UI 轮询缓存）与 `resumePositionForReplay(fallback)`；B `applyPlayState(IDLE)` 不再清零 `state.position`/`state.duration`，清零收口到 `onNewPlayStarted()`。
+
+**验证（第一轮）**：`:app:assembleDebug` BUILD SUCCESSFUL；`:app:testDebugUnitTest` 682 / 0 失败 / 0 错误；装机 Success（vivo 10AF1J04JX0016G，lastUpdateTime 05:49:15，versionName 1.2.2）。
+
+**真机复测与补刀（2026-10-07 05:49–05:50，同机）**：用户报"修复好像没有效果"。日志对账：**A 部分已生效** —— 05:49:33.047 / 05:49:39.910 / 05:49:42.177 三次画面开关均 `echo-picture-effects: rebuild kernel on next start` + `release player kernel`，恢复位置分别为 1924077 / 1930029 / 1931480 ms，与操作前位置（1920515 起）逐次吻合，无回退、无 0 起播。**B 部分有漏网**：`state.position`/`state.duration` 共两个写入点，首版只改了 `applyPlayState(IDLE)`,漏掉 `onProgressTick(duration, position)` —— 重建窗口里"已排队但尚未执行"的 tick 仍会读到内核已摘（时长/位置全 0）并无条件写回 UI ⇒ 进度条照旧回缩到 0。**补刀（B2）**：`onProgressTick` 改为 `durationMs > 0` 才写 duration、`positionMs > 0 || durationMs > 0` 才写 position（时长未知的流仍能推进位置）。
+
+**验证（第二轮）**：`assembleDebug` BUILD SUCCESSFUL + 单测 682 / 0 / 0（05:51:56）；装机被设备端拒（`INSTALL_FAILED_ABORTED: User rejected permissions`，未重试）。**待用户允许安装后走查**——判据：连续开关调色/超分时进度条不回 0；换集/切歌仍从目标集/曲的库内进度起播；时长未知的流进度条仍推进。
+
+**文档同步**：`skill/avbox-playback-service-spec.md` §3.4（落盘四处 + 复用重播恢复点）；`skill/avbox-mobile-ui-spec.md` §6.17 追加一条；`.codebuddy` / `.trae` 两镜像已同步。

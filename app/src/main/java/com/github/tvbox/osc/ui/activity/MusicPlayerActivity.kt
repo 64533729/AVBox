@@ -391,14 +391,17 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         val rebuildKernel = player.consumeKernelRebuildRequired()
         val kernelPresent = player.mediaPlayer != null
         val reusePlayer = KernelReusePolicy.decide(kernelPresent, rebuildKernel, forceExoPlayer, true) == KernelDecision.REUSE
+        val sameContent = reusePlayer && controller.isSameStartedContent()
         if (!reusePlayer && kernelPresent) engine.releasePlayer()
+        if (sameContent) player.saveCurrentProgress()
         player.setProgressKey(controller.progressKey())
         player.setTrackMemoryKey("")
         controller.markContentStarted()
         if (headers != null) player.setUrl(url, headers) else player.setUrl(url)
         controller.startSwitchLinePlayTimeout()
         if (reusePlayer) {
-            player.skipPositionWhenPlay(controller.playTimeoutBasePosition().toInt())
+            val base = controller.playTimeoutBasePosition()
+            player.skipPositionWhenPlay((if (sameContent) player.resumePositionForReplay(base) else base).toInt())
             player.replay(false)
         } else {
             player.start()

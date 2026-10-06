@@ -11,6 +11,7 @@ import com.github.tvbox.osc.util.BootGuard
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import java.io.File
 import kotlin.coroutines.resume
@@ -27,7 +28,7 @@ object AppBootstrap {
 
     sealed interface Boot {
         data object Loading : Boot
-        data object Ready : Boot
+        data class Ready(val epoch: Long) : Boot
         data class Error(val msg: String) : Boot
     }
 
@@ -35,9 +36,8 @@ object AppBootstrap {
     val state: StateFlow<Boot> = _state
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val bootGeneration = BootGeneration()
     private var started = false
-    private var dataInitOk = false
-    private var jarInitOk = false
 
     fun start() {
         if (started) return
@@ -45,28 +45,32 @@ object AppBootstrap {
         FileUtils.repairBogusNativeLibs()
         BootGuard.disableBootLoopingSource()
         ControlManager.get().startServer()
-        startInit(forceFresh = false)
+        startInit(forceFresh = false, offline = false)
     }
 
     fun retry() {
-        dataInitOk = false
-        jarInitOk = false
         _state.value = Boot.Loading
-        startInit(forceFresh = true)
+        startInit(forceFresh = true, offline = false)
     }
 
     fun continueOffline() {
-        dataInitOk = true
-        jarInitOk = true
         _state.value = Boot.Loading
-        startInit(forceFresh = false)
+        startInit(forceFresh = false, offline = true)
     }
 
     fun onApiUrlChanged() {
-        ApiConfig.get().invalidateVodConfig()
-        SearchViewModel.clearCheckedSources()
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_API_URL_CHANGE))
-        retry()
+        val generation = bootGeneration.next()
+        _state.value = Boot.Loading
+        LOG.i("echo-switch: request")
+        scope.launch {
+            val startedAt = System.currentTimeMillis()
+            ApiConfig.get().invalidateVodConfig()
+            LOG.i("echo-switch: invalidate dt=" + (System.currentTimeMillis() - startedAt) + "ms")
+            SearchViewModel.clearCheckedSources()
+            EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_API_URL_CHANGE))
+            LOG.i("echo-switch: broadcast dt=" + (System.currentTimeMillis() - startedAt) + "ms")
+            startInit(forceFresh = true, offline = false, generation = generation)
+        }
     }
 
     fun switchVodSubscription(url: String): Boolean {
@@ -88,8 +92,10 @@ object AppBootstrap {
         return followLive
     }
 
-    private fun startInit(forceFresh: Boolean) {
+    private fun startInit(forceFresh: Boolean, offline: Boolean, generation: Long = bootGeneration.next()) {
         scope.launch {
+            var dataInitOk = offline
+            var jarInitOk = offline
             if (!dataInitOk) {
                 val err = awaitLoadConfig(forceFresh)
                 if (err != null) {
@@ -97,7 +103,9 @@ object AppBootstrap {
                         dataInitOk = true
                         jarInitOk = true
                     } else {
-                        _state.value = Boot.Error(err)
+                        if (bootGeneration.isLatest(generation)) {
+                            _state.value = Boot.Error(err)
+                        }
                         return@launch
                     }
                 } else {
@@ -110,9 +118,9 @@ object AppBootstrap {
                 jarInitOk = true
                 if (err != null) toast(err + " jar load err")
             }
-            if (dataInitOk && jarInitOk) {
+            if (dataInitOk && jarInitOk && bootGeneration.isLatest(generation)) {
                 ApiConfig.get().warmSearchSpiders()
-                _state.value = Boot.Ready
+                _state.value = Boot.Ready(generation)
             }
         }
     }
