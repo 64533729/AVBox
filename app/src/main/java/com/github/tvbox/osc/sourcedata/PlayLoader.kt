@@ -8,6 +8,7 @@ import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -124,7 +125,7 @@ class PlayLoader(
                 if (TextUtils.isEmpty(requestUrl)) return@Callable ""
                 try {
                     LOG.i("echo--getPlay--id: $requestUrl")
-                    sp.playerContent(playFlag, requestUrl, ApiConfig.get().getVipParseFlags())
+                    SpiderReaper.track(sp) { sp.playerContent(playFlag, requestUrl, ApiConfig.get().getVipParseFlags()) }
                 } catch (e: Exception) {
                     LOG.i("echo--getPlay--error: " + e.message)
                     ""

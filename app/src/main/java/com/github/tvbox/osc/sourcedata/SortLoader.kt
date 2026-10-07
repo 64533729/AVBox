@@ -6,6 +6,7 @@ import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.player.thirdparty.RemoteTVBox
 import com.github.tvbox.osc.util.BoundedCall
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
@@ -141,7 +142,7 @@ class SortLoader(
         val sortJson = withContext(Dispatchers.IO) {
             BoundedCall.call(Callable<String> {
                 val sp = ApiConfig.get().getCSP(sourceBean)
-                val json = sp.homeContent(true)
+                val json = SpiderReaper.track(sp) { sp.homeContent(true) }
                 json
             }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getSort--" + sourceBean.key)
         }

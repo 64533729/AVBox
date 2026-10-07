@@ -8,6 +8,7 @@ import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.net.Http
 
 import java.io.File
@@ -34,16 +35,13 @@ class JsLoader {
         spiders.clear()
         classes.clear()
         recentKey = ""
-        if (stale.isEmpty()) return
-        destroyExecutor.execute {
-            for (spider in stale) {
-                try {
-                    spider.cancelByTag()
-                    spider.destroy()
-                } catch (ignored: Throwable) {
-                    LOG.d("JsLoader", "destroy spider failed")
-                }
+        for (spider in stale) {
+            try {
+                spider.cancelByTag()
+            } catch (ignored: Throwable) {
+                LOG.d("JsLoader", "cancel spider failed")
             }
+            SpiderReaper.retire(spider)
         }
     }
 
@@ -198,7 +196,7 @@ class JsLoader {
         try {
             val proxyFun = spiders[recentKey]
             if (proxyFun != null) {
-                return proxyFun.proxyLocal(params)
+                return SpiderReaper.track(proxyFun) { proxyFun.proxyLocal(params) }
             }
         } catch (th: Throwable) {
             LOG.e("JsLoader", "proxy invoke failed", th)

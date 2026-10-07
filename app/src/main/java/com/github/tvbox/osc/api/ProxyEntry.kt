@@ -8,6 +8,7 @@ import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 
 import java.net.URLDecoder
 import java.util.HashMap
@@ -42,7 +43,7 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
 
                 var result: Array<Any?>? = null
                 try {
-                    result = spider.proxy(param)
+                    result = SpiderReaper.track(spider) { spider.proxy(param) }
                 } catch (th: Throwable) {
                     LOG.e("echo-proxy-route: spider.proxy error, fallback | " + th)
                 }

@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.greenrobot.eventbus.EventBus
 
 object AppBootstrap {
@@ -37,6 +39,7 @@ object AppBootstrap {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val bootGeneration = BootGeneration()
+    private val initMutex = Mutex()
     private var started = false
 
     fun start() {
@@ -94,33 +97,38 @@ object AppBootstrap {
 
     private fun startInit(forceFresh: Boolean, offline: Boolean, generation: Long = bootGeneration.next()) {
         scope.launch {
-            var dataInitOk = offline
-            var jarInitOk = offline
-            if (!dataInitOk) {
-                val err = awaitLoadConfig(forceFresh)
-                if (err != null) {
-                    if (err == "-1") {
-                        dataInitOk = true
-                        jarInitOk = true
-                    } else {
-                        if (bootGeneration.isLatest(generation)) {
-                            _state.value = Boot.Error(err)
-                        }
-                        return@launch
-                    }
-                } else {
-                    dataInitOk = true
-                    if (ApiConfig.get().getSpider()!!.isEmpty()) jarInitOk = true
+            initMutex.withLock {
+                if (!offline && !bootGeneration.isLatest(generation)) {
+                    return@withLock
                 }
-            }
-            if (dataInitOk && !jarInitOk) {
-                val err = awaitLoadJar()
-                jarInitOk = true
-                if (err != null) toast(err + " jar load err")
-            }
-            if (dataInitOk && jarInitOk && bootGeneration.isLatest(generation)) {
-                ApiConfig.get().warmSearchSpiders()
-                _state.value = Boot.Ready(generation)
+                var dataInitOk = offline
+                var jarInitOk = offline
+                if (!dataInitOk) {
+                    val err = awaitLoadConfig(forceFresh)
+                    if (err != null) {
+                        if (err == "-1") {
+                            dataInitOk = true
+                            jarInitOk = true
+                        } else {
+                            if (bootGeneration.isLatest(generation)) {
+                                _state.value = Boot.Error(err)
+                            }
+                            return@withLock
+                        }
+                    } else {
+                        dataInitOk = true
+                        if (ApiConfig.get().getSpider()!!.isEmpty()) jarInitOk = true
+                    }
+                }
+                if (dataInitOk && !jarInitOk) {
+                    val err = awaitLoadJar()
+                    jarInitOk = true
+                    if (err != null) toast(err + " jar load err")
+                }
+                if (dataInitOk && jarInitOk && bootGeneration.isLatest(generation)) {
+                    ApiConfig.get().warmSearchSpiders()
+                    _state.value = Boot.Ready(generation)
+                }
             }
         }
     }

@@ -32,6 +32,7 @@ import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HeaderGuard
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.VideoParseRuler
 import com.github.tvbox.osc.util.net.Http
 import com.github.tvbox.osc.util.parser.SuperParse
@@ -541,8 +542,8 @@ class PlayUrlResolver(private val host: Host) {
             val source = host.sourceBean()
             if (source != null && source.type == 3) {
                 val sp = ApiConfig.get().getCSP(source)
-                if (sp != null && sp.manualVideoCheck()) {
-                    return sp.isVideoFormat(url)
+                if (sp != null && SpiderReaper.track(sp) { sp.manualVideoCheck() }) {
+                    return SpiderReaper.track(sp) { sp.isVideoFormat(url) }
                 }
             }
             VideoParseRuler.checkIsVideoForParse(webUrl!!, url)

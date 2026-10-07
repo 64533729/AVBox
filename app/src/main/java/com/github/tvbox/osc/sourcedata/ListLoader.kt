@@ -9,6 +9,7 @@ import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +56,7 @@ class ListLoader(
         val json = withContext(Dispatchers.IO) {
             BoundedCall.call(Callable<String> {
                 val sp = ApiConfig.get().getCSP(sourceBean)
-                sp.categoryContent(sortData.id, page.toString(), true, sortData.filterSelect)
+                SpiderReaper.track(sp) { sp.categoryContent(sortData.id, page.toString(), true, sortData.filterSelect) }
             }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getList--" + sourceBean.key)
         }
         if (json != null) {
@@ -144,7 +145,8 @@ class ListLoader(
         if (type == 3) {
             val sortJson = withContext(Dispatchers.IO) {
                 BoundedCall.call(Callable<String> {
-                    ApiConfig.get().getCSP(sourceBean).homeVideoContent()
+                    val sp = ApiConfig.get().getCSP(sourceBean)
+                    SpiderReaper.track(sp) { sp.homeVideoContent() }
                 }, sourceBean.getPlayTimeoutSeconds() * 1000L, "echo--getHomeRecList--" + sourceBean.key)
             }
             if (sortJson == null) return null

@@ -8,6 +8,7 @@ import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.LiveChannelGroup
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.live.TxtSubscribe
 import com.github.tvbox.osc.util.net.Http
 import kotlinx.coroutines.CancellationException
@@ -84,7 +85,7 @@ internal class LiveProxyLoader(private val host: Host) {
             val waitResponse = Runnable {
                 val sortJson = BoundedCall.call(Callable {
                     val sp = ApiConfig.get().getLiveCSP(finalUrl)
-                    sp.liveContent(finalUrl)
+                    SpiderReaper.track(sp) { sp.liveContent(finalUrl) }
                 }, ApiConfig.get().liveConnectTimeoutSeconds * 1000L, "echo-live-proxy")
                 if (sortJson.isNullOrEmpty()) {
                     mHandler.post { host.onEmpty() }

@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
@@ -195,7 +194,7 @@ internal val SearchRailWidth = 140.dp
 
 @Composable
 internal fun RailResults(
-    results: List<SearchViewModel.SourceResult>,
+    hits: List<SearchViewModel.SourceResult>,
     running: Boolean,
     selectedSource: String?,
     onSelectSource: (String?) -> Unit,
@@ -205,10 +204,9 @@ internal fun RailResults(
     onCardClick: (Movie.Video) -> Unit,
     onCardLongClick: (Movie.Video) -> Unit,
 ) {
-    val rows = remember(results, selectedSource) {
-        results
-            .filter { it.videos.isNotEmpty() && (selectedSource == null || it.sourceKey == selectedSource) }
-            .sortedBy { it.arrivedAt }
+    val rows = remember(hits, selectedSource) {
+        hits
+            .filter { selectedSource == null || it.sourceKey == selectedSource }
             .flatMap { result -> result.videos.map { result.sourceName to it } }
     }
 
@@ -226,15 +224,13 @@ internal fun RailResults(
             item(key = "rail_all") {
                 SearchRailItem(
                     name = stringResource(R.string.common_all),
-                    pending = running,
                     selected = selectedSource == null,
                     onClick = { onSelectSource(null) },
                 )
             }
-            items(results, key = { "rail_${it.sourceKey}" }) { result ->
+            items(hits, key = { "rail_${it.sourceKey}" }) { result ->
                 SearchRailItem(
                     name = result.sourceName,
-                    pending = result.state == SearchViewModel.ResultState.Pending,
                     selected = selectedSource == result.sourceKey,
                     onClick = { onSelectSource(result.sourceKey) },
                 )
@@ -287,43 +283,28 @@ internal fun RailResults(
 @Composable
 internal fun SearchRailItem(
     name: String,
-    pending: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceBright,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 10.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (pending) {
-                Spacer(modifier = Modifier.width(6.dp))
-                CircularProgressIndicator(
-                    modifier = Modifier.size(12.dp),
-                    color = contentColor.copy(alpha = 0.6f),
-                    strokeWidth = 1.5.dp,
-                )
-            }
-        }
+        )
     }
 }
 

@@ -14,6 +14,7 @@ import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.RegexUtils
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.thunder.Thunder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -101,7 +102,7 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                     val sp = ApiConfig.get().getCSP(sourceBean)
                     val ids = ArrayList<String>()
                     ids.add(pushUrl)
-                    sp.detailContent(ids)
+                    SpiderReaper.track(sp) { sp.detailContent(ids) }
                 }, PUSH_DETAIL_TIMEOUT_MS, "echo--push-detail--" + sourceBean.key)
                 if (TextUtils.isEmpty(res)) null else parsePushDetail(res, sourceBean.key)
             }

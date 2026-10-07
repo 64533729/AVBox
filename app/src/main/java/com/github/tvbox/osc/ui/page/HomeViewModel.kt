@@ -14,7 +14,11 @@ import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.sourcedata.SourceRuntimeState
 import com.github.tvbox.osc.sourcedata.SourceViewModel
+import com.github.tvbox.osc.util.BootGuard
+import com.github.tvbox.osc.util.HawkConfig
+import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.HomeSettings
+import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.LanguageManager
 import kotlin.coroutines.resume
@@ -69,6 +73,8 @@ class HomeViewModel : ViewModel() {
 
     val currentSource = MutableStateFlow<SourceBean?>(null)
     val sources = MutableStateFlow<List<SourceBean>>(emptyList())
+    val subscribeItems = MutableStateFlow<List<SubscribeSource>>(emptyList())
+    val activeSubscribeIndex = MutableStateFlow(-1)
     val allSorts = MutableStateFlow<List<MovieSort.SortData>>(emptyList())
     val sorts = MutableStateFlow<List<MovieSort.SortData>>(emptyList())
     val rec = MutableStateFlow(Rec(PartitionState.Loading, emptyList()))
@@ -117,6 +123,7 @@ class HomeViewModel : ViewModel() {
         }
         sources.value = ApiConfig.get().getSwitchSourceBeanList()
         currentSource.value = ApiConfig.get().getHomeSourceBean()
+        refreshSubscribes()
         scope.launch {
             AppBootstrap.state.collect {
                 bootReady.value = it is AppBootstrap.Boot.Ready
@@ -165,8 +172,24 @@ class HomeViewModel : ViewModel() {
         loadHome()
     }
 
+    fun isSubscribeDisabled(item: SubscribeSource): Boolean = BootGuard.isDisabledSource(item.url)
+
+    fun switchSubscribe(item: SubscribeSource) {
+        AppBootstrap.switchVodSubscription(item.url)
+    }
+
+    fun refreshSubscribes() {
+        val items = vodSubscribes()
+        val active = KV.get(HawkConfig.API_URL, "")
+        subscribeItems.value = items
+        activeSubscribeIndex.value = items.indexOfFirst {
+            it.url == active || HistoryHelper.isApiLineSourceOf(it.url, active)
+        }
+    }
+
     fun loadHome() {
         sources.value = ApiConfig.get().getSwitchSourceBeanList()
+        refreshSubscribes()
         val home = ApiConfig.get().getHomeSourceBean()
         loadingSourceKey = if (home.key.isNullOrEmpty()) null else home.key
         LOG.i("echo--sort-loadHome: key=${loadingSourceKey} name=${home.name} srcCount=${sources.value.size}")

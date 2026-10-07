@@ -5,6 +5,7 @@ import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +50,8 @@ class SearchLoader(
     private suspend fun searchFromSpider(sourceBean: SourceBean, wd: String?, result: SourceChannel<AbsXml?>, searchToken: String?) {
         try {
             val search = withContext(Dispatchers.IO) {
-                ApiConfig.get().getCSP(sourceBean).searchContent(wd, false)
+                val spider = ApiConfig.get().getCSP(sourceBean)
+                SpiderReaper.track(spider) { spider.searchContent(wd, false) }
             }
             withContext(Dispatchers.IO) {
                 if (!TextUtils.isEmpty(search)) {

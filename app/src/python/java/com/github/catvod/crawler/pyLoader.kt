@@ -6,6 +6,7 @@ import android.util.Log
 import com.github.catvod.crawler.python.IPyLoader
 import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.undcover.freedom.pyramid.PythonLoader
 import com.undcover.freedom.pyramid.PythonSpider
 
@@ -83,7 +84,7 @@ class pyLoader : IPyLoader {
         try {
             val spider = spiders[key]
             if (spider !is PythonSpider) return null
-            return spider.proxyLocal(params)
+            return SpiderReaper.track(spider) { spider.proxyLocal(params) }
         } catch (th: Throwable) {
             LOG.i("echo-proxyInvoke_Throwable:---" + th.message)
             LOG.e("pyLoader", th)

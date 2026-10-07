@@ -81,6 +81,7 @@ import com.github.tvbox.osc.ui.activity.PartitionListActivity
 import com.github.tvbox.osc.ui.activity.SearchActivity
 import com.github.tvbox.osc.ui.activity.SearchViewModel
 import com.github.tvbox.osc.ui.components.AVBoxBottomSheet
+import com.github.tvbox.osc.ui.components.AVBoxOptionMenuAction
 import com.github.tvbox.osc.ui.components.AppTopBarScaffold
 import com.github.tvbox.osc.ui.components.HeroCarousel
 import com.github.tvbox.osc.ui.components.LoadState
@@ -159,7 +160,10 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                         )
                         .glassTopBarSurface(ContinuousCapsule, MaterialTheme.colorScheme.cardContainer)
                         .heightIn(min = 40.dp)
-                        .clickable { showSourceSheet = true }
+                        .clickable {
+                            vm.refreshSubscribes()
+                            showSourceSheet = true
+                        }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -394,12 +398,23 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
         ) {
             val dismissAnimated = LocalSheetDismiss.current
             val keyboard = LocalSoftwareKeyboardController.current
+            val subscribes by vm.subscribeItems.collectAsStateWithLifecycle()
+            val activeSubscribeIndex by vm.activeSubscribeIndex.collectAsStateWithLifecycle()
             var query by remember { mutableStateOf("") }
             val filtered = remember(sources, query) { SiteSearch.filter(sources, query) }
+            val subscribeOptions = remember(subscribes) { subscribes.map { it.name.ifEmpty { it.url } } }
             val listState = rememberLazyListState()
             val selectedIndex = filtered.indexOfFirst { it.key == currentSource?.key }
             LaunchedEffect(query.isEmpty()) {
                 if (query.isEmpty() && selectedIndex > 0) listState.scrollToItem(selectedIndex)
+            }
+            fun switchSubscribe(item: SubscribeSource) {
+                if (vm.isSubscribeDisabled(item)) {
+                    Toast.makeText(context, R.string.toast_source_auto_disabled, Toast.LENGTH_LONG).show()
+                } else {
+                    dismissAnimated()
+                    vm.switchSubscribe(item)
+                }
             }
             SearchField(
                 query = query,
@@ -409,6 +424,18 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                trailing = if (subscribeOptions.isEmpty()) {
+                    null
+                } else {
+                    {
+                        AVBoxOptionMenuAction(
+                            options = subscribeOptions,
+                            selectedIndex = activeSubscribeIndex,
+                            onSelect = { index -> subscribes.getOrNull(index)?.let(::switchSubscribe) },
+                            contentDescription = stringResource(R.string.home_subscription_source),
+                        )
+                    }
+                },
             )
             LazyColumn(
                 state = listState,

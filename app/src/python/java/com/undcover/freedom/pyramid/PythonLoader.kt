@@ -12,6 +12,7 @@ import com.github.catvod.crawler.SpiderNull
 import com.github.catvod.net.OkHttp
 import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 
 import org.json.JSONException
 import org.json.JSONObject
@@ -37,21 +38,12 @@ class PythonLoader {
     @Volatile
     private var generation: Long = 0
 
-    private val destroyExecutor = Executors.newSingleThreadExecutor()
-
     fun invalidate() {
         generation++
         val stale = ArrayList(spiders.values)
         spiders.clear()
-        if (stale.isEmpty()) return
-        destroyExecutor.execute {
-            for (spider in stale) {
-                try {
-                    spider.destroy()
-                } catch (th: Throwable) {
-                    LOG.e("PythonLoader", th)
-                }
-            }
+        for (spider in stale) {
+            SpiderReaper.retire(spider)
         }
     }
 
@@ -68,11 +60,12 @@ class PythonLoader {
     private val siteMap = HashMap<String, JSONObject>()
 
     fun clear() {
-        for (spider in spiders.values) {
-            spider.destroy()
-        }
+        val stale = ArrayList(spiders.values)
         spiders.clear()
         siteMap.clear()
+        for (spider in stale) {
+            SpiderReaper.retire(spider)
+        }
     }
 
     private fun setSdk(context: Context) {

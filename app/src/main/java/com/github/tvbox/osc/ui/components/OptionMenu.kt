@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
@@ -24,11 +26,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.github.tvbox.osc.R
 
 private val OptionMenuMinWidth = 156.dp
+
+private val OptionMenuIconSize = 22.dp
 
 @Composable
 fun AVBoxOptionMenu(
@@ -61,6 +68,39 @@ fun AVBoxOptionMenu(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun AVBoxOptionMenuAction(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Icon(
+            painter = painterResource(R.drawable.ic_more_vert),
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable { expanded = true }
+                .padding(4.dp)
+                .size(OptionMenuIconSize),
+        )
+        AVBoxOptionMenu(
+            expanded = expanded,
+            options = options,
+            selectedIndex = selectedIndex,
+            onSelect = { index ->
+                expanded = false
+                onSelect(index)
+            },
+            onDismissRequest = { expanded = false },
+        )
     }
 }
 

@@ -38,6 +38,9 @@ internal fun parseSubscribe(value: String): SubscribeSource {
 
 internal const val SUBSCRIBE_SPLIT = "\t"
 
+internal fun vodSubscribes(): List<SubscribeSource> =
+    KV.get(HawkConfig.SUBSCRIBE_LIST, ArrayList<String>()).map { parseSubscribe(it) }
+
 class ConfigManageViewModel : ViewModel() {
 
     val vodItems = MutableStateFlow(loadSubscribes(ConfigMode.Vod))

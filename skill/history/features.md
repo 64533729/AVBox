@@ -4436,3 +4436,37 @@ new-instance v2, Lorg/json/JSONArray;  invoke-direct {v2, v1}      # new JSONArr
 **验证（第二轮）**：`assembleDebug` BUILD SUCCESSFUL + 单测 682 / 0 / 0（05:51:56）；装机被设备端拒（`INSTALL_FAILED_ABORTED: User rejected permissions`，未重试）。**待用户允许安装后走查**——判据：连续开关调色/超分时进度条不回 0；换集/切歌仍从目标集/曲的库内进度起播；时长未知的流进度条仍推进。
 
 **文档同步**：`skill/avbox-playback-service-spec.md` §3.4（落盘四处 + 复用重播恢复点）；`skill/avbox-mobile-ui-spec.md` §6.17 追加一条；`.codebuddy` / `.trae` 两镜像已同步。
+
+---
+
+## 搜索页站点栏改为「只列有结果的源」（2026-10-07，对齐 fongmi）
+
+**来源**：用户先问"搜索页面左侧的站源会全部出现吗，无论这个站源是否有我想要搜索的影片"（当时口径 = 参搜源全部预占 Pending + 转圈、没搜到也不消失），确认现状后给出只读参考 `示例文件/TV-fongmi`，指令"看看 fongmi 是怎么做的"→"改成一样的逻辑"。
+
+**fongmi 取证（只读，未改）**：移动端 `CollectFragment.setCollect` = `if (result == null || result.getList().isEmpty()) return;` 之后才 `mCollectAdapter.add(Collect.create(result.getList()))`，而 `Collect.create` 取的是 `list.get(0).getSite()` ⇒ **站点栏由结果反推**；进页只先 `mCollectAdapter.setItems(List.of(Collect.all()), …)`（即「全部」，且搜索由这次 diff 回调发起）；TV 端 `CollectActivity` 的 `getSearch` 观察者同款判据（空列表 return + `mAdapter.add(Collect.create(...))`，`Collect.all()` 先入）。两侧栏内**都没有** Pending/进度指示，栏序 = 结果到达顺序（追加，DiffUtil 按站点去重 ⇒ 已有项不跳位）。参搜源池 = `VodConfig.get().getSites().filter(Site::isSearchable)`、不过滤 `isHide`，单源超时 30s（`Constant.TIMEOUT_SEARCH`），与我们既有口径一致（左侧栏宽度 fongmi 是"最长站名文本宽 + 48dp"动态算，我们仍固定 140dp，未跟随）。
+
+**实施（4 个源码/测试文件）**：①新增纯规则 `ui/activity/SearchHits.kt`：`sources()` = 滤掉 `videos` 为空的源 + `sortedBy(arrivedAt)`，即"本次搜索的命中源，按到达顺序"；②`SearchScreen.SearchResultsContent` 用 `val hits = SearchHits.sources(results)` 统一派生这份清单，空态判定 / 竖排 / 横排三处共用；③`SearchScreens.kt` 的 `RailResults` 入参由 `results`（全参搜源）改为 `hits`，站点栏项与右侧行列表都从这一份派生（原先各自 filter/sort 一遍），`SearchRailItem` 去掉 `pending` 参数与 `CircularProgressIndicator`（连带清 import，项内 Row+weight 简化为单个 Text）；横排 `SearchListResults(done = hits)` 因此也由配置顺序变为到达顺序；④新增 `SearchHitsTest`（有命中保留 / 按到达排序 / Pending 无命中被滤 / 空入参）。
+
+**未动**：`SearchResultsContent` 的"全空 ⇒ `search_no_result` / `search_no_exact_result` 空态"分支（fongmi 那侧此时只剩「全部」+ 空白列表，我们的空态更明确）；右侧列表顶部波浪线保留 —— 左栏去掉转圈后，它是"求解中"的唯一指示；「全部」项仍恒为第 0 项且默认为选中态。
+
+**验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（APK `app/build/outputs/apk/debug/AVBox_debug.apk` 已刷新，7:02:43）；单测 **686 用例 / 0 失败 / 0 错误 / 1 跳过**（新增 `SearchHitsTest` 4 条全绿）；构建产物里无残留的 `SearchRail*` 类。**装机 Success**：`adb install -r app/build/outputs/apk/debug/AVBox_debug.apk`（vivo V2425A / 10AF1J04JX0016G，`lastUpdateTime=2026-10-07 07:06:59`、versionName 1.2.2 / versionCode 23，覆盖安装故 `firstInstallTime` 仍是 04:21:24 的数据保留），装机前核对 APK 内 dex 已含 `Lcom/github/tvbox/osc/ui/activity/SearchHits;`、无 `SearchRail` 独立类。⚠️ 过程两坑：①中途强杀了一次上一轮 build，`app/build/test-results/testDebugUnitTest/binary/in-progress-results-generic.bin` 被留下半成品，下一轮 `testDebugUnitTest` 直接 `NoSuchFileException` 失败（其余任务全 UP-TO-DATE，看着像编译错）—— 删掉 `app/build/test-results/testDebugUnitTest` 重跑即恢复，与源码无关；②首次 `:app:installDebug` 在 push 阶段被中断，属同一类"半途打断"，改用 `adb install -r` 直装一次成功。**真机走查未做**，判据：①搜索中左栏 = 「全部」+ 陆续到达的命中源，无转圈、新源只往后加；②没搜到的源不进左栏、点不到；③全部源都无命中时仍是原空态文案；④竖排/横排切换后两侧的源集合与顺序一致。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.6 新增一条（只列有结果的源 + 与 fongmi 的对照）；`.codebuddy` / `.trae` 两镜像已同步。
+
+---
+
+## 首页「订阅源」sheet 搜索框加订阅源切换菜单（2026-10-07）
+
+**来源**：用户给了两张截图（首页「订阅源」sheet 的「搜索站点名称或地址」框 + 搜索页顶栏那枚「搜索片名、演员」框），要求"在首页订阅源[sheet]输入框的右边加上图二搜索页输入框[那枚 ⋮]控件，点击后出现弹出式菜单，里面的内容是配置管理页面的订阅源，点击即可切换"。开工前先核对了两个"订阅源"的所指：home sheet 的列表 = `ApiConfig.getSwitchSourceBeanList()`（**站点**，hide 过滤），配置管理页点播段的卡片 = `HawkConfig.SUBSCRIBE_LIST`（**订阅条目**），两者不是同一批数据 —— 菜单取后者（否则与 sheet 列表重复）。
+
+**做法（4 个源码文件）**：①`ui/page/ConfigManageViewModel.kt` 新增 `internal fun vodSubscribes()`，紧挨 `parseSubscribe` / `SUBSCRIBE_SPLIT`，保证订阅条目的解析口径只有一份；②`ui/page/HomeViewModel.kt` 新增 `subscribeItems` / `activeSubscribeIndex` 两个 StateFlow（`init` 与 `loadHome()` 都调 `refreshSubscribes()` ⇒ 启动就绪、切站点、任意 API 变更后同步）与 `isSubscribeDisabled()` / `switchSubscribe()` 两个入口（UI 层不直接碰 `BootGuard` / `AppBootstrap`）；③`ui/components/OptionMenu.kt` 新增 `AVBoxOptionMenuAction`（⋮ 触发器 + `AVBoxOptionMenu`，触发器规格 `ic_more_vert` / 22dp / `clip(RoundedCornerShape(50))` / `padding(4dp)`，与搜索页 `LayoutSwitchAction` 逐项一致），供后续"⋮ + 纯文本单选"复用；④`ui/page/HomePage.kt` 给 sheet 的 `SearchField` 补 `trailing` 槽。
+
+**口径与取舍**：对勾判据 = `url == API_URL || HistoryHelper.isApiLineSourceOf(url, API_URL)`（与配置管理页 `SubscribeCard` 的 inUse 同源，多仓/线路态也标得对）；点一条 = 先 `dismissAnimated()` 收 sheet 再 `AppBootstrap.switchVodSubscription(url)`（与配置管理页卡片开关同一条链路，不新增切换实现）；**禁用源（BootGuard 黑名单）不切、只 Toast `toast_source_auto_disabled`** —— 沿用 §4.7 直播页那条例外（菜单里没有二次确认的位置，文案已指路配置管理页），没有复制配置管理页的 `AVBoxAlertDialog`（那套还连着 `LocalSheetDismissThen` 的编排，抄一份等于把 sheet-dismiss 语义一起复制）；订阅源列表为空（直接手输地址的接口）时整颗 ⋮ 不渲染，免得点开是空菜单；**未新增任何文案**，故无 i18n 影响。
+
+**未动**：首页顶栏原有的 ⋮（搜索设置）与 🔍、sheet 内的站点列表与「配置管理」行。
+
+**验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（52s，改动文件无新增编译告警）；单测 **686 / 0 失败 / 0 错误 / 1 跳过**（本轮是数据接线 + UI，未引入新规则，故未补单测）。**装机 Success**：`adb install -r app/build/outputs/apk/debug/AVBox_debug.apk`（vivo V2425A / 10AF1J04JX0016G，`lastUpdateTime=2026-10-07 07:14:27`，versionName 1.2.2）。**真机走查未做**，判据：①sheet 搜索框右侧出现 ⋮，点开是订阅源菜单、当前那一条带勾；②点另一条 → sheet 收起 + 顶部胶囊与内容流按新订阅源刷新；③订阅源为空时 ⋮ 不出现；④命中黑名单那条点了只弹 Toast、不切换。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.x 首页顶部区追加一条；`.codebuddy` / `.trae` 两镜像已同步。
+
+**补丁（同日，装机后用户报"我添加好了源后回首页一看没有更新，退出应用重新进入才显示"）**：根因 = `HomeViewModel.subscribeItems` 只在 `init` 与 `loadHome()`（启动就绪 / 切站点 / 任意 API 变更）刷新，而**新增一条非首个订阅源不会换源** —— `ConfigManageViewModel.commitAdd` 只在 `newItems.size == 1` 时 `switchToVod`，加了第二条及以后既不改 `API_URL` 也不发 `RefreshEvent`；配置管理页是独立 Activity，HomeViewModel 全程存活 ⇒ 缓存一直是旧的（⋮ 菜单里看不到新条目、删除/改名同理），重启才重读。**修法 = 拉模型**：`refreshSubscribes()` 转 public，首页胶囊点击、打开 sheet 之前先调一次（`HomePage` 的 `.clickable`），不依赖"配置页记得发信号"这条 push 路径（漏发一次就是同一类 bug 复发）；`init` / `loadHome()` 里的刷新保留。验证：`assembleDebug` + `testDebugUnitTest` BUILD SUCCESSFUL（34s，单测 686 / 0 / 0 / 1 跳过）；`adb install -r` Success（`lastUpdateTime=2026-10-07 07:18:15`）。**真机复测待用户**：配置管理页新增/改名/删除一条订阅源后回首页、打开订阅源 sheet，⋮ 菜单应立即是新的（无需重启）。

@@ -7,6 +7,7 @@ import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.util.BoundedCall
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -79,7 +80,7 @@ class DetailLoader(
                 val ids = ArrayList<String>()
                 ids.add(id)
                 try {
-                    sp.detailContent(ids)
+                    SpiderReaper.track(sp) { sp.detailContent(ids) }
                 } catch (e: Exception) {
                     LOG.i("echo--getDetail--error: " + e.message)
                     ""

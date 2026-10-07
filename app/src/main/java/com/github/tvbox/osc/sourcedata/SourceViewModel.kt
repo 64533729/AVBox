@@ -7,6 +7,7 @@ import com.github.tvbox.osc.bean.AbsSortXml
 import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.SpiderReaper
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -95,7 +96,7 @@ class SourceViewModel : ViewModel() {
             SourceHelper.SPIDER_POOL.execute {
                 try {
                     val sp = ApiConfig.get().getCSP(sourceBean)
-                    val json = sp.action(action)
+                    val json = SpiderReaper.track(sp) { sp.action(action) }
                     actionResult.postValue(if (TextUtils.isEmpty(json)) null else JSONObject(json))
                 } catch (th: Throwable) {
                     LOG.e("SourceViewModel", th)

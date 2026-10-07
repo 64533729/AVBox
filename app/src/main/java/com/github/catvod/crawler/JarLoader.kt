@@ -14,6 +14,7 @@ import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
+import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.net.Http
 
 import org.json.JSONObject
@@ -26,7 +27,6 @@ import java.lang.reflect.Method
 import java.util.HashMap
 import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 import dalvik.system.DexClassLoader
@@ -46,7 +46,6 @@ class JarLoader {
     private var recent: String = MAIN_KEY
 
     private val clearGeneration: AtomicLong = AtomicLong(0)
-    private val destroyExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "jar-loader-destroy") }
 
     fun load(cache: String): Boolean {
         val success = load(MAIN_KEY, File(cache))
@@ -74,19 +73,11 @@ class JarLoader {
         danmuClickMethods.clear()
         danmuLongClickMethods.clear()
         spiders.clear()
-        locks.clear()
         siteJarKeys.clear()
         aliases.clear()
         recent = MAIN_KEY
-        if (stale.isEmpty()) return
-        destroyExecutor.execute {
-            for (spider in stale) {
-                try {
-                    spider.destroy()
-                } catch (ignored: Throwable) {
-                    LOG.d("JarLoader", "destroy spider failed")
-                }
-            }
+        for (spider in stale) {
+            SpiderReaper.retire(spider)
         }
     }
 
