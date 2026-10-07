@@ -1,5 +1,7 @@
 package com.github.tvbox.osc.ui.page
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -19,10 +21,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
+import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.ui.components.AVBoxAlertDialog
 import com.github.tvbox.osc.ui.components.LocalSheetDismiss
 import com.github.tvbox.osc.ui.components.LocalSheetDismissThen
 import com.github.tvbox.osc.ui.components.glassTopBarSurface
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 internal fun SelectCircle(
@@ -93,4 +98,27 @@ internal fun ConfirmDeleteDialog(
             TextButton(onClick = { dismissAnimated() }) { Text(stringResource(R.string.common_cancel)) }
         },
     )
+}
+
+private const val SWITCH_SUBSCRIBE_TIMEOUT_MS = 20_000L
+
+internal suspend fun reopenViaSubscription(
+    context: Context,
+    cid: String,
+    sourceKey: String?,
+    vodId: String?,
+    name: String?,
+    pic: String?,
+    collect: Boolean = false,
+) {
+    Toast.makeText(context, context.getString(R.string.detail_switching_source), Toast.LENGTH_SHORT).show()
+    AppBootstrap.switchVodSubscription(cid)
+    val ready = withTimeoutOrNull(SWITCH_SUBSCRIBE_TIMEOUT_MS) {
+        AppBootstrap.state.first { it is AppBootstrap.Boot.Ready || it is AppBootstrap.Boot.Error }
+    } is AppBootstrap.Boot.Ready
+    if (ready && ApiConfig.get().getSource(sourceKey) != null) {
+        context.jumpToDetail(vodId, sourceKey, name, pic, collect)
+    } else {
+        context.jumpToSearch(name.orEmpty())
+    }
 }

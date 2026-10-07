@@ -97,7 +97,6 @@ class VideoGestureHandler(
         this.longPressed = false
 
         if (session.locked) return GestureVerdict.CLAIMED
-        if (!session.inPlayback) return GestureVerdict.IGNORE
         if (session.edge) return GestureVerdict.IGNORE
         return GestureVerdict.CLAIMED
     }
@@ -150,6 +149,7 @@ class VideoGestureHandler(
 
     private fun decideMode(dx: Float, dy: Float, s: VideoGestureSession): Mode {
         if (s.locked) return Mode.NONE
+        if (!s.inPlayback) return Mode.NONE
         val horizontal = kotlin.math.abs(dx) > kotlin.math.abs(dy)
         if (horizontal) {
             return if (s.canChangePosition) Mode.SEEK else Mode.NONE

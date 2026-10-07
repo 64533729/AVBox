@@ -4705,3 +4705,99 @@ new-instance v2, Lorg/json/JSONArray;  invoke-direct {v2, v1}      # new JSONArr
 **验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（26s）；单测 **87 suite / 686 用例 / 0 失败 / 0 错误 / 1 跳过**；i18n 硬闸门 `ui 层 0 处 / 0 文件`；零注释；`follow_reminder_subtitle` 在 strings 与代码里均 0 命中。**未真机走查**（用户禁止操作其手机）。
 
 **文档同步**：`skill/avbox-mobile-ui-spec.md` §4.4「追剧提醒面板」条 —— ①改写（头部两轮删减的完整记录 + 关闭途径）与②那句"头部副标题刻意保留"改为"也已在同日后一轮删除 ⇒ 本面板现在只有区标题、没有任何说明性小字"。`.codebuddy` / `.trae` 两镜像已同步。
+**追剧页落地(同日,用户「先写ui吧」;设计稿 = 本地工作稿 `文档/AVBox 追剧页方案.md`,不入库)**:把占位页做成真正的「第二个收藏页」—— 追剧记录 + 更新日/更新时间日程,**明确不做更新检测、不发系统通知**。
+
+**代码(新增 12 文件 = 9 主代码 + 2 单测 + 1 schema 导出 / 改 12 文件 = 8 代码 + 4 语 strings)**:
+①数据层:`data/VodFollow.kt`(实体,表 `vodFollow`)、`data/FollowDays.kt`(`encode`/`decode`/`todayIndex`,0 = 周一 … 6 = 周日)、`data/VodFollowDao.kt`、`data/FollowRepository.kt`(接口 + `RoomFollowRepository`;`upsert` 已存在则只改日程、`addedTime` 不动)、`data/AppGraph.kt` 加 `followRepository`。
+②库升级:`@Database(version = 2)` + `data/AppMigrations.kt`(`MIGRATION_1_2`);**`DB_FILE_VERSION` 保持 4**(库文件名不变 ⇒ 老库原地迁移,历史/收藏/进度/缓存保留)。按方案 §4 顺序做:先加实体 + 改版本 → 编译导出 `app/schemas/com.github.tvbox.osc.data.AppDataBase/2.json` → 把 `vodFollow` 的 `createSql` 逐字拷进 `AppMigrations.kt`(`${TABLE_NAME}` 换成 `vodFollow`)→ 再挂 `.addMigrations(MIGRATION_1_2)`。**额外做了一次离线校验**(方案未要求):用 Python `sqlite3` 按 `1.json` 建库后执行迁移 SQL,逐字比对导出串、并把 `PRAGMA table_info` 与 `2.json` 的 `fields`(列名 / 亲和性 / notNull / 主键位置)全量比对 —— 三项全过。
+③UI:`ui/components/WeekdayChip.kt`(**新**,把面板里的私版 chip 提为共用,并把 `WeekdayRes` / `formatReminderTime` / `joinedDaysText` 一并挪过来)、`ui/components/FollowReminderSheet.kt`(签名改 `initialDays` / `initialHour` / `onDismissRequest` / `onSave`,保存回写)、`ui/page/FollowingViewModel.kt`(列表 + 源名/可用性解析 + 筛选 + 编辑态 + `FollowEntry`)、`ui/page/FollowListRules.kt`(角标计数与筛选排序纯逻辑)、`ui/page/FollowRow.kt`(卡片)、`ui/page/FollowingPage.kt`(重写:筛选条 + 区块标题 + 两级空态 + 编辑多选)、`ui/page/HistoryRow.kt`(`PROGRESS_ENTER_DURATION_MS` 与 `parseEpisodeTotal` 由 private 提为 internal,供 `FollowRow` 复用)。
+④详情页接线:`DetailViewModel` 加 `follow: StateFlow<VodFollow?>`(`loadDetail` / `loadDetailInternal` 各读一次、`resetContentState` 清)+ `saveFollow`;`DetailContent` 的追剧图标按"已追剧"切 `primary` tint、面板传预填与回调。
+⑤文案:新增 8 条(简体 / 英语 / 繁體台灣三份齐全),`following_empty` 由「功能开发中,敬请期待」/「Coming soon」改「暂无追剧」/「Nothing followed yet」,HK 差异层同步该条。
+
+**与方案的两处偏差(已向用户说明)**:①方案的 `FollowDays.fromCalendarDayOfWeek` 未实现 —— 本项目用 `java.time` 取今天,`Calendar` 那条转换没有任何调用方,加了就是死代码;②卡片第 3 行要显示"看到第几集",方案只列了 `episodeTotals` / `playedPercents`(都给不出集号),实现改为**只读**取一次 `HistoryRepository.getVodInfo(sourceKey, vodId)` —— 与历史页同一份记录、不新增任何存储。另外方案 §7 未列 `following_delete_selected_message`(批量删除的二次确认要用),本条为本轮补的。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **694 用例 / 0 失败**(新增 `FollowDaysTest` 4 例 + `FollowListRulesTest` 4 例);迁移 SQL 离线比对三项全过。**未真机走查**(用户禁止操作其手机;设备当时未在线,APK 已构建待装)。⚠️ 走查提示:**真机第一次打开库会跑 `MIGRATION_1_2`**,请把历史/收藏/播放进度一起看一遍,且**升级路径与全新安装路径都要看**(全新安装不跑迁移)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12 整节由「占位」改写为落地形态(定位 / 存储 / 页面 / 筛选 / 卡片 / 交互 / 两级空态 / 文案),§4.4「追剧提醒面板」条里的"刻意不落库"改写为"保存即落库"(含面板新签名与"取消追剧只走追剧页删除"的口径)。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 1(同日,用户看装机截图后要求「把追剧卡片的进度条删除了不需要,还有会显示当前源不可用,点击后进去一直在加载不好和收藏页一样自动跳转到对应源」):卡片去掉进度行 + 点击改走收藏页那套源路由**
+
+①**删掉卡片的第 3 行**(进度条 +「第X集/共Y集」):`FollowRow` 收成「剧名 + 源名」「更新日时间」两行,连带撤掉 `FollowingViewModel` 的 `history` / `episodeTotals` / `playedPercents`(`HistoryRepository` 依赖一并去掉)、`FollowEntry.history` 字段与 `FollowingPage` 的两处取数;顺手把上一轮为复用它而放宽的 `HistoryRow.PROGRESS_ENTER_DURATION_MS` / `parseEpisodeTotal` **改回 private**(现在只有历史页在用)。`FollowListRulesTest` 的 `FollowEntry` 构造同步。
+②**点卡片改为收藏页同款源路由**:`cid` 空或等于当前订阅 → 直接进详情;`cid` 在 `SubscribeList.vodUrls()` 里 → 切订阅源后进详情;否则跳搜索。与收藏页**共用一份实现** —— 把 `CollectPage.kt` 的私有 `reopenViaSubscription` 提到 `ui/page/PageActions.kt`(`internal suspend`,参数化为 cid/sourceKey/vodId/name/pic + `collect` 标志),收藏页改为调用它,两页行为逐字一致(`SWITCH_SUBSCRIBE_TIMEOUT_MS = 20s`、切完仍无该 sourceKey 就退化为跳搜索)。**成因**:跨订阅的追剧条目点进去时源不在当前配置里 ⇒ 详情页只能走"换源搜索"兜底,表现为一直转圈。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **694 用例 / 0 失败**;行尾 LF 已核对;**未真机走查**(用户禁止操作其手机;设备未在线,APK 已构建待装)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12「卡片」条改为两行 + 注明进度行已删,并新增「点卡片的源路由」条(含"不这么做的症状")。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 2(同日,用户看图要求「进度条加回去,右上角的站点名称放在标题下方被 surfaceContainer 圆角胶囊包裹,然后将更新时间放在『每周一…』下方」):卡片改五行版**
+
+进度行按用户要求**恢复**(上一轮刚按照片删掉 —— 这类"删了又加"属正常迭代,以最新一条为准),并重排为五行:①剧名 ②**源名从右上角移到标题下方、进 `surfaceContainer` 全圆角胶囊**(内距 10dp/4dp,`bodyMedium`;源不可用仍走 `error` 色并附 `source_unavailable`)③`ic_follow_update_time` + 星期串(新键 `following_update_days` =「每%1$s」,仍用 `follow_days_separator` 连接)④更新时间**另起一行、左缩进 22dp**对齐星期文字(新键 `following_update_time` =「%1$s 更新」,英文 `Updates at %1$s`)⑤进度条 + 集号。行距改 `Arrangement.spacedBy(4.dp)`(五行内容已高于海报,原来的 `SpaceBetween` 会把间距压成 0),海报仍 64dp。⚠️ 原 `follow_summary`(「每%1$s %2$s 更新」)保留给详情页面板的摘要卡,**没删也没改**。取数侧随之恢复:`FollowEntry.history` + `episodeTotals` / `playedPercents`,以及 `HistoryRow` 的 `internal` 共享面(`PROGRESS_ENTER_DURATION_MS` / `parseEpisodeTotal`)。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **694 用例 / 0 失败**;i18n 硬闸门 `ui 层 0 处`、key 检查无新增 UNUSED / 同值;行尾 LF 已核对;**未真机走查**(设备未在线,APK 已构建待装)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12「卡片」条改写为五行版(含源名胶囊、"更新时间缩进对齐"、"别动 `follow_summary`"三条),并把「卡片的进度取数」条补回。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 3(同日,用户又发两张截图「站点名称放回到右上角,顺便把记录页面历史卡片站点也用圆角胶囊包裹,还有感觉追剧卡片的影视海报比较小和记录页面不一样的」):源名胶囊挪回标题行 + 记录页也套胶囊**
+
+**先量后改**:用 System.Drawing 逐像素量了两张截图(1260×2800 = 360dp 宽,3.5px/dp)—— **两页海报本来就是同一个尺寸**(都是 64dp 宽 / 95.4dp 高,包围盒逐个像素一致);差异在卡片高度:追剧卡 131dp(源名胶囊独占一行把内容撑到 107dp)、记录卡 119dp(内容 = 海报高 96dp)。所以"海报显小"的根因是上一轮把胶囊单独放一行,不是海报尺寸。
+①**追剧卡**:源名胶囊挪回标题行右上角(`Row` + 标题 `weight(1f)` + 胶囊 `widthIn(max = 160.dp)`),内容回到 ≈96dp ⇒ 卡片 120dp、与记录页一致,海报自然铺满(海报尺寸未动)。天数行 / 时间单独一行 / 进度条都不变。
+②**记录页历史卡**:源名同样套 `surfaceContainer` 全圆角胶囊(`bodyMedium` + 内距 10dp/4dp + `widthIn(max = 160.dp)`,原为裸 `bodySmall` 文字);源不可用仍是 `error` 色 + `source_unavailable`。两页现在是同一个"站点胶囊"组件口径。
+⚠️ 记录页那张卡用的是 `Arrangement.SpaceBetween` + 列 `fillMaxHeight()`,标题行被胶囊撑到 28dp 后内容 64dp 仍 < 海报 96dp,照旧摊开、不溢出(改这行时别把 SpaceBetween 换成 spacedBy)。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **694 用例 / 0 失败**;行尾 LF 已核对;**未真机走查**(设备未在线,APK 已构建待装)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12「卡片」条改为"标题行 + 右上角胶囊"并把"胶囊位置 = 尺寸约束(独占一行会让海报显小)"写进去;§4.2 记录 tab 的「视觉」条补上历史卡源名胶囊口径。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 4(同日,用户发追剧页截图 + 一张 ⋮ 图标:「将追剧页面右上角的站点胶囊删除,改为图二这样的图标,裸图标不需要容器,点击后出现弹出式菜单,有两个选项从上到下依次是,还没有看,已经看了,点击已经看了,顶部当日的日历则少这部影片的提示」):站点胶囊 → 「已看 / 未看」⋮ 菜单 + 角标联动**
+
+①**站点名从追剧卡片上整个撤掉**,连带 `FollowEntry.sourceName` / `sourceUnavailable` 与 `FollowingViewModel` 里那套源名解析 + `SOURCE_NAME_CACHE` 写入(那套逻辑只为渲染这个胶囊存在,留着就是死代码);**右上角换成裸 ⋮** —— 直接复用共用组件 `AVBoxOptionMenuAction`(其图标本就是裸 `ic_more_vert`、无容器),菜单两项 = 新增文案 `following_not_watched`(还没有看)/ `following_watched`(已经看了),`selectedIndex` 反映当前状态(菜单项右侧 `primary` 对勾),`contentDescription` 复用 `player_menu_more`。
+②**「已经看了」= 当天已看标记**:点它 → 该片不再计入**星期 chip 的角标**(口径变为"当天还没看的追更数",即用户说的"少这部影片的提示");点「还没有看」撤销。**带日期、只算当天** ⇒ 存 MMKV `follow_watched`(`HashMap<owner, epochDay>`,owner = sourceKey|vodId;`data/FollowWatched.kt` 的 `snapshot` / `mark` / `clear`,写入时修剪非当天项),**次日自动失效**;**不落 Room ⇒ `vodFollow` 表结构与 schema 版本都没动**(不需要第二次迁移)。角标过滤收进 `FollowListRules.dayCounts`(现在收 `List<FollowEntry>`);列表**不隐藏**已看的片、卡片无额外状态标记(反馈 = 菜单对勾 + 角标变化)。
+③**顺手去掉 `source_unavailable` 在本页的显示**(站点名都没了,没地方挂);点卡片的跨订阅自动切源路由不受影响。
+
+**新增文案**:2 条 × 三语(`following_not_watched` / `following_watched`),无删除;HK 差异层不需要新条目。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **698 用例 / 0 失败**(新增 `FollowListRulesTest.dayCounts_skipWatchedShows` + `FollowWatchedTest` 3 例);i18n 硬闸门 `ui 层 0 处`、key 检查无新增 UNUSED / 同值;行尾 LF 已核对;**未真机走查**(设备未在线,APK 已构建待装)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12 —— 卡片条①改写(站点胶囊 → ⋮ 菜单)、新增「『已经看了』的语义与角标联动」条(键名 / 日粒度 / 次日失效 / 不落 Room),并把"尺寸支点"那条从"源名胶囊"改写成"右侧文字列总高 ≈ 96dp"。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 5(同日,用户报「我点击已经看了怎么让所有日历右上角的提示都没了」):角标口径收窄到"今天那一格"**
+
+**现象与根因**:补丁 4 把"已看"实现成**该片从它所有更新日的角标里都消失**(`dayCounts` 直接 `filterNot { it.watched }`)。用户当时只有 1 部片(更新日 = 周一/周二/周三),点一下"已经看了" → 三个角标同时归 0 → **0 不显示 ⇒ 整排角标一起消失**,看着像功能把所有提示都清空了。用户原始口径是"**顶部当日的**日历少这部影片的提示",不是"全部消失"。
+**改法**:`FollowListRules.dayCounts(items, today)` —— 只对 `watched` 的条目做 `days - today`(即今天那一格减一),其余星期格照旧统计;`FollowingPage` 的 `WeekdayFilterBar` 把 `FollowDays.todayIndex()` 传进去(`remember(items, today)`)。测试改为 `dayCounts_dropWatchedShowsOnlyOnToday`(同一条数据 `today = 2` 与 `today = 5` 两个期望值,把"只减今天"锁住)。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **698 用例 / 0 失败**;行尾 LF 已核对;**未真机走查**(设备未在线)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12「『已经看了』的语义与角标联动」条改写(含"别写成所有更新日都消失"的反例与其现象)。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 6(同日,用户续报「我现在切换到周二然后点击已经看了,结果消除的是周三的角标,还有如果切换到本周,那么点击已经看了应该消除本周这部剧的所有角标」):"已看"改为按天记录,作用范围跟当前视图走**
+
+补丁 5 的"只减今天"把范围钉死在 `FollowDays.todayIndex()` 上,与用户当前看的视图无关 ⇒ 在**周二**视图里点"已经看了",消掉的却是今天(**周三**)那一格,用户当场报回。**最终口径 = 作用范围跟着当前筛选视图**:某天视图 → 只消那一天;本周视图 → 消该片**所有更新日**。
+**改法**:`follow_watched` 的语义从"owner → epochDay"改成"**owner|dayIndex → epochDay**"(`FollowWatched.mark/clear` 现在收 `days: Set<Int>`;`snapshot` 按 owner 归组出 `Map<owner, Set<dayIndex>>`);`FollowEntry.watched: Boolean` → `watchedDays: Set<Int>`;VM 的 `setWatched` 用 `targetDays(entry)`(= 选中某天 ?: 该片全部更新日)决定标记/回滚哪几天,并当场更新内存条目(不重查库);`FollowListRules.dayCounts(items)` = 每个更新日集合减去 `watchedDays`,新增 `isWatched(entry, selectedDay)` 供菜单勾选态(某天视图 = 当天 ∈ 集合;本周视图 = 更新日全部已看;未设日程的片恒为未看)。列表、卡片与其余表现不变。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **700 用例 / 0 失败**(`FollowListRulesTest` 的 `dayCounts_dropOnlyWatchedDays` / `isWatchedFollowsSelectedView` + `FollowWatchedTest` 4 例把两种视图口径都锁住);行尾 LF 已核对;**未真机走查**(设备未在线)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12「『已经看了』的语义与角标联动」条**整条改写**为"作用范围 = 当前筛选视图"(含按天记录的键格式与两个纯函数的分工)。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 7(同日,用户问「给选择已经看过了的卡片增加观看状态你觉得适合加在什么地方」→ 回「a」):已看的卡片状态 = 海报右下角小对勾**
+
+**先给方案再动手**:列了四个候选位置(海报角标 / ⋮ 图标状态化 / 标题行胶囊或降透明度 / 进度行),逐条比代价 —— 关键约束是"右侧文字列总高 ≈ 96dp = 海报高"(当天已踩过一次),**任何独占一行的状态标记都会把卡片撑高**;进度行那条还只对有历史记录的片存在。用户选了 A。
+**落地**:`FollowRow` 的海报 `Box` 里加一层 overlay —— **18dp `primary` 圆底 + `onPrimary` `ic_check`**(内距 4dp、`contentDescription = following_watched`),**只做指示、不可点**(操作仍走 ⋮ 菜单),放**右下角**(左上角留给编辑态 `SelectCircle`);判据复用现成的 `FollowListRules.isWatched(entry, selectedDay)`(某天视图看那天;本周视图要更新日全部已看)。**overlay 不占高度 ⇒ 不碰那块卡片的尺寸平衡;不碰存储与 `FollowRow` 之外的任何文件**。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **700 用例 / 0 失败**;i18n 硬闸门 `ui 层 0 处`;行尾 LF 已核对;**未真机走查**(设备未在线)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12 —— 卡片条补上"已看对勾 = overlay、不占高度、不可点、放右下"与其理由,并把「『已经看了』的语义」条末尾那句"卡片上没有额外状态标记"改成"卡片状态 = 海报右下角对勾(与菜单同一判据)"。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 8(同日,Q&A 后用户「修了」):`today` 从页面 `remember` 挪进 VM 的刷新链**
+
+**背景**:用户问"到了下一周会自动刷新吗,怎么识别本周"。答:①**「本周」根本不识别周** —— `updateDays` 是"每周几"的周期设定,「本周」= 7 天并集,**与日期无关、不存在跨周刷新**;②真正跟日期有关的只有"今天描边"与"已看标记"两处,已看标记靠 KV 里存的 `epochDay` 自动失效;③**发现一处瑕疵**:`WeekdayFilterBar` 里 `val today = remember { FollowDays.todayIndex() }` 只在首次组合算一次,而 pager 的 `beyondViewportPageCount = 3` 让本页一直留在组合里 ⇒ 跨零点后**描边可能要等进程重启才纠正**(已看标记则随 `refresh()` 正常更新)。
+**改法**:`FollowingViewModel` 增加 `today: MutableStateFlow<Int>`,在 `refresh()` 开头 `today.value = FollowDays.todayIndex()`;页面 `collectAsStateWithLifecycle` 后传给 `WeekdayFilterBar`(该组件不再自己 `remember`),顺手删掉页面里已无用的 `FollowDays` import。**效果**:描边与已看标记**同一来源、同一时机**刷新(VM `init` / 页面 `ON_RESUME` / `TYPE_API_URL_CHANGE`),切个 tab 回来就一起纠正;仍**不做零点定时器**(页面级刷新是既有惯例,已写进规范)。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **700 用例 / 0 失败**;行尾 LF 已核对;**未真机走查**(设备未在线)。
+
+**文档同步**:`skill/avbox-mobile-ui-spec.md` §4.12 —— 筛选条"今天描边"那条补上"`today` 由 VM 随 refresh 下发"的原因,并新增一条「跟日期有关的两处的刷新时机」(次日生效 = 下一次 refresh、不做零点定时器、「本周」与日期无关)。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 9(同日,用户「审查一下是否有错误遗漏和引入新回归,是否可以收尾」→「修了」):审查 0 阻断 / 0 高 / 1 中 + 4 低,全部修掉**
+
+审查范围 = 本会话全部改动;工具 = `git diff/status`、自建 Kotlin 未使用 import 脚本、i18n 两道门、行尾核查、`assembleDebug` + 单测、SQLite 离线复演、`KVDecoder` 取值链核对。
+①**[中] `refresh()` 会吞掉刚落下的「已看」点击**:KV 快照原先在读**最前**、`items.value` 赋值在**逐条查历史之后** ⇒ 这个窗口里点「已经看了」会被整表覆盖回未看(视觉回退,虽然 KV 里已写、下次 refresh 自愈)。改:先建 `entries`(history 就绪、`watchedDays` 先占位),**再读快照、随即赋值**,把窗口压到微秒级。
+②**[低] `FollowingPage.kt` 未使用 import `data.VodFollow`** 删除。⚠️ 附带发现:仓库自带 `check_import_usage.py` 只认 Java `import …;`,**对 Kotlin 恒报 imports=0 / 未使用=0**(工具缺口)。
+③**[低] 无消费方成员删除**:`FollowRepository.isFollowed()` / `delete(id)` 与 `VodFollowDao.delete(id)` / `deleteAll()` —— 全仓无调用(方案 §3.3 列过,按项目死代码口径删;`currentCid` / `find` / `getAll` / `upsert` / `deleteSelected` 保留)。
+④**[低] `VodFollowCreateSql` 由公开 `const val` 收成 `private`**(仅同文件用)。
+⑤**[低] 「已看」写盘挪出主线程**:`setWatched` 先即时更新内存条目,`FollowWatched.mark/clear` 放 `Dispatchers.IO`(原先与 `EpisodeTotals.putFromVod` 同为"主线程 KV 写",低频也顺手清掉)。
+⑥**[低] 追剧页进详情不再传 `collect = true`**(`fromCollect` 目前只进日志,否则日志把来源标成收藏);收藏页保持原样。
+**未改(附理由)**:度量类发现 —— `FollowingPage.kt` 303 行、`FollowingPage` 单方法 ≈206 行 —— 抽 `when{…}` 段会得到 10+ 参数的私有 composable,收益不抵;要彻底解需连 VM 状态一起下沉,**建议等真有第二个页面复用筛选条时再做**(度量类不计入终止线)。
+
+**验证**:`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL;单测 **700 用例 / 0 失败**;`isFollowed`/`deleteAll` 全仓复核已无本轮残留(命中项均属收藏/历史/TrackMemory 的既有实现);行尾 LF 已核对;i18n 硬闸门 `ui 层 0 处`、key 检查仅剩既有的 `toast_permission_required` 与既有 `播放` 同值;**未真机走查**(设备未在线,APK 已构建待装)。
+
+**收尾判定**:按终止线(无阻断/高/中,剩余全为既有或口味差异)⇒ **代码侧满足收尾条件**;交付侧仍差"设备上线装机走查"(迁移升级路径 + 某天/本周视图角标 + 已看对勾)。⚠️ 提交时记得带上未跟踪的 `app/schemas/com.github.tvbox.osc.data.AppDataBase/2.json` 与 `ic_follow_update_time.xml` / `ic_follow_update_week.xml`。

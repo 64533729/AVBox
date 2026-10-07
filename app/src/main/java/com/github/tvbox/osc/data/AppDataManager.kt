@@ -42,6 +42,7 @@ object AppDataManager {
                     .setDriver(BundledSQLiteDriver())
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     .allowMainThreadQueries()
+                    .addMigrations(MIGRATION_1_2)
                     .build()
             }
             return dbInstance!!

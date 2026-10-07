@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.Movie
+import com.github.tvbox.osc.data.FollowDays
 import com.github.tvbox.osc.ui.components.FollowReminderSheet
 import com.github.tvbox.osc.ui.theme.filterChipColors
 
@@ -67,6 +68,7 @@ internal fun DetailContent(
     val qualityOptions by vm.qualityOptions.collectAsState()
     val qualitySelected by vm.qualitySelected.collectAsState()
     val collected by vm.collected.collectAsState()
+    val followRecord by vm.follow.collectAsState()
     var descExpanded by rememberSaveable { mutableStateOf(false) }
     var followScheduleOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -136,7 +138,11 @@ internal fun DetailContent(
                         Icon(
                             painter = painterResource(R.drawable.ic_tab_following),
                             contentDescription = stringResource(R.string.tab_following),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (followRecord != null) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -271,7 +277,13 @@ internal fun DetailContent(
     }
 
     if (followScheduleOpen) {
-        FollowReminderSheet(onDismissRequest = { followScheduleOpen = false })
+        FollowReminderSheet(
+            initialDays = followRecord?.let { FollowDays.decode(it.updateDays) }?.takeIf { it.isNotEmpty() }
+                ?: setOf(0),
+            initialHour = followRecord?.updateHour ?: 21,
+            onDismissRequest = { followScheduleOpen = false },
+            onSave = { days, hour -> vm.saveFollow(days, hour) },
+        )
     }
 }
 

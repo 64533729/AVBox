@@ -91,7 +91,9 @@ internal class VideoGestureActionsImpl(private val host: ComposeVideoController)
     }
 
     override fun onDoubleTapTogglePlay() {
-        if (!host.isLocked) host.togglePlayFromGesture()
+        if (host.isLocked) return
+        if (!host.isInPlaybackState()) return
+        host.togglePlayFromGesture()
     }
 
     override fun onLongPressStart() {

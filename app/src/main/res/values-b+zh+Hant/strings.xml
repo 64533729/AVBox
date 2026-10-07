@@ -208,11 +208,10 @@
     <string name="weekday_fri">週五</string>
     <string name="weekday_sat">週六</string>
     <string name="weekday_sun">週日</string>
-    <string name="follow_schedule_time_hint">如 21:30</string>
-    <string name="follow_reminder_title">追劇提醒</string>
+    <string name="follow_reminder_title">追更記錄</string>
     <string name="follow_update_day">更新日</string>
-    <string name="follow_reminder_time">提醒時間</string>
-    <string name="follow_summary">每%1$s %2$s 提醒我更新</string>
+    <string name="follow_reminder_time">更新時間</string>
+    <string name="follow_summary">每%1$s %2$s 更新</string>
     <string name="follow_days_separator">、</string>
     <string name="follow_save_settings">儲存設定</string>
     <string name="common_collect">收藏</string>
@@ -245,7 +244,19 @@
 
     <string name="collect_clear">清空收藏</string>
     <string name="collect_empty">暫無收藏</string>
-    <string name="following_empty">功能開發中，敬請期待</string>
+    <string name="following_empty">暫無追劇</string>
+    <string name="following_week">本週</string>
+    <string name="following_section_week">本週 · %1$d 部要追更</string>
+    <string name="following_section_day">%1$s · %2$d 部要追更</string>
+    <string name="following_day_empty">這天沒有要追更的劇</string>
+    <string name="following_view_week">看本週</string>
+    <string name="following_no_schedule">未設定更新日</string>
+    <string name="following_update_days">每%1$s</string>
+    <string name="following_update_time">%1$s 更新</string>
+    <string name="following_not_watched">還沒有看</string>
+    <string name="following_watched">已經看了</string>
+    <string name="following_delete_selected_message">確定刪除選中的 %1$d 部追劇嗎？</string>
+    <string name="toast_follow_saved">已加入追劇</string>
     <string name="collect_clear_message">將刪除全部收藏，此操作無法復原</string>
     <string name="collect_uncollect_message">取消收藏「%1$s」？</string>
     <string name="collect_delete_selected_message">確定取消收藏選中的 %1$d 部影片嗎？</string>

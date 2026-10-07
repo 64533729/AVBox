@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProgressIndicatorDefaults
@@ -35,31 +37,53 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.EpisodeTotals
+import com.github.tvbox.osc.data.FollowDays
+import com.github.tvbox.osc.data.VodFollow
+import com.github.tvbox.osc.ui.components.AVBoxOptionMenuAction
 import com.github.tvbox.osc.ui.components.VodPoster
+import com.github.tvbox.osc.ui.components.WeekdayRes
+import com.github.tvbox.osc.ui.components.formatReminderTime
+import com.github.tvbox.osc.ui.components.joinedDaysText
 import com.github.tvbox.osc.ui.theme.cardContainer
 import kotlin.math.roundToInt
 
-internal const val PROGRESS_ENTER_DURATION_MS = 600
+private val ScheduleIconSize = 16.dp
+
+private val ScheduleTextIndent = 22.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun HistoryRow(
-    item: VodInfo,
+internal fun FollowRow(
+    follow: VodFollow,
+    history: VodInfo?,
     totalEpisodes: Int?,
     playedPercent: Int?,
+    watched: Boolean,
     editMode: Boolean,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onWatchedChange: (Boolean) -> Unit,
 ) {
     var progressEntered by rememberSaveable { mutableStateOf(false) }
+    val days = FollowDays.decode(follow.updateDays)
+    val daysText = if (days.isEmpty()) {
+        ""
+    } else {
+        joinedDaysText(
+            WeekdayRes.map { stringResource(it) },
+            days,
+            stringResource(R.string.follow_days_separator),
+        )
+    }
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -79,8 +103,8 @@ internal fun HistoryRow(
                     .aspectRatio(2f / 3f),
             ) {
                 VodPoster(
-                    name = item.name,
-                    pic = item.pic,
+                    name = follow.name,
+                    pic = follow.pic,
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(8.dp)),
@@ -93,69 +117,92 @@ internal fun HistoryRow(
                             .padding(6.dp),
                     )
                 }
+                if (watched) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_check),
+                            contentDescription = stringResource(R.string.following_watched),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = item.name ?: "",
+                        text = follow.name ?: "",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    if (!item.sourceName.isNullOrEmpty()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val unavailable = item.sourceUnavailable
+                    Spacer(modifier = Modifier.width(4.dp))
+                    AVBoxOptionMenuAction(
+                        options = listOf(
+                            stringResource(R.string.following_not_watched),
+                            stringResource(R.string.following_watched),
+                        ),
+                        selectedIndex = if (watched) 1 else 0,
+                        onSelect = { index -> onWatchedChange(index == 1) },
+                        contentDescription = stringResource(R.string.player_menu_more),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_follow_update_time),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(ScheduleIconSize),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (days.isEmpty()) {
+                            stringResource(R.string.following_no_schedule)
+                        } else {
+                            stringResource(R.string.following_update_days, daysText)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (days.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(modifier = Modifier.width(ScheduleTextIndent))
                         Text(
-                            text = if (unavailable) {
-                                "${item.sourceName} · ${stringResource(R.string.source_unavailable)}"
-                            } else {
-                                item.sourceName
-                            },
+                            text = stringResource(
+                                R.string.following_update_time,
+                                formatReminderTime(follow.updateHour),
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (unavailable) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .widthIn(max = 160.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
                         )
                     }
                 }
-                Text(
-                    text = if (item.playNote.isNullOrEmpty()) {
-                        item.note ?: ""
-                    } else {
-                        stringResource(R.string.history_last_watched, item.playNote)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val numberedEpisode = item.playNote.isNullOrEmpty() || EpisodeTotals.isNumberedEpisode(item.playNote)
-                val eps = if (numberedEpisode) {
-                    totalEpisodes ?: parseEpisodeTotal(item.note) ?: parseEpisodeTotal(item.state)
-                } else {
-                    null
-                }
+                val eps = followEpisodeTotal(history, totalEpisodes)
                 val episodeFraction = eps?.let { total ->
-                    (item.playIndex + 1).coerceIn(1, total).toFloat() / total
+                    ((history?.playIndex ?: 0) + 1).coerceIn(1, total).toFloat() / total
                 }
                 val barProgress = playedPercent?.let { it / 100f } ?: episodeFraction
-                if (barProgress != null) {
+                if (history != null && barProgress != null) {
                     val barColor = MaterialTheme.colorScheme.primary
                     val progressAnim = remember {
                         Animatable(if (progressEntered) barProgress else 0f)
@@ -183,10 +230,10 @@ internal fun HistoryRow(
                         Text(
                             text = if (eps != null) {
                                 stringResource(
-                                        R.string.history_episode_progress,
-                                        (item.playIndex + 1).coerceIn(1, eps),
-                                        eps,
-                                    )
+                                    R.string.history_episode_progress,
+                                    (history.playIndex + 1).coerceIn(1, eps),
+                                    eps,
+                                )
                             } else {
                                 stringResource(R.string.history_watched_percent, (barProgress * 100).roundToInt())
                             },
@@ -202,10 +249,9 @@ internal fun HistoryRow(
     }
 }
 
-// i18n: keep —— 匹配源数据(片名/备注)里的"第N集/期",不能翻
-private val EpisodeTotalRegex = Regex("(\\d+)\\s*[集期]")
-
-internal fun parseEpisodeTotal(note: String?): Int? {
-    val total = note?.let { EpisodeTotalRegex.find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: return null
-    return total.takeIf { it in 2..1000 }
+private fun followEpisodeTotal(history: VodInfo?, totalEpisodes: Int?): Int? {
+    if (history == null) return null
+    val numberedEpisode = history.playNote.isNullOrEmpty() || EpisodeTotals.isNumberedEpisode(history.playNote)
+    if (!numberedEpisode) return null
+    return totalEpisodes ?: parseEpisodeTotal(history.note) ?: parseEpisodeTotal(history.state)
 }

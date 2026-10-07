@@ -1,76 +1,59 @@
 package com.github.tvbox.osc.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.ui.theme.cardContainer
 
-private val WeekdayRes = listOf(
-    R.string.weekday_mon,
-    R.string.weekday_tue,
-    R.string.weekday_wed,
-    R.string.weekday_thu,
-    R.string.weekday_fri,
-    R.string.weekday_sat,
-    R.string.weekday_sun,
-)
-
 private val ReminderHours = 0..23
 
-private val HourListHeight = 168.dp
+private val HourMenuMaxHeight = 280.dp
 
 @Composable
-fun FollowReminderSheet(onDismissRequest: () -> Unit) {
+fun FollowReminderSheet(
+    initialDays: Set<Int>,
+    initialHour: Int,
+    onDismissRequest: () -> Unit,
+    onSave: (days: Set<Int>, hour: Int) -> Unit,
+) {
     val dismissAnimated = LocalSheetDismiss.current
-    var selectedDays by rememberSaveable { mutableStateOf(setOf(0)) }
-    var selectedHour by rememberSaveable { mutableStateOf(21) }
-    var selectedMinute by rememberSaveable { mutableStateOf(30) }
-    var manualTime by rememberSaveable { mutableStateOf("") }
-    var timeExpanded by rememberSaveable { mutableStateOf(false) }
+    var selectedDays by rememberSaveable { mutableStateOf(initialDays) }
+    var selectedHour by rememberSaveable { mutableStateOf(initialHour) }
+    var timeMenuOpen by rememberSaveable { mutableStateOf(false) }
 
     val separator = stringResource(R.string.follow_days_separator)
-    val timeText = formatReminderTime(selectedHour, selectedMinute)
+    val timeText = formatReminderTime(selectedHour)
+    val hourOptions = remember { ReminderHours.map { formatReminderTime(it) } }
     val dayLabels = WeekdayRes.map { stringResource(it) }
-    val daysText = dayLabels
-        .filterIndexed { index, _ -> index in selectedDays }
-        .joinToString(separator)
+    val daysText = joinedDaysText(dayLabels, selectedDays, separator)
 
     AVBoxBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -123,90 +106,57 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
 
         ReminderGroupDivider()
         ReminderSectionTitle(titleRes = R.string.follow_reminder_time)
-        Surface(
-            onClick = { timeExpanded = !timeExpanded },
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.cardContainer,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+            Surface(
+                onClick = { timeMenuOpen = true },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.cardContainer,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = timeText,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(22.dp)
-                        .rotate(if (timeExpanded) 90f else 0f),
-                )
-            }
-        }
-
-        if (timeExpanded) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.cardContainer)
-                    .height(HourListHeight)
-                    .verticalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp),
-            ) {
-                ReminderHours.forEach { hour ->
-                    HourRow(
-                        label = hour.toString().padStart(2, '0'),
-                        selected = hour == selectedHour,
-                        onClick = {
-                            selectedHour = hour
-                            selectedMinute = 0
-                            manualTime = ""
-                        },
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_follow_update_time),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = timeText,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(if (timeMenuOpen) 90f else 0f),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = manualTime,
-                onValueChange = { raw ->
-                    val filtered = raw.filter { it.isDigit() || it == ':' }.take(5)
-                    manualTime = filtered
-                    val hour = filtered.substringBefore(':').toIntOrNull()
-                    if (hour != null && hour in ReminderHours) {
-                        selectedHour = hour
-                        filtered.substringAfter(':', "").toIntOrNull()
-                            ?.takeIf { it in 0..59 }
-                            ?.let { selectedMinute = it }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                singleLine = true,
-                placeholder = {
-                    Text(
-                        text = stringResource(R.string.follow_schedule_time_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                },
-            )
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                AVBoxOptionMenu(
+                    expanded = timeMenuOpen,
+                    options = hourOptions,
+                    selectedIndex = selectedHour,
+                    onSelect = { index ->
+                        timeMenuOpen = false
+                        selectedHour = index
+                    },
+                    onDismissRequest = { timeMenuOpen = false },
+                    modifier = Modifier.heightIn(max = HourMenuMaxHeight),
+                )
+            }
         }
 
         ReminderGroupDivider()
@@ -215,14 +165,14 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
             color = MaterialTheme.colorScheme.cardContainer,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Notifications,
+                    painter = painterResource(R.drawable.ic_follow_update_week),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
@@ -237,7 +187,10 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
         }
 
         Button(
-            onClick = { dismissAnimated() },
+            onClick = {
+                onSave(selectedDays, selectedHour)
+                dismissAnimated()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
@@ -267,67 +220,3 @@ private fun ReminderGroupDivider() {
         color = MaterialTheme.colorScheme.outlineVariant,
     )
 }
-
-@Composable
-private fun WeekdayChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.cardContainer
-        },
-        modifier = modifier,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-        )
-    }
-}
-
-@Composable
-private fun HourRow(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-    )
-}
-
-private fun formatReminderTime(hour: Int, minute: Int): String =
-    hour.toString().padStart(2, '0') + ":" + minute.toString().padStart(2, '0')

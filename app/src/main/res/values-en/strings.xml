@@ -208,11 +208,10 @@
     <string name="weekday_fri">Fri</string>
     <string name="weekday_sat">Sat</string>
     <string name="weekday_sun">Sun</string>
-    <string name="follow_schedule_time_hint">e.g. 21:30</string>
-    <string name="follow_reminder_title">Watch reminder</string>
+    <string name="follow_reminder_title">Update log</string>
     <string name="follow_update_day">Update days</string>
-    <string name="follow_reminder_time">Reminder time</string>
-    <string name="follow_summary">Remind me every %1$s at %2$s</string>
+    <string name="follow_reminder_time">Update time</string>
+    <string name="follow_summary">Every %1$s at %2$s</string>
     <string name="follow_days_separator">, </string>
     <string name="follow_save_settings">Save settings</string>
     <string name="common_collect">Favorites</string>
@@ -245,7 +244,19 @@
 
     <string name="collect_clear">Clear favorites</string>
     <string name="collect_empty">No favorites</string>
-    <string name="following_empty">Coming soon</string>
+    <string name="following_empty">Nothing followed yet</string>
+    <string name="following_week">This week</string>
+    <string name="following_section_week">%1$d shows this week</string>
+    <string name="following_section_day">%2$d shows on %1$s</string>
+    <string name="following_day_empty">Nothing to follow on this day</string>
+    <string name="following_view_week">View this week</string>
+    <string name="following_no_schedule">No update day set</string>
+    <string name="following_update_days">Every %1$s</string>
+    <string name="following_update_time">Updates at %1$s</string>
+    <string name="following_not_watched">Not watched yet</string>
+    <string name="following_watched">Already watched</string>
+    <string name="following_delete_selected_message">Remove %1$d selected shows from following?</string>
+    <string name="toast_follow_saved">Added to following</string>
     <string name="collect_clear_message">This will delete all favorites and cannot be undone</string>
     <string name="collect_uncollect_message">Remove “%1$s” from favorites?</string>
     <string name="collect_delete_selected_message">Remove %1$d selected favorites?</string>

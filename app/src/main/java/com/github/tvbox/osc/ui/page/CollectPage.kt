@@ -5,8 +5,6 @@
 
 package com.github.tvbox.osc.ui.page
 
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -65,9 +63,7 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.SubscribeList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -255,7 +251,17 @@ internal fun CollectTab(
                                                 )
 
                                             SubscribeList.vodUrls().contains(cid) ->
-                                                scope.launch { reopenViaSubscription(context, item) }
+                                                scope.launch {
+                                                    reopenViaSubscription(
+                                                        context = context,
+                                                        cid = cid,
+                                                        sourceKey = item.sourceKey,
+                                                        vodId = item.vodId,
+                                                        name = item.name,
+                                                        pic = item.pic,
+                                                        collect = true,
+                                                    )
+                                                }
 
                                             else -> context.jumpToSearch(item.name.orEmpty())
                                         }
@@ -330,17 +336,4 @@ private fun CollectCard(
     }
 }
 
-private const val SWITCH_SUBSCRIBE_TIMEOUT_MS = 20_000L
 
-private suspend fun reopenViaSubscription(context: Context, item: VodCollect) {
-    Toast.makeText(context, context.getString(R.string.detail_switching_source), Toast.LENGTH_SHORT).show()
-    AppBootstrap.switchVodSubscription(item.cid.orEmpty())
-    val ready = withTimeoutOrNull(SWITCH_SUBSCRIBE_TIMEOUT_MS) {
-        AppBootstrap.state.first { it is AppBootstrap.Boot.Ready || it is AppBootstrap.Boot.Error }
-    } is AppBootstrap.Boot.Ready
-    if (ready && ApiConfig.get().getSource(item.sourceKey) != null) {
-        context.jumpToDetail(item.vodId, item.sourceKey, item.name, item.pic, collect = true)
-    } else {
-        context.jumpToSearch(item.name.orEmpty())
-    }
-}

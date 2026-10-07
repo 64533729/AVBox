@@ -207,11 +207,29 @@ class VideoGestureHandlerTest {
     }
 
     @Test
-    fun notInPlaybackIsIgnored() {
+    fun nonPlaybackOnlyAllowsSingleTap() {
         val r = Recorder()
         r.playback = false
         val h = VideoGestureHandler(r)
-        assertEquals(GestureVerdict.IGNORE, h.beginSession(session(inPlayback = false), 500f, 300f))
+        assertEquals(
+            "加载/错误遮罩期不该整段吞掉手势",
+            GestureVerdict.CLAIMED,
+            h.beginSession(session(inPlayback = false), 500f, 300f),
+        )
+        assertFalse("非在播不该长按提速", h.maybeLongPress())
+        assertFalse("非在播不该横滑 seek", h.onMove(700f, 300f, slop = 8f))
+        assertFalse("非在播不该竖滑调亮度", h.onMove(200f, 500f, slop = 8f))
+        h.endSession(cancelled = false, nowMs = 1000L)
+        assertTrue("非在播的滑动不该派发任何动作", r.calls.isEmpty())
+
+        h.beginSession(session(inPlayback = false), 500f, 300f)
+        assertEquals(
+            "抬手仍应记为一笔待定点击",
+            VideoGestureHandler.EndResult.TAP_PENDING,
+            h.endSession(cancelled = false, nowMs = 2000L),
+        )
+        assertTrue(h.markSingleTapConfirmed())
+        assertEquals("非在播只放行单击", listOf("singleTap"), r.calls)
     }
 
     @Test

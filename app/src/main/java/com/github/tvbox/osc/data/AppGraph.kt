@@ -16,4 +16,9 @@ object AppGraph {
     val cacheRepository: CacheRepository by lazy {
         RoomCacheRepository { AppDataManager.get().getCacheDao() }
     }
+
+    @JvmStatic
+    val followRepository: FollowRepository by lazy {
+        RoomFollowRepository { AppDataManager.get().getVodFollowDao() }
+    }
 }

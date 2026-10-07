@@ -12,6 +12,7 @@ import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppGraph
 import com.github.tvbox.osc.data.EpisodeTotals
 import com.github.tvbox.osc.data.HistoryWriter
+import com.github.tvbox.osc.data.VodFollow
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.net.SearchHelper
 import com.github.tvbox.osc.player.PlaybackSession
@@ -61,6 +62,7 @@ class DetailViewModel : ViewModel() {
     val rotating = MutableStateFlow(false)
     val playSignal = MutableStateFlow(0)
     val collected = MutableStateFlow(false)
+    val follow = MutableStateFlow<VodFollow?>(null)
     val qualityOptions = MutableStateFlow<List<String>>(emptyList())
     val qualitySelected = MutableStateFlow(0)
     val sourceChips = MutableStateFlow<List<SourceChip>>(emptyList())
@@ -191,6 +193,7 @@ class DetailViewModel : ViewModel() {
         searchTitle = ""
         manualLineSwitchPending = false
         collected.value = false
+        follow.value = null
         relatedVideos.value = emptyList()
         sourcesSearching.value = false
         qualityOptions.value = emptyList()
@@ -261,6 +264,7 @@ class DetailViewModel : ViewModel() {
         firstsourceKey = sourceKey
         usedSourceKeys.add(firstsourceKey)
         collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
+        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
         if (DetailResponseGuard.isUnloadableTarget(vodId, ApiConfig.get().getSource(sourceKey) == null)) {
             onDetailUnavailable()
             return
@@ -587,6 +591,7 @@ class DetailViewModel : ViewModel() {
         sourceKey = key
         firstsourceKey = key
         collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
+        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
         sourceViewModel.getDetail(sourceKey, vodId, true, requestToken)
     }
 
@@ -727,6 +732,13 @@ class DetailViewModel : ViewModel() {
         }
         collected.value = !collected.value
         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
+    }
+
+    fun saveFollow(days: Set<Int>, hour: Int) {
+        val info = vodInfo ?: return
+        AppGraph.followRepository.upsert(sourceKey, info, days, hour)
+        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
+        toastEvent.value = str(R.string.toast_follow_saved)
     }
 
     private fun updateQualityOptions(result: org.json.JSONObject?) {

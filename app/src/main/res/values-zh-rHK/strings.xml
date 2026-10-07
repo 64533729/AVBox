@@ -73,5 +73,5 @@
     <string name="tab_records">記錄</string>
     <string name="tab_following">追劇</string>
     <string name="tab_mine">我的</string>
-    <string name="following_empty">功能開發中，敬請期待</string>
+    <string name="following_empty">暫無追劇</string>
 </resources>
