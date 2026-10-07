@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -76,41 +77,28 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
         title = null,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         headerContent = {
-            Column(
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 8.dp),
+                    .padding(horizontal = 20.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_tab_following),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(28.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = stringResource(R.string.follow_reminder_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_tab_following),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(28.dp),
+                )
+                Spacer(Modifier.width(12.dp))
                 Text(
-                    text = stringResource(R.string.follow_reminder_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp),
+                    text = stringResource(R.string.follow_reminder_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         },
     ) {
-        ReminderSectionTitle(
-            titleRes = R.string.follow_update_day,
-            hintRes = R.string.follow_update_day_hint,
-        )
+        ReminderSectionTitle(titleRes = R.string.follow_update_day)
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
@@ -133,10 +121,8 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
             }
         }
 
-        ReminderSectionTitle(
-            titleRes = R.string.follow_reminder_time,
-            hintRes = R.string.follow_reminder_time_hint,
-        )
+        ReminderGroupDivider()
+        ReminderSectionTitle(titleRes = R.string.follow_reminder_time)
         Surface(
             onClick = { timeExpanded = !timeExpanded },
             shape = RoundedCornerShape(16.dp),
@@ -223,12 +209,13 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
             )
         }
 
+        ReminderGroupDivider()
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.cardContainer,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp),
+                .padding(horizontal = 20.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -261,23 +248,24 @@ fun FollowReminderSheet(onDismissRequest: () -> Unit) {
 }
 
 @Composable
-private fun ReminderSectionTitle(titleRes: Int, hintRes: Int) {
-    Column(
+private fun ReminderSectionTitle(titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, top = 16.dp),
-    ) {
-        Text(
-            text = stringResource(titleRes),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(hintRes),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    )
+}
+
+@Composable
+private fun ReminderGroupDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
 }
 
 @Composable

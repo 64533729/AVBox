@@ -4683,3 +4683,25 @@ new-instance v2, Lorg/json/JSONArray;  invoke-direct {v2, v1}      # new JSONArr
 **验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（26s）；单测 **87 suite / 686 用例 / 0 失败 / 0 错误 / 1 跳过**；i18n 硬闸门 `ui 层 0 处 / 0 文件`；零注释；`common_close` 三语已无声明；`Icons.Filled.Close` / `IconButton` 在该文件各 0 处。**未真机走查**（用户禁止操作其手机）。
 
 **文档同步**：`skill/avbox-mobile-ui-spec.md` §4.4「追剧提醒面板」条 —— 头部件记明 ✕ 已删与关闭途径、星期 chip 记明对齐 `SheetButton` 的四项（含"不要用 `primary`/`onPrimary`"的反例）。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 16（同日，用户看光主题装机截图后要求「追剧提醒弹窗面板将副标题比如选择每周哪些天提醒这些删掉，然后在各自项之间加上分隔线」）：去掉区提示 + 组间加分隔线**
+
+**改动（单文件 `ui/components/FollowReminderSheet.kt` + 三语 strings）**：
+①**删掉两条"选择…"区提示**（`follow_update_day_hint`「选择每周哪些天提醒」/ `follow_reminder_time_hint`「选择提醒的具体时间」，三语声明一并删除）——它们与区标题重复。`ReminderSectionTitle` 随之从"标题 + 提示"的 `Column` 收成单行 `Text`（`titleMedium`，`top = 16.dp`）。⚠️ **头部那条 `follow_reminder_subtitle`（「设置后，会在指定时间提醒你更新」）保留** —— 用户举的例子是"选择每周哪些天提醒"这类**与区标题重复**的提示，而头部那条是面板作用说明、删了会丢信息；已向用户说明，要删也是一行。
+②**组间加分隔线**：新增 `ReminderGroupDivider` = `HorizontalDivider`（`thickness = 1.dp`、`color = outlineVariant`）+ 左右 20dp / 上下 6dp 内边距，放在 **「更新日」chips 之后**与**「提醒时间」块之后**（3 个组〔更新日 / 提醒时间 / 摘要卡〕之间 2 条）。这是沿用项目既有的"组间分隔线"范式——播放器参数面板的 `ParamsGroupDivider`（那边 `vs_15` + 线 + `vs_15`）；这里因为区标题自带 `top = 16.dp`，线本身只留 6dp。**顺带**：摘要卡上方原来的 `top = 20.dp` 撤掉（改由线的下内边距承担），避免两处都留。
+
+**未动**：面板 `surfaceContainer`、卡片 `cardContainer`、星期 chip 配色（上一轮刚对齐「硬解码」）、时间卡行与展开逻辑、24 小时列表、摘要卡、保存按钮、`LocalSheetDismiss` 收弹、不落库。
+
+**验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（26s）；单测 **87 suite / 686 用例 / 0 失败 / 0 错误 / 1 跳过**；i18n 硬闸门 `ui 层 0 处 / 0 文件`；零注释；两个被删的键在 strings 与代码里均 0 命中。**未真机走查**（用户禁止操作其手机）。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.4「追剧提醒面板」条 —— ②改写（记明删了哪两条、头部副标题为何保留），并新增一条「组间分隔线」规范（位置、尺寸来源、摘要卡 padding 的连带调整）。`.codebuddy` / `.trae` 两镜像已同步。
+**补丁 17（同日，用户要求「设置后，会在指定时间提醒你更新这一行也删除」）：删掉追剧提醒面板的头部副标题**
+
+上一轮我判断那条头部副标题不属于"与区标题重复的提示"、把它留下了，用户明确要求一并删除。
+
+**改动（单文件 `ui/components/FollowReminderSheet.kt` + 三语 strings）**：`headerContent` 从「`Row`(图标+标题) + 副标题 `Text`」的 `Column` 收成**只有一行 `Row`**（28dp `ic_tab_following` + 「追剧提醒」`titleLarge`），内边距由 `start = 20.dp, end = 8.dp`（原为给 ✕ 留位）改为**左右各 20dp**；`follow_reminder_subtitle` 三语声明一并删除。**结果：本面板现在只有区标题、没有任何说明性小字。**
+
+**未动**：面板与卡片配色、星期 chip 配色、时间卡行与展开逻辑、24 小时列表、摘要卡、保存按钮、上一轮加的组间分隔线、`LocalSheetDismiss` 收弹、不落库。
+
+**验证**：`.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest` BUILD SUCCESSFUL（26s）；单测 **87 suite / 686 用例 / 0 失败 / 0 错误 / 1 跳过**；i18n 硬闸门 `ui 层 0 处 / 0 文件`；零注释；`follow_reminder_subtitle` 在 strings 与代码里均 0 命中。**未真机走查**（用户禁止操作其手机）。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.4「追剧提醒面板」条 —— ①改写（头部两轮删减的完整记录 + 关闭途径）与②那句"头部副标题刻意保留"改为"也已在同日后一轮删除 ⇒ 本面板现在只有区标题、没有任何说明性小字"。`.codebuddy` / `.trae` 两镜像已同步。

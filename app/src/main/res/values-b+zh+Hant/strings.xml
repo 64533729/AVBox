@@ -210,11 +210,8 @@
     <string name="weekday_sun">週日</string>
     <string name="follow_schedule_time_hint">如 21:30</string>
     <string name="follow_reminder_title">追劇提醒</string>
-    <string name="follow_reminder_subtitle">設定後，會在指定時間提醒你更新</string>
     <string name="follow_update_day">更新日</string>
-    <string name="follow_update_day_hint">選擇每週哪些天提醒</string>
     <string name="follow_reminder_time">提醒時間</string>
-    <string name="follow_reminder_time_hint">選擇提醒的具體時間</string>
     <string name="follow_summary">每%1$s %2$s 提醒我更新</string>
     <string name="follow_days_separator">、</string>
     <string name="follow_save_settings">儲存設定</string>

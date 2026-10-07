@@ -210,11 +210,8 @@
     <string name="weekday_sun">Sun</string>
     <string name="follow_schedule_time_hint">e.g. 21:30</string>
     <string name="follow_reminder_title">Watch reminder</string>
-    <string name="follow_reminder_subtitle">You will be reminded at the time you set</string>
     <string name="follow_update_day">Update days</string>
-    <string name="follow_update_day_hint">Choose which days to be reminded</string>
     <string name="follow_reminder_time">Reminder time</string>
-    <string name="follow_reminder_time_hint">Choose the exact time</string>
     <string name="follow_summary">Remind me every %1$s at %2$s</string>
     <string name="follow_days_separator">, </string>
     <string name="follow_save_settings">Save settings</string>
