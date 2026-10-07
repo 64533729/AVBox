@@ -13,12 +13,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.bean.Movie
-import com.github.tvbox.osc.ui.components.VodPoster
+import com.github.tvbox.osc.ui.components.FollowReminderSheet
 import com.github.tvbox.osc.ui.theme.filterChipColors
 
 @Composable
@@ -70,6 +68,7 @@ internal fun DetailContent(
     val qualitySelected by vm.qualitySelected.collectAsState()
     val collected by vm.collected.collectAsState()
     var descExpanded by rememberSaveable { mutableStateOf(false) }
+    var followScheduleOpen by rememberSaveable { mutableStateOf(false) }
 
     val currentSource = ApiConfig.get().getSource(vm.firstsourceKey)
     val displaySourceName = currentSource?.name ?: vm.firstsourceKey
@@ -87,103 +86,90 @@ internal fun DetailContent(
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.Top,
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    VodPoster(
-                        name = info.name,
-                        pic = info.pic,
-                        modifier = Modifier
-                            .width(72.dp)
-                            .aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(12.dp)),
+                    Text(
+                        text = info.name ?: "TVBox",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 12.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = info.name ?: "TVBox",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { activity.openMusicPlayer() }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_detail_music_player),
-                                    contentDescription = stringResource(R.string.detail_music_player),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                            IconButton(onClick = { activity.playContainer?.showCast() }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_detail_cast),
-                                    contentDescription = stringResource(R.string.common_cast),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                            IconButton(onClick = { vm.toggleCollect() }) {
-                                AnimatedContent(
-                                    targetState = collected,
-                                    transitionSpec = {
-                                        (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith
-                                                (scaleOut(targetScale = 0.6f) + fadeOut())
-                                    },
-                                    label = "collectIcon",
-                                ) { isCollected ->
-                                    Icon(
-                                        painter = painterResource(
-                                            if (isCollected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect
-                                        ),
-                                        contentDescription = stringResource(if (isCollected) R.string.detail_uncollect else R.string.detail_collect),
-                                        tint = if (isCollected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                }
-                            }
-                        }
-                        val metaParts = listOfNotNull(
-                            if (info.year > 0) info.year.toString() else null,
-                            info.area?.takeIf { it.isNotBlank() },
-                            info.type?.takeIf { it.isNotBlank() },
+                    IconButton(onClick = { activity.openMusicPlayer() }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_detail_music_player),
+                            contentDescription = stringResource(R.string.detail_music_player),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 4.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.detail_source, displaySourceName),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (metaParts.isNotEmpty()) {
-                                Text(
-                                    text = metaParts.joinToString(" · "),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(start = 8.dp),
-                                )
-                            }
+                    }
+                    IconButton(onClick = { activity.playContainer?.showCast() }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_detail_cast),
+                            contentDescription = stringResource(R.string.common_cast),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                    IconButton(onClick = { vm.toggleCollect() }) {
+                        AnimatedContent(
+                            targetState = collected,
+                            transitionSpec = {
+                                (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith
+                                        (scaleOut(targetScale = 0.6f) + fadeOut())
+                            },
+                            label = "collectIcon",
+                        ) { isCollected ->
+                            Icon(
+                                painter = painterResource(
+                                    if (isCollected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect
+                                ),
+                                contentDescription = stringResource(if (isCollected) R.string.detail_uncollect else R.string.detail_collect),
+                                tint = if (isCollected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp),
+                            )
                         }
+                    }
+                    IconButton(onClick = { followScheduleOpen = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_tab_following),
+                            contentDescription = stringResource(R.string.tab_following),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+                val metaParts = listOfNotNull(
+                    if (info.year > 0) info.year.toString() else null,
+                    info.area?.takeIf { it.isNotBlank() },
+                    info.type?.takeIf { it.isNotBlank() },
+                )
+                Column(modifier = Modifier.padding(top = 4.dp)) {
+                    if (metaParts.isNotEmpty()) {
+                        Text(
+                            text = metaParts.joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.detail_source, displaySourceName),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 if (desc.isNotEmpty()) {
@@ -282,6 +268,10 @@ internal fun DetailContent(
         item(key = "related") {
             RelatedSection(activity, vm, onCardLongClick)
         }
+    }
+
+    if (followScheduleOpen) {
+        FollowReminderSheet(onDismissRequest = { followScheduleOpen = false })
     }
 }
 

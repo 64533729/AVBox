@@ -198,6 +198,26 @@
     <string name="music_queue">Queue</string>
     <string name="music_song_index">Track %1$d</string>
     <string name="tab_home">Home</string>
+    <string name="tab_records">Records</string>
+    <string name="tab_following">Following</string>
+    <string name="tab_mine">Me</string>
+    <string name="weekday_mon">Mon</string>
+    <string name="weekday_tue">Tue</string>
+    <string name="weekday_wed">Wed</string>
+    <string name="weekday_thu">Thu</string>
+    <string name="weekday_fri">Fri</string>
+    <string name="weekday_sat">Sat</string>
+    <string name="weekday_sun">Sun</string>
+    <string name="follow_schedule_time_hint">e.g. 21:30</string>
+    <string name="follow_reminder_title">Watch reminder</string>
+    <string name="follow_reminder_subtitle">You will be reminded at the time you set</string>
+    <string name="follow_update_day">Update days</string>
+    <string name="follow_update_day_hint">Choose which days to be reminded</string>
+    <string name="follow_reminder_time">Reminder time</string>
+    <string name="follow_reminder_time_hint">Choose the exact time</string>
+    <string name="follow_summary">Remind me every %1$s at %2$s</string>
+    <string name="follow_days_separator">, </string>
+    <string name="follow_save_settings">Save settings</string>
     <string name="common_collect">Favorites</string>
     <string name="config_load_failed">Failed to load config</string>
     <string name="toast_source_auto_disabled">This source cannot be used and would crash the app, so it was disabled (you can re-enable it in Config Management)</string>
@@ -228,6 +248,7 @@
 
     <string name="collect_clear">Clear favorites</string>
     <string name="collect_empty">No favorites</string>
+    <string name="following_empty">Coming soon</string>
     <string name="collect_clear_message">This will delete all favorites and cannot be undone</string>
     <string name="collect_uncollect_message">Remove “%1$s” from favorites?</string>
     <string name="collect_delete_selected_message">Remove %1$d selected favorites?</string>
@@ -405,7 +426,6 @@
     <string name="config_field_url">URL</string>
     <string name="live_follow_vod_source">Follow VOD source</string>
 
-    <string name="settings_title">Settings</string>
     <string name="settings_config_manage">Config Management</string>
     <string name="settings_config_manage_subtitle">Import or delete subscription sources</string>
     <string name="settings_theme">Theme Settings</string>

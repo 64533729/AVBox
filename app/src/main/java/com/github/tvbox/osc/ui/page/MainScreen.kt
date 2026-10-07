@@ -90,9 +90,9 @@ import kotlinx.coroutines.launch
 
 private enum class AppTab(@StringRes val labelRes: Int, @DrawableRes val icon: Int) {
     HOME(R.string.tab_home, R.drawable.ic_tab_home),
-    HISTORY(R.string.history_title, R.drawable.ic_tab_history),
-    COLLECT(R.string.common_collect, R.drawable.ic_tab_collect),
-    SETTINGS(R.string.settings_title, R.drawable.ic_tab_settings),
+    RECORDS(R.string.tab_records, R.drawable.ic_tab_records),
+    FOLLOWING(R.string.tab_following, R.drawable.ic_tab_following),
+    SETTINGS(R.string.tab_mine, R.drawable.ic_tab_mine),
 }
 
 @Composable
@@ -321,8 +321,8 @@ private fun MainContent() {
                         CompositionLocalProvider(LocalLifecycleOwner provides pageLifecycleOwner) {
                             when (AppTab.entries[page]) {
                                 AppTab.HOME -> HomePage(homeViewModel, pageContentPadding)
-                                AppTab.HISTORY -> HistoryPage(contentPadding = pageContentPadding)
-                                AppTab.COLLECT -> CollectPage(contentPadding = pageContentPadding)
+                                AppTab.RECORDS -> RecordsPage(contentPadding = pageContentPadding)
+                                AppTab.FOLLOWING -> FollowingPage(contentPadding = pageContentPadding)
                                 AppTab.SETTINGS -> SettingsPage(contentPadding = pageContentPadding)
                             }
                         }

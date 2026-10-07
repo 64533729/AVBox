@@ -156,7 +156,6 @@ fun ConfigManageScreen(onNavigateBack: () -> Unit) {
     }
 
     AppTopBarScaffold(
-        collapseEnabled = false,
         titleContent = {
             Text(
                 text = stringResource(R.string.settings_config_manage),

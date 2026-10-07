@@ -236,7 +236,9 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
         when {
             pageLoading -> {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = navBottom),
                     contentAlignment = Alignment.Center,
                 ) {
                     ContainedLoadingIndicator(Modifier.size(64.dp))
@@ -246,7 +248,7 @@ fun HomePage(vm: HomeViewModel, contentPadding: PaddingValues = PaddingValues(0.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = topPad),
+                        .padding(top = topPad, bottom = navBottom),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {

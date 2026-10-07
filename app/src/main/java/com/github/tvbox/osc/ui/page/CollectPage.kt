@@ -7,7 +7,6 @@ package com.github.tvbox.osc.ui.page
 
 import android.content.Context
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -22,36 +21,27 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.data.AppGraph
@@ -68,7 +57,7 @@ import com.github.tvbox.osc.data.CollectRepository
 import com.github.tvbox.osc.data.VodCollect
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.ui.WindowSize
-import com.github.tvbox.osc.ui.components.AppTopBarScaffold
+import com.github.tvbox.osc.ui.components.LoadState
 import com.github.tvbox.osc.ui.components.LoadStateBox
 import com.github.tvbox.osc.ui.components.VodPoster
 import com.github.tvbox.osc.util.HawkConfig
@@ -172,12 +161,16 @@ class CollectViewModel(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CollectPage(
-    vm: CollectViewModel = viewModel(),
-    contentPadding: PaddingValues = PaddingValues(0.dp),
+internal fun CollectTab(
+    vm: CollectViewModel,
+    listState: LazyGridState,
+    editMode: Boolean,
+    selected: Set<Int>,
+    onToggleSelected: (Int) -> Unit,
+    onRequestDelete: (VodCollect) -> Unit,
+    navStart: Dp,
+    navBottom: Dp,
 ) {
-    val navStart = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
-    val navBottom = contentPadding.calculateBottomPadding()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val items by vm.items.collectAsStateWithLifecycle()
@@ -185,217 +178,98 @@ fun CollectPage(
     val placementAnim by vm.placementAnim.collectAsStateWithLifecycle()
     val unavailableKeys by vm.unavailableKeys.collectAsStateWithLifecycle()
     val columns by vm.columns.collectAsStateWithLifecycle()
-    var showDeleteAllDialog by remember { mutableStateOf(false) }
-    var showDeleteSelectedDialog by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<VodCollect?>(null) }
-    var editMode by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf(emptySet<Int>()) }
 
-    val listState = rememberLazyGridState()
-
-    fun exitEdit() {
-        editMode = false
-        selected = emptySet()
-    }
-
-    BackHandler(enabled = editMode) { exitEdit() }
-
-    LaunchedEffect(items) {
-        val keys = items.map { it.id }.toSet()
-        val pruned = selected.intersect(keys)
-        if (pruned.size != selected.size) selected = pruned
-        if (items.isEmpty()) editMode = false
-    }
-
-    LaunchedEffect(vm) {
-        vm.scrollSignal.collect {
-            if (items.isNotEmpty()) listState.animateScrollToItem(0)
+    when {
+        loading -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = navBottom),
+            contentAlignment = Alignment.Center,
+        ) {
+            ContainedLoadingIndicator(Modifier.size(64.dp))
         }
-    }
 
-    AppTopBarScaffold(
-        topBarStartInset = navStart,
-        titleContent = {
-            Text(
-                text = stringResource(R.string.common_collect),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        actions = {
-            AnimatedContent(
-                targetState = editMode && items.isNotEmpty(),
-                transitionSpec = {
-                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                        fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium))
-                },
-                label = "collectTopAction",
-            ) { editing ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (editing) {
-                        ManageActionIcon(
-                            iconRes = R.drawable.ic_check,
-                            contentDescription = stringResource(R.string.common_done),
-                            onClick = { exitEdit() },
-                        )
-                        ManageActionIcon(
-                            iconRes = R.drawable.ic_delete,
-                            contentDescription = stringResource(R.string.common_delete_selected),
-                            enabled = selected.isNotEmpty(),
-                            onClick = { showDeleteSelectedDialog = true },
-                        )
-                    } else {
-                        if (items.isNotEmpty()) {
-                            ManageActionIcon(
-                                iconRes = R.drawable.ic_edit,
-                                contentDescription = stringResource(R.string.common_edit),
-                                onClick = { editMode = true },
+        else -> AnimatedContent(
+            targetState = items,
+            contentKey = { it.isEmpty() },
+            transitionSpec = {
+                fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
+                    fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+            },
+            label = "collectContent",
+        ) { list ->
+            if (list.isEmpty()) {
+                LoadStateBox(
+                    state = LoadState.Empty,
+                    emptyText = stringResource(R.string.collect_empty),
+                    errorText = "",
+                    retryText = "",
+                    emptyIconRes = R.drawable.ic_empty_record,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = navBottom),
+                )
+            } else {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val gridColumns = WindowSize.gridColumns(
+                        availableWidthDp = (maxWidth - 32.dp - navStart).value.toInt(),
+                        minColumns = columns,
+                    )
+                    LazyVerticalGrid(
+                        state = listState,
+                        columns = GridCells.Fixed(gridColumns),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp + navStart,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = 8.dp + navBottom,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(list, key = { it.id }) { item ->
+                            CollectCard(
+                                item = item,
+                                unavailable = item.sourceKey?.let { unavailableKeys.contains(it) } == true,
+                                editMode = editMode,
+                                selected = item.id in selected,
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                    placementSpec = if (placementAnim) {
+                                        spring(stiffness = Spring.StiffnessMediumLow)
+                                    } else {
+                                        null
+                                    },
+                                    fadeOutSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                ),
+                                onClick = {
+                                    if (editMode) {
+                                        onToggleSelected(item.id)
+                                    } else {
+                                        val cid = item.cid.orEmpty()
+                                        when {
+                                            cid.isEmpty() || cid == AppGraph.collectRepository.currentCid() ->
+                                                context.jumpToDetail(
+                                                    item.vodId, item.sourceKey, item.name, item.pic, collect = true,
+                                                )
+
+                                            SubscribeList.vodUrls().contains(cid) ->
+                                                scope.launch { reopenViaSubscription(context, item) }
+
+                                            else -> context.jumpToSearch(item.name.orEmpty())
+                                        }
+                                    }
+                                },
+                                onLongClick = {
+                                    if (editMode) onToggleSelected(item.id) else onRequestDelete(item)
+                                },
                             )
                         }
-                        ManageActionIcon(
-                            iconRes = R.drawable.ic_delete,
-                            contentDescription = stringResource(R.string.collect_clear),
-                            onClick = { showDeleteAllDialog = true },
-                        )
-                    }
-                }
-            }
-        },
-    ) { topPad, _ ->
-        when {
-            loading -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = topPad),
-                contentAlignment = Alignment.Center,
-            ) {
-                ContainedLoadingIndicator(Modifier.size(64.dp))
-            }
-
-            else -> AnimatedContent(
-                targetState = items,
-                contentKey = { it.isEmpty() },
-                transitionSpec = {
-                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
-                        fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
-                },
-                label = "collectContent",
-            ) { list ->
-                if (list.isEmpty()) {
-                    LoadStateBox(
-                        state = com.github.tvbox.osc.ui.components.LoadState.Empty,
-                        emptyText = stringResource(R.string.collect_empty),
-                        errorText = "",
-                        retryText = "",
-                        emptyIconRes = R.drawable.ic_empty_record,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topPad),
-                    )
-                } else {
-                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        val gridColumns = WindowSize.gridColumns(
-                            availableWidthDp = (maxWidth - 32.dp - navStart).value.toInt(),
-                            minColumns = columns,
-                        )
-                        LazyVerticalGrid(
-                            state = listState,
-                            columns = GridCells.Fixed(gridColumns),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 16.dp + navStart,
-                                end = 16.dp,
-                                top = topPad + 8.dp,
-                                bottom = 8.dp + navBottom,
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(list, key = { it.id }) { item ->
-                                val toggle = {
-                                    selected = if (item.id in selected) selected - item.id else selected + item.id
-                                }
-                                CollectCard(
-                                    item = item,
-                                    unavailable = item.sourceKey?.let { unavailableKeys.contains(it) } == true,
-                                    editMode = editMode,
-                                    selected = item.id in selected,
-                                    modifier = Modifier.animateItem(
-                                        fadeInSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                        placementSpec = if (placementAnim) {
-                                            spring(stiffness = Spring.StiffnessMediumLow)
-                                        } else {
-                                            null
-                                        },
-                                        fadeOutSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                    ),
-                                    onClick = {
-                                        if (editMode) {
-                                            toggle()
-                                        } else {
-                                            val cid = item.cid.orEmpty()
-                                            when {
-                                                cid.isEmpty() || cid == AppGraph.collectRepository.currentCid() ->
-                                                    context.jumpToDetail(
-                                                        item.vodId, item.sourceKey, item.name, item.pic, collect = true,
-                                                    )
-
-                                                SubscribeList.vodUrls().contains(cid) ->
-                                                    scope.launch { reopenViaSubscription(context, item) }
-
-                                                else -> context.jumpToSearch(item.name.orEmpty())
-                                            }
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (editMode) {
-                                            toggle()
-                                        } else {
-                                            deleteTarget = item
-                                        }
-                                    },
-                                )
-                            }
-                        }
                     }
                 }
             }
         }
-    }
-
-    if (showDeleteAllDialog) {
-        ConfirmDeleteDialog(
-            title = stringResource(R.string.collect_clear),
-            text = stringResource(R.string.collect_clear_message),
-            onConfirm = { vm.deleteAll() },
-            onDismiss = { showDeleteAllDialog = false },
-        )
-    }
-    if (showDeleteSelectedDialog) {
-        val targets = items.filter { it.id in selected }
-        ConfirmDeleteDialog(
-            title = stringResource(R.string.common_delete_selected),
-            text = stringResource(R.string.collect_delete_selected_message, targets.size),
-            onConfirm = {
-                vm.deleteSelected(targets)
-                exitEdit()
-            },
-            onDismiss = { showDeleteSelectedDialog = false },
-        )
-    }
-    deleteTarget?.let { target ->
-        ConfirmDeleteDialog(
-            title = stringResource(R.string.detail_uncollect),
-            text = stringResource(
-                R.string.collect_uncollect_message,
-                target.name ?: stringResource(R.string.common_unnamed),
-            ),
-            onConfirm = { vm.deleteSelected(listOf(target)) },
-            onDismiss = { deleteTarget = null },
-        )
     }
 }
 

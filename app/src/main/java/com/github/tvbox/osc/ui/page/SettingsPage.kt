@@ -215,7 +215,7 @@ fun SettingsPage(
         topBarStartInset = navStart,
         titleContent = {
             Text(
-                text = stringResource(R.string.settings_title),
+                text = stringResource(R.string.tab_mine),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )

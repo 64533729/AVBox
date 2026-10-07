@@ -23,12 +23,14 @@ data class ThemeConfig(
     val pureBlack: Boolean,
 )
 
-val DefaultSeedArgb: Int = 0xFF1B6EF3.toInt()
+private val SeedRedArgb: Int = 0xFFD02020.toInt()
+
+val DefaultSeedArgb: Int = SeedRedArgb
 
 val DefaultPaletteStyle: PaletteStyle = PaletteStyle.TonalSpot
 
 val PresetSeeds: List<Pair<Int, Int>> = listOf(
-    R.string.theme_seed_red to 0xFFD02020.toInt(),
+    R.string.theme_seed_red to SeedRedArgb,
     R.string.theme_seed_orange to 0xFFE07A00.toInt(),
     R.string.theme_seed_yellow to 0xFFB08000.toInt(),
     R.string.theme_seed_green to 0xFF208040.toInt(),
