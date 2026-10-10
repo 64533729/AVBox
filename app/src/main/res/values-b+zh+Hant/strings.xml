@@ -107,7 +107,7 @@
     <string name="search_no_result">「%1$s」暫無搜尋結果</string>
 
     <string name="cast_title">投放到裝置</string>
-    <string name="cast_hint">確認電視/盒子已安裝AVBox或已開啟DLNA投放\n電視/盒子與手機連線在同一Wi-Fi下</string>
+    <string name="cast_hint">確認電視/盒子已安裝刺桐影视或已開啟DLNA投放\n電視/盒子與手機連線在同一Wi-Fi下</string>
     <string name="cast_permission_hint">需要允許「附近的裝置」權限才能搜尋投放裝置\n開啟後點「重新整理」重試</string>
     <string name="cast_searching">正在搜尋裝置...</string>
     <string name="cast_no_device">未找到可用裝置</string>
