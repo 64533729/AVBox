@@ -455,7 +455,7 @@
     <string name="settings_about_disclaimer">本软件只提供聚合展示功能，所有资源均来自互联网，软件不参与任何内置、制作、上传、储存、下载等内容，也不接受任何捐赠、打赏、付费等谋利行为，软件仅供开源学习参考, 请于安装后24小时内删除。\n\n刺桐官网\nhttps://www.cttv.vip</string>
     <string name="settings_github">访问 刺桐娱乐 官网</string>
     <string name="settings_github_subtitle">访问刺桐娱乐官网</string>
-    <string name="settings_app_tagline">TVBox手机版</string>
+    <string name="settings_app_tagline">不忘初心，探索前行</string>
     <string name="settings_app_version">应用版本</string>
 
     <string name="settings_preference_title">偏好设置</string>
