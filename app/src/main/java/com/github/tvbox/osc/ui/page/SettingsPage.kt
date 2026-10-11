@@ -383,7 +383,7 @@ private fun AboutSheet(versionName: String, onDismiss: () -> Unit) {
     }
 }
 
-private const val GITHUB_REPO_URL = "https://github.com/XiaochangXu/AVBox"
+private const val GITHUB_REPO_URL = "https://www.cttv.vip"
 
 private fun openExternalUrl(context: Context, url: String) {
     try {
