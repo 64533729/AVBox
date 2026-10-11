@@ -30,6 +30,12 @@ class PlaybackAttemptState {
     var hasRetriedSameUrlOnBoot: Boolean = false
 
     @JvmField
+    var hasRefreshedOnFormatError: Boolean = false
+
+    @JvmField
+    var refreshKeepsProgress: Boolean = false
+
+    @JvmField
     var playbackStarted: Boolean = false
 
     @JvmField
@@ -82,6 +88,8 @@ class PlaybackAttemptState {
         switchStopPending = false
         autoSwitchedDecodeOld = null
         castAborted = false
+        hasRefreshedOnFormatError = false
+        refreshKeepsProgress = false
     }
 
     fun beginNewPlay() {
@@ -99,6 +107,7 @@ class PlaybackAttemptState {
         hasAutoSwitchedPlayer = false
         hasRetriedAfterStart = false
         hasRetriedSameUrlOnBoot = false
+        hasRefreshedOnFormatError = false
     }
 
     fun stoppedForSourceSwitch() {
@@ -112,13 +121,21 @@ class PlaybackAttemptState {
         allowSwitchPlayer = true
         hasAutoSwitchedPlayer = false
         hasRetriedSameUrlOnBoot = false
+        hasRefreshedOnFormatError = false
         clearTriedLines()
     }
 
     fun onLineSwitched() {
         allowSwitchPlayer = true
         hasAutoSwitchedPlayer = false
+        hasRefreshedOnFormatError = false
         if (switchIntent != SwitchIntent.REBUILD) switchIntent = SwitchIntent.REUSE
+    }
+
+    fun consumeRefreshKeepsProgress(): Boolean {
+        val keep = refreshKeepsProgress
+        refreshKeepsProgress = false
+        return keep
     }
 
     fun linesExhausted() {

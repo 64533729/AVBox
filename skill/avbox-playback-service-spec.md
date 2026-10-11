@@ -145,6 +145,8 @@ PlaybackService(前台服务,托管生命周期)
 
 **复用重播的恢复点(2026-10-07)**:`skipPositionWhenPlay` 的值分两种 —— **同内容**(换线/画面开关等重播,判据 `isSameStartedContent()`,必须在 `markContentStarted()` **之前**捕获)用 `MyVideoView.resumePositionForReplay(库内值)`(实时位置优先);**跨内容**(换集/换歌)继续用 `goPlayUrl` 时读出的库内值 `playTimeoutBasePosition`。旧口径一律用库内值,而"保存当前位置"发生在读它**之后** ⇒ 恢复的是"上次写库时的位置"(真机日志实测回退约 30 秒;本集从未写过库时恢复 0 = 从 0 开始播放)。三处复用起点(`PlayContainerViewBridge` / `PlaybackEngine.HeadlessView` / `MusicPlayerActivity`)同口径。
 
+**手动换线路续播(2026-10-11)**:进度 key 含线路名(`sourceKey+id+playFlag+playIndex+集名`),而唯一的 `inherit` 机制只挂在"换数据源"(`PlayContainer.stopForSourceSwitch`)路径上 ⇒ **手动点线路一度从 0 播**(2026-10-11 真机日志:FF 拖到 25 分钟→换 BF→`uiPosition=0`)。收口:①`PlaybackStarter.play()` 在解析地址前调 `PlaybackController.migrateProgressOnLineSwitch()` —— 判据 `ProgressSampling.lineSwitchMigrate`(仅 `st.userPickedLine` + 新旧 key 不同 + 位置 > 0)通过时,把**当前位置**(实时位置优先 `view.currentPosition()`,内核已释放则回落旧 key 库值 `getSavedProgress(startedProgressKey)`)用 `WatchProgressStore.save` 写入**新线路 key** ⇒ 后续 `playTimeoutBasePosition` 读到即续播,内核被重建(走 `view.start()`)时也成立;换集/换源/首播不满足判据、不受影响。**判据前置(2026-10-11 审查修复)**:`DetailViewModel.onEpisodeClick` 点到非换线目标集即作废换线标记、`PlayContainer.playNext/playPrevious` 显式 `scheduler.setUserPickedLine(false)` —— 只有"点线路后仍看同一集"才迁移(详见 `history/features.md` 同日"审查修复")。②`isSameContentRestart()` 改用 `ProgressSampling.restartKeepsProgress` —— 用户手动换线视为"同内容重启",换线瞬间进度条不再清零回缩(该判据同时是今天新增的 UI 清零点 `VideoPlayerController.onNewPlayStarted(sameContent)` 的输入)。
+
 ### 3.5 媒体会话、通知与前台服务
 
 - 有音频轨就维护会话(影视/音乐一视同仁),由 `PlaybackController.updateMusicSession()` 驱动;`owner = WeakReference<PlaybackHostApi>`,通知栏动作全部打到它(`resumeFromMediaSession`/`pauseFromMediaSession`/`stopFromMediaSession`/`seekFromMediaSession`/`playPrevious`/`playNext`)。

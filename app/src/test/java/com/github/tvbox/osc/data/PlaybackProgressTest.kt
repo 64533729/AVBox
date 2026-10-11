@@ -39,6 +39,13 @@ class PlaybackProgressTest {
     }
 
     @Test
+    fun shouldMarkWatched_toleratesUnderResumeThreshold() {
+        assertTrue(PlaybackProgress.shouldMarkWatched(1_000, "src|1#线路A#0", ""))
+        assertEquals(WatchDecision.SKIP, WatchProgressRules.decide(5_000, 1_200_000))
+        assertEquals(WatchDecision.SAVE, WatchProgressRules.decide(40_000, 1_200_000))
+    }
+
+    @Test
     fun decodePercent_readsLegacyPlainInt() {
         assertEquals(42, PlaybackProgress.decodePercent("42"))
         assertEquals(0, PlaybackProgress.decodePercent("0"))

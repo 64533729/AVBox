@@ -68,11 +68,13 @@ internal class LiveProxyLoader(private val host: Host) {
             )
         } catch (th: Throwable) {
             if (!realUrl.startsWith("http://127.0.0.1")) {
+                LOG.e("echo-live-load-fail url=$realUrl err=$th")
                 host.onEmpty()
                 return
             }
         }
         if (!isValidProxyUrl(realUrl)) {
+            LOG.e("echo-live-load-fail url=$realUrl err=invalid-url")
             host.onEmpty()
             return
         }
@@ -88,6 +90,7 @@ internal class LiveProxyLoader(private val host: Host) {
                     SpiderReaper.track(sp) { sp.liveContent(finalUrl) }
                 }, ApiConfig.get().liveConnectTimeoutSeconds * 1000L, "echo-live-proxy")
                 if (sortJson.isNullOrEmpty()) {
+                    LOG.e("echo-live-load-fail url=$finalUrl err=empty-content")
                     mHandler.post { host.onEmpty() }
                     return@Runnable
                 }
@@ -97,13 +100,14 @@ internal class LiveProxyLoader(private val host: Host) {
                         ApiConfig.get().loadLives(livesArray)
                         val list = ApiConfig.get().channelGroupList
                         if (list.isEmpty()) {
+                            LOG.e("echo-live-load-fail url=$finalUrl err=empty-groups")
                             host.onEmpty()
                         } else {
                             host.onGroupsLoaded(ArrayList(list))
                         }
                     }
                 } catch (th: Throwable) {
-                    LOG.e("LiveProxyLoader", th)
+                    LOG.e("echo-live-load-fail url=$finalUrl err=$th")
                 }
             }
             Executors.newSingleThreadExecutor().also {
@@ -118,6 +122,7 @@ internal class LiveProxyLoader(private val host: Host) {
                     ApiConfig.get().loadLives(livesArray)
                     val list = ApiConfig.get().channelGroupList
                     if (list.isEmpty()) {
+                        LOG.e("echo-live-load-fail url=$realUrl err=empty-groups")
                         mHandler.post { host.onEmpty() }
                         return@launch
                     }
@@ -125,7 +130,8 @@ internal class LiveProxyLoader(private val host: Host) {
                     mHandler.post { host.onGroupsLoaded(loadedGroups) }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    LOG.e("echo-live-load-fail url=$realUrl err=$e")
                     mHandler.post { host.onEmpty() }
                 }
             }

@@ -151,6 +151,25 @@ object ProgressSampling {
         return startedPlaybackKey == currentPlaybackKey
     }
 
+    fun restartKeepsProgress(
+        userPickedLine: Boolean,
+        startedPlaybackKey: String?,
+        currentPlaybackKey: String?,
+        refreshKeepsProgress: Boolean = false,
+    ): Boolean = refreshKeepsProgress || userPickedLine || sameContentRestart(startedPlaybackKey, currentPlaybackKey)
+
+    fun lineSwitchMigrate(
+        userPickedLine: Boolean,
+        startedKey: String?,
+        targetKey: String?,
+        position: Long,
+    ): Boolean {
+        if (!userPickedLine) return false
+        if (startedKey.isNullOrEmpty() || targetKey.isNullOrEmpty()) return false
+        if (startedKey == targetKey) return false
+        return position > 0
+    }
+
     fun shouldWrite(state: PlayState, playing: Boolean, live: Boolean, sameContent: Boolean): Boolean {
         if (live || !playing || !sameContent) return false
         return state == PlayState.PLAYING

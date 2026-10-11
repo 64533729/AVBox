@@ -497,6 +497,7 @@ class PlaybackService : Service() {
         private fun installDataPorts() {
             PlaybackPorts.isLiveMode = { peek()?.isLiveMode() == true }
             PlaybackPorts.discardStartedContentOf = { peek()?.discardStartedContentOf(it) }
+            PlaybackPorts.onProgressKeysCleared = { peek()?.markZeroStartKeys(it) }
         }
 
         @JvmStatic

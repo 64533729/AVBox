@@ -6,6 +6,7 @@ import com.github.tvbox.osc.base.App
 import com.github.tvbox.osc.bean.ParseBean
 import com.github.tvbox.osc.bean.SourceBean
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.sourcedata.SourceHelper
@@ -88,6 +89,21 @@ class PlaybackController {
 
     fun inheritProgressIfNeeded() {
         progress.inheritProgressIfNeeded()
+    }
+
+    fun migrateProgressOnLineSwitch() {
+        val started = progress.startedProgressKey()
+        val key = progressKey()
+        val live = view?.currentPosition() ?: 0L
+        val position = when {
+            live > 0 -> live
+            !started.isNullOrEmpty() -> getSavedProgress(started)
+            else -> 0L
+        }
+        if (!ProgressSampling.lineSwitchMigrate(st.userPickedLine, started, key, position)) return
+        val duration = view?.duration() ?: 0L
+        WatchProgressStore.save(progressOwner(), key, position, duration)
+        LOG.i("echo-switchLine migrate pos=" + position + " dur=" + duration + " key=" + key)
     }
 
     fun progressOwner(): String? = progress.progressOwner()
@@ -414,6 +430,7 @@ class PlaybackController {
 
     fun markPlaybackStarted() {
         st.playbackStarted = true
+        WatchProgressStore.onPlayStart(progressKey())
         cancelPlayTimeout()
     }
 
@@ -516,7 +533,12 @@ class PlaybackController {
     fun startedProgressKey(): String? = progress.startedProgressKey()
 
     fun isSameContentRestart(): Boolean =
-        ProgressSampling.sameContentRestart(progress.startedPlaybackKey(), currentSession?.playbackKey())
+        ProgressSampling.restartKeepsProgress(
+            st.userPickedLine,
+            progress.startedPlaybackKey(),
+            currentSession?.playbackKey(),
+            st.consumeRefreshKeepsProgress(),
+        )
 
     fun isSameStartedContent(): Boolean = progress.isSameStartedContent()
 
@@ -633,6 +655,10 @@ class PlaybackController {
 
         override fun inheritProgressIfNeeded() {
             this@PlaybackController.inheritProgressIfNeeded()
+        }
+
+        override fun migrateProgressOnLineSwitch() {
+            this@PlaybackController.migrateProgressOnLineSwitch()
         }
 
         override fun clearInheritProgress() {

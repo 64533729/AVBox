@@ -73,4 +73,33 @@ class PlaybackProgressSamplerTest {
         assertFalse(ProgressSampling.sameContentRestart("src|1|线路1|0", "src|1|线路2|0"))
         assertTrue(ProgressSampling.sameContentRestart("src|1|线路1|0", "src|1|线路1|0"))
     }
+
+    @Test
+    fun restartKeepsProgress_trueForUserPickedLine() {
+        assertTrue(ProgressSampling.restartKeepsProgress(true, "src|1|线路1|0", "src|1|线路2|0"))
+        assertTrue(ProgressSampling.restartKeepsProgress(true, null, null))
+        assertFalse(ProgressSampling.restartKeepsProgress(false, "src|1|线路1|0", "src|1|线路2|0"))
+        assertTrue(ProgressSampling.restartKeepsProgress(false, "src|1|线路1|0", "src|1|线路1|0"))
+        assertFalse(ProgressSampling.restartKeepsProgress(false, "src|1|线路1|0", "src|1|线路1|1"))
+    }
+
+    @Test
+    fun restartKeepsProgress_trueForRefreshResolve() {
+        assertTrue(
+            ProgressSampling.restartKeepsProgress(
+                false, "src|1|线路1|0", "src|1|线路2|0", refreshKeepsProgress = true,
+            ),
+        )
+        assertFalse(ProgressSampling.restartKeepsProgress(false, "src|1|线路1|0", "src|1|线路2|0"))
+    }
+
+    @Test
+    fun lineSwitchMigrate_onlyForUserPickedLineWithPosition() {
+        assertTrue(ProgressSampling.lineSwitchMigrate(true, "src|1|线路1|0", "src|1|线路2|0", 120_000L))
+        assertFalse(ProgressSampling.lineSwitchMigrate(false, "src|1|线路1|0", "src|1|线路2|0", 120_000L))
+        assertFalse(ProgressSampling.lineSwitchMigrate(true, null, "src|1|线路2|0", 120_000L))
+        assertFalse(ProgressSampling.lineSwitchMigrate(true, "src|1|线路1|0", null, 120_000L))
+        assertFalse(ProgressSampling.lineSwitchMigrate(true, "src|1|线路1|0", "src|1|线路1|0", 120_000L))
+        assertFalse(ProgressSampling.lineSwitchMigrate(true, "src|1|线路1|0", "src|1|线路2|0", 0L))
+    }
 }

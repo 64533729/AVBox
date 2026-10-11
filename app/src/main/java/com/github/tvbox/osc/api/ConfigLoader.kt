@@ -116,6 +116,7 @@ class ConfigLoader(private val owner: ApiConfig) {
     private fun runLoadLiveConfig(useCache: Boolean, callback: ApiConfig.LoadConfigCallback) {
         val apiUrl = ApiConfig.getEffectiveLiveUrl()
         if (apiUrl.isEmpty()) {
+            LOG.e("echo-live-config-fail url=empty")
             callback.error("-1")
             return
         }
@@ -154,6 +155,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                     clearLiveApiLinesIfUnmatched(liveApiUrl)
                     owner.parseLiveConfigContent(liveApiUrl, body)
                     if (!owner.hasLiveConfigResult()) {
+                        LOG.e("echo-live-config-empty url=$liveApiUrl")
                         callback.error(ApiConfig.str(R.string.toast_live_config_parse_failed))
                         return
                     }
@@ -193,6 +195,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                         LOG.e("ApiConfig", th)
                     }
                 }
+                LOG.e("echo-live-config-fail url=$liveApiUrl err=$error")
                 callback.error(ApiConfig.str(R.string.toast_live_config_fetch_failed))
             }
         })

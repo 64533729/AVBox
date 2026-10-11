@@ -76,12 +76,12 @@ internal class PlayerActionsDelegate(private val host: VideoPlayerController) : 
 
     override fun onNextClicked() {
         host.listener?.playNext(false)
-        hideBottom()
+        keepControlsAlive()
     }
 
     override fun onPreClicked() {
         host.listener?.playPre()
-        hideBottom()
+        keepControlsAlive()
     }
 
     override fun onPlayPauseClicked() {

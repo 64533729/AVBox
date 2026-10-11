@@ -332,6 +332,15 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         controller.clearStartedContent()
     }
 
+    fun markZeroStartKeys(keys: List<String>) {
+        if (released || keys.isEmpty()) return
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { markZeroStartKeys(keys) }
+            return
+        }
+        videoView.markZeroStartKeys(keys)
+    }
+
     fun release() {
         if (released) return
         released = true

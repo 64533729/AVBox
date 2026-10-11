@@ -62,6 +62,8 @@ class PlaybackStarter(private val host: Host) {
 
         fun inheritProgressIfNeeded()
 
+        fun migrateProgressOnLineSwitch()
+
         fun clearInheritProgress()
 
         fun handleResolvePlayUrlFailed(err: String)
@@ -177,7 +179,6 @@ class PlaybackStarter(private val host: Host) {
         )
         host.setProgressKey(host.vod()!!.sourceKey + host.vod()!!.id + host.vod()!!.playFlag + host.vod()!!.playIndex + vs.name)
         if (!prepareOnly) {
-            WatchProgressStore.onPlayStart(host.progressKey())
             PlaybackProgress.onEpisodeStartNoScroll(host.vod())
         }
         host.startResolvePlayUrlTimeout()
@@ -192,6 +193,7 @@ class PlaybackStarter(private val host: Host) {
             WatchProgressStore.clear(host.progressOwner(), host.progressKey())
             AppGraph.cacheRepository.delete(MD5.string2MD5(host.subtitleCacheKey()), 0)
         } else if (!prepareOnly) {
+            host.migrateProgressOnLineSwitch()
             host.inheritProgressIfNeeded()
             host.view()?.setSubtitleViewVisible(false)
         }

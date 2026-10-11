@@ -63,6 +63,8 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected var mCurrentPosition = 0L
 
+    private val mZeroStartKeys = LinkedHashSet<String>()
+
     private var mLastReportedPlayState = PlayState.IDLE
 
     private val _playStateFlow = MutableSharedFlow<PlayState>(extraBufferCapacity = PLAY_STATE_FLOW_BUFFER)
@@ -122,6 +124,10 @@ open class AppPlayerView @JvmOverloads constructor(
         }
         mProgressSink?.let { sink ->
             mCurrentPosition = sink.getSavedProgress(progressKey())
+        }
+        if (ZeroStartGate.consume(mZeroStartKeys, progressKey())) {
+            mCurrentPosition = 0
+            LOG.i("echo-zero-start apply key=" + progressKey())
         }
         mMediaPlayer?.release()
         mMediaPlayer = null
@@ -440,6 +446,12 @@ open class AppPlayerView @JvmOverloads constructor(
         mProgressKey = key
     }
 
+    fun markZeroStartKeys(keys: List<String>) {
+        if (ZeroStartGate.mark(mZeroStartKeys, keys)) {
+            LOG.i("echo-zero-start mark n=" + keys.size + " pending=" + mZeroStartKeys.size)
+        }
+    }
+
     open fun setProgressSink(sink: ProgressSink?) {
         mProgressSink = sink
     }
@@ -449,7 +461,11 @@ open class AppPlayerView @JvmOverloads constructor(
     }
 
     open fun replay(resetPosition: Boolean) {
-        if (resetPosition) {
+        val zeroStart = ZeroStartGate.consume(mZeroStartKeys, progressKey())
+        if (zeroStart) {
+            LOG.i("echo-zero-start apply key=" + progressKey())
+        }
+        if (resetPosition || zeroStart) {
             mCurrentPosition = 0
         }
         val player = mMediaPlayer

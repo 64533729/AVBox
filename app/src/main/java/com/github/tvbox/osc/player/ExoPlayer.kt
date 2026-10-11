@@ -354,6 +354,8 @@ class ExoPlayer(context: Context) : KernelPlayer() {
 
     fun lastErrorKind(): Int = engine?.lastErrorKind ?: ERROR_KIND_UNKNOWN
 
+    fun lastErrorCodeName(): String? = engine?.lastErrorCodeName
+
     private fun bufferTimes(): Int {
         val value = KV.get(HawkConfig.BUFFER_TIMES, HawkConfig.BUFFER_TIMES_DEFAULT)
         return value.coerceIn(1, 10)

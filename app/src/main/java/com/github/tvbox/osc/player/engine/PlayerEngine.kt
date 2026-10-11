@@ -138,6 +138,8 @@ class PlayerEngine(
     @Volatile
     private var lastErrorKindValue = ERROR_KIND_UNKNOWN
 
+    private var lastErrorCodeNameValue: String? = null
+
     @Volatile
     private var droppedFramesTotal = 0L
 
@@ -325,6 +327,7 @@ class PlayerEngine(
         videoEffectsOpen = false
         pictureHdrSource = false
         lastErrorKindValue = ERROR_KIND_UNKNOWN
+        lastErrorCodeNameValue = null
     }
 
     private fun resetPlaybackStats() {
@@ -592,6 +595,9 @@ class PlayerEngine(
     val lastErrorKind: Int
         get() = lastErrorKindValue
 
+    val lastErrorCodeName: String?
+        get() = lastErrorCodeNameValue
+
     val droppedFrames: Long
         get() = droppedFramesTotal
 
@@ -777,6 +783,7 @@ class PlayerEngine(
     private fun handlePlayerError(error: PlaybackException) {
         val codeName = error.errorCodeName
         lastErrorKindValue = classifyError(codeName)
+        lastErrorCodeNameValue = codeName
         LOG.e("Tvbox-runtime", "echo-Exo player error: $currentPlayPath", error)
         val sb = StringBuilder("echo-exo-player-error: code=").append(codeName).append(", msg=").append(error.message)
         var cause = error.cause

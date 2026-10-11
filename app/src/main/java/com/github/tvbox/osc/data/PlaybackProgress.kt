@@ -70,7 +70,7 @@ object PlaybackProgress {
     fun onProgress(vod: VodInfo?, positionMs: Int, durationMs: Int) {
         val id = currentKey(vod) ?: return
         WatchProgressStore.noteDuration(id, durationMs.toLong())
-        markWatched(vod, positionMs, durationMs)
+        markWatched(vod, positionMs)
         if (WatchProgressRules.decide(positionMs.toLong(), durationMs.toLong()) == WatchDecision.SKIP) return
         val percent = calcPercent(positionMs, durationMs) ?: return
         val now = System.currentTimeMillis()
@@ -83,7 +83,7 @@ object PlaybackProgress {
 
     fun flush(vod: VodInfo?, positionMs: Int, durationMs: Int): Boolean {
         val id = currentKey(vod) ?: return false
-        markWatched(vod, positionMs, durationMs)
+        markWatched(vod, positionMs)
         watchedToken = ""
         sampleToken = ""
         advancedMs = 0
@@ -115,7 +115,7 @@ object PlaybackProgress {
     fun shouldMarkWatched(advancedMs: Int, token: String, lastToken: String): Boolean =
         token != lastToken && advancedMs >= MIN_ADVANCE_MS
 
-    private fun markWatched(vod: VodInfo?, positionMs: Int, durationMs: Int) {
+    private fun markWatched(vod: VodInfo?, positionMs: Int) {
         if (vod == null) return
         if (PlaybackPorts.isLiveMode?.invoke() == true) return
         val token = key(vod.sourceKey, vod.id) + "#" + vod.playFlag + "#" + vod.playIndex
@@ -128,7 +128,6 @@ object PlaybackProgress {
         advancedMs += stepAdvanceMs(positionMs, lastPosition)
         lastPosition = positionMs
         if (!shouldMarkWatched(advancedMs, token, watchedToken)) return
-        if (!WatchProgressRules.shouldRemember(positionMs.toLong(), durationMs.toLong())) return
         watchedToken = token
         EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_PLAYBACK_STARTED))
     }

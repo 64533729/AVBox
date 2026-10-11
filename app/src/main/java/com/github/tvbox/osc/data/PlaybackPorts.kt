@@ -9,4 +9,6 @@ object PlaybackPorts {
     var isLiveMode: (() -> Boolean)? = null
 
     var discardStartedContentOf: ((List<String>) -> Unit)? = null
+
+    var onProgressKeysCleared: ((List<String>) -> Unit)? = null
 }

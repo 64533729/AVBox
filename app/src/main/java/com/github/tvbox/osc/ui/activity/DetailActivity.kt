@@ -343,7 +343,6 @@ class DetailActivity : BaseActivity(), PageHost {
     }
 
     fun applyFullscreen(full: Boolean) {
-        playContainer?.setAutoSwitchLineEnabled(!full)
         if (fullScreen == full) return
         fullScreen = full
         requestedOrientation = orientationPolicyValue()

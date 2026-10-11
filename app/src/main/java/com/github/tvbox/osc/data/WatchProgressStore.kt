@@ -92,7 +92,10 @@ object WatchProgressStore {
             clear(owner, progressKey)
             return
         }
-        if (isDiscarded(progressKey)) return
+        if (isDiscarded(progressKey)) {
+            LOG.i("echo-progress save dropped (discarded) pos=" + positionMs + " key=" + progressKey)
+            return
+        }
         if (HistoryHelper.isIncognito()) return
         if (WatchProgressRules.decide(positionMs, resolveDuration(owner, durationMs)) == WatchDecision.SKIP) return
         submit {
@@ -115,11 +118,14 @@ object WatchProgressStore {
     }
 
     @JvmStatic
-    fun clear(owner: String?, progressKey: String?) {
+    fun clear(owner: String?, progressKey: String?, discard: Boolean = false) {
         if (progressKey.isNullOrEmpty()) return
         submit {
             cache.delete(md5(progressKey), 0L)
             forget(owner, progressKey)
+            if (discard) {
+                synchronized(indexLock) { discardedKeys.add(md5(progressKey)) }
+            }
         }
     }
 
@@ -147,6 +153,7 @@ object WatchProgressStore {
         discard(cleared)
         LOG.i("echo-progress clear-owner owner=" + owner + " eps=" + cleared.size)
         PlaybackPorts.discardStartedContentOf?.invoke(listOf(owner))
+        if (cleared.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(cleared)
         PlaybackProgress.forget(owner)
         EpisodeTotals.remove(owner)
     }
@@ -186,6 +193,7 @@ object WatchProgressStore {
         }
         discard(keys)
         PlaybackPorts.discardStartedContentOf?.invoke(owners)
+        if (keys.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(keys)
         val stale = cache.clearAllProgress()
         discardHashed(stale)
         LOG.i("echo-progress clear-all titles=" + titles + " eps=" + keys.size + " stale=" + stale.size)

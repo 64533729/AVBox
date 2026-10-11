@@ -174,6 +174,32 @@ class PlaybackRetryDelegate(private val host: Host) {
         return true
     }
 
+    private fun exoLastErrorCodeName(): String? {
+        try {
+            val live = host.view()?.mediaPlayer()
+            if (live is ExoPlayer) return live.lastErrorCodeName()
+        } catch (ignored: Throwable) {
+            LOG.d("PlaybackController", "exo error code probe failed")
+        }
+        return null
+    }
+
+    private fun retryWithFreshResolveOnFormatError(): Boolean {
+        if (!RetryPolicy.shouldRefreshResolve(exoLastErrorCodeName())) return false
+        if (TextUtils.isEmpty(host.webPlayUrl())) return false
+        val st = host.attemptState()
+        if (st.hasRefreshedOnFormatError) return false
+        st.hasRefreshedOnFormatError = true
+        st.refreshKeepsProgress = true
+        LOG.i("echo-autoRetry refresh resolve on malformed manifest: " + host.webPlayUrl())
+        st.playbackStarted = false
+        host.stopParse()
+        host.initParseLoadFound()
+        if (!host.isCrossContentReuseAllowed()) host.view()?.releasePlayer()
+        host.play(false)
+        return true
+    }
+
     fun autoRetry(): Boolean {
         if (dropRetryIfCastAborted("autoRetry")) return false
         val st = host.attemptState()
@@ -189,6 +215,7 @@ class PlaybackRetryDelegate(private val host: Host) {
             return true
         }
         val exoErrorKind = exoLastErrorKind()
+        if (retryWithFreshResolveOnFormatError()) return true
         if (exoErrorKind != ExoPlayer.ERROR_KIND_DECODE
             && !st.hasRetriedSameUrlOnBoot && !TextUtils.isEmpty(host.webPlayUrl())
         ) {

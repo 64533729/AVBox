@@ -55,7 +55,7 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
         val preOwner = container.scheduler.progressOwner()
         container.playNext(rmProgress)
         if (rmProgress && preProgressKey != null) {
-            WatchProgressStore.clear(preOwner ?: "", preProgressKey)
+            WatchProgressStore.clear(preOwner ?: "", preProgressKey, discard = true)
         }
     }
 

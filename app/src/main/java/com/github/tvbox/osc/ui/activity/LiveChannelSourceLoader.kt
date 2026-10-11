@@ -7,6 +7,7 @@ import com.github.tvbox.osc.bean.LiveChannelItem
 import com.github.tvbox.osc.player.MyVideoView
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
+import com.github.tvbox.osc.util.LOG
 import java.util.ArrayList
 
 internal class LiveChannelSourceLoader(
@@ -111,6 +112,7 @@ internal class LiveChannelSourceLoader(
             override fun error(msg: String?) {
                 handler.post {
                     loadingLiveConfigOnEnter = false
+                    LOG.e("echo-live-config-error msg=$msg")
                     setEmptyLiveChannelList()
                 }
             }

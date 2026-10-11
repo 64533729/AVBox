@@ -46,7 +46,7 @@ private val TopBarLineHeight = 36.dp
 
 private val PreviewTopPadding = 4.dp
 
-private val FullscreenTopPadding = 6.dp
+private val FullscreenTopPadding = 12.dp
 
 private val TopBarSysInfoHeight = 16.dp
 

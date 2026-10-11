@@ -5540,6 +5540,104 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 
 **验证**:`:app:assembleDebug` BUILD SUCCESSFUL(纯 UI 改动,按约定未跑单测);设备不在线未装机。待真机走查:①幅度是否偏跳(0.9 对 180dp 胶囊 = 缩 18dp;对 52dp 圆钮 = 缩 5.2dp);②无涟漪的观感;③从胶囊/圆钮上起手滚动页面不受影响。
 
+## 观看历史回归"真在播才落库" + "算看过"门槛降到 1 秒(2026-10-11,用户拍板)
+
+**现象**:点影片进播放、还在加载中立刻退出,历史里已有该条("根本没看就被记录")。真机日志取证(09:50:14):`setData`(起播流程启动)→ `onNewPlayStarted` → `goPlayUrl` → 0.7 秒后停播,内核从未 PLAYING;条目在起播第一步就已入库。
+
+**根因**:2026-10-03 为修"切集看几秒就退、记录停在第 1 集",把 `insertVod()` 加回 `DetailViewModel.syncPlayingVodInfo()`;该方法由 `PlaybackController.play()` 开头的 `TYPE_REFRESH(vod())` 触发 ⇒ 起播即写库,与是否播出无关。
+
+**改动**(方案 B,用户选定):①`syncPlayingVodInfo()` 删除 `insertVod()`,补 `refreshPlayNote(info)`(集名 UI 同步保留;写库统一交给 `TYPE_PLAYBACK_STARTED`);②`PlaybackProgress.markWatched` 删掉 `WatchProgressRules.shouldRemember` 这道门(签名去掉 `durationMs`)——"算看过"只看平滑推进 ≥1 秒,`WatchProgressRules`(30 秒/30%/95%)从此只管续播点与百分比写入;③`onPlaybackStarted()` 加 `echo-history insert on playback-started` 埋点(文件日志白名单内,便于走查)。
+
+**直接后果**:加载中退出(从未 PLAYING)→ 不写;播出 ≥1 秒退出 → 写(不满 30 秒的条目不带百分比);"切集看几秒就退更新集号"由 1 秒门槛承接,不回归 10-03 的修复。
+
+**连带口径**:`is Int`(无发送方,死路径)与 `is JSONObject`(播放中改 playerCfg)两个分支的 `insertVod()` 保留 —— 都是"用户已在播放中"的路径。
+
+**验证**:`:app:assembleDebug` + `:app:testDebugUnitTest` BUILD SUCCESSFUL(新增回归锁 `shouldMarkWatched_toleratesUnderResumeThreshold`);已装机。走查判据:①点播放加载中退出 → 历史无新条目;②播出画面约 1 秒退出 → 条目出现(无百分比);③看满 30 秒退出 → 条目 + 百分比。**未提交**。
+
+## 删除历史后重进续播的收口（2026-10-11，用户拍板）
+
+**现象**：历史页长按删除某音频的历史后，重新进入该音频仍从上次位置续播（"删了没清"）。
+
+**排查结论（真机取证）**：删除本身是生效的（索引/缓存行都清）；"续起"来自**保活内核里的当前位置**——删除只清了持久化进度与引擎标记（`clearStartedContent`），**从未碰内核位置**，重进（内核复用 + `replay(false)`）即从内核位置继续。另发现一个附带缺陷：音乐页切歌时 `playAt(removeProgress=true)` 的 `clear` 会被紧接着的 `PlaybackStarter.savePreviousContentProgress()` **写回**（`clear` 不加 `discardedKeys`，拦不住）。
+
+**改动**：①新增 `ZeroStartGate`（纯函数，上限 64 key）：删除时把被删的 progressKey 经 `PlaybackPorts.onProgressKeysCleared` → `PlaybackEngine.markZeroStartKeys` 落到 `AppPlayerView` 标记；`startPlay()`（读缓存后）与 `replay()`（复用重播）命中当前 key 即强制 `mCurrentPosition = 0` 并消费标记。只按 key 精确匹配 ⇒ 换集/换线路不受影响；正在播放不被打断。②`WatchProgressStore.clear(...)` 增加 `discard = true`（清 + 丢弃标记），仅 `MusicPlayerActivity.playAt/replayCurrent` 使用；`PlaybackStarter` reset 分支保持默认。③埋点 `echo-zero-start`（进文件日志白名单）。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（新增 `ZeroStartGateTest`）；已装机。走查判据：①删除历史 → 重进该集 → 从头播；②删除历史 → 不重进继续听 → 不跳；③换线路 → 仍从当前位置续播（关键回归点）；④音乐页切歌 → 上一首进度不再复活，切回旧曲正常累积。**未提交**。
+
+**二次修订（同日，走查日志发现）**：删除后重进**归零生效**（`echo-zero-start apply` + 从 0 起播），但随后"换直链/自动重试"时位置又跳回删除前的 160 秒（≈停播位置 160416，实测 160473/161053）。根因：丢弃标记的**解锁时机太早**——`PlaybackStarter.play()` 在起播前就 `onPlayStart` 解锁，紧接着"旧内容的停播写入"（`AppPlayerView.release()` 的 `saveProgress` / `savePreviousContentProgress` / sampler flush）落地把旧位置写回缓存，换链重读缓存即 seek 回旧位置。修法：`WatchProgressStore.onPlayStart` 调用从 `PlaybackStarter.play()` 移到 `PlaybackController.markPlaybackStarted()`（PREPARED/BUFFERED/PLAYING 且已设播放地址）；`WatchProgressStore.save` 被丢弃标记拦下时补 `echo-progress save dropped (discarded)` 埋点。**正常播放（未删除过该 key）零影响**——discard 只在删除/清空时产生。已装机待走查。
+
+## 手动换线路续播 + 进度条不清零（2026-10-11，用户拍板）
+
+**现象**：影视播放中手动换线路，进度条回到 0（不续播）。
+
+**排查结论（真机日志实锤，10:34 段）**：进度 key 含线路名（`sourceKey+id+playFlag+playIndex+集名`），换线后新 key 缓存为空；唯一的进度 `inherit` 机制只挂在"换数据源"路径（`PlayContainer.stopForSourceSwitch`）；起播恢复点 `playTimeoutBasePosition` 读的是**新 key** 的缓存 ⇒ seek 0。日志：FF 拖到 1502757 → 换 BF → `progress-tick uiPosition=0 rawPosition=954`。同时"同内容"判据 `isSameStartedContent()` 比较完整 key（含线路）⇒ 换线被判跨内容，今天新增的 UI 清零点（`onNewPlayStarted`）把进度条清零。**非本次提交引入**（10-07/10-10 同款实现），属历史缺陷。
+
+**改动（A′+B1）**：①`PlaybackStarter.play()` 解析地址前调 `PlaybackController.migrateProgressOnLineSwitch()`：判据 `ProgressSampling.lineSwitchMigrate`（`st.userPickedLine` + 新旧 key 不同 + 位置>0），位置实时优先（`view.currentPosition()`，内核已释放回落旧 key 库值 `getSavedProgress(startedProgressKey)`），`WatchProgressStore.save` 写入新线路 key ⇒ `playTimeoutBasePosition` 读到即续播（内核被重建走 `view.start()` 同样读库，两条路都覆盖）。②`isSameContentRestart()` 改用 `ProgressSampling.restartKeepsProgress`：手动换线视为同内容重启，进度条不再清零回缩。埋点 `echo-switchLine migrate`（白名单内）。
+
+**边界**：换集/换源/首播不满足判据（`userPickedLine` 仅手动点线路为 true，解析成功即清除）；30 秒门槛仍生效（换线位置 <30 秒不写）；删除历史的丢弃标记仍拦截写入。
+
+**审查修复（同日，只读审查逮到）**：原判据只判 `userPickedLine` + 新旧 key 不同 + 位置>0，**漏了"同集"** —— "点线路卡 → 改点另一集"（选集入口 `startPlayback=true`）或"换线起播后解析完成前点上一集/下一集"会把**旧集位置写进新集 key**（覆盖新集已有进度，与上条"边界"自述冲突）。修法（UI 意图层，不动引擎判据）：①`DetailViewModel` 增 `manualLineSwitchTargetIndex`（`onFlagClick` 记录映射后的目标集），`onEpisodeClick` 点到别的集即清 `manualLineSwitchPending`（点集=改主意，换线语义作废）；②`PlayContainer.playNext/playPrevious` 显式 `scheduler.setUserPickedLine(false)`（覆盖底栏/媒体会话/通知栏换集）。**不用集号/index 当引擎侧判据**：`findSameEpisodeIndex` 会跨线路映射集号，两线路集结构不同时正常换线也会被误判。同轮顺手：`PlayContainerControlListener.playNext(rmProgress=true)`（播完/片尾跳过自动跳集）的 `clear` 补 `discard = true` —— 该 clear 在 `container.playNext()` 返回之后执行，同步阶段的 `savePreviousContentProgress()`（以及可能的 `releasePlayerKernel`）都在它之前、会被它清掉；但**异步解析成功后**若内核被释放（`releasePlayerKernel` → `AppPlayerView.release()` 在 `setProgressKey` 之前把旧 key 落盘），会在 clear 之后写回 ⇒ discard 是拦它的必要保险（解锁仍靠重进该集起播的 `markPlaybackStarted`）。验证：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（929 用例 0 失败）。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（新增 `restartKeepsProgress`/`lineSwitchMigrate` 回归锁）；已装机。走查判据：①有进度时换线 → 续播 + 进度条不回缩；②换集仍从新集 0 播；③换线后退出重进 → 续播位置正确；④删除历史后换线 → 不复活。**未提交**。
+
+## 上一集/下一集不再收控制栏（2026-10-11，用户拍板）
+
+**议题**：全屏播放点底栏"下一集/上一集"图标后控制栏立即隐藏；而另一个"切集"入口（选集面板点集数）已按 2026-09-26 口径保留控制栏 ⇒ 同动作两入口行为相反。
+
+**结论（用户拍板"不隐藏"）**：`PlayerActions.onNextClicked` / `onPreClicked` 的 `hideBottom()` 改为 `keepControlsAlive()`。依据：①与选集面板切集、播放暂停同口径（「内容切换类」保留、「离开/视图切换类」才收栏）；②保留可让用户看到新集标题（确认第几集）与进度条归零/上一集续播位置；③`keepControlsAlive` 只续 10 秒、停手自动收起，非永久占屏。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` BUILD SUCCESSFUL；已装机。走查判据：点下一集/上一集 → 控制栏保持（标题更新为新集）+ 空闲约 10 秒自动收起；旋转/锁/返回仍立即收栏。**未提交**。
+
+## 自动重试：内容格式错误改走「同线路刷新直链」（2026-10-11，用户拍板 A1）
+
+**现象**：用户报告"切换解码方式会触发播放出错提示"。真机日志 + 服务端实测定位：**不是网络问题**——错误码 `ERROR_CODE_PARSING_MANIFEST_MALFORMED`（`Input does not start with the #EXTM3U header`，11:16:40–11:16:49 共 6 次），直接 GET 该直链返回 HTTP 200 + `<pre>…链接失效了 请重新获取</pre>`（网盘源 `jx.91by.top` 的 NBY 直链短时效/限次）。切解码本身不是根因：当天 10 次切解码前 9 次成功（含同 URL 第 2 次请求），最后一次才撞上已失效直链；而"切解码重播 / 原样重播 / 换播放器"三档**全部打在同一条死链**上，用户又关了自动换线（`echo-autoRetry line switching disabled`）→ 直接报错。
+
+**改动（A1）**：①新增纯函数 `RetryPolicy.shouldRefreshResolve(errorCodeName)`（只认 `ERROR_CODE_PARSING_MANIFEST_MALFORMED`；`RetryPolicyTest` 7 例锁口径）；②`PlayerEngine` 新增只读 `lastErrorCodeName`（错误发生时记录、`resetSessionFlags()` 复位；**不动 `classifyError`**，避免波及 `!= NETWORK → 换软解`、`!= DECODE → 原样重播` 两处既有分流）；③`PlaybackRetryDelegate` 新增 `retryWithFreshResolveOnFormatError()`，插在 autoRetry 梯子「原样重播」**之前**：命中即 `stopParse` / `initParseLoadFound` / `playbackStarted=false` / 非复用释放内核 / `host.play(false)`（同线路重新解析拿新直链）；一次性标志 `PlaybackAttemptState.hasRefreshedOnFormatError`，复位点 = `beginSession` / `userSelfRescue` / `resetAutoRetryLadder` / `onLineSwitched`，**刻意不在 `beginNewPlay()` 复位**——刷新后重播会再走 `beginNewPlay`，在它复位就会无限刷新。埋点 `echo-autoRetry refresh resolve on malformed manifest`。
+
+**边界**：只认 manifest malformed（container malformed/unsupported 与 IO 类不进入）；刷新失败后照旧走原梯子（原样重播 → 换解码 → 换播放器 → 换线/报错，仅多一次解析、报错晚 1–3 秒）；进度不受影响（key 不含 URL，`play(false)` 属同内容重播，实时位置优先）。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（930 用例 0 失败，新增 `RetryPolicyTest`）；已装机。走查判据：复现"直链失效"后应出现 `echo-autoRetry refresh resolve on malformed manifest` 并自动恢复（不再直接报错）；正常换集/换线行为不变；真坏源（刷新无救）最终仍走原报错路径。**未提交**。
+
+## 自动换线解除「全屏禁用」绑定（2026-10-11，用户拍板选项 1）
+
+**现象**：用户报告"感觉自动换线没效果"。取证链：①设备 MMKV 实证设置已开（`auto_switch_line` 存储值 `json:true`）；②`PlaybackRetryDelegate.tryNextLineIfEnabled()` 有两道门（`st.allowAutoSwitchLine` × 设置开关），日志 `echo-autoRetry line switching disabled`（11:16:49 / 11:23:40）说明门 1 被关；③门 1 的唯一关闭点 = `DetailActivity.applyFullscreen()` 的 `playContainer?.setAutoSwitchLineEnabled(!full)` —— **进全屏即禁用**（上游 `a9d69bc5 2026-09-13` 遗产），用户全屏看片正好命中；④该行还有时序缺陷：点播放直接进全屏时容器尚未创建（`applyFullscreen` 先于 `ensurePlayContainer`）⇒ 禁用丢失，日志另一侧可见新进程全屏仍有 `echo-switchLinePlay start timeout`（门开着）⇒ 行为时好时坏。连带：门关时 `startSwitchLinePlayTimeout()` 直接 return，全屏"卡住不动超时换线"也不监测。
+
+**改动（选项 1，删 1 行）**：删掉 `DetailActivity.applyFullscreen()` 里的 `setAutoSwitchLineEnabled(!full)` ⇒ `allowAutoSwitchLine` 恒为默认 true，自动换线只受设置开关控制（与设置项文案"自动换线"一致）；全屏"卡住超时换线"恢复；顺带消除时序缺陷的不确定性。`setAutoSwitchLineEnabled` API 链保留（`PlaybackHostApi` / `PlayContainer` / `MusicPlayerActivity` 转发仍在，暂无调用者）。
+
+**与 A1 的关系（拍板时已核对）**：不冲突、是接力——autoRetry 梯子里「格式错误刷新直链（A1）」排在「自动换线」之前，刷新成功即 return；换线后 `onLineSwitched()` 复位 `hasRefreshedOnFormatError` ⇒ 新线路又各有一次刷新额度；换线受 `triedLineFlags` 约束有界。分层：直链失效 → 静默刷新；线路坏 → 刷新无效 → 换线（有 toast）；全坏 → 换到底报错。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（930 用例 0 失败）；已装机。走查判据：全屏播放遇坏线路时出现 `echo-autoRetry switch line: X -> Y` 并按提示换线；正常线路不被误换；全屏卡住约 15 秒触发超时换线；`line switching disabled` 只应在设置开关关闭时出现。**未提交**。
+
+## 已起播后的错误也能进自动重试梯子（2026-10-11，用户拍板选项 A）
+
+**现象**：用户"好像没有触发自动换线"。真机日志（11:30 段）：`exo-player-error: MANIFEST_MALFORMED`（`started=true`）→ 只有一条 `echo-autoRetry retry after started error`（重试同一条死链）→ 再错即停，**无 `refresh resolve` / `switch player` / `switch line` 任何梯子行**。根因 = `PlayContainerOverlays.errorWithRetry()` 的错误分流：**已起播过**（`isPlaybackStarted()`）只走 `retryAfterStartedError()` 一次同 URL 重试、失败即弹错误——**不进 autoRetry 梯子**（A1 刷新档也在梯子内，同样被截断）；只有"从未起播"的错误才走梯子。故"看一会儿直链失效"这类场景刷新/换线全都不触发。
+
+**改动（选项 A，插 1 行）**：`errorWithRetry()` 已起播分支在 `retryAfterStartedError()` 返回 false 后**降级 `if (host.scheduler.autoRetry()) return`** ⇒ 起播后失效 → 先同 URL 重试一次（保持现状）→ 不行 → A1 刷新直链（静默）→ 原样重播 → 换播放器 → 换线（末档仍受设置开关控制）。`stopMusicSessionForFailedPlayback()` 与报错只在梯子整体失败后执行（成功则保留会话）。
+
+**边界**：梯子有界（`hasRetriedAfterStart` / `hasRefreshedOnFormatError` 各一次 + `triedLineFlags` 防重复）；非 malformed 的已起播错误会多一次"原样重播同 URL"（无害）；单线路内容走到末档仍是"线路已耗尽"提示。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（930 用例 0 失败）；已装机。走查判据：`started=true` 的错误之后应能看到梯子日志（`refresh resolve on malformed manifest` 或 `switch player` / `switch line: X -> Y`）并自动恢复或按提示换线；正常播放不误触发。**未提交**。
+
+## 刷新直链重播不再让进度条闪 0（2026-10-11，用户拍板"纳入"）
+
+**现象**：A1 刷新直链恢复成功后，进度条会**闪一下 0** 再回到原位置（实测 11:33：`progress-reset: onNewPlayStarted cleared uiPosition=353004`，随后 `sample pos=353488` 接回）。根因：刷新路径先 `releasePlayer()` → `PlaybackEngine.releasePlayer()` 里的 `controller.clearStartedContent()` 清掉 `startedPlaybackKey`/`startedProgressKey` ⇒ `PlaybackStarter.play()` 里 `isSameContentRestart()` 判为 false ⇒ `onNewPlayStarted(false)` 走清零分支（`state.position/duration = 0`）。位置本身没丢（起播读库 seek 回 353 秒），只是 UI 闪。
+
+**改动（"纳入"同内容口径，consume 式标记）**：①`PlaybackAttemptState` 增 `refreshKeepsProgress` + `consumeRefreshKeepsProgress()`（读一次即清），`beginSession()` 复位（防跨内容残留）；②`ProgressSampling.restartKeepsProgress` 增第 4 参 `refreshKeepsProgress = false`（默认值兼容旧调用）；③`PlaybackController.isSameContentRestart()` 传 `st.consumeRefreshKeepsProgress()`；④`retryWithFreshResolveOnFormatError()` 在 `play(false)` 前置位 ⇒ 刷新重播被判"同内容重启" → `onNewPlayStarted(true)` 走保留分支（`echo-progress-reset: same content restart, keep uiPosition=…`）。**只影响紧接的那一次 play**（consume 语义），换集/换线/新会话不受影响（`beginSession`/`onLineSwitched` 照旧处理）。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（931 用例 0 失败，新增 `restartKeepsProgress_trueForRefreshResolve`）；已装机。走查判据：再次复现"起播后直链失效 → 刷新恢复"时，日志应为 `echo-progress-reset: same content restart, keep uiPosition=…`（不再出现 `cleared`），进度条不闪、位置无缝；换集仍正常清零。**未提交**。
+
+## 播放器顶栏标题距顶 6dp → 12dp（2026-10-11，用户要求）
+
+**诉求**：用户问"播放器界面左上角标题距离屏幕顶部是多少 dp"，答复现值后要求"改为12dp"。
+
+**改动（1 行常量）**：`player/ui/PlayerTopBar.kt` 的 `FullscreenTopPadding` 6dp → **12dp**（只影响全屏态；预览态 `PreviewTopPadding = 4dp` 不动）。标题 `Text` 是该行首个子项、自身无额外 top padding ⇒ `Row` 的 `padding(top = topPad + extraTop)` 即标题距屏幕顶部的全部布局距离：现值 **12dp 起**，刘海/挖孔设备由 `extraTop`（`max(0, 安全区 top − 顶栏自身 y)`，本机 `displayCutout=0` 时为 0）再下推。横向未动（`playerEdgePadding()` 16dp/48dp、标题 `start = vs_10`）。
+
+**口径回归**：该常量 2026-10-10 第八轮曾由 12dp 压到 2dp（为让电量/时间行挤进图标盒留白），后微调为 6dp；本次按用户要求回到 **12dp**（= 重构前的值）。右栏首行仍靠 `Row` 的 `verticalAlignment = Top` 与片名顶边对齐，12dp 下该结构不受影响。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` BUILD SUCCESSFUL，**931 用例 / 0 失败 / 0 错误**；顶栏回归锁全绿（`PlayerTopBarDeviceLayoutTest` 真机几何档 + `topBarContentSitsAtTheTopEdgeNotBelowTheScrim` + `topBarStaysAnchoredToTheTopEdge`）。**未提交**、未装机。走查判据：全屏唤出控件，标题/关闭钮/右栏距顶 12dp（较此前下移 6dp），刘海机再叠 `extraTop`；小窗预览仍 4dp。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md`「播放器覆盖层左右边距」条顶栏顶现值改写 + 2026-10-10 顶栏重构条补现值注；`.codebuddy` / `.trae` 两镜像已同步。
+
 
 
 

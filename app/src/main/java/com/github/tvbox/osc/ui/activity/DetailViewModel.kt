@@ -85,6 +85,8 @@ class DetailViewModel : ViewModel() {
 
     private var manualLineSwitchPending = false
 
+    private var manualLineSwitchTargetIndex = -1
+
     private var vodName = ""
     private var vodPicture = ""
     private var fromCollect = false
@@ -743,6 +745,7 @@ class DetailViewModel : ViewModel() {
         val info = vodInfo ?: return
         val list = info.seriesMap?.get(info.playFlag) ?: return
         if (position < 0 || position >= list.size) return
+        if (position != manualLineSwitchTargetIndex) manualLineSwitchPending = false
         info.playIndex = position
         list.forEachIndexed { index, series -> series.selected = index == position }
         bumpRevision()
@@ -763,6 +766,7 @@ class DetailViewModel : ViewModel() {
         }
         info.seriesFlags.orEmpty().forEach { it.selected = it.name == flagName }
         manualLineSwitchPending = true
+        manualLineSwitchTargetIndex = info.playIndex
         qualityOptions.value = emptyList()
         qualitySelected.value = 0
         bumpRevision()
@@ -866,6 +870,7 @@ class DetailViewModel : ViewModel() {
         val playing = App.getInstance()!!.getVodInfo() ?: return
         if (playing.id != info.id || playing.sourceKey != info.sourceKey) return
         if (playing.playFlag != info.playFlag || playing.playIndex != info.playIndex) return
+        LOG.i("echo-history insert on playback-started key=" + sourceKey + "|" + vodId)
         insertVod()
     }
 
@@ -885,7 +890,7 @@ class DetailViewModel : ViewModel() {
         info.seriesFlags.orEmpty().forEach { it.selected = it.name == newFlag }
         info.seriesMap?.values?.forEach { list -> list.forEach { it.selected = false } }
         newList[newIndex].selected = true
-        insertVod()
+        refreshPlayNote(info)
         bumpRevision()
         LOG.i("echo-detail sync -> $newFlag/$newIndex")
     }

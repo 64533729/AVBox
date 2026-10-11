@@ -664,6 +664,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         } else {
             scheduler.vod()!!.playIndex++
         }
+        scheduler.setUserPickedLine(false)
         scheduler.setReusePlayerOnSwitch(true)
         playViaScheduler(false)
     }
@@ -681,6 +682,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             return
         }
         scheduler.vod()!!.playIndex--
+        scheduler.setUserPickedLine(false)
         scheduler.setReusePlayerOnSwitch(true)
         playViaScheduler(false)
     }

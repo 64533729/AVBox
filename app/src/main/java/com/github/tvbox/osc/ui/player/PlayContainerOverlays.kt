@@ -132,6 +132,7 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
             host.scheduler.cancelPlayTimeout()
             hideTipOnUiThread()
             if (host.scheduler.retryAfterStartedError()) return
+            if (host.scheduler.autoRetry()) return
             host.scheduler.stopMusicSessionForFailedPlayback()
             if (!host.isAttached()) return
             setTip(err, false, true)

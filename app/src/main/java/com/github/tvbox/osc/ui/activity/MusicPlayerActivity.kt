@@ -248,7 +248,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
         if (index < 0 || index >= list.size || index == vod.playIndex) return
         controller.beginSwitchPlayback()
         if (removeProgress) {
-            controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it) }
+            controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it, discard = true) }
         }
         vod.playIndex = index
         list.forEachIndexed { i, series -> series.selected = i == index }
@@ -281,7 +281,7 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
 
     private fun replayCurrent() {
         controller.beginSwitchPlayback()
-        controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it) }
+        controller.progressKey()?.let { WatchProgressStore.clear(controller.progressOwner(), it, discard = true) }
         controller.clearTriedLines()
         controller.setReusePlayerOnSwitch(true)
         engine.play(true)
