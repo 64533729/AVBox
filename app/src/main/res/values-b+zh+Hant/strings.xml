@@ -452,7 +452,7 @@
     <string name="settings_about">關於</string>
     <string name="settings_about_subtitle">檢視詳細資訊</string>
     <string name="settings_about_version">版本 v%1$s</string>
-    <string name="settings_about_disclaimer">本軟體僅提供聚合展示功能，所有資源均來自網際網路，軟體不參與任何內建、製作、上傳、儲存、下載等內容，也不接受任何捐贈、打賞、付費等謀利行為，軟體僅供開源學習參考，請於安裝後24小時內刪除。\n\n打包分發請保留出處\nhttps://github.com/CatVodTVOfficial/TVBoxOSC\nhttps://github.com/q215613905/TVBoxOS</string>
+    <string name="settings_about_disclaimer">本軟體僅提供聚合展示功能，所有資源均來自網際網路，軟體不參與任何內建、製作、上傳、儲存、下載等內容，也不接受任何捐贈、打賞、付費等謀利行為，軟體僅供開源學習參考，請於安裝後24小時內刪除。\n\n刺桐官网\nhttps://www.cttv.vip</string>
     <string name="settings_github">造訪 GitHub 儲存庫</string>
     <string name="settings_github_subtitle">造訪專案原始碼儲存庫</string>
     <string name="settings_app_tagline">TVBox手機版</string>
