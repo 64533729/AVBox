@@ -163,7 +163,7 @@ class SettingsViewModel : ViewModel() {
         playScale = KV.get(HawkConfig.PLAY_SCALE, 0),
         exoDecode = KV.get(HawkConfig.EXO_DECODE, "硬解码"), // i18n: keep
         anime4kTier = Anime4kTier.current(),
-        kernelPrewarm = KV.get(HawkConfig.KERNEL_PREWARM, false),
+        kernelPrewarm = KV.get(HawkConfig.KERNEL_PREWARM, HawkConfig.KERNEL_PREWARM_DEFAULT),
         playTunnel = KV.get(HawkConfig.PLAY_TUNNEL, false),
         preferAac = KV.get(HawkConfig.PLAY_PREFER_AAC, false),
         musicPlayerPage = MusicSettings.autoOpenPage(),

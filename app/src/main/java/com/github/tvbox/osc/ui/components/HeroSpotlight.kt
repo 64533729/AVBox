@@ -97,11 +97,12 @@ fun HeroSpotlight(
 
     val settledVideo = videos[settledPage % count]
     val settledPic = settledVideo.pic
+    val heroSize = rememberHeroImageSizes().poster
     val settledUrl = tmdbPosterUrl(
         settledVideo.name,
         settledVideo.year,
         settledVideo.sourceKey,
-        preferLarge = true,
+        size = heroSize,
         cacheOnly = true,
     ) ?: settledPic
 
@@ -157,7 +158,7 @@ fun HeroSpotlight(
                     name = video.name,
                     pic = video.pic,
                     modifier = Modifier.fillMaxSize(),
-                    preferLarge = true,
+                    size = heroSize,
                     year = video.year,
                     sourceKey = video.sourceKey,
                     tmdbCacheOnly = true,

@@ -90,6 +90,7 @@ object Proxy {
             }
             return result
         } catch (e: Exception) {
+            LOG.e("echo-proxy error: itv request failed | type=" + params["type"] + " | " + e.message)
             SpiderDebug.log(e)
             return null
         }

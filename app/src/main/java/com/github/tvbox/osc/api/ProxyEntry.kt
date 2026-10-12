@@ -47,15 +47,24 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
                 } catch (th: Throwable) {
                     LOG.e("echo-proxy-route: spider.proxy error, fallback | " + th)
                 }
-                if (result != null) return result
+                if (result != null) {
+                    LOG.i("echo-proxy-route: spider.proxy ok | " + describeResult(result))
+                    return result
+                }
                 LOG.e("echo-proxy-route: spider.proxy null, try proxyInvokeJar")
 
                 result = spiderLoader.proxyInvokeJar(param)
-                if (result != null) return result
+                if (result != null) {
+                    LOG.i("echo-proxy-route: proxyInvokeJar ok | " + describeResult(result))
+                    return result
+                }
                 LOG.e("echo-proxy-route: proxyInvokeJar null, try proxyDirect")
 
                 result = proxyDirect(param)
-                if (result != null) return result
+                if (result != null) {
+                    LOG.i("echo-proxy-route: proxyDirect ok | " + describeResult(result))
+                    return result
+                }
                 LOG.e("echo-proxy-route: proxyDirect null, give up")
 
                 return null
@@ -110,6 +119,14 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
             LOG.e("echo-proxy direct fallback error: " + th.message)
             return null
         }
+    }
+
+    private fun describeResult(result: Array<Any?>): String {
+        if (result.isEmpty()) return "empty"
+        val status = result[0]
+        if (status !is Int) return "body=" + (status?.javaClass?.simpleName ?: "null")
+        return "status=" + status + " mime=" + result.getOrNull(1) +
+            " stream=" + (result.getOrNull(2)?.javaClass?.simpleName ?: "null")
     }
 
     private fun getCurrentProxySource(param: MutableMap<String, String>): SourceBean {

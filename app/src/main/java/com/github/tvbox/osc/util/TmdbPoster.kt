@@ -94,6 +94,12 @@ object TmdbPoster {
     fun imageUrl(posterPath: String, large: Boolean): String =
         TmdbApi.imageUrl(readImageBase(), posterPath, large)
 
+    fun fullPosterUrl(posterPath: String): String =
+        TmdbApi.fullPosterUrl(readImageBase(), posterPath)
+
+    fun backdropUrl(backdropPath: String): String =
+        TmdbApi.backdropUrl(readImageBase(), backdropPath)
+
     fun profileUrl(profilePath: String): String =
         TmdbApi.profileUrl(readImageBase(), profilePath)
 
@@ -103,15 +109,22 @@ object TmdbPoster {
     fun cachedPoster(name: String?, year: Int): String? {
         if (!isActive()) return null
         val hits = cachedHits(name) ?: return null
-        val best = TmdbApi.pickBest(hits, name, year) ?: cachedAliasHit(name)
+        val best = bestHit(hits, name, year) ?: cachedAliasHit(name)
         return best?.posterPath ?: ""
     }
 
     fun cachedImages(name: String?, year: Int): List<String>? {
         if (!isActive()) return null
         val hits = cachedHits(name) ?: return null
-        val best = TmdbApi.pickBest(hits, name, year) ?: cachedAliasHit(name) ?: return emptyList()
+        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return emptyList()
         return cachedImagesById(best.mediaType, best.id)
+    }
+
+    fun cachedBackdrops(name: String?, year: Int): List<String>? {
+        if (!isActive()) return null
+        val hits = cachedHits(name) ?: return null
+        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return emptyList()
+        return cachedStillsById(best.mediaType, best.id)
     }
 
     suspend fun resolvePoster(name: String?, year: Int): String? {
@@ -127,10 +140,16 @@ object TmdbPoster {
         return ensureImages(best.mediaType, best.id)
     }
 
+    suspend fun resolveBackdrops(name: String?, year: Int): List<String> {
+        val hits = ensureHits(name) ?: return emptyList()
+        val best = pickBestWithAlias(hits, name, year) ?: return emptyList()
+        return ensureStills(best.mediaType, best.id)
+    }
+
     fun cachedDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
         if (!isActive()) return null
         val hits = cachedHits(name) ?: return null
-        val best = TmdbApi.pickBest(hits, name, year) ?: cachedAliasHit(name) ?: return null
+        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return null
         val raw = readCached(detailKey(best.mediaType, best.id)) ?: return null
         return decodeDetailValue(raw)
     }
@@ -217,7 +236,8 @@ object TmdbPoster {
             }
             episodes.add(seasonEpisodes.getOrNull(ref.episodeNumber - 1) ?: TmdbApi.TmdbEpisode("", ""))
         }
-        LOG.i("echo-tmdb episodes tv=${best.id} count=$episodeCount hint=$seasonHint")
+        val fold = TmdbApi.foldSegmentsPerEpisode(detail.seasons, episodeCount, seasonHint)
+        LOG.i("echo-tmdb episodes tv=${best.id} count=$episodeCount hint=$seasonHint fold=$fold")
         val encoded = gson.toJson(episodes, episodeListType)
         writeCached(key, encoded)
         return episodes
@@ -245,12 +265,23 @@ object TmdbPoster {
         return if (expireAt > now) emptyList() else null
     }
 
-    private suspend fun pickBestWithAlias(
+    internal fun bestHit(
         hits: List<TmdbApi.TmdbSearchHit>,
         name: String?,
         year: Int,
     ): TmdbApi.TmdbSearchHit? {
         TmdbApi.pickBest(hits, name, year)?.let { return it }
+        val variant = TmdbApi.qualityTagVariant(name)
+        if (variant.isEmpty()) return null
+        return TmdbApi.pickBest(hits, variant, year)
+    }
+
+    private suspend fun pickBestWithAlias(
+        hits: List<TmdbApi.TmdbSearchHit>,
+        name: String?,
+        year: Int,
+    ): TmdbApi.TmdbSearchHit? {
+        bestHit(hits, name, year)?.let { return it }
         cachedAliasHit(name)?.let { return it }
         return findHitByAlias(hits, name)
     }
@@ -341,6 +372,11 @@ object TmdbPoster {
 
     private fun cachedImagesById(mediaType: String, id: Int): List<String>? {
         val raw = readCached(imagesKey(mediaType, id)) ?: return null
+        return decodeImagesValue(raw, System.currentTimeMillis())
+    }
+
+    private fun cachedStillsById(mediaType: String, id: Int): List<String>? {
+        val raw = readCached(stillsKey(mediaType, id)) ?: return null
         return decodeImagesValue(raw, System.currentTimeMillis())
     }
 
@@ -459,8 +495,15 @@ object TmdbPoster {
     private suspend fun fetchHits(name: String): String? = semaphore.withPermit {
         val query = TmdbApi.searchQuery(name)
         try {
-            val hits = clientFactory().search(readApiKey(), readApiBase(), query)
+            var hits = clientFactory().search(readApiKey(), readApiBase(), query)
             LOG.i("echo-tmdb search q=$query hits=${hits.size} top=${describeHits(hits)}")
+            if (hits.isEmpty()) {
+                val variant = TmdbApi.qualityTagVariant(name)
+                if (variant.isNotEmpty() && variant != query) {
+                    hits = clientFactory().search(readApiKey(), readApiBase(), variant)
+                    LOG.i("echo-tmdb search retry q=$variant hits=${hits.size} top=${describeHits(hits)}")
+                }
+            }
             encodeHitsValue(hits, System.currentTimeMillis())
         } catch (e: CancellationException) {
             throw e

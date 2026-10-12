@@ -169,6 +169,35 @@ class TmdbApiTest {
     }
 
     @Test
+    fun cleanTitle_stripsQualityBrandLabels() {
+        assertEquals("兰香如故", TmdbApi.cleanTitle("兰香如故（臻彩）"))
+        assertEquals("兰香如故", TmdbApi.cleanTitle("兰香如故 臻彩"))
+        assertEquals("玉簟秋", TmdbApi.cleanTitle("玉簟秋（帧享）"))
+        assertEquals("玉簟秋", TmdbApi.cleanTitle("玉簟秋（巨幕）"))
+        assertEquals("玉簟秋", TmdbApi.cleanTitle("玉簟秋（高帧）"))
+        assertEquals("兰香如故", TmdbApi.searchQuery("兰香如故（臻彩）"))
+    }
+
+    @Test
+    fun qualityTagVariant_stripsUnknownQualityTags() {
+        assertEquals("兰香如故", TmdbApi.qualityTagVariant("兰香如故（臻彩视听）"))
+        assertEquals("兰香如故", TmdbApi.qualityTagVariant("兰香如故（HDR Vivid）"))
+        assertEquals("兰香如故", TmdbApi.qualityTagVariant("兰香如故 原画"))
+        assertEquals("兰香如故", TmdbApi.qualityTagVariant("兰香如故（臻彩Max）"))
+    }
+
+    @Test
+    fun qualityTagVariant_ignoresCleanedAndSemanticNames() {
+        assertEquals("", TmdbApi.qualityTagVariant("兰香如故（臻彩）"))
+        assertEquals("", TmdbApi.qualityTagVariant("兰香如故"))
+        assertEquals("", TmdbApi.qualityTagVariant("西游记（动画版）"))
+        assertEquals("", TmdbApi.qualityTagVariant("名侦探柯南（剧场版）"))
+        assertEquals("", TmdbApi.qualityTagVariant("人生大事(下)"))
+        assertEquals("", TmdbApi.qualityTagVariant("第十季"))
+        assertEquals("", TmdbApi.qualityTagVariant(null))
+    }
+
+    @Test
     fun parseSearchHits_keepsMovieAndTvOnly() {
         val json = """
             {"page":1,"results":[
@@ -357,6 +386,37 @@ class TmdbApiTest {
     }
 
     @Test
+    fun mapEpisodes_foldsIntegralSegmentCount() {
+        val seasons = listOf(TmdbApi.TmdbSeason(1, 47))
+        val refs = TmdbApi.mapEpisodes(seasons, 141, null)!!
+        assertEquals(141, refs.size)
+        assertEquals(TmdbApi.TmdbEpisodeRef(1, 1), refs[0])
+        assertEquals(TmdbApi.TmdbEpisodeRef(1, 1), refs[2])
+        assertEquals(TmdbApi.TmdbEpisodeRef(1, 2), refs[3])
+        assertEquals(TmdbApi.TmdbEpisodeRef(1, 47), refs[140])
+        assertEquals(3, TmdbApi.foldSegmentsPerEpisode(seasons, 141, null))
+        assertEquals(2, TmdbApi.foldSegmentsPerEpisode(listOf(TmdbApi.TmdbSeason(1, 20)), 40, null))
+    }
+
+    @Test
+    fun mapEpisodes_foldRejectsOutOfRangeAndHinted() {
+        val seasons = listOf(TmdbApi.TmdbSeason(1, 47))
+        assertNull(TmdbApi.mapEpisodes(seasons, 58, null))
+        assertNull(TmdbApi.mapEpisodes(seasons, 141, 1))
+        assertNull(TmdbApi.mapEpisodes(seasons, 235, null))
+        assertNull(
+            TmdbApi.mapEpisodes(
+                listOf(TmdbApi.TmdbSeason(1, 10), TmdbApi.TmdbSeason(2, 10)),
+                60,
+                null,
+            ),
+        )
+        assertEquals(0, TmdbApi.foldSegmentsPerEpisode(seasons, 58, null))
+        assertEquals(0, TmdbApi.foldSegmentsPerEpisode(seasons, 47, null))
+        assertEquals(0, TmdbApi.foldSegmentsPerEpisode(emptyList(), 141, null))
+    }
+
+    @Test
     fun parseSeasonHint_readsCommonForms() {
         assertEquals(3, TmdbApi.parseSeasonHint("灵异女仆第三季"))
         assertEquals(3, TmdbApi.parseSeasonHint("庆余年 第3季"))
@@ -393,6 +453,24 @@ class TmdbApiTest {
         assertEquals(
             "https://mirror.example.com/t/p/w185/a.jpg",
             TmdbApi.profileUrl("https://mirror.example.com/t/p", "/a.jpg"),
+        )
+    }
+
+    @Test
+    fun fullPosterUrl_joinsOriginalSize() {
+        assertEquals("https://images.tmdb.org/t/p/original/a.jpg", TmdbApi.fullPosterUrl("", "/a.jpg"))
+        assertEquals(
+            "https://mirror.example.com/t/p/original/a.jpg",
+            TmdbApi.fullPosterUrl("https://mirror.example.com/t/p/", "/a.jpg"),
+        )
+    }
+
+    @Test
+    fun backdropUrl_joinsW1280Size() {
+        assertEquals("https://images.tmdb.org/t/p/w1280/b.jpg", TmdbApi.backdropUrl("", "/b.jpg"))
+        assertEquals(
+            "https://mirror.example.com/t/p/w1280/b.jpg",
+            TmdbApi.backdropUrl("https://mirror.example.com/t/p/", "/b.jpg"),
         )
     }
 

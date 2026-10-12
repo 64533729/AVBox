@@ -5638,6 +5638,94 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 
 **文档同步**：`skill/avbox-mobile-ui-spec.md`「播放器覆盖层左右边距」条顶栏顶现值改写 + 2026-10-10 顶栏重构条补现值注；`.codebuddy` / `.trae` 两镜像已同步。
 
+## TMDB 画质品牌标签匹配修复 + 受限整倍数折叠（2026-10-12，MuMu 真机日志驱动）
+
+**现象**：用户报「某些订阅源的影视资源无法被 tmdb 匹配」。抓 `files/preload_debug.log` 得单点证据：`search q=兰香如故（臻彩） hits=0` → `pick -> none` → `episodes skip reason=nomatch count=141`；同一秒的对照片「玉簟秋」全链正常（`hits=1` → `detail` → `season` → `episodes count=4`）。用设备里的配置直查 TMDB 对照：`query=兰香如故（臻彩）` `total_results=0`，`query=兰香如故` `total_results=1`（tv id=282326，name/original_name 均为「兰香如故」、有 poster）⇒ **不是 TMDB 没收录，是清洗漏词**。
+
+**根因**：`TITLE_LABEL_PARENS` / `TITLE_TRAILING_LABEL` 只有同音的 `真彩`、没有站点实际在用的 `臻彩`；而括号词表只剥"内容命中白名单"的括号 ⇒ `（臻彩）` 原样留在查询串里 → TMDB 0 命中；即便模糊返回，`pickBest` 要求归一化完全相等，`兰香如故臻彩 ≠ 兰香如故` 也会被丢。
+
+**改动 A（词表）**：`TmdbApi` 两张词表各补 `臻彩|帧享|巨幕|高帧`（`TmdbApi.kt`）。
+**改动 B（0 命中兜底）**：新增 `TmdbApi.qualityTagVariant()` —— 只剥**尾部括号内含画质词**（臻彩/真彩/帧享/巨幕/高码/高帧/画质/杜比/HDR/4K/8K/蓝光/超清/高清/无水印/全景声/原画/修复/60帧/120帧）或**空白分隔的尾部画质词**，语义括号（动画版/剧场版/前传/(下)）刻意不剥；`TmdbPoster.fetchHits()` 仅在主查询 0 命中时用变体重查一次（`echo-tmdb search retry q=…`）；新增 `TmdbPoster.bestHit()` 作唯一取值入口（相等目标也试变体名），`pickBestWithAlias` / `cachedPoster` / `cachedImages` / `cachedDetail` 四处全部改走它（否则"详情页出图、列表不出图"）。**不变量**：主查询有命中的片一次请求都不多发，匹配仍是归一化完全相等。
+
+**改动 C（受限整倍数折叠，用户拍板）**：B 落地后走查发现海报已出、**选集缩略图仍空**：`episodes skip … reason=map count=141 seasons=1:47`。查公开资料确认 TMDB 的 47 集就是同一部作品（央视+腾讯，上部 31 + 下部 16，单集约 40 分钟），站点是**按段拆集**（141 = 47×3，`141×13.3min ≈ 47×40min` 自洽；同剧另一源 58 集非整倍数）。新增 `TmdbApi.foldSegmentsPerEpisode()` 与 `mapEpisodes()` **末位**兜底：`seasonHint == null` + 唯一普通季 + `站点集数 % 该季集数 == 0` + 比值 ∈ `[2,4]` ⇒ 第 i 集映射 `⌈i/k⌉`。规则排在所有精确判定之后 ⇒ 既有可解析片逐字节不受影响；带季号/多季/非整倍数/k>4 仍 null。成功日志追加 `fold=k`（`echo-tmdb episodes tv=… count=… hint=… fold=k`）。
+
+**参照项目调研（webhtv-main）**：同场景它**不做**自动折叠，门槛是"精确总量相等"，141 vs 47 会被判 `ambiguous(insufficient_season_evidence)` 保持平铺不出图；折叠只能由用户手动绑定（`MANUAL_MULTI_SLICE` + `isFresh(源指纹/源集数/TMDB季集数)` 指纹校验）；其 `TmdbEpisodeMatcher` 曾在「`00.mp4` 被当第 18 集错配」上专门修过 ⇒ "错配比没图更糟"。另核对其"身份/绑定分离缓存"改进点我们已有等价物（`episodesKey` 本就带 `episodeCount + seasonHint`）。
+
+**验证**：`:app:testDebugUnitTest` 938 用例 / 0 失败（新增 5 例：`cleanTitle_stripsQualityBrandLabels`、`qualityTagVariant_stripsUnknownQualityTags`、`qualityTagVariant_ignoresCleanedAndSemanticNames`、`bestHit_matchesQualityTagVariantTarget`、`bestHit_keepsStrictEqualityForSemanticNames`；折叠 2 例：`mapEpisodes_foldsIntegralSegmentCount`、`mapEpisodes_foldRejectsOutOfRangeAndHinted`）；`:app:assembleDebug` 绿；已装 MuMu（`127.0.0.1:16384`）。**未提交**。走查判据：清缓存后重进该片详情页 → `search q=兰香如故 hits=1` → `pick -> /kfurXR…jpg` → `episodes tv=282326 count=141 hint=null fold=3` 且选集出现缩略图（前 3 集同图）。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.21 追加两条（画质标签清洗 + 变体兜底 / 受限整倍数折叠）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## Hero 图尺寸三档 + 横屏改用 backdrop（2026-10-12，用户报"横屏 TMDB 海报有点糊"）
+
+**现象**：用户问"横屏的 tmdb 海报有点模糊，是我的错觉吗，还是模拟器的问题"。
+
+**判据（像素账，先算再改）**：Hero 走 `preferLarge = true` → `POSTER_SIZE_LARGE = "w780"`，渲染是 `ContentScale.Crop` 铺满。模拟器物理 900×1600 @ density 240 ⇒ 竖屏铺满只需 900px（780 → 1.15%，看不出），横屏需 1600px（780 → **2.05×**，肉眼可见）。真机 iQOO Neo10 1260×2800 横屏 2800px ⇒ **3.6×**，比模拟器更糊 ⇒ **不是错觉、不是模拟器渲染问题，是尺寸档不够**。TMDB 海报**没有 w1280 档**（poster 合法档 = w92/w154/w185/w342/w500/w780/`original`），提档只能到 `original`。
+
+**改动 1（尺寸三档）**：`VodPoster` 的 `preferLarge: Boolean` → `PosterSize{THUMB, LARGE, FULL}`（w342 / w780 / `original`），`tmdbPosterUrl` 同步改签名，新增 `tmdbUrlOf()` 作唯一档位映射点、`TmdbPoster.fullPosterUrl()`/`TmdbApi.fullPosterUrl()`；调用点：列表 = `THUMB`（默认不变）、`HeroSpotlight` / `HomeHeroBackdrop` = `LARGE`（**首页 Hero 刻意不提档**：cacheOnly 不发请求、浏览态每滑一部一张大图）、`DetailHero` = `FULL`（单图路径 + 轮播 URL 都走 `fullPosterUrl`）。
+
+**改动 2（横屏 backdrop）**：详情页 Hero 新增 `HeroImageSource{NONE, POSTER, BACKDROP}` 与四个纯函数（`heroImageSource`/`cachedHeroImages`/`resolveHeroImages`/`heroUrls`），判据 `screenWidthDp > screenHeightDp`。横屏走 `/3/{media}/{id}/images` 的 **backdrops**（`w1280`，新增 `TmdbPoster.resolveBackdrops/cachedBackdrops/cachedStillsById`，**复用"电影剧照兜底"的 `cache_tmdb_stills_` 缓存与 `parseBackdropPaths` 排序**），竖屏沿用 posters；横屏下轮播/随机档直接对 backdrops 轮播，取不到 backdrops 时回落 `original` 海报（`resolving` 门控同步）。⚠️ 只改渲染 URL、**不动缓存键** ⇒ 改档位无需重查 API，但图片会重新下一次（Coil 按布局尺寸降采样，内存可控；代价是 `original` 1–3MB/张的下载量）。
+
+**验证**：`:app:testDebugUnitTest` **940 用例 / 0 失败**（新增 `fullPosterUrl_joinsOriginalSize`、`backdropUrl_joinsW1280Size`；既有 `imageUrl_joinsSizeAndBase` 锁住 w342/w780 档未变）；`:app:assembleDebug` 绿（17s）；已装 MuMu。**未提交**。走查判据：竖屏详情页 Hero 走 `t/p/original/…`（原 `w780`），横屏走 `t/p/w1280/…`（backdrop，构图不再被裁成窄条）+ 肉眼清晰度提升；首页 Hero 仍是 `t/p/w780/…` 不变。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.21 追加一条（尺寸三档 + 横屏 backdrop + 首页 Hero 不参与的理由）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## Hero 图尺寸改为「按屏幕像素选档」+ 首页 Hero 并入同一判据（2026-10-12 第二轮，定稿）
+
+**起因**：用户问「平板不能用 original 吗」「改成按屏幕像素的话低分辨率和高分辨率的设备呢」—— 指出上一轮的"手机 w780 / 详情页 original"是按机型硬编码，覆盖不了设备谱系。
+
+**先算清低分/高分两侧的后果**（用户要看的就是这个）：TMDB poster 档位是 `w342→w500→w780→original(~2000)`，**780 之后没有中间档**，所以判据必须带容差，否则"必须 ≥ 需求宽"会把 1080p 机型也推到原图；反过来低分设备（540/720px 宽）取 w780 属**下采样**——最清晰且流量只有 1/6。Coil 按布局尺寸解码 ⇒ **内存与档位无关**，只有流量/下载时间受影响。
+
+**改动（唯一判据）**：`PosterSize` 扩为四档 `{THUMB, LARGE, WIDE, FULL}` = w342 / w780 / w1280 / `original`；新增 `HERO_IMAGE_LARGE_MAX_WIDTH_PX = 800`、`HERO_IMAGE_WIDE_MAX_WIDTH_PX = 1400`、`HeroImageSizes(poster, backdrop)` 与三个纯函数/组件：`heroPosterSize(px)`（≤800 → LARGE，否则 FULL）、`heroBackdropSize(px)`（≤800 → LARGE、≤1400 → WIDE、否则 FULL）、`rememberHeroImageSizes()`（`LocalConfiguration.screenWidthDp × LocalDensity` → 物理像素宽，**不用 dp**，密度不同的设备像素差一倍）。**详情页 Hero 与首页 Hero 共用它**（首页由上一轮的"刻意不提档"改为一并吃判据；因其 `cacheOnly` 只在进过详情页的片上命中，实际流量远小于预估）。`heroUrls()` 改为经 `tmdbUrlOf(path, size)` 出 URL —— 该函数是唯一"档位→URL"映射点，**防跨用**（backdrop 路径没有 w342、poster 路径没有 w1280，跨用会 404 后回落站点图）。横屏 backdrop 三档化后，MuMu 横屏（1600px）从 w1280 提到 `original`。
+
+**验证**：`:app:testDebugUnitTest` **943 用例 / 0 失败**（新增 `HeroImageSizeTest` 3 例锁阈值边界：800/801、1400/1401、低分三级）；`:app:assembleDebug` 绿（14s）；已装 MuMu（`00:00:01`）。**未提交**。走查判据：MuMu（900px 宽 ⇒ >800）竖屏 Hero 应出现 `t/p/original/…`、横屏出现 `t/p/original/…`（backdrop 路径）；低分设备（720px）仍为 `t/p/w780/…`。
+
+**未做**：按网络类型（WiFi/移动）分档 —— 提过方案，用户未采纳。
+
+**文档同步**：§6.21 该条整体改写为"按屏幕像素选档"终态（含设备落点表、跨用禁令、两个素材天花板、WiFi 分档未做）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## 代理出口"空 m3u8"语义修正（2026-10-13，由"视频播放出错"真机排查得出）
+
+**现象**：用户报"视频播放出错"，问是不是模拟器问题。日志证据：`echo-goPlayUrl` → `E echo-proxy-route: spider.proxy null, try proxyInvokeJar` → `echo-exo-player-error: code=ERROR_CODE_PARSING_MANIFEST_MALFORMED, msg=ParserException: Input does not start with the #EXTM3U header`，之后梯子依次 `refresh resolve on malformed manifest` → `replay same url` → `switch player` → `line switching disabled`（设置开关默认关）→ 报错。
+
+**排查链（全部可复现）**：① 用 `adb forward tcp:9978` + curl 直接问**设备本地代理**：同一条 123云盘 清单，带 `siteKey=糯米` / 不带 siteKey / 换 `siteKey=视界` **三种都返回 HTTP 200 + `application/vnd.apple.mpegURL` + 0 字节**，而对照的 ffzy 清单返回 105KB ⇒ 与站点配置无关；② PC 侧用**同 UA（okhttp/5.5.0 与桌面 Chrome 各试过）、同 HTTP 版本（`--http1.1` / `--http2`）**直连同一 CDN，均得 35KB 合法清单 ⇒ **排除模拟器网络/解码（同一台模拟器上 ffzy 那条正常起播、`OMX.qcom.video.decoder.avc` 初始化、surface 出到 1280×720）**；③ 读代码：`net/Proxy.kt::itv` 只判 `response.isSuccessful`，空体经 `processM3u8Content("")` 原样发出 ⇒ 200 + 空体；④ 加日志后定到**本地包 jar**：`echo-proxy-route: proxyInvokeJar ok | status=200 mime=application/vnd.apple.mpegURL stream=ByteArrayInputStream` —— jar 自己返回了空字节数组。
+
+**改动**：见活规范 §6.12 新增条（`ProxyResponsePolicy` 判定 + `RemoteServer.getProxy` 唯一出口探首字节 + 计数流日志 + `ProxyEntry` 三条路由成功日志 + `Proxy.itv` 异常日志）。
+
+**踩坑记录（务必记住）**：第一版回的是 **502**，结果客户端收到"空回复"（curl 52）。查 `nanohttpd-2.3.1.jar` 的 `Response$Status` 常量表发现**没有 502**，且 `Status.lookup()` 对未知码返回 **null** ⇒ `newFixedLengthResponse(null, …)` 写不出状态行。改用 **503** 并加 `nanoStatus()` 兜底（未知码 → 500）。
+
+**验证**：`:app:testDebugUnitTest` **948 用例 / 0 失败**（新增 `ProxyResponsePolicyTest` 5 例：空 m3u8 → 503、正常 m3u8 保持 200、非 m3u8 空体保持 200、非 200 不改、mime 匹配）；`:app:assembleDebug` 绿；已装 MuMu（`00:21:31`）。**实网复验待做**：新包安装会杀掉应用进程，需重新打开 App 后我再用代理探测复验"坏链路 → 503 / 好链路 → 105KB"，并用真机复现一次看梯子是否走到「换线」。**未提交**。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §6.12 追加一条（含 NanoHTTPD 状态码表这个坑）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## 内核预热默认开启（2026-10-13，用户拍板）
+
+**诉求**：用户确认代理修复与自动换线都正常后，要求"将内核预热默认开启"。
+
+**改法（照既有 `EXO_VIDEO_DYNAMIC_SCHEDULING_DEFAULT` 的写法）**：`HawkConfig` 新增 `KERNEL_PREWARM_DEFAULT = true`；四处读取点从字面量 `false` 改传常量 —— `SettingsPage.loadState`、`PlaybackService.prewarm`、`PlaybackService.ensurePrewarmed`、`PlaybackEngine.prewarmEnabled`。**`KVKeySpec.register(HawkConfig.KERNEL_PREWARM, false)` 不动** —— 该参数是 `register(key, sample: Any)` 的**类型样本**（`TypeToken.get(sample.javaClass)`），不是默认值；这是本轮很容易改错的一处。
+
+**连带效应（默认开 ⇒ 对新装/从未动过该开关的安装生效）**：① `MainActivity.onResume` → `PlaybackService.prewarm` 回前台后预建内核并常驻；② 60s 空闲释放被 `PrewarmPolicy` 抑制；③ 服务被系统回收后内核**永久保留**（不再是原 15min 兜底）。**已显式存值的安装不受影响**（存 true 保持 true、存 false 保持 false）；设置页手动开启的二次确认弹窗保留（默认路径不再经过它）。取舍提示：早先实测预热的起播收益仅 ~12ms，本次默认开的实际收益主要是"空闲不释放 + 服务回收后永久保留"带来的回 App 连续性与秒续播，代价是内核常驻内存。
+
+**验证**：`:app:testDebugUnitTest` 948 用例 / 0 失败；`:app:assembleDebug` 绿；已装 MuMu（`00:28:15`）。⚠️ **该测试机上 `kernel_prewarm` 已存 `true`**（用户此前手动开过），所以本机观察不到默认值差异；默认路径的效果需要"无存储值"的安装才能验证（不要为此清应用数据 —— 会连带清掉用户的订阅配置）。**未提交**。
+
+**文档同步**：`skill/avbox-playback-service-spec.md` §3.3 追加一条（默认值口径 + 四处读取点 + 连带效应 + 类型样本这个坑）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## 主题设置页样机预览：大屏横屏自适应（2026-10-13，用户报"平板横屏下卡片占满整屏"）
+
+**现象**：1080p 平板模式（1920×1080 横屏）下主题设置页首卡的电话样机巨大，占满整屏且必须滚动（用户附截图）。
+
+**根因**：`PhoneMockupPreview` 的缩放**只看容器宽度**并封顶 2.2× —— `scale = (maxWidth / 480dp).coerceIn(1f, 2.2f)`。平板横屏窗口 1097dp ⇒ 容器 ~1065dp ⇒ 吃满 2.2× ⇒ 样机 168×308 × 2.2 = **370×678dp**，而窗口只有 617dp 高 ⇒ 超屏。竖屏手机（容器 ~379dp）算出 0.79 被下限夹到 1.0，所以只有大屏横屏暴雷。
+
+**改动**（`ui/components/PhoneMockupPreview.kt`，全部集中在缩放与网格两处）：
+- 新增三个纯函数 + 常量：`MockupWideMinWidthDp = 600`、`phoneMockupLandscape(screenWidthDp, screenHeightDp)`（**宽 ≥600dp 且横屏**，与项目既有大屏/rail 口径一致 ⇒ 手机横屏同样命中）、`phoneMockupFrame(landscape)`（168×308 ↔ **308×190**）、`phoneMockupScale(容器宽, 屏幕高, 机身)` = `min(容器宽/480dp, 屏幕高×0.5/机身高)` 夹到 `[1f, 2.2f]`。
+- 横屏网格改 **5 列 × 1 行**（`LandscapePosterRowCount/ColumnCount`），单元格仍 `weight + aspectRatio(3:4)`；**刻意不用 `fillMaxHeight`**：竖屏那版靠 `aspectRatio` 留出的底部余量给悬浮导航胶囊留净空（§4.8 已写明"末行卡片与导航留 6dp 不重叠"），`fillMaxHeight` 会把网格撑到底、压住导航（算过：4 列 3:4 会重叠 9dp，5 列才留出 10.5dp）。
+
+**零回归依据**（单测锁）：竖屏手机容器 379dp 仍是 1.0、大屏竖屏（容器 585dp）仍是 1.22，两条都不受新公式影响；只有横屏宽窗口变（旧 2.2 → 新 1.62，样机高 308dp ≤ 半屏 308.5dp）。
+
+**验证**：`:app:testDebugUnitTest` **953 用例 / 0 失败**（新增 `PhoneMockupPreviewTest` 5 例：朝向判据、机身交换、半屏上限、两个不变点）；`:app:assembleDebug` 绿；已装 MuMu（`00:36:46`）。**未提交**。⚠️ 踩坑记录：`replace_in_file` 曾把该文件整体写成 CRLF（HEAD 是 LF），已按项目规范转回 LF（`git ls-files --eol` 复核 `w/lf`）——**每次编辑后都要核行尾**。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.8 追加一条（判据/机身/网格/半屏预算 + "别再改回 fillMaxHeight"）；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+
 
 
 

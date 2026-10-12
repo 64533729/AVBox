@@ -690,7 +690,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         private const val IDLE_RELEASE_DELAY_MS = 60_000L
 
         private fun prewarmEnabled(): Boolean {
-            return KV.get(HawkConfig.KERNEL_PREWARM, false)
+            return KV.get(HawkConfig.KERNEL_PREWARM, HawkConfig.KERNEL_PREWARM_DEFAULT)
         }
     }
 }

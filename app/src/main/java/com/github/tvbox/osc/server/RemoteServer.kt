@@ -14,6 +14,7 @@ import com.github.tvbox.osc.event.ServerEvent
 import com.github.tvbox.osc.io.LocalSourceTree
 import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.net.Proxy
+import com.github.tvbox.osc.net.ProxyResponsePolicy
 import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.RegexUtils
@@ -27,6 +28,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.PushbackInputStream
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -73,7 +75,7 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         isStarted = false
     }
 
-    private fun getProxy(rs: Array<Any?>?): NanoHTTPD.Response {
+    private fun getProxy(rs: Array<Any?>?, url: String?): NanoHTTPD.Response {
         try {
             if (rs == null || rs.size < 3) {
                 LOG.e("echo-proxy error: empty proxy result")
@@ -82,9 +84,23 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
             if (rs[0] is NanoHTTPD.Response) return rs[0] as NanoHTTPD.Response
             val code = rs[0] as Int
             val mime = rs[1] as String
-            val stream = if (rs[2] != null) rs[2] as InputStream else null
+            val body = if (rs[2] != null) rs[2] as InputStream else null
+            val probe = if (body != null) PushbackInputStream(body, 1) else null
+            val firstByte = try {
+                probe?.read() ?: -1
+            } catch (th: Throwable) {
+                -1
+            }
+            val m3u8 = ProxyResponsePolicy.isM3u8Mime(mime)
+            val status = ProxyResponsePolicy.effectiveStatus(code, mime, firstByte)
+            if (status != code) {
+                LOG.e("echo-proxy-m3u8 empty body code=$code url=" + url.orEmpty().takeLast(80))
+                return NanoHTTPD.newFixedLengthResponse(nanoStatus(status), NanoHTTPD.MIME_PLAINTEXT, "empty m3u8")
+            }
+            if (firstByte >= 0) probe?.unread(firstByte)
+            val stream = if (probe != null && m3u8) ProxyBodyStream(probe, url) else probe
             val response = NanoHTTPD.newChunkedResponse(
-                NanoHTTPD.Response.Status.lookup(code),
+                nanoStatus(status),
                 mime,
                 stream
             )
@@ -101,6 +117,42 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         } catch (th: Throwable) {
             LOG.e("echo-proxy error: " + th.message)
             return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "500")
+        }
+    }
+
+    private fun nanoStatus(code: Int): NanoHTTPD.Response.Status =
+        NanoHTTPD.Response.Status.lookup(code) ?: NanoHTTPD.Response.Status.INTERNAL_ERROR
+
+    private class ProxyBodyStream(private val delegate: InputStream, private val url: String?) : InputStream() {
+
+        private var count = 0
+
+        private var closed = false
+
+        override fun read(): Int {
+            val value = delegate.read()
+            if (value >= 0) count += 1
+            return value
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val read = delegate.read(b, off, len)
+            if (read > 0) count += read
+            return read
+        }
+
+        override fun available(): Int = delegate.available()
+
+        override fun close() {
+            synchronized(this) {
+                if (closed) return
+                closed = true
+            }
+            try {
+                delegate.close()
+            } finally {
+                LOG.i("echo-proxy-m3u8 served bytes=$count url=" + url.orEmpty().takeLast(80))
+            }
         }
     }
 
@@ -224,13 +276,13 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
             if (isDanmuProxy) normalizeDanmuParams(params)
             if (isDanmuProxy) LOG.i("echo-proxy-danmu params: " + params.toString())
             val rs = ApiConfig.get().proxyLocal(params)
-            return getProxy(rs)
+            return getProxy(rs, params["url"])
         }
         if (params.containsKey("go")) {
             val rs = Proxy.proxy(params)
-            return getProxy(rs)
+            return getProxy(rs, params["url"])
         }
-        return getProxy(null)
+        return getProxy(null, null)
     }
 
     private fun normalizeDanmuParams(params: MutableMap<String, String>) {

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +36,33 @@ import coil3.request.transitionFactory
 import coil3.transition.Transition
 
 private const val UnnamedPosterKey = "！"
+
+internal enum class PosterSize { THUMB, LARGE, WIDE, FULL }
+
+internal const val HERO_IMAGE_LARGE_MAX_WIDTH_PX = 800
+
+internal const val HERO_IMAGE_WIDE_MAX_WIDTH_PX = 1400
+
+internal data class HeroImageSizes(val poster: PosterSize, val backdrop: PosterSize)
+
+internal fun heroPosterSize(widthPx: Int): PosterSize =
+    if (widthPx <= HERO_IMAGE_LARGE_MAX_WIDTH_PX) PosterSize.LARGE else PosterSize.FULL
+
+internal fun heroBackdropSize(widthPx: Int): PosterSize = when {
+    widthPx <= HERO_IMAGE_LARGE_MAX_WIDTH_PX -> PosterSize.LARGE
+    widthPx <= HERO_IMAGE_WIDE_MAX_WIDTH_PX -> PosterSize.WIDE
+    else -> PosterSize.FULL
+}
+
+@Composable
+internal fun rememberHeroImageSizes(): HeroImageSizes {
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val widthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
+    return remember(widthPx) {
+        HeroImageSizes(heroPosterSize(widthPx), heroBackdropSize(widthPx))
+    }
+}
 
 private const val POSTER_CHAR_WIDTH_RATIO = 0.46f
 
@@ -76,14 +104,15 @@ internal fun VodPoster(
     name: String?,
     pic: String?,
     modifier: Modifier = Modifier,
-    preferLarge: Boolean = false,
+    size: PosterSize = PosterSize.THUMB,
     year: Int = 0,
     sourceKey: String? = null,
     resolveTmdb: Boolean = true,
     tmdbCacheOnly: Boolean = false,
     onImage: ((Image) -> Unit)? = null,
 ) {
-    val tmdbUrl = if (resolveTmdb) tmdbPosterUrl(name, year, sourceKey, preferLarge, tmdbCacheOnly) else null
+    val preferLarge = size != PosterSize.THUMB
+    val tmdbUrl = if (resolveTmdb) tmdbPosterUrl(name, year, sourceKey, size, tmdbCacheOnly) else null
     val siteUrl = if (preferLarge) VodImages.largePosterUrl(pic) else pic
     var showFallback by remember(pic) { mutableStateOf(false) }
     var posterUrl by remember(pic, siteUrl, tmdbUrl) {
@@ -158,12 +187,19 @@ internal fun tmdbPosterUrl(
     name: String?,
     year: Int,
     sourceKey: String?,
-    preferLarge: Boolean,
+    size: PosterSize,
     cacheOnly: Boolean = false,
 ): String? =
     tmdbPosterPath(name, year, sourceKey, cacheOnly)
         ?.takeIf { it.isNotEmpty() }
-        ?.let { TmdbPoster.imageUrl(it, preferLarge) }
+        ?.let { tmdbUrlOf(it, size) }
+
+internal fun tmdbUrlOf(posterPath: String, size: PosterSize): String = when (size) {
+    PosterSize.THUMB -> TmdbPoster.imageUrl(posterPath, false)
+    PosterSize.LARGE -> TmdbPoster.imageUrl(posterPath, true)
+    PosterSize.WIDE -> TmdbPoster.backdropUrl(posterPath)
+    PosterSize.FULL -> TmdbPoster.fullPosterUrl(posterPath)
+}
 
 @Composable
 private fun PosterFallback(name: String?) {

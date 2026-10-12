@@ -70,11 +70,15 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.ui.playerPressEffect
+import com.github.tvbox.osc.ui.components.HeroImageSizes
 import com.github.tvbox.osc.ui.components.ImagePalette
 import com.github.tvbox.osc.ui.components.LocalTopBarGlassBackdrop
+import com.github.tvbox.osc.ui.components.PosterSize
 import com.github.tvbox.osc.ui.components.TopBarActionBox
 import com.github.tvbox.osc.ui.components.VodPoster
+import com.github.tvbox.osc.ui.components.rememberHeroImageSizes
 import com.github.tvbox.osc.ui.components.tmdbPosterPath
+import com.github.tvbox.osc.ui.components.tmdbUrlOf
 import com.github.tvbox.osc.ui.page.TmdbPosterStyle
 import com.github.tvbox.osc.ui.theme.AppThemeState
 import com.github.tvbox.osc.util.HawkConfig
@@ -417,18 +421,20 @@ private fun DetailHeroPoster(
 ) {
     val epoch by TmdbPoster.configEpoch.collectAsState()
     val style = remember(title, epoch) { TmdbPosterStyle.of(KV.get(HawkConfig.TMDB_POSTER_STYLE, 0)) }
-    val multiEnabled = TmdbPoster.isActive() &&
-        (style == TmdbPosterStyle.Random || style == TmdbPosterStyle.Roll)
-    var images by remember(title, year, epoch, multiEnabled) {
-        mutableStateOf(if (multiEnabled) TmdbPoster.cachedImages(title, year) else null)
+    val configuration = LocalConfiguration.current
+    val wide = configuration.screenWidthDp > configuration.screenHeightDp
+    val sizes = rememberHeroImageSizes()
+    val source = heroImageSource(style, wide, TmdbPoster.isActive())
+    var images by remember(title, year, epoch, source) {
+        mutableStateOf(cachedHeroImages(source, title, year))
     }
-    LaunchedEffect(title, year, epoch, multiEnabled) {
-        if (multiEnabled && images == null) images = TmdbPoster.resolveImages(title, year)
+    LaunchedEffect(title, year, epoch, source) {
+        if (images == null) images = resolveHeroImages(source, title, year)
     }
-    val urls = remember(images) { images.orEmpty().map { TmdbPoster.imageUrl(it, true) } }
+    val urls = remember(images, source, sizes) { heroUrls(images, source, sizes) }
     if (urls.isEmpty()) {
         val fixedPath = tmdbPosterPath(title, year, null)
-        val resolving = (multiEnabled && images == null) || fixedPath == null
+        val resolving = (source != HeroImageSource.NONE && images == null) || fixedPath == null
         var waitExpired by remember(title, year, epoch) { mutableStateOf(false) }
         LaunchedEffect(title, year, epoch, resolving) {
             waitExpired = false
@@ -437,7 +443,7 @@ private fun DetailHeroPoster(
                 waitExpired = true
             }
         }
-        val fixedUrl = fixedPath?.takeIf { it.isNotEmpty() }?.let { TmdbPoster.imageUrl(it, true) }
+        val fixedUrl = fixedPath?.takeIf { it.isNotEmpty() }?.let { tmdbUrlOf(it, sizes.poster) }
         LaunchedEffect(fixedUrl, picture) {
             val url = fixedUrl ?: picture
             if (!url.isNullOrEmpty()) onBackdropPic(url)
@@ -449,7 +455,7 @@ private fun DetailHeroPoster(
         VodPoster(
             name = title,
             pic = picture,
-            preferLarge = true,
+            size = sizes.poster,
             year = year,
             modifier = modifier,
             onImage = onImage,
@@ -494,7 +500,7 @@ private fun DetailHeroPoster(
         VodPoster(
             name = title,
             pic = targetUrl,
-            preferLarge = true,
+            size = PosterSize.LARGE,
             resolveTmdb = false,
             modifier = Modifier.fillMaxSize(),
             onImage = { image ->
@@ -517,3 +523,29 @@ private fun DetailHeroPosterLoading(modifier: Modifier = Modifier) {
         ContainedLoadingIndicator(Modifier.size(64.dp))
     }
 }
+
+private enum class HeroImageSource { NONE, POSTER, BACKDROP }
+
+private fun heroImageSource(style: TmdbPosterStyle, wide: Boolean, active: Boolean): HeroImageSource = when {
+    !active -> HeroImageSource.NONE
+    wide -> HeroImageSource.BACKDROP
+    style == TmdbPosterStyle.Random || style == TmdbPosterStyle.Roll -> HeroImageSource.POSTER
+    else -> HeroImageSource.NONE
+}
+
+private fun cachedHeroImages(source: HeroImageSource, title: String, year: Int): List<String>? = when (source) {
+    HeroImageSource.POSTER -> TmdbPoster.cachedImages(title, year)
+    HeroImageSource.BACKDROP -> TmdbPoster.cachedBackdrops(title, year)
+    HeroImageSource.NONE -> null
+}
+
+private suspend fun resolveHeroImages(source: HeroImageSource, title: String, year: Int): List<String>? = when (source) {
+    HeroImageSource.POSTER -> TmdbPoster.resolveImages(title, year)
+    HeroImageSource.BACKDROP -> TmdbPoster.resolveBackdrops(title, year)
+    HeroImageSource.NONE -> null
+}
+
+private fun heroUrls(images: List<String>?, source: HeroImageSource, sizes: HeroImageSizes): List<String> =
+    images.orEmpty().map {
+        tmdbUrlOf(it, if (source == HeroImageSource.BACKDROP) sizes.backdrop else sizes.poster)
+    }

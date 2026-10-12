@@ -64,7 +64,7 @@ internal fun HomeHeroBackdrop(
                 VodPoster(
                     name = null,
                     pic = target,
-                    preferLarge = true,
+                    size = PosterSize.LARGE,
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {

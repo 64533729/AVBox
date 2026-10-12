@@ -25,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.ui.theme.cardContainer
 
@@ -32,9 +35,27 @@ private val MockupScaleBase = 480.dp
 
 private const val MockupMaxScale = 2.2f
 
-private val MockupWidth = 168.dp
+private const val MockupMinScale = 1f
 
-private val MockupHeight = 308.dp
+private const val MockupHeightBudgetRatio = 0.5f
+
+internal const val MockupWideMinWidthDp = 600
+
+private val MockupFramePortrait = DpSize(168.dp, 308.dp)
+
+private val MockupFrameLandscape = DpSize(308.dp, 190.dp)
+
+internal fun phoneMockupLandscape(screenWidthDp: Int, screenHeightDp: Int): Boolean =
+    screenWidthDp >= MockupWideMinWidthDp && screenWidthDp > screenHeightDp
+
+internal fun phoneMockupFrame(landscape: Boolean): DpSize =
+    if (landscape) MockupFrameLandscape else MockupFramePortrait
+
+internal fun phoneMockupScale(containerWidth: Dp, screenHeightDp: Int, frame: DpSize): Float {
+    val byWidth = containerWidth / MockupScaleBase
+    val byHeight = (screenHeightDp * MockupHeightBudgetRatio).dp / frame.height
+    return minOf(byWidth, byHeight).coerceIn(MockupMinScale, MockupMaxScale)
+}
 
 private val MockupPadding = 10.dp
 
@@ -74,6 +95,10 @@ private const val PosterRowCount = 3
 
 private const val PosterColumnCount = 3
 
+private const val LandscapePosterRowCount = 1
+
+private const val LandscapePosterColumnCount = 5
+
 private val NavHeight = 26.dp
 
 private val NavSlotHeight = 22.dp
@@ -94,14 +119,19 @@ private const val NavSelectedWeight = 1.5f
 
 @Composable
 fun PhoneMockupPreview(modifier: Modifier = Modifier) {
+    val configuration = LocalConfiguration.current
+    val landscape = phoneMockupLandscape(configuration.screenWidthDp, configuration.screenHeightDp)
+    val frame = phoneMockupFrame(landscape)
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
-        val scale = (maxWidth / MockupScaleBase).coerceIn(1f, MockupMaxScale)
+        val scale = phoneMockupScale(maxWidth, configuration.screenHeightDp, frame)
         Box(
-            modifier = Modifier.size(MockupWidth * scale, MockupHeight * scale),
+            modifier = Modifier.size(frame.width * scale, frame.height * scale),
             contentAlignment = Alignment.Center,
         ) {
             PhoneMockupBody(
-                Modifier.graphicsLayer {
+                landscape = landscape,
+                frame = frame,
+                modifier = Modifier.graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 },
@@ -111,14 +141,18 @@ fun PhoneMockupPreview(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PhoneMockupBody(modifier: Modifier = Modifier) {
+private fun PhoneMockupBody(
+    landscape: Boolean,
+    frame: DpSize,
+    modifier: Modifier = Modifier,
+) {
     val scheme = MaterialTheme.colorScheme
     val cardColor = scheme.cardContainer
     val ghostColor = scheme.onSurfaceVariant.copy(alpha = 0.5f)
     Surface(
         modifier = modifier
-            .width(MockupWidth)
-            .height(MockupHeight),
+            .width(frame.width)
+            .height(frame.height),
         shape = RoundedCornerShape(MockupCorner),
         color = scheme.surfaceContainer,
         border = BorderStroke(1.dp, scheme.outlineVariant),
@@ -203,12 +237,12 @@ private fun PhoneMockupBody(modifier: Modifier = Modifier) {
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(PosterRowGap),
                 ) {
-                    repeat(PosterRowCount) {
+                    repeat(if (landscape) LandscapePosterRowCount else PosterRowCount) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(PosterColumnGap),
                         ) {
-                            repeat(PosterColumnCount) {
+                            repeat(if (landscape) LandscapePosterColumnCount else PosterColumnCount) {
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)

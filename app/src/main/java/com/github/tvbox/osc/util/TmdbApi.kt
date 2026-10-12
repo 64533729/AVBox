@@ -28,6 +28,8 @@ object TmdbApi {
     private const val TEST_POSTER_SIZE = "w92"
     private const val POSTER_SIZE_SMALL = "w342"
     private const val POSTER_SIZE_LARGE = "w780"
+    private const val POSTER_SIZE_FULL = "original"
+    private const val BACKDROP_SIZE_LARGE = "w1280"
     private const val IMAGE_CONTENT_TYPE_PREFIX = "image/"
     private const val BEARER_PREFIX = "Bearer "
     private const val BEARER_KEY_PREFIX = "eyJ"
@@ -53,6 +55,8 @@ object TmdbApi {
     private const val HTTP_SUCCESS_MAX = 299
     private const val MAX_HERO_POSTERS = 10
     private const val MAX_MOVIE_STILLS = 10
+    private const val MIN_SEGMENTS_PER_EPISODE = 2
+    private const val MAX_SEGMENTS_PER_EPISODE = 4
     private const val LANGUAGE_EN = "en-US"
     private const val LANGUAGE_ZH_SIMPLIFIED = "zh-CN"
     private const val LANGUAGE_ZH_TRADITIONAL = "zh-TW"
@@ -70,14 +74,23 @@ object TmdbApi {
     private val TITLE_INVISIBLE = Regex("[\u200B-\u200F\u2060\uFEFF\u00AD]") // i18n: keep(片名清洗词表)
 
     private val TITLE_TRAILING_LABEL = Regex(
-        """\s*(?:更新至\d+集|连载至\d+集|杜比视界|杜比全景声|全景声|中英双字|国语版|粤语版|台版|港版|日版|美版|英版|韩版|泰版|未删减|无删减|删减版|修复版|加长版|导演剪辑版|完结|国语|粤语|英语|中字|双语|原声|高清|超清|蓝光|真彩|高码|无水印|HDR|2160P|1080I|1080P|720P|4K|8K|HD|H\.265|H265|HEVC|X265|X264|60帧|120帧|60FPS|120FPS|杜比)$""", // i18n: keep(片名清洗词表)
+        """\s*(?:更新至\d+集|连载至\d+集|杜比视界|杜比全景声|全景声|中英双字|国语版|粤语版|台版|港版|日版|美版|英版|韩版|泰版|未删减|无删减|删减版|修复版|加长版|导演剪辑版|完结|国语|粤语|英语|中字|双语|原声|高清|超清|蓝光|真彩|臻彩|帧享|巨幕|高帧|高码|无水印|HDR|2160P|1080I|1080P|720P|4K|8K|HD|H\.265|H265|HEVC|X265|X264|60帧|120帧|60FPS|120FPS|杜比)$""", // i18n: keep(片名清洗词表)
         RegexOption.IGNORE_CASE,
     )
 
     private val TITLE_BRACKETS = Regex("""[\[【][^\]】]*[\]】]""")
 
     private val TITLE_LABEL_PARENS = Regex(
-        """[（(]\s*(?:\d{4}|国语版|粤语版|台版|港版|日版|美版|韩版|未删减|无删减|删减版|修复版|导演剪辑版|加长版|杜比视界|杜比|全景声|真彩|高码|无水印|国语|粤语|英语|中字|双语|高清|蓝光|全集|完结|抢先版|HDR|4K|8K|HD|BD|TS|TC|DVD|WEB-?DL|BluRay|REMUX|H\.?265|X265|X264|HEVC)\s*[)）]""", // i18n: keep(片名清洗词表)
+        """[（(]\s*(?:\d{4}|国语版|粤语版|台版|港版|日版|美版|韩版|未删减|无删减|删减版|修复版|导演剪辑版|加长版|杜比视界|杜比|全景声|真彩|臻彩|帧享|巨幕|高帧|高码|无水印|国语|粤语|英语|中字|双语|高清|蓝光|全集|完结|抢先版|HDR|4K|8K|HD|BD|TS|TC|DVD|WEB-?DL|BluRay|REMUX|H\.?265|X265|X264|HEVC)\s*[)）]""", // i18n: keep(片名清洗词表)
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val TITLE_TRAILING_PAREN_GROUP = Regex("""\s*[（(]([^（()）]{1,16})[）)]$""") // i18n: keep(片名清洗词表)
+
+    private val TITLE_TRAILING_WORD = Regex("""\s+(\S{1,8})$""")
+
+    private val TITLE_QUALITY_WORD = Regex(
+        """臻彩|真彩|帧享|巨幕|高码|高帧|画质|杜比|HDR|4K|8K|蓝光|超清|高清|无水印|全景声|原画|修复|60帧|120帧""", // i18n: keep(片名清洗词表)
         RegexOption.IGNORE_CASE,
     )
 
@@ -191,6 +204,12 @@ object TmdbApi {
     fun imageUrl(configuredImageBase: String, posterPath: String, large: Boolean): String =
         imageBaseUrl(configuredImageBase) + "/" + (if (large) POSTER_SIZE_LARGE else POSTER_SIZE_SMALL) + posterPath
 
+    fun fullPosterUrl(configuredImageBase: String, posterPath: String): String =
+        imageBaseUrl(configuredImageBase) + "/" + POSTER_SIZE_FULL + posterPath
+
+    fun backdropUrl(configuredImageBase: String, backdropPath: String): String =
+        imageBaseUrl(configuredImageBase) + "/" + BACKDROP_SIZE_LARGE + backdropPath
+
     fun profileUrl(configuredImageBase: String, profilePath: String): String =
         imageBaseUrl(configuredImageBase) + "/" + PROFILE_SIZE + profilePath
 
@@ -240,6 +259,25 @@ object TmdbApi {
     fun searchQuery(raw: String?): String {
         val cleaned = cleanTitle(raw)
         return cleaned.ifEmpty { raw?.trim().orEmpty() }
+    }
+
+    fun qualityTagVariant(raw: String?): String {
+        val cleaned = cleanTitle(raw)
+        if (cleaned.isEmpty()) return ""
+        val variant = stripTrailingQualityWord(stripTrailingQualityGroup(cleaned))
+        return if (variant == cleaned) "" else variant
+    }
+
+    private fun stripTrailingQualityGroup(text: String): String {
+        val group = TITLE_TRAILING_PAREN_GROUP.find(text) ?: return text
+        if (!TITLE_QUALITY_WORD.containsMatchIn(group.groupValues[1])) return text
+        return text.removeRange(group.range).toString().trim()
+    }
+
+    private fun stripTrailingQualityWord(text: String): String {
+        val tail = TITLE_TRAILING_WORD.find(text) ?: return text
+        if (!TITLE_QUALITY_WORD.containsMatchIn(tail.groupValues[1])) return text
+        return text.removeRange(tail.range).toString().trim()
     }
 
     fun pickBest(hits: List<TmdbSearchHit>, name: String?, year: Int): TmdbSearchHit? {
@@ -321,6 +359,16 @@ object TmdbApi {
         }.sortedBy { it.second }.map { it.first }
     }
 
+    fun foldSegmentsPerEpisode(seasons: List<TmdbSeason>, episodeCount: Int, seasonHint: Int?): Int {
+        if (seasonHint != null) return 0
+        val ordered = seasons.filter { it.seasonNumber > 0 && it.episodeCount > 0 }
+        if (ordered.size != 1) return 0
+        val seasonCount = ordered[0].episodeCount
+        if (episodeCount <= 0 || episodeCount % seasonCount != 0) return 0
+        val ratio = episodeCount / seasonCount
+        return if (ratio in MIN_SEGMENTS_PER_EPISODE..MAX_SEGMENTS_PER_EPISODE) ratio else 0
+    }
+
     fun mapEpisodes(seasons: List<TmdbSeason>, episodeCount: Int, seasonHint: Int?): List<TmdbEpisodeRef>? {
         if (episodeCount <= 0) return null
         val ordered = seasons.filter { it.seasonNumber > 0 && it.episodeCount > 0 }.sortedBy { it.seasonNumber }
@@ -358,6 +406,14 @@ object TmdbApi {
                 }
                 return refs
             }
+        }
+        val segments = foldSegmentsPerEpisode(ordered, episodeCount, seasonHint)
+        if (segments > 0) {
+            val refs = ArrayList<TmdbEpisodeRef>(episodeCount)
+            for (index in 1..episodeCount) {
+                refs.add(TmdbEpisodeRef(ordered[0].seasonNumber, (index + segments - 1) / segments))
+            }
+            return refs
         }
         return null
     }

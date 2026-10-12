@@ -17,6 +17,19 @@ class TmdbPosterTest {
     ) = TmdbApi.TmdbSearchHit(id, mediaType, title, originalTitle, year, posterPath)
 
     @Test
+    fun bestHit_matchesQualityTagVariantTarget() {
+        assertEquals(1, TmdbPoster.bestHit(listOf(hit(title = "兰香如故")), "兰香如故（臻彩视听）", 0)?.id)
+        assertEquals(1, TmdbPoster.bestHit(listOf(hit(title = "兰香如故")), "兰香如故（臻彩）", 0)?.id)
+    }
+
+    @Test
+    fun bestHit_keepsStrictEqualityForSemanticNames() {
+        assertEquals(5, TmdbPoster.bestHit(listOf(hit(id = 5, title = "庆余年")), "庆余年", 0)?.id)
+        assertNull(TmdbPoster.bestHit(listOf(hit(title = "西游记")), "西游记（动画版）", 0))
+        assertNull(TmdbPoster.bestHit(listOf(hit(title = "人生大事")), "人生大事(下)", 0))
+    }
+
+    @Test
     fun hitsValue_roundTripKeepsAllFields() {
         val hits = listOf(
             hit(),
