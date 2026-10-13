@@ -51,7 +51,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.greenrobot.eventbus.EventBus
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 
 private const val POSITION_TICK_MS = 400L
@@ -301,7 +300,6 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
             AppGraph.collectRepository.insertVodCollect(sourceKey, vod)
             ui.collected = true
         }
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
     }
 
     private fun showCast() {

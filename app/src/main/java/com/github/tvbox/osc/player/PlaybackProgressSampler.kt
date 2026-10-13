@@ -4,10 +4,8 @@ import android.os.Handler
 import android.os.Looper
 import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.data.WatchProgressStore
-import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
-import org.greenrobot.eventbus.EventBus
 
 class PlaybackProgressSampler(private val host: Host) {
 
@@ -69,8 +67,7 @@ class PlaybackProgressSampler(private val host: Host) {
         if (positionMs <= 0) return
         val duration = view.duration
         if (duration <= 0) return
-        if (!PlaybackProgress.flush(controller.vod(), positionMs.toInt(), duration.toInt())) return
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH))
+        PlaybackProgress.flush(controller.vod(), positionMs.toInt(), duration.toInt())
     }
 
     fun stop() {
@@ -115,7 +112,6 @@ class PlaybackProgressSampler(private val host: Host) {
             "echo-progress flush: pos=" + position + " dur=" + duration
                 + " written=" + written + " key=" + controller.progressKey()
         )
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH))
     }
 
     private fun markFinished() {

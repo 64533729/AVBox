@@ -3,7 +3,6 @@
 
     <string name="settings_language">Language</string>
     <string name="settings_group_language_layout">Language &amp; Layout</string>
-    <string name="settings_language_subtitle">Change the app interface language</string>
     <string name="settings_collect_columns">Collect page layout</string>
     <string name="settings_collect_columns_three">Three columns</string>
     <string name="settings_collect_columns_two">Two columns</string>
@@ -343,10 +342,16 @@
     <string name="history_delete_title">Delete record</string>
     <string name="history_delete_message">Delete the watch record for “%1$s”?</string>
     <string name="history_delete_selected_message">Delete %1$d selected watch records?</string>
-    <string name="history_last_watched">Last watched %1$s</string>
     <string name="source_unavailable">Source unavailable</string>
+    <string name="history_episode_num">Episode %1$d</string>
+    <string name="history_see_percent">Watched %1$d%%</string>
     <string name="history_episode_progress">Episode %1$d/%2$d</string>
     <string name="history_watched_percent">Watched %1$d%%</string>
+    <string name="time_ago_just_now">Just now</string>
+    <string name="time_ago_minutes">%1$d minutes ago</string>
+    <string name="time_ago_hours">%1$d hours ago</string>
+    <string name="time_ago_days">%1$d days ago</string>
+    <string name="time_ago_months">%1$d months ago</string>
 
     <string name="theme_color">Theme Color</string>
     <string name="theme_app_effects">App Effects</string>
@@ -486,9 +491,7 @@
     <string name="settings_hide_status_bar">Hide Status Bar</string>
     <string name="settings_hide_status_bar_subtitle">Extends the home artwork to the top of the screen</string>
     <string name="settings_nav_animation_disable">Disable Navigation Animation</string>
-    <string name="settings_nav_animation_disable_subtitle">Disables the bottom navigation slide animation</string>
     <string name="settings_nav_live_hidden">Hide Live in Navigation Bar</string>
-    <string name="settings_nav_live_hidden_subtitle">Hides the Live entry in the navigation bar</string>
     <string name="settings_auto_switch_line">Auto Switch Line</string>
     <string name="settings_m3u8_purify">M3U8 Purify</string>
     <string name="settings_danmu_switch">Danmaku Switch</string>

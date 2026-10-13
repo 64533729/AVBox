@@ -3,7 +3,7 @@ package com.github.tvbox.osc.ui.page
 import android.widget.Toast
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.base.App
-import com.github.tvbox.osc.event.RefreshEvent
+import com.github.tvbox.osc.data.CurrentSubscription
 import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.ui.activity.SearchViewModel
@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.greenrobot.eventbus.EventBus
 
 object AppBootstrap {
 
@@ -36,6 +35,12 @@ object AppBootstrap {
 
     private val _state = MutableStateFlow<Boot>(Boot.Loading)
     val state: StateFlow<Boot> = _state
+
+    private val subscriptionCidFlow: MutableStateFlow<String> by lazy {
+        MutableStateFlow(CurrentSubscription.cid())
+    }
+
+    val subscriptionCid: StateFlow<String> get() = subscriptionCidFlow
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val bootGeneration = BootGeneration()
@@ -70,8 +75,7 @@ object AppBootstrap {
             ApiConfig.get().invalidateVodConfig()
             LOG.i("echo-switch: invalidate dt=" + (System.currentTimeMillis() - startedAt) + "ms")
             SearchViewModel.clearCheckedSources()
-            EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_API_URL_CHANGE))
-            LOG.i("echo-switch: broadcast dt=" + (System.currentTimeMillis() - startedAt) + "ms")
+            subscriptionCidFlow.value = CurrentSubscription.cid()
             startInit(forceFresh = true, offline = false, generation = generation)
         }
     }

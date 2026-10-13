@@ -3,6 +3,7 @@ package com.github.tvbox.osc.ui.page
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,8 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,8 @@ import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.EpisodeTotals
 import com.github.tvbox.osc.ui.components.VodPoster
 import com.github.tvbox.osc.ui.theme.cardContainer
+import com.github.tvbox.osc.util.TimeAgoUnit
+import com.github.tvbox.osc.util.timeAgoValueOf
 import kotlin.math.roundToInt
 
 internal const val PROGRESS_ENTER_DURATION_MS = 600
@@ -62,12 +68,12 @@ internal fun HistoryRow(
     var progressEntered by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(HistoryCardCorner),
         color = MaterialTheme.colorScheme.cardContainer,
     ) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(HistoryCardCorner))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 12.dp, vertical = 12.dp)
                 .height(IntrinsicSize.Min),
@@ -86,7 +92,7 @@ internal fun HistoryRow(
                     tmdbCacheOnly = true,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(HistoryPosterCorner)),
                 )
                 if (editMode) {
                     SelectCircle(
@@ -104,51 +110,29 @@ internal fun HistoryRow(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = item.name ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (!item.sourceName.isNullOrEmpty()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val unavailable = item.sourceUnavailable
-                        Text(
-                            text = if (unavailable) {
-                                "${item.sourceName} · ${stringResource(R.string.source_unavailable)}"
-                            } else {
-                                item.sourceName
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (unavailable) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .widthIn(max = 160.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
+                val numberedEpisode = item.playNote.isNullOrEmpty() || EpisodeTotals.isNumberedEpisode(item.playNote)
+                val episodeLabel = when {
+                    item.playNote.isNullOrEmpty() -> item.note ?: ""
+                    numberedEpisode -> stringResource(R.string.history_episode_num, item.playIndex + 1)
+                    else -> item.playNote
                 }
+                val watchedLabel = playedPercent?.let { stringResource(R.string.history_see_percent, it) }
                 Text(
-                    text = if (item.playNote.isNullOrEmpty()) {
-                        item.note ?: ""
-                    } else {
-                        stringResource(R.string.history_last_watched, item.playNote)
-                    },
+                    text = item.name ?: "",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOf(episodeLabel, watchedLabel.orEmpty())
+                        .filter { it.isNotEmpty() }
+                        .joinToString(HistoryMetaSeparator),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val numberedEpisode = item.playNote.isNullOrEmpty() || EpisodeTotals.isNumberedEpisode(item.playNote)
                 val eps = if (numberedEpisode) {
                     totalEpisodes ?: parseEpisodeTotal(item.note) ?: parseEpisodeTotal(item.state)
                 } else {
@@ -157,51 +141,112 @@ internal fun HistoryRow(
                 val episodeFraction = eps?.let { total ->
                     (item.playIndex + 1).coerceIn(1, total).toFloat() / total
                 }
-                val barProgress = playedPercent?.let { it / 100f } ?: episodeFraction
-                if (barProgress != null) {
-                    val barColor = MaterialTheme.colorScheme.primary
-                    val progressAnim = remember {
-                        Animatable(if (progressEntered) barProgress else 0f)
+                val barProgress = playedPercent?.let { it / 100f } ?: episodeFraction ?: 0f
+                val barColor = MaterialTheme.colorScheme.primary
+                val progressAnim = remember {
+                    Animatable(if (progressEntered) barProgress else 0f)
+                }
+                LaunchedEffect(barProgress) {
+                    val spec = if (progressEntered) {
+                        ProgressIndicatorDefaults.ProgressAnimationSpec
+                    } else {
+                        tween(PROGRESS_ENTER_DURATION_MS)
                     }
-                    LaunchedEffect(barProgress) {
-                        val spec = if (progressEntered) {
-                            ProgressIndicatorDefaults.ProgressAnimationSpec
-                        } else {
-                            tween(PROGRESS_ENTER_DURATION_MS)
-                        }
-                        progressEntered = true
-                        progressAnim.animateTo(barProgress, spec)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LinearProgressIndicator(
-                            progress = { progressAnim.value },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(5.dp),
-                            color = barColor,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            drawStopIndicator = {},
-                        )
+                    progressEntered = true
+                    progressAnim.animateTo(barProgress, spec)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = { progressAnim.value },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(5.dp),
+                        color = barColor,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        drawStopIndicator = {},
+                    )
+                    if (eps != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (eps != null) {
-                                stringResource(
-                                        R.string.history_episode_progress,
-                                        (item.playIndex + 1).coerceIn(1, eps),
-                                        eps,
-                                    )
-                            } else {
-                                stringResource(R.string.history_watched_percent, (barProgress * 100).roundToInt())
-                            },
+                            text = stringResource(
+                                R.string.history_episode_progress,
+                                (item.playIndex + 1).coerceIn(1, eps),
+                                eps,
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = barColor,
+                        )
+                    } else if (playedPercent != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.history_watched_percent, (barProgress * 100).roundToInt()),
                             style = MaterialTheme.typography.labelSmall,
                             color = barColor,
                         )
                     }
+                }
+                val timeText = historyTimeAgo(item.updateTime)
+                val siteText = if (item.sourceUnavailable && item.sourceName.isNotEmpty()) {
+                    item.sourceName + HistoryMetaSeparator + stringResource(R.string.source_unavailable)
                 } else {
-                    Spacer(modifier = Modifier.height(5.dp))
+                    item.sourceName
+                }
+                val metaText = listOf(timeText, siteText)
+                    .filter { it.isNotEmpty() }
+                    .joinToString(HistoryMetaSeparator)
+                if (metaText.isNotEmpty()) {
+                    Text(
+                        text = metaText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.sourceUnavailable) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(HistoryPlayBadgeSize)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.player_ic_play),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                    modifier = Modifier.size(HistoryPlayIconSize),
+                )
+            }
         }
+    }
+}
+
+private val HistoryCardCorner = 22.dp
+
+private val HistoryPosterCorner = 12.dp
+
+private val HistoryPlayBadgeSize = 34.dp
+
+private val HistoryPlayIconSize = 22.dp
+
+private const val HistoryMetaSeparator = " · "
+
+@Composable
+private fun historyTimeAgo(atMs: Long): String {
+    if (atMs <= 0L) return ""
+    val ago = timeAgoValueOf(atMs, System.currentTimeMillis())
+    return when (ago.unit) {
+        TimeAgoUnit.JustNow -> stringResource(R.string.time_ago_just_now)
+        TimeAgoUnit.Minutes -> stringResource(R.string.time_ago_minutes, ago.value)
+        TimeAgoUnit.Hours -> stringResource(R.string.time_ago_hours, ago.value)
+        TimeAgoUnit.Days -> stringResource(R.string.time_ago_days, ago.value)
+        TimeAgoUnit.Months -> stringResource(R.string.time_ago_months, ago.value)
     }
 }
 

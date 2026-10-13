@@ -792,7 +792,6 @@ class DetailViewModel : ViewModel() {
             toastEvent.value = str(R.string.toast_added_to_collect)
         }
         collected.value = !collected.value
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
     }
 
     fun saveFollow(days: Set<Int>, hour: Int) {

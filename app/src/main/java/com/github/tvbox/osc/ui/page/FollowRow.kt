@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
@@ -51,12 +53,19 @@ import com.github.tvbox.osc.ui.components.VodPoster
 import com.github.tvbox.osc.ui.components.WeekdayRes
 import com.github.tvbox.osc.ui.components.formatReminderTime
 import com.github.tvbox.osc.ui.components.joinedDaysText
+import com.github.tvbox.osc.ui.theme.SuccessGreen
 import com.github.tvbox.osc.ui.theme.cardContainer
 import kotlin.math.roundToInt
 
 private val ScheduleIconSize = 16.dp
 
 private val ScheduleTextIndent = 22.dp
+
+private val FollowCardCorner = 22.dp
+
+private val FollowPosterCorner = 12.dp
+
+private val FollowStatusDotSize = 10.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -86,12 +95,12 @@ internal fun FollowRow(
     }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(FollowCardCorner),
         color = MaterialTheme.colorScheme.cardContainer,
     ) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(FollowCardCorner))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick)
                 .padding(horizontal = 12.dp, vertical = 12.dp)
                 .height(IntrinsicSize.Min),
@@ -109,7 +118,7 @@ internal fun FollowRow(
                     tmdbCacheOnly = true,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(FollowPosterCorner)),
                 )
                 if (editMode) {
                     SelectCircle(
@@ -118,24 +127,6 @@ internal fun FollowRow(
                             .align(Alignment.TopStart)
                             .padding(6.dp),
                     )
-                }
-                if (watched) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(4.dp)
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = stringResource(R.string.following_watched),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(12.dp),
-                        )
-                    }
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -154,7 +145,18 @@ internal fun FollowRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    val statusText = stringResource(
+                        if (watched) R.string.following_watched else R.string.following_not_watched,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(FollowStatusDotSize)
+                            .clip(CircleShape)
+                            .background(if (watched) SuccessGreen else MaterialTheme.colorScheme.error)
+                            .semantics { contentDescription = statusText },
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     AVBoxOptionMenuAction(
                         options = listOf(
                             stringResource(R.string.following_not_watched),
@@ -203,48 +205,48 @@ internal fun FollowRow(
                 val episodeFraction = eps?.let { total ->
                     ((history?.playIndex ?: 0) + 1).coerceIn(1, total).toFloat() / total
                 }
-                val barProgress = playedPercent?.let { it / 100f } ?: episodeFraction
-                if (history != null && barProgress != null) {
-                    val barColor = MaterialTheme.colorScheme.primary
-                    val progressAnim = remember {
-                        Animatable(if (progressEntered) barProgress else 0f)
+                val barProgress = playedPercent?.let { it / 100f } ?: episodeFraction ?: 0f
+                val barColor = MaterialTheme.colorScheme.primary
+                val progressAnim = remember {
+                    Animatable(if (progressEntered) barProgress else 0f)
+                }
+                LaunchedEffect(barProgress) {
+                    val spec = if (progressEntered) {
+                        ProgressIndicatorDefaults.ProgressAnimationSpec
+                    } else {
+                        tween(PROGRESS_ENTER_DURATION_MS)
                     }
-                    LaunchedEffect(barProgress) {
-                        val spec = if (progressEntered) {
-                            ProgressIndicatorDefaults.ProgressAnimationSpec
-                        } else {
-                            tween(PROGRESS_ENTER_DURATION_MS)
-                        }
-                        progressEntered = true
-                        progressAnim.animateTo(barProgress, spec)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LinearProgressIndicator(
-                            progress = { progressAnim.value },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(5.dp),
-                            color = barColor,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            drawStopIndicator = {},
+                    progressEntered = true
+                    progressAnim.animateTo(barProgress, spec)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = { progressAnim.value },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(5.dp),
+                        color = barColor,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        drawStopIndicator = {},
+                    )
+                    val progressText = when {
+                        history != null && eps != null -> stringResource(
+                            R.string.history_episode_progress,
+                            (history.playIndex + 1).coerceIn(1, eps),
+                            eps,
                         )
+                        playedPercent != null -> stringResource(R.string.history_watched_percent, (barProgress * 100).roundToInt())
+                        history == null -> stringResource(R.string.following_not_watched)
+                        else -> null
+                    }
+                    if (progressText != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (eps != null) {
-                                stringResource(
-                                    R.string.history_episode_progress,
-                                    (history.playIndex + 1).coerceIn(1, eps),
-                                    eps,
-                                )
-                            } else {
-                                stringResource(R.string.history_watched_percent, (barProgress * 100).roundToInt())
-                            },
+                            text = progressText,
                             style = MaterialTheme.typography.labelSmall,
                             color = barColor,
                         )
                     }
-                } else {
-                    Spacer(modifier = Modifier.height(5.dp))
                 }
             }
         }

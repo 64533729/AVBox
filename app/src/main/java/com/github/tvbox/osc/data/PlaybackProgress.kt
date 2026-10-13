@@ -6,6 +6,8 @@ import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -40,32 +42,30 @@ object PlaybackProgress {
         Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "playback-progress") }
     }
 
+    private val percentsFlow: MutableStateFlow<Map<String, Int>> by lazy {
+        MutableStateFlow(percentSnapshot())
+    }
+
+    val percents: StateFlow<Map<String, Int>> get() = percentsFlow
+
+    private fun percentSnapshot(): Map<String, Int> = read()
+        .mapNotNull { (key, value) ->
+            decodePercent(value)?.takeIf { it in 0..100 }?.let { key to it }
+        }
+        .toMap()
+
+    private fun refreshPercents() {
+        percentsFlow.value = percentSnapshot()
+    }
+
     fun key(sourceKey: String?, vodId: String?): String =
         sourceKey.orEmpty() + "|" + vodId.orEmpty()
 
-    fun snapshot(): Map<String, Int> {
-        if (HistoryHelper.isIncognito()) return emptyMap()
-        return read()
-            .mapNotNull { (key, value) ->
-                decodePercent(value)?.takeIf { it in 0..100 }?.let { key to it }
-            }
-            .toMap()
-    }
-
-    fun onEpisodeStart(vod: VodInfo?, scrollToTop: Boolean) {
+    fun onEpisodeStart(vod: VodInfo?) {
         if (HistoryHelper.isIncognito()) return
         val id = currentKey(vod) ?: return
-        val cleared = forget(id)
-        val event = if (scrollToTop) {
-            RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH)
-        } else {
-            RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH, java.lang.Boolean.FALSE)
-        }
-        if (cleared || !scrollToTop) EventBus.getDefault().post(event)
+        forget(id)
     }
-
-    @JvmStatic
-    fun onEpisodeStartNoScroll(vod: VodInfo?) = onEpisodeStart(vod, false)
 
     fun onProgress(vod: VodInfo?, positionMs: Int, durationMs: Int) {
         val id = currentKey(vod) ?: return
@@ -106,7 +106,6 @@ object PlaybackProgress {
         lastKey = id
         lastSavedAt = now
         lastSavedPercent = 100
-        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_HISTORY_REFRESH))
     }
 
     fun stepAdvanceMs(positionMs: Int, lastPositionMs: Int): Int =
@@ -182,14 +181,18 @@ object PlaybackProgress {
         val map = read()
         map[id] = encodeEntry(percent, durationMs, at)
         pickEvictions(map, LIMIT).forEach { map.remove(it) }
-        return KV.put(KEY, map)
+        val ok = KV.put(KEY, map)
+        refreshPercents()
+        return ok
     }
 
     @Synchronized
     private fun remove(id: String): Boolean {
         val map = read()
         if (map.remove(id) == null) return false
-        return KV.put(KEY, map)
+        val ok = KV.put(KEY, map)
+        refreshPercents()
+        return ok
     }
 
     fun retain(owners: Set<String>) {
@@ -205,6 +208,7 @@ object PlaybackProgress {
         }
         if (kept.size == map.size) return
         KV.put(KEY, kept)
+        refreshPercents()
     }
 
     @Synchronized
@@ -215,6 +219,7 @@ object PlaybackProgress {
         lastKey = ""
         lastSavedPercent = -1
         KV.delete(KEY)
+        refreshPercents()
     }
 
     private fun read(): HashMap<String, String> = KV.get(KEY, HashMap<String, String>())

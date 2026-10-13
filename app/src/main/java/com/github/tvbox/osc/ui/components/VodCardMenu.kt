@@ -13,12 +13,10 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.AppGraph
-import com.github.tvbox.osc.event.RefreshEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.greenrobot.eventbus.EventBus
 
 @Stable
 class VodCardMenuState internal constructor(private val scope: CoroutineScope) {
@@ -62,11 +60,9 @@ fun VodCardMenu(state: VodCardMenuState, onSearchSimilar: (String) -> Unit) {
                 when (option) {
                     collectLabel -> scope.launch(Dispatchers.IO) {
                         AppGraph.collectRepository.insertVodCollect(video.sourceKey, toVodInfo(video))
-                        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
                     }
                     uncollectLabel -> scope.launch(Dispatchers.IO) {
                         AppGraph.collectRepository.deleteVodCollect(video.sourceKey, toVodInfo(video))
-                        EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_COLLECT_REFRESH))
                     }
                     searchSimilarLabel -> onSearchSimilar(video.name ?: "")
                 }

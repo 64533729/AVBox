@@ -4,6 +4,7 @@ import android.text.TextUtils
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
+import com.github.tvbox.osc.util.HistoryMerge
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.ExclusionStrategy
@@ -12,12 +13,16 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 interface HistoryRepository {
 
     fun getVodInfo(sourceKey: String, vodId: String): VodInfo?
 
-    fun getAllVodRecord(limit: Int): List<VodInfo>
+    fun observeVodRecords(cid: String?): Flow<List<VodInfo>>
+
+    fun sweepDuplicates()
 
     fun insertVodRecord(sourceKey: String, vodInfo: VodInfo)
 
@@ -36,6 +41,9 @@ internal class RoomHistoryRepository(
                 return true
             }
             if (field.declaringClass == VodInfo::class.java && field.name == "seriesMap") {
+                return true
+            }
+            if (field.declaringClass == VodInfo::class.java && field.name == "updateTime") {
                 return true
             }
             return false
@@ -63,33 +71,37 @@ internal class RoomHistoryRepository(
         return null
     }
 
-    override fun getAllVodRecord(limit: Int): List<VodInfo> {
+    override fun observeVodRecords(cid: String?): Flow<List<VodInfo>> =
+        records().observeAll(cid).map { recordList ->
+            val hisNum = HistoryHelper.getHisNum(KV.get(HawkConfig.HISTORY_NUM, 0))
+            recordList.take(hisNum).mapNotNull { parseRecord(it) }
+        }
+
+    private fun parseRecord(record: VodRecord): VodInfo? {
+        try {
+            if (record.dataJson != null && !TextUtils.isEmpty(record.dataJson)) {
+                val parsed = vodInfoGson().fromJson<VodInfo>(record.dataJson, vodInfoType())
+                parsed.sourceKey = record.sourceKey
+                parsed.updateTime = record.updateTime
+                if (parsed.name != null) return parsed
+            }
+        } catch (e: Exception) {
+            LOG.e("RoomHistoryRepository", e)
+        }
+        return null
+    }
+
+    override fun sweepDuplicates() {
+        if (!HistoryMerge.isEnabled()) return
         val dao = records()
         val cid = CurrentSubscription.cid()
-        val index = KV.get(HawkConfig.HISTORY_NUM, 0)
-        val hisNum = HistoryHelper.getHisNum(index)
-        val size = minOf(limit, hisNum)
-        val recordList = dao.getAll(cid, size)
-        val vodInfoList = ArrayList<VodInfo>(recordList.size)
-        for (record in recordList) {
-            var info: VodInfo? = null
-            try {
-                if (record.dataJson != null && !TextUtils.isEmpty(record.dataJson)) {
-                    val parsed = vodInfoGson().fromJson<VodInfo>(record.dataJson, vodInfoType())
-                    parsed.sourceKey = record.sourceKey
-                    if (parsed.name != null) info = parsed
-                }
-            } catch (e: Exception) {
-                LOG.e("RoomHistoryRepository", e)
-            }
-            if (info != null) {
-                vodInfoList.add(info)
-            }
+        val all = dao.getAll(cid, Int.MAX_VALUE).mapNotNull { parseRecord(it) }
+        if (all.isEmpty()) return
+        val (_, dropped) = HistoryMerge.dedupe(all) { it.name }
+        if (dropped.isEmpty()) return
+        dropped.forEach { info ->
+            dao.getVodRecord(cid, info.sourceKey, info.id)?.let { dao.delete(it) }
         }
-        if (dao.getCount(cid) > hisNum) {
-            dao.reserver(cid, hisNum)
-        }
-        return vodInfoList
     }
 
     override fun insertVodRecord(sourceKey: String, vodInfo: VodInfo) {
@@ -103,6 +115,10 @@ internal class RoomHistoryRepository(
         record.updateTime = System.currentTimeMillis()
         record.dataJson = vodInfoGson().toJson(vodInfo)
         dao.insert(record)
+        val hisNum = HistoryHelper.getHisNum(KV.get(HawkConfig.HISTORY_NUM, 0))
+        if (dao.getCount(cid) > hisNum) {
+            dao.reserver(cid, hisNum)
+        }
     }
 
     override fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo) {

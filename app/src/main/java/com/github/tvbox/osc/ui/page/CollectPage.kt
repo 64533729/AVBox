@@ -63,6 +63,7 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.SubscribeList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -80,7 +81,16 @@ class CollectViewModel(
 
     init {
         EventBus.getDefault().register(this)
-        refresh()
+        viewModelScope.launch(Dispatchers.IO) {
+            AppBootstrap.subscriptionCid.drop(1).collect { recomputeUnavailableNow() }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            collect.observeAll().collect { list ->
+                items.value = list
+                recomputeUnavailableNow()
+                loading.value = false
+            }
+        }
         viewModelScope.launch {
             AppBootstrap.state.collect { boot ->
                 if (boot is AppBootstrap.Boot.Ready) {
@@ -97,16 +107,6 @@ class CollectViewModel(
     val scrollSignal = MutableStateFlow(0)
 
     val placementAnim = MutableStateFlow(false)
-
-    fun refresh(scrollToTop: Boolean = false) {
-        if (scrollToTop) placementAnim.value = false
-        viewModelScope.launch(Dispatchers.IO) {
-            items.value = collect.getAllVodCollect()
-            recomputeUnavailableNow()
-            loading.value = false
-            if (scrollToTop) scrollSignal.value++
-        }
-    }
 
     private fun recomputeUnavailableNow() {
         if (AppBootstrap.state.value !is AppBootstrap.Boot.Ready) return
@@ -128,11 +128,7 @@ class CollectViewModel(
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onRefreshEvent(event: RefreshEvent) {
-        if (event.type == RefreshEvent.TYPE_COLLECT_REFRESH) {
-            refresh(scrollToTop = true)
-        } else if (event.type == RefreshEvent.TYPE_API_URL_CHANGE) {
-            viewModelScope.launch(Dispatchers.IO) { recomputeUnavailableNow() }
-        } else if (event.type == RefreshEvent.TYPE_COLLECT_LAYOUT_CHANGE) {
+        if (event.type == RefreshEvent.TYPE_COLLECT_LAYOUT_CHANGE) {
             columns.value = KV.get(HawkConfig.COLLECT_COLUMNS, 3)
         }
     }
@@ -142,14 +138,12 @@ class CollectViewModel(
         placementAnim.value = true
         viewModelScope.launch(Dispatchers.IO) {
             list.forEach { item -> collect.deleteVodCollect(item.id) }
-            refresh()
         }
     }
 
     fun deleteAll() {
         viewModelScope.launch(Dispatchers.IO) {
             collect.deleteVodCollectAll()
-            refresh()
         }
     }
 }

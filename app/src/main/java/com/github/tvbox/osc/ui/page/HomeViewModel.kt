@@ -11,7 +11,6 @@ import com.github.tvbox.osc.bean.AbsXml
 import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.bean.MovieSort
 import com.github.tvbox.osc.bean.SourceBean
-import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.sourcedata.SourceRuntimeState
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.BootGuard
@@ -32,13 +31,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
 import org.json.JSONObject
 
 class HomeViewModel : ViewModel() {
@@ -116,13 +113,18 @@ class HomeViewModel : ViewModel() {
     )
 
     init {
-        EventBus.getDefault().register(this)
         scope.launch { sortViewModel.sortResult.flow.collect { onSortResult(it) } }
         scope.launch { recViewModel.sortResult.flow.collect { onRecResult(it) } }
         scope.launch {
             actionViewModel.actionResult.flow.collect { json ->
                 val msg = json?.optString("msg").orEmpty()
                 if (msg.isNotEmpty()) actionMessages.tryEmit(msg)
+            }
+        }
+        scope.launch {
+            AppBootstrap.subscriptionCid.drop(1).collect {
+                configReloading = true
+                reload()
             }
         }
         sources.value = ApiConfig.get().getSwitchSourceBeanList()
@@ -149,18 +151,9 @@ class HomeViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        EventBus.getDefault().unregister(this)
         val staleLoaders = ArrayList(loaders.values)
         loaders.clear()
         staleLoaders.forEach { it.release() }
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onRefreshEvent(event: RefreshEvent) {
-        if (event.type == RefreshEvent.TYPE_API_URL_CHANGE) {
-            configReloading = true
-            reload()
-        }
     }
 
     fun reload() {

@@ -269,21 +269,13 @@ class DetailActivity : BaseActivity(), PageHost {
             state == PlayState.BUFFERING ||
             state == PlayState.BUFFERED ||
             state == PlayState.PLAYING
-        val matched = accepted && isAudioContent()
-        LOG.i("echo-music auto-watch: state=$state accepted=$accepted matched=$matched")
-        return matched
+        return accepted && isAudioContent()
     }
 
     fun isAudioContent(): Boolean {
         val controller = PlaybackService.peek()?.controller() ?: return false
         val url = controller.webPlayUrl() ?: return false
-        val byUrl = PlaybackController.looksLikeAudioUrl(url)
-        val byTrack = controller.isAudioOnlyContent()
-        LOG.i(
-            "echo-music audio-content: byUrl=$byUrl audioOnlyContent=$byTrack"
-                + " url=" + url.substringBefore('?'),
-        )
-        return byUrl || byTrack
+        return PlaybackController.looksLikeAudioUrl(url) || controller.isAudioOnlyContent()
     }
 
     fun openMusicPlayer() {

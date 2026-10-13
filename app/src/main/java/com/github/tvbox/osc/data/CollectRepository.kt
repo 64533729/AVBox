@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.data
 
 import com.github.tvbox.osc.bean.VodInfo
+import kotlinx.coroutines.flow.Flow
 
 interface CollectRepository {
 
@@ -9,6 +10,8 @@ interface CollectRepository {
     fun isVodCollect(sourceKey: String?, vodId: String?): Boolean
 
     fun getAllVodCollect(): List<VodCollect>
+
+    fun observeAll(): Flow<List<VodCollect>>
 
     fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo)
 
@@ -31,6 +34,8 @@ internal class RoomCollectRepository(
     }
 
     override fun getAllVodCollect(): List<VodCollect> = collects().getAll()
+
+    override fun observeAll(): Flow<List<VodCollect>> = collects().observeAll()
 
     override fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo) {
         val cid = CurrentSubscription.cid()

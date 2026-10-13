@@ -12,12 +12,13 @@ import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
-import com.github.tvbox.osc.util.HistoryMerge
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.TrackMemory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -33,12 +34,30 @@ class HistoryViewModel(
 
     val incognito = MutableStateFlow(HistoryHelper.isIncognito())
 
+    private val reloadTick = MutableStateFlow(0)
+
     init {
         EventBus.getDefault().register(this)
-        refresh()
+        viewModelScope.launch(Dispatchers.IO) {
+            combine(reloadTick, AppBootstrap.subscriptionCid) { _, cid -> cid }
+                .flatMapLatest { cid -> history.observeVodRecords(cid) }
+                .collect { list ->
+                    val hidden = HistoryHelper.isIncognito()
+                    incognito.value = hidden
+                    items.value = if (hidden) emptyList() else list
+                    episodeTotals.value = if (hidden) emptyMap() else EpisodeTotals.snapshot()
+                    resolveSourceNames()
+                    loading.value = false
+                }
+        }
+        viewModelScope.launch {
+            PlaybackProgress.percents.collect { map ->
+                playedPercents.value = if (HistoryHelper.isIncognito()) emptyMap() else map
+            }
+        }
         viewModelScope.launch {
             AppBootstrap.state.collect { boot ->
-                if (boot is AppBootstrap.Boot.Ready) refresh()
+                if (boot is AppBootstrap.Boot.Ready) reloadTick.value++
             }
         }
     }
@@ -51,39 +70,15 @@ class HistoryViewModel(
 
     val placementAnim = MutableStateFlow(false)
 
-    fun refresh(scrollToTop: Boolean = false) {
-        if (HistoryHelper.isIncognito()) {
-            incognito.value = true
-            loading.value = false
-            items.value = emptyList()
-            episodeTotals.value = emptyMap()
-            playedPercents.value = emptyMap()
-            return
-        }
-        incognito.value = false
-        if (scrollToTop) placementAnim.value = false
-        viewModelScope.launch(Dispatchers.IO) {
-            val limit = HistoryHelper.getHisNum(KV.get(HawkConfig.HISTORY_NUM, 0))
-            val all = history.getAllVodRecord(limit)
-            if (HistoryMerge.isEnabled()) {
-                val (kept, dropped) = HistoryMerge.dedupe(all) { it.name }
-                dropped.forEach { history.deleteVodRecord(it.sourceKey, it) }
-                items.value = kept
-            } else {
-                items.value = all
-            }
-            episodeTotals.value = EpisodeTotals.snapshot()
-            playedPercents.value = PlaybackProgress.snapshot()
-            resolveSourceNames()
-            loading.value = false
-            if (scrollToTop) scrollSignal.value++
-        }
-    }
-
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onRefreshEvent(event: RefreshEvent) {
-        if (event.type == RefreshEvent.TYPE_HISTORY_REFRESH) refresh(scrollToTop = event.obj !is Boolean)
-        else if (event.type == RefreshEvent.TYPE_API_URL_CHANGE) refresh()
+        if (event.type != RefreshEvent.TYPE_HISTORY_REFRESH) return
+        placementAnim.value = false
+        scrollSignal.value++
+        viewModelScope.launch(Dispatchers.IO) {
+            history.sweepDuplicates()
+            reloadTick.value++
+        }
     }
 
     private var resolveJob: Job? = null
@@ -138,7 +133,6 @@ class HistoryViewModel(
                 WatchProgressStore.clearOwner(WatchProgressStore.ownerOf(item))
                 TrackMemory.delete(TrackMemory.contentKey(item.sourceKey, item.id))
             }
-            refresh()
         }
     }
 
@@ -148,7 +142,6 @@ class HistoryViewModel(
             history.deleteVodRecordAll()
             WatchProgressStore.clearAll()
             TrackMemory.deleteAll()
-            refresh()
         }
     }
 

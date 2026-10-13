@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.Color
 val ColorScheme.cardContainer: Color
     get() = surfaceBright
 
+val SuccessGreen: Color = Color(0xFF4CAF50)
+
 fun ColorScheme.toPureBlack(): ColorScheme = copy(
     background = Color.Black,
     surface = Color.Black,

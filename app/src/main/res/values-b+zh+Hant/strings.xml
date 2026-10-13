@@ -3,7 +3,6 @@
 
     <string name="settings_language">語言</string>
     <string name="settings_group_language_layout">語言與佈局</string>
-    <string name="settings_language_subtitle">切換應用程式的介面語言</string>
     <string name="settings_collect_columns">收藏頁佈局</string>
     <string name="settings_collect_columns_three">三列佈局</string>
     <string name="settings_collect_columns_two">雙列佈局</string>
@@ -343,10 +342,16 @@
     <string name="history_delete_title">刪除紀錄</string>
     <string name="history_delete_message">刪除「%1$s」的觀看紀錄？</string>
     <string name="history_delete_selected_message">確定刪除選中的 %1$d 條觀看紀錄嗎？</string>
-    <string name="history_last_watched">上次看到%1$s</string>
     <string name="source_unavailable">當前源不可用</string>
+    <string name="history_episode_num">第%1$d集</string>
+    <string name="history_see_percent">看到 %1$d%%</string>
     <string name="history_episode_progress">第%1$d集/共%2$d集</string>
     <string name="history_watched_percent">已看%1$d%%</string>
+    <string name="time_ago_just_now">剛剛</string>
+    <string name="time_ago_minutes">%1$d 分鐘前</string>
+    <string name="time_ago_hours">%1$d 小時前</string>
+    <string name="time_ago_days">%1$d 天前</string>
+    <string name="time_ago_months">%1$d 個月前</string>
 
     <string name="theme_color">主題顏色</string>
     <string name="theme_app_effects">應用效果</string>
@@ -486,9 +491,7 @@
     <string name="settings_hide_status_bar">隱藏狀態列</string>
     <string name="settings_hide_status_bar_subtitle">開啟後封面延伸至螢幕頂部</string>
     <string name="settings_nav_animation_disable">停用導覽動畫</string>
-    <string name="settings_nav_animation_disable_subtitle">開啟後將停用底部導覽的側滑動畫</string>
     <string name="settings_nav_live_hidden">導覽列隱藏直播</string>
-    <string name="settings_nav_live_hidden_subtitle">開啟後導覽列不再顯示直播入口</string>
     <string name="settings_auto_switch_line">自動換線</string>
     <string name="settings_m3u8_purify">M3U8 淨化</string>
     <string name="settings_danmu_switch">彈幕開關</string>

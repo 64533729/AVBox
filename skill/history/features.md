@@ -5725,6 +5725,66 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 
 **文档同步**：`skill/avbox-mobile-ui-spec.md` §4.8 追加一条（判据/机身/网格/半屏预算 + "别再改回 fillMaxHeight"）；`.codebuddy` / `.trae` 两镜像同位置同步。
 
+## 偏好设置页：两项开关副标题移除（2026-10-14，用户要求）
+
+**诉求**：移除偏好设置页「禁用导航动画」与「导航栏隐藏直播」两张选项卡片的副标题。
+
+**改动（2 文件）**：①`ui/page/PreferenceSettingsPage.kt` 两处 `SettingsSwitchRow` 删掉 `subtitle = stringResource(...)` 参数 —— `subtitle: String? = null` 本就可选，行高 `heightIn(min = 64.dp)` 不变，删后只剩标题行（与「无痕模式」同形态）；②四语字符串 `settings_nav_animation_disable_subtitle` / `settings_nav_live_hidden_subtitle` 一并删除（`values` / `values-en` / `values-b+zh+Hant` / `values-zh-rHK`）—— 跟随 2026-09-13「无痕模式」删副标题的先例，不留死资源。
+
+**验证**：`:app:assembleDebug` 绿（纯 UI/文案改动，按约定不跑单测）。**真机待走查**：两张卡只剩标题、无副标题文案（四语一致），开关与生效行为不变。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.9 两条开关行描述改为「无副标题」并登记副标题字符串已删；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## 历史页卡片改造：进度条下方「时间 · 站点名」+ 右侧圆形播放徽标（2026-10-14，用户给设计图要求对齐）
+
+**诉求**：把历史页卡片对齐用户给的参考图 —— 进度条**下方**显示「x 小时前」、右侧显示站点名称、播放控件图标用详情页那颗并用**圆形容器**包裹。三处歧义已问过用户并拍板：①圆形按钮**仅做展示、没有功能**；②**只改历史页**，追剧页 `FollowRow` 保持现状；③副标题「上次看到xx」保留不动（只在进度条下方新增一行）。
+
+**改动 5 文件**：①`bean/VodInfo.kt` 加 `updateTime: Long`（运行期装配字段）；②`data/HistoryRepository.kt` —— `vodInfoStrategy` 里排除 `updateTime`（同 `seriesFlags` 先例，**不污染历史 JSON**）+ `getAllVodRecord` 用 `record.updateTime` 回填；③新增 `util/TimeAgo.kt`（`timeAgoValueOf` 纯函数：刚刚 / x 分钟 / x 小时 / x 天 / x 个月，月按 30 天）+ `TimeAgoTest` 6 例；④`ui/page/HistoryRow.kt` —— 标题行**去掉右上源名胶囊**，进度条下方新增「x 小时前 · 源名」一行（`bodySmall`，源不可用整行走 `error` 色并附 `source_unavailable`），卡片右侧新增 44dp `primary` 圆底 + `player_ic_play` 22dp（无点击回调）；⑤四语 `time_ago_*` 5 条（香港差异层覆盖 `time_ago_days` = 「日前」）。
+
+**保留未动**：副标题「上次看到xx」、进度条右侧「第x集/共y集」、卡片圆角 16dp / 封面 64dp / 进度条 5dp 等既有尺寸。**站名由右上胶囊挪到底行**（避免两处重复），源不可用的红字提示语义随之一并搬到底行。
+
+**验证**：`:app:assembleDebug` 绿；`:app:testDebugUnitTest` **959 用例 / 0 失败 / 121 类**（+`TimeAgoTest` 6 例）。**未装机**。走查判据：①卡片底部一行显示「x 小时前 · 源名」；②右上不再有源名胶囊；③右侧圆形播放徽标与详情页播放胶囊同形（同 `player_ic_play` 图标）；④点圆钮无反应、点卡片仍进详情页；⑤源不可用时该行为 `error` 色。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.2 改写源名位置描述 + 追加 2026-10-14 条；`.codebuddy` / `.trae` 两镜像同位置同步。
+
+## 历史页卡片二轮微调：卡片/海报圆角 22dp、圆钮缩到 34dp（2026-10-14 同日二轮，用户指定）
+
+**诉求**：卡片圆角改 22dp、海报圆角也改 22dp、右侧圆形按钮直径缩小 10dp（44 → 34dp）。
+
+**改动（`ui/page/HistoryRow.kt` 单文件）**：①卡片圆角 16dp → **22dp** —— `Surface.shape` 与外层 `Row.clip` 两处**必须同值**，抽成私有常量 `HistoryCardCorner` 一处改就够；②海报圆角 8dp → **22dp**（常量 `HistoryPosterCorner`；海报本体仍 64dp × 96dp）；③播放徽标直径 `HistoryPlayBadgeSize` 44dp → **34dp**（**图标仍 22dp 未动**，如需同比缩到 ~18dp 需另行指定）。
+
+**验证**：`:app:assembleDebug` 绿（纯样式改动，按约定不跑单测）；已装 MuMu（`127.0.0.1:16384`，`Success`）。走查判据：①卡片四角与海报四角都是 22dp（海报 64dp 宽、圆角 22dp ⇒ 左右圆弧已接近胶囊感，属用户指定效果）；②右上圆钮 34dp、与详情页播放胶囊同图标同配色。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.2 —— 修正"28dp 圆角卡片"这个 2026-09-09 旧值（代码实际长期是 16dp），并在 2026-10-14 条补 ⑤ 圆角与 34dp 直径。⚠️ **自本次起不再同步 `.codebuddy` / `.trae` 镜像**（用户 2026-10-14 要求"我自己同步"）。
+
+**三轮（同日，装包后复看）**：用户看实机后要求「降到16dp」⇒ **海报圆角 22dp → 16dp**（`HistoryPosterCorner`），**卡片圆角保持 22dp 不动**。已重新 `:app:assembleDebug` + 装 MuMu（`Success`）。
+
+**四轮（同日）**：用户继续要求「海报改为12dp」⇒ **海报圆角 16dp → 12dp**（卡片仍 22dp）。海报 64dp × 96dp 下的圆角最终停在 12dp；参照值是圆角上限 = 宽度一半 32dp。`:app:assembleDebug` + 装 MuMu（`Success`）。
+
+**五轮（同日）**：用户要求「将上次看到1改为第xx集中间一个点看到 xx%」⇒ 卡片**第二行文案**改写为「**第xx集 · 看到 xx%**」。①新增四语 `history_episode_num`（第%1$d集）、`history_see_percent`（看到 %1$d%%），旧 `history_last_watched`（上次看到%1$s）**四语删除**（改后已无引用，grep 复核 0 命中）；②取向口径：集号 = `playIndex + 1`（**非数字集名回退 `playNote` 原文、无集号回退 `note`**，复用既有 `EpisodeTotals.isNumberedEpisode` 判定）；百分比 = `PlaybackProgress` 快照的**真实播放进度**，**无快照则整段不显示**（**不拿进度条的集进度顶替** —— 那样文字会与进度条互相矛盾）；两段用 `HistoryMetaSeparator`（`" · "`）拼接；③计算块从进度条前**上移**到 Column 顶部（第二行要用到集号判定），列布局由三段变**四段**（标题 / 第二行 / 进度条 / 时间·源名）；④**进度条右侧的「第x集/共y集」仍保留**（与第二行集号会有重复，用户知悉未要求删）。`:app:assembleDebug` 绿 + 装 MuMu（`Success`，`06:12:12`）。
+
+## 追剧页卡片圆角对齐历史页（2026-10-14，用户要求）
+
+**诉求**：追剧页卡片（`FollowRow`）圆角改 22dp、里面海报圆角改 **12dp**，"其他的不变"。
+
+**改动（`ui/page/FollowRow.kt` 单文件）**：①卡片圆角 16dp → **22dp**（`Surface.shape` 与外层 `Row.clip` 两处同源，抽常量 `FollowCardCorner`）；②海报圆角 8dp → **12dp**（常量 `FollowPosterCorner`）—— 与历史页卡片取同值（历史页：卡片 22dp / 海报 12dp）。**其余零改动**：标题行「已看/未看」⋮ 菜单、`ic_follow_update_time` 星期行与「21:00 更新」行、进度条 +「第X集/共Y集」、已看角标、编辑态 `SelectCircle` 全部未动。
+
+**验证**：`:app:assembleDebug` 绿（纯样式改动，按约定不跑单测）；装 MuMu（`Success`，`lastUpdateTime=2026-10-14 06:14:03`）。走查判据：卡片四角 22dp、海报四角 12dp，与历史页卡片观感一致。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.12 卡片 `FollowRow` 条补记「卡片 22dp / 海报 12dp」（该条原先只记了海报 8dp，没记卡片圆角）。
+
+## 追剧卡片「已看」指示改版：右上角状态点（2026-10-14，用户要求）
+
+**诉求**：已看的卡片改为在**右上角显示绿点**，没看的显示**红点**（用户点名用 material error）。
+
+**改动（2 文件）**：①`ui/theme/Color.kt` 新增绿色语义色 `val SuccessGreen: Color = Color(0xFF4CAF50)`（M3 无 success 色，项目此前只有取色种子 `theme_seed_green`，不能当语义色用）；②`ui/page/FollowRow.kt` —— **删掉海报右下角那枚 18dp `primary` 圆底 + `onPrimary` 对勾(`ic_check`)**，改为**标题行右侧、⋮ 左侧一颗 10dp 圆点**（新常量 `FollowStatusDotSize`）：`watched` 为真 ⇒ `SuccessGreen`，否则 ⇒ `colorScheme.error`；带 `Modifier.semantics { contentDescription }`，复用既有 `following_watched` / `following_not_watched` 字符串；⋮ 前的间距由 4dp 调成 8dp。
+
+**为什么放标题行内而不是卡片右上角 overlay**：右上角已被「已看/未看」⋮ 菜单占着；且该卡片有一条既有尺寸支点 ——「右侧文字列总高 ≈ 96dp、与海报等高」（2026-10-07 记录：往这列塞独占一行的元素会撑高卡片、用户会报"海报显小"）。点挂进标题行内不增加行数，尺寸支点不受影响。
+
+**验证**：`:app:assembleDebug` 绿（纯样式改动，按约定不跑单测）；装 MuMu（`Success`，`lastUpdateTime=2026-10-14 06:16:31`）。走查判据：①已看的卡右上角（⋮ 左侧）为绿点、未看的为红点；②点与会随筛选/菜单切换同步变色；③卡片高度未变、海报观感未变小；④点不可点、操作仍走 ⋮ 菜单。
+
+**文档同步**：`skill/avbox-mobile-ui-spec.md` §4.12 卡片 `FollowRow` 条把「已看角标 = 海报右下角对勾」整段改写为「右上状态点」，并作废原「放右下避开编辑态 `SelectCircle`」的理由。
+
 
 
 

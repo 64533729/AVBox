@@ -71,6 +71,8 @@ class VodInfo : Serializable {
     @JvmField
     var sourceUnavailable: Boolean = false
     @JvmField
+    var updateTime: Long = 0
+    @JvmField
     var playerCfg: String = ""
     @JvmField
     var reverseSort: Boolean = false

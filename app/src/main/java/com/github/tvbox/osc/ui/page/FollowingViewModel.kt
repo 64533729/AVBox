@@ -11,14 +11,12 @@ import com.github.tvbox.osc.data.FollowWatched
 import com.github.tvbox.osc.data.HistoryRepository
 import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.data.VodFollow
-import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.util.HistoryHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
 
 internal data class FollowEntry(
     val follow: VodFollow,
@@ -33,6 +31,7 @@ internal class FollowingViewModel(
 
     val loading = MutableStateFlow(true)
     val items = MutableStateFlow<List<FollowEntry>>(emptyList())
+    private val entries = MutableStateFlow<List<FollowEntry>>(emptyList())
     val episodeTotals = MutableStateFlow<Map<String, Int>>(emptyMap())
     val playedPercents = MutableStateFlow<Map<String, Int>>(emptyMap())
     val today = MutableStateFlow(FollowDays.todayIndex())
@@ -42,8 +41,24 @@ internal class FollowingViewModel(
     val selected = MutableStateFlow<Set<Int>>(emptySet())
 
     init {
-        EventBus.getDefault().register(this)
         refresh()
+        viewModelScope.launch(Dispatchers.IO) {
+            combine(entries, FollowWatched.state) { list, watched ->
+                list.map { entry ->
+                    entry.copy(
+                        watchedDays = watched[FollowWatched.ownerOf(entry.follow.sourceKey, entry.follow.vodId)].orEmpty(),
+                    )
+                }
+            }.collect { items.value = it; loading.value = false }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            PlaybackProgress.percents.collect { map ->
+                playedPercents.value = if (HistoryHelper.isIncognito()) emptyMap() else map
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            AppBootstrap.subscriptionCid.drop(1).collect { refresh() }
+        }
         viewModelScope.launch {
             AppBootstrap.state.collect { boot ->
                 if (boot is AppBootstrap.Boot.Ready) refresh()
@@ -51,20 +66,11 @@ internal class FollowingViewModel(
         }
     }
 
-    override fun onCleared() {
-        EventBus.getDefault().unregister(this)
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onRefreshEvent(event: RefreshEvent) {
-        if (event.type == RefreshEvent.TYPE_API_URL_CHANGE) refresh()
-    }
-
     fun refresh() {
         today.value = FollowDays.todayIndex()
         viewModelScope.launch(Dispatchers.IO) {
             val list = follows.getAll()
-            val entries = list.map { follow ->
+            entries.value = list.map { follow ->
                 FollowEntry(
                     follow = follow,
                     history = if (HistoryHelper.isIncognito()) {
@@ -75,15 +81,7 @@ internal class FollowingViewModel(
                     watchedDays = emptySet(),
                 )
             }
-            val watched = FollowWatched.snapshot(FollowWatched.weekStart())
-            items.value = entries.map { entry ->
-                entry.copy(
-                    watchedDays = watched[FollowWatched.ownerOf(entry.follow.sourceKey, entry.follow.vodId)].orEmpty(),
-                )
-            }
             episodeTotals.value = EpisodeTotals.snapshot()
-            playedPercents.value = PlaybackProgress.snapshot()
-            loading.value = false
         }
     }
 

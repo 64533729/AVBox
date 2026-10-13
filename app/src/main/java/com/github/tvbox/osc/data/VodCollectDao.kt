@@ -5,6 +5,7 @@ import androidx.room3.Delete
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VodCollectDao {
@@ -13,6 +14,9 @@ interface VodCollectDao {
 
     @Query("select * from vodCollect  order by updateTime desc")
     fun getAll(): List<VodCollect>
+
+    @Query("select * from vodCollect  order by updateTime desc")
+    fun observeAll(): Flow<List<VodCollect>>
 
     @Query("select * from vodCollect where `id`=:id")
     fun getVodCollect(id: Int): VodCollect?

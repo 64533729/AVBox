@@ -179,7 +179,7 @@ class PlaybackStarter(private val host: Host) {
         )
         host.setProgressKey(vod.sourceKey + vod.id + vod.playFlag + vod.playIndex + vs.name)
         if (!prepareOnly) {
-            PlaybackProgress.onEpisodeStartNoScroll(host.vod())
+            PlaybackProgress.onEpisodeStart(host.vod())
         }
         host.startResolvePlayUrlTimeout()
         if (st.pendingInheritProgress > 0 && !TextUtils.isEmpty(st.pendingInheritKey)) {

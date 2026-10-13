@@ -137,7 +137,6 @@ fun PreferenceSettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel =
                     SettingsSwitchRow(
                         title = stringResource(R.string.settings_nav_animation_disable),
                         leadingIconRes = R.drawable.ic_pref_nav_animation,
-                        subtitle = stringResource(R.string.settings_nav_animation_disable_subtitle),
                         checked = state.navAnimationDisabled,
                         onCheckedChange = { vm.put(HawkConfig.NAV_ANIMATION_DISABLED, it) },
                     )
@@ -146,7 +145,6 @@ fun PreferenceSettingsScreen(onNavigateBack: () -> Unit, vm: SettingsViewModel =
                     SettingsSwitchRow(
                         title = stringResource(R.string.settings_nav_live_hidden),
                         leadingIconRes = R.drawable.ic_pref_nav_live_hidden,
-                        subtitle = stringResource(R.string.settings_nav_live_hidden_subtitle),
                         checked = state.navLiveHidden,
                         onCheckedChange = { vm.put(HawkConfig.NAV_LIVE_HIDDEN, it) },
                     )
@@ -283,7 +281,6 @@ private fun LanguageRow() {
     SettingsOptionMenuRow(
         title = stringResource(R.string.settings_language),
         leadingIconRes = R.drawable.ic_pref_language,
-        subtitle = stringResource(R.string.settings_language_subtitle),
         valueText = stringResource(languageLabelRes(current)),
         options = available.map { stringResource(languageLabelRes(it)) },
         selectedIndex = available.indexOf(current),
