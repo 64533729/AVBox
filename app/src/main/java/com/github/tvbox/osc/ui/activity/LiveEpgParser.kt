@@ -160,7 +160,8 @@ internal object LiveEpgParser {
         val compactName = trimName.replace("-", "").replace(" ", "")
         val cctvMatcher = Pattern.compile("(?i)^(CCTV\\d+(?:\\+|K)?)(?:[\\u4e00-\\u9fa5].*|$)").matcher(compactName)
         if (cctvMatcher.matches()) {
-            return cctvMatcher.group(1)!!.uppercase(Locale.ROOT)
+            val matched = cctvMatcher.group(1)
+            if (!matched.isNullOrEmpty()) return matched.uppercase(Locale.ROOT)
         }
         if (compactName.uppercase(Locale.ROOT).startsWith("CCTV")) {
             return compactName.uppercase(Locale.ROOT)
@@ -307,7 +308,7 @@ internal object LiveEpgParser {
         val matcher = CATCHUP_TOKEN_PATTERN.matcher(source)
         val result = StringBuffer()
         while (matcher.find()) {
-            val token = matcher.group(1)!!
+            val token = matcher.group(1) ?: continue
             matcher.appendReplacement(result, Matcher.quoteReplacement(formatCatchupToken(token, epg)))
         }
         matcher.appendTail(result)
@@ -316,12 +317,14 @@ internal object LiveEpgParser {
     internal fun formatCatchupToken(token: String, epg: Epginfo): String {
         val matcher = CATCHUP_TAG_PATTERN.matcher(token)
         if (!matcher.find()) return ""
-        val tag = matcher.group(1)!!
-        if (tag.startsWith("utcend:")) return (epg.enddateTime!!.time / 1000).toString()
-        if (tag.startsWith("utc:")) return (epg.startdateTime!!.time / 1000).toString()
+        val tag = matcher.group(1) ?: return ""
+        val startTime = epg.startdateTime
+        val endTime = epg.enddateTime
+        if (tag.startsWith("utcend:")) return if (endTime == null) "" else (endTime.time / 1000).toString()
+        if (tag.startsWith("utc:")) return if (startTime == null) "" else (startTime.time / 1000).toString()
         val bracketIndex = tag.indexOf(')')
-        if (tag.startsWith("(b") && bracketIndex >= 0) return formatCatchupTime(epg.startdateTime!!, tag.substring(bracketIndex + 1))
-        if (tag.startsWith("(e") && bracketIndex >= 0) return formatCatchupTime(epg.enddateTime!!, tag.substring(bracketIndex + 1))
+        if (tag.startsWith("(b") && bracketIndex >= 0 && startTime != null) return formatCatchupTime(startTime, tag.substring(bracketIndex + 1))
+        if (tag.startsWith("(e") && bracketIndex >= 0 && endTime != null) return formatCatchupTime(endTime, tag.substring(bracketIndex + 1))
         return ""
     }
     internal fun formatCatchupTime(time: Date, pattern: String): String {
@@ -334,8 +337,10 @@ internal object LiveEpgParser {
         }
     }
     internal fun getCatchupDurationSeconds(epg: Epginfo?): Int {
-        if (epg == null || epg.startdateTime == null || epg.enddateTime == null) return 0
-        val duration = max(0L, epg.enddateTime!!.time - epg.startdateTime!!.time) / 1000
+        if (epg == null) return 0
+        val startTime = epg.startdateTime ?: return 0
+        val endTime = epg.enddateTime ?: return 0
+        val duration = max(0L, endTime.time - startTime.time) / 1000
         return if (duration > Int.MAX_VALUE) Int.MAX_VALUE else duration.toInt()
     }
     internal fun durationToString(duration: Int): String {

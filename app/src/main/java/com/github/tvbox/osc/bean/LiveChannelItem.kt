@@ -50,7 +50,7 @@ class LiveChannelItem {
     var channelUrls: ArrayList<String>? = null
         set(value) {
             field = value
-            sourceNum = value!!.size
+            sourceNum = value?.size ?: 0
         }
 
     @JvmField
@@ -63,10 +63,10 @@ class LiveChannelItem {
     var include_back: Boolean = false
 
     val url: String
-        get() = channelUrls!![sourceIndex]
+        get() = channelUrls?.getOrNull(sourceIndex) ?: ""
 
     val sourceName: String
-        get() = channelSourceNames!![sourceIndex]
+        get() = channelSourceNames?.getOrNull(sourceIndex) ?: ""
 
     val headers: MutableMap<String, String>
         get() {
@@ -125,10 +125,10 @@ class LiveChannelItem {
         if (o == null || javaClass != o.javaClass) return false
         val that = o as LiveChannelItem
         return Objects.equals(channelName, that.channelName) &&
-            Objects.equals(channelUrls!![sourceIndex], that.url)
+            Objects.equals(url, that.url)
     }
 
     override fun hashCode(): Int {
-        return Objects.hash(channelName, channelUrls!![sourceIndex])
+        return Objects.hash(channelName, url)
     }
 }

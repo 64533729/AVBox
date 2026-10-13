@@ -53,8 +53,9 @@ class PlaybackController {
         cancelInFlight()
         timeouts.cancelPendingCompletionDrop()
         resolver.resetGen()
-        val contentChanged = currentSession == null ||
-            !TextUtils.equals(currentSession!!.playbackKey(), session.playbackKey())
+        val previousSession = currentSession
+        val contentChanged = previousSession == null ||
+            !TextUtils.equals(previousSession.playbackKey(), session.playbackKey())
         if (contentChanged) {
             music.clearArtworks()
         }
@@ -449,8 +450,8 @@ class PlaybackController {
     }
 
     private fun getResolvePlayUrlTimeoutMs(): Long {
-        if (sourceBean() == null) return PlaybackTimeouts.RESOLVE_PLAY_URL_TIMEOUT_MS
-        return Math.max(PlaybackTimeouts.RESOLVE_PLAY_URL_TIMEOUT_MS, (sourceBean()!!.getPlayTimeoutSeconds() + 1L) * 1000L)
+        val bean = sourceBean() ?: return PlaybackTimeouts.RESOLVE_PLAY_URL_TIMEOUT_MS
+        return Math.max(PlaybackTimeouts.RESOLVE_PLAY_URL_TIMEOUT_MS, (bean.getPlayTimeoutSeconds() + 1L) * 1000L)
     }
 
     fun startSwitchLinePlayTimeout() {
@@ -608,9 +609,10 @@ class PlaybackController {
     }
 
     fun publishTitle() {
-        if (view == null || vod() == null) return
-        val vs = currentSeries(vod()!!.playFlag, vod()!!.playIndex) ?: return
-        view?.setTitle(vod()!!.name + " " + vs.name)
+        if (view == null) return
+        val currentVod = vod() ?: return
+        val vs = currentSeries(currentVod.playFlag, currentVod.playIndex) ?: return
+        view?.setTitle(currentVod.name + " " + vs.name)
     }
 
     private val starter: PlaybackStarter = PlaybackStarter(object : PlaybackStarter.Host {

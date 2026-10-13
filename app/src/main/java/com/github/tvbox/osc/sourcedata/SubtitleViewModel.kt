@@ -124,7 +124,7 @@ class SubtitleViewModel : ViewModel() {
                     setSearchListData(data, page <= 1, true)
                     val pages = doc.select(".pagelinkcard a")
                     if (pages.size > 0) {
-                        val ps = pages.last()!!.text().split("/", limit = 2)
+                        val ps = pages.last()?.text()?.split("/", limit = 2).orEmpty()
                         if (ps.size == 2 && !TextUtils.isEmpty(ps[1])) {
                             ps[1].trim { it <= ' ' }.toInt()
                         } else -1
@@ -206,13 +206,13 @@ class SubtitleViewModel : ViewModel() {
     }
 
     private fun containsSearchWord(subtitleTitle: String?, searchWord: String?): Boolean {
-        if (TextUtils.isEmpty(subtitleTitle) || TextUtils.isEmpty(searchWord)) return false
-        return subtitleTitle!!.lowercase(Locale.ROOT).contains(searchWord!!.lowercase(Locale.ROOT))
+        if (subtitleTitle.isNullOrEmpty() || searchWord.isNullOrEmpty()) return false
+        return subtitleTitle.lowercase(Locale.ROOT).contains(searchWord.lowercase(Locale.ROOT))
     }
 
     private fun isSupportedSubtitleFile(fileName: String?): Boolean {
-        if (TextUtils.isEmpty(fileName)) return false
-        val lower = fileName!!.lowercase(Locale.ROOT)
+        if (fileName.isNullOrEmpty()) return false
+        val lower = fileName.lowercase(Locale.ROOT)
         return lower.endsWith(".srt") ||
             lower.endsWith(".ass") ||
             lower.endsWith(".stl") ||
@@ -222,7 +222,7 @@ class SubtitleViewModel : ViewModel() {
     private fun getSubtitleUrlFromAssrt(subtitle: Subtitle, subtitleLoader: SubtitleLoader, onFailed: Runnable?) {
         val ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.54 Safari/537.36"
         val request = Request.Builder()
-            .url(subtitle.url!!)
+            .url(requireNotNull(subtitle.url) { "subtitle url missing" })
             .get()
             .addHeader("Referer", "https://secure.assrt.net")
             .addHeader("User-Agent", ua)

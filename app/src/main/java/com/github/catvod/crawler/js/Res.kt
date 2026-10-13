@@ -1,6 +1,5 @@
 package com.github.catvod.crawler.js
 
-import android.text.TextUtils
 import android.util.Base64
 
 import com.google.gson.Gson
@@ -34,7 +33,8 @@ class Res {
     }
 
     fun getContent(): String {
-        return if (TextUtils.isEmpty(content)) "" else content!!
+        val value = content
+        return if (value.isNullOrEmpty()) "" else value
     }
 
     private fun getHeaders(): JsonElement? {
@@ -48,7 +48,7 @@ class Res {
     fun getContentType(): String {
         val header = getHeader()
         val keys = Arrays.asList("Content-Type", "content-type")
-        for (key in keys) if (header.containsKey(key)) return header[key]!!
+        for (key in keys) header[key]?.let { return it }
         return "application/octet-stream"
     }
 

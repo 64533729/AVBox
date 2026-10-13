@@ -177,7 +177,7 @@ private fun importLocalConfig(context: Context, uri: Uri): LocalConfigImport? {
     val data = readBytes(context, uri, MAX_CONFIG_SIZE) ?: return null
     val refs = relativeRefs(String(data, Charsets.UTF_8))
     val configDir = File(FileUtils.getExternalFilesPath(), "config")
-    val dir = if (refs.isEmpty()) configDir else File(configDir, MD5.encode(uri.toString())!!)
+    val dir = if (refs.isEmpty()) configDir else File(configDir, requireNotNull(MD5.encode(uri.toString())) { "md5 of uri failed" })
     val file = File(dir, if (refs.isEmpty()) copyFileName(context, uri) else getDisplayName(context, uri))
     if (!writeBytes(file, data)) return null
     val sourceDir = path?.let { File(it).parentFile }
@@ -189,7 +189,7 @@ private fun importLocalConfig(context: Context, uri: Uri): LocalConfigImport? {
 private fun importLocalPySpider(context: Context, uri: Uri, pyName: String): LocalConfigImport? {
     val storageRoot = Environment.getExternalStorageDirectory().absolutePath
     val data = readBytes(context, uri, MAX_CONFIG_SIZE) ?: return null
-    val digest = MD5.encode(uri.toString())!!
+    val digest = requireNotNull(MD5.encode(uri.toString())) { "md5 of uri failed" }
     val dir = File(File(FileUtils.getExternalFilesPath(), "config"), digest)
     val pyFile = File(dir, "spider_${digest.take(8)}.py")
     if (!writeBytes(pyFile, data)) return null

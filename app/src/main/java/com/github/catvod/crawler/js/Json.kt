@@ -55,7 +55,7 @@ class Json {
         @JvmStatic
         fun safeObject(element: JsonElement?): JsonObject {
             try {
-                val source = element!!
+                val source = element ?: return JsonObject()
                 return if (source.isJsonPrimitive) JsonParser.parseString(source.asJsonPrimitive.asString).asJsonObject else source.asJsonObject
             } catch (e: Exception) {
                 return JsonObject()

@@ -119,7 +119,7 @@ class PlaybackStarter(private val host: Host) {
         host.resolverNextGen()
         host.invalidatePreload()
         host.view()?.hidePreloadReadyTip()
-        if (host.vod() == null) return
+        val vod = host.vod() ?: return
         val kernelPresent = host.view()?.mediaPlayer() != null
         val reusePlayer = if (prepareOnly) {
             false
@@ -136,7 +136,7 @@ class PlaybackStarter(private val host: Host) {
             host.view()?.onNewPlayStarted(sameContentRestart)
             host.view()?.clearArtwork()
         }
-        val vs = host.currentSeries(host.vod()!!.playFlag, host.vod()!!.playIndex)
+        val vs = host.currentSeries(vod.playFlag, vod.playIndex)
         if (vs == null) {
             host.handleResolvePlayUrlFailed(PlaybackController.str(R.string.player_get_info_error))
             return
@@ -174,10 +174,10 @@ class PlaybackStarter(private val host: Host) {
             ImgUtil.clearMemoryCache()
         }
         host.setSubtitleCacheKey(
-            host.vod()!!.sourceKey + "-" + host.vod()!!.id + "-" + host.vod()!!.playFlag + "-"
-                + host.vod()!!.playIndex + "-" + vs.name + "-subt"
+            vod.sourceKey + "-" + vod.id + "-" + vod.playFlag + "-"
+                + vod.playIndex + "-" + vs.name + "-subt"
         )
-        host.setProgressKey(host.vod()!!.sourceKey + host.vod()!!.id + host.vod()!!.playFlag + host.vod()!!.playIndex + vs.name)
+        host.setProgressKey(vod.sourceKey + vod.id + vod.playFlag + vod.playIndex + vs.name)
         if (!prepareOnly) {
             PlaybackProgress.onEpisodeStartNoScroll(host.vod())
         }
@@ -198,18 +198,18 @@ class PlaybackStarter(private val host: Host) {
             host.view()?.setSubtitleViewVisible(false)
         }
 
-        if (Jianpian.isJpUrl(vs.url!!)) {
-            val jpUrl = vs.url
+        val seriesUrl = requireNotNull(vs.url)
+        if (Jianpian.isJpUrl(seriesUrl)) {
             host.view()?.showParse(false)
-            if (vs.url!!.startsWith("tvbox-xg:")) {
-                playUrl(Jianpian.JPUrlDec(jpUrl!!.substring(9))!!, null)
+            if (seriesUrl.startsWith("tvbox-xg:")) {
+                playUrl(requireNotNull(Jianpian.JPUrlDec(seriesUrl.substring(9))), null)
             } else {
-                playUrl(Jianpian.JPUrlDec(jpUrl!!)!!, null)
+                playUrl(requireNotNull(Jianpian.JPUrlDec(seriesUrl)), null)
             }
             return
         }
         val thunderGen = host.resolverCurrentGen()
-        if (Thunder.play(vs.url!!, object : Thunder.ThunderCallback {
+        if (Thunder.play(seriesUrl, object : Thunder.ThunderCallback {
                 override fun status(code: Int, info: String) {
                     host.view()?.showTip(info, code >= 0, code < 0)
                 }
@@ -229,13 +229,14 @@ class PlaybackStarter(private val host: Host) {
         if (host.preloadConsumeResult(host.progressKey())) return
         val svm = host.sourceViewModel()
         if (svm != null) {
-            svm.getPlay(host.sourceKey(), host.vod()!!.playFlag, host.progressKey(), vs.url, host.subtitleCacheKey())
+            svm.getPlay(host.sourceKey(), vod.playFlag, host.progressKey(), vs.url, host.subtitleCacheKey())
         }
     }
 
     private fun isIdleKernelReusable(kernelPresent: Boolean): Boolean {
         if (!kernelPresent) return false
-        return host.view()!!.playState() == PlayState.IDLE
+        val bridge = host.view() ?: return false
+        return bridge.playState() == PlayState.IDLE
     }
 
     fun isCrossContentReuseAllowed(): Boolean {
@@ -275,7 +276,8 @@ class PlaybackStarter(private val host: Host) {
             goPlayUrl(target, headers)
             return
         }
-        if (host.vod() != null && DefaultConfig.noAd(host.vod()!!.playFlag)) {
+        val vod = host.vod()
+        if (vod != null && DefaultConfig.noAd(vod.playFlag)) {
             goPlayUrl(target, headers)
             return
         }
@@ -326,20 +328,22 @@ class PlaybackStarter(private val host: Host) {
             if (host.view() == null) return@Runnable
             var targetUrl = finalUrl
             try {
-                val playerType = host.playerCfg()!!.getInt("pl")
+                val playerType = requireNotNull(host.playerCfg()).getInt("pl")
                 if (playerType >= 10 && PlayerHelper.getPlayerExist(playerType)) {
                     host.view()?.releasePlayer()
-                    val series = if (host.vod() == null || host.vod()!!.seriesMap == null) {
+                    val vod = host.vod()
+                    val seriesMap = vod?.seriesMap
+                    val series = if (vod == null || seriesMap == null) {
                         null
                     } else {
-                        host.vod()!!.seriesMap!![host.vod()!!.playFlag]
+                        seriesMap[vod.playFlag]
                     }
-                    val vs = if (series == null || host.vod()!!.playIndex < 0 || host.vod()!!.playIndex >= series.size) {
+                    val vs = if (vod == null || series == null || vod.playIndex < 0 || vod.playIndex >= series.size) {
                         null
                     } else {
-                        series[host.vod()!!.playIndex]
+                        series[vod.playIndex]
                     }
-                    val playTitle = host.vod()!!.name + if (vs == null) "" else " " + vs.name
+                    val playTitle = requireNotNull(vod).name + if (vs == null) "" else " " + vs.name
                     host.view()?.showTip(PlaybackController.str(R.string.player_call_external_play, PlayerHelper.getPlayerName(playerType)), true, false)
                     val progress = host.getSavedProgress(host.progressKey())
                     val callResult = host.view()?.playExternalPlayer(
@@ -364,7 +368,7 @@ class PlaybackStarter(private val host: Host) {
                 || targetUrl.contains(".mpd") || targetUrl.contains("type=mpd")
             if (targetUrl.startsWith("data:application/dash+xml;base64,")) {
                 host.view()?.applyPlayerConfigToView(2)
-                App.getInstance()!!.setDashData(targetUrl.split("base64,")[1])
+                requireNotNull(App.getInstance()) { "app instance not ready" }.setDashData(targetUrl.split("base64,")[1])
                 targetUrl = ControlManager.get().getAddress(true) + "dash/proxy.mpd"
             } else if (targetUrl.contains(".mpd") || targetUrl.contains("type=mpd")) {
                 host.view()?.applyPlayerConfigToView(2)

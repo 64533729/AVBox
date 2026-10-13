@@ -131,7 +131,7 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
 
     override fun applyPlayerConfigToView(forceKernel: Int) {
         val view = container.mVideoView ?: return
-        PlayerHelper.updateCfg(view, container.scheduler.playerCfg()!!)
+        PlayerHelper.updateCfg(view, requireNotNull(container.scheduler.playerCfg()) { "player cfg missing in bridge" })
     }
 
     override fun useTextureRenderForAudio() {
@@ -167,7 +167,7 @@ class PlayContainerViewBridge(private val container: PlayContainer) : PlaybackVi
             LOG.i("echo-ignore stale m3u8 result")
             return
         }
-        playM3u8(url, headers!!)
+        container.mController?.playM3u8(url, headers)
     }
 
     override fun startVideoPlayback(

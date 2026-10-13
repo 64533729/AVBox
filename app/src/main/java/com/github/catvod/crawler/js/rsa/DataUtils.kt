@@ -11,7 +11,7 @@ class DataUtils {
 
         @JvmStatic
         fun base64Decode(data: String?): ByteArray {
-            return Base64.decode(data!!.toByteArray(Charset.defaultCharset()), Base64.NO_WRAP)
+            return Base64.decode(requireNotNull(data) { "base64 data is null" }.toByteArray(Charset.defaultCharset()), Base64.NO_WRAP)
         }
 
         @JvmStatic

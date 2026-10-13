@@ -80,7 +80,7 @@ object Thunder {
                 cache.mkdirs()
             if (threadPool != null) {
                 try {
-                    threadPool!!.shutdownNow()
+                    threadPool?.shutdownNow()
                     threadPool = null
                 } catch (th: Throwable) {
                     LOG.e("Thunder", "thread pool shutdown failed", th)
@@ -109,7 +109,7 @@ object Thunder {
         playList = ArrayList()
         ed2kList = ArrayList()
         val urlMap = HashMap<Int, String>()
-        threadPool!!.execute(ParseTask(urlBean, urlMap, callback))
+        threadPool?.execute(ParseTask(urlBean, urlMap, callback))
     }
 
     private class ParseTask(
@@ -119,13 +119,15 @@ object Thunder {
     ) : Runnable {
 
         override fun run() {
-            for (idx in 0 until urlBean!!.infoList!!.size) {
-                val urlInfo: Movie.Video.UrlBean.UrlInfo? = urlBean!!.infoList!![idx]
+            val infoList = urlBean?.infoList ?: return
+            val playList = requireNotNull(Thunder.playList) { "thunder play list missing" }
+            for (idx in 0 until infoList.size) {
+                val urlInfo: Movie.Video.UrlBean.UrlInfo? = infoList[idx]
                 if (urlInfo != null) {
                     var url = ""
-                    for (infoBean in urlInfo.beanList!!) {
+                    for (infoBean in urlInfo.beanList.orEmpty()) {
                         var isParse = false
-                        url = infoBean.url!!
+                        url = infoBean.url.orEmpty()
                         if (Thunder.isMagnet(url) || Thunder.isThunder(url) || Thunder.isTorrent(url)) {
                             if (Thunder.isThunder(url)) url = XLDownloadManager.getInstance().parserThunderUrl(url)
                             val link = if (Thunder.isThunder(url)) XLDownloadManager.getInstance().parserThunderUrl(url) else url
@@ -171,8 +173,8 @@ object Thunder {
                                                         for (sub in mSubFileInfo) {
                                                             if (Thunder.isMedia(sub.mFileName) && sub.mFileSize > 1048576L * 30) {
                                                                 sub.torrentPath = cache.absolutePath
-                                                                Thunder.playList!!.add(sub.mFileName + "\$tvbox-torrent:" + Thunder.torrentFileInfoArrayList!!.size)
-                                                                Thunder.torrentFileInfoArrayList!!.add(sub)
+                                                                playList.add(sub.mFileName + "\$tvbox-torrent:" + (Thunder.torrentFileInfoArrayList?.size ?: 0))
+                                                                Thunder.torrentFileInfoArrayList?.add(sub)
                                                             }
                                                         }
                                                         isParse = true
@@ -198,7 +200,7 @@ object Thunder {
                                 }
                             }
                         } else {
-                            url = infoBean.url!!
+                            url = infoBean.url.orEmpty()
                             if (Thunder.isThunder(url)) url = XLDownloadManager.getInstance().parserThunderUrl(url)
                             if (Thunder.isNetworkDownloadTask(url)) {
                                 Thunder.task_url = url
@@ -206,16 +208,16 @@ object Thunder {
                                     continue
                                 }
                                 Thunder.name = XLTaskHelper.instance().getFileName(Thunder.task_url)
-                                Thunder.playList!!.add(Thunder.name + "\$tvbox-oth:" + Thunder.ed2kList!!.size)
-                                Thunder.ed2kList!!.add(Thunder.task_url)
+                                playList.add(Thunder.name + "\$tvbox-oth:" + (Thunder.ed2kList?.size ?: 0))
+                                Thunder.ed2kList?.add(Thunder.task_url)
                                 isParse = true
                             }
                         }
-                        if (!isParse) Thunder.playList!!.add(infoBean.name + "\$" + infoBean.url)
+                        if (!isParse) playList.add(infoBean.name + "\$" + infoBean.url)
                     }
-                    if (Thunder.playList!!.size > 0) {
-                        urlMap.put(idx, TextUtils.join("#", Thunder.playList!!))
-                        Thunder.playList!!.clear()
+                    if (playList.isNotEmpty()) {
+                        urlMap.put(idx, TextUtils.join("#", playList))
+                        playList.clear()
                     }
                 }
             }
@@ -232,12 +234,12 @@ object Thunder {
     fun play(url: String, callback: ThunderCallback): Boolean {
         if (url.startsWith("tvbox-torrent:")) {
             val idx = Integer.parseInt(url.substring(14))
-            val info = torrentFileInfoArrayList!!.get(idx)
+            val info = requireNotNull(torrentFileInfoArrayList?.getOrNull(idx)) { "thunder torrent info missing" }
             if (currentTask > 0) {
                 XLTaskHelper.instance().stopTask(currentTask)
                 currentTask = 0L
             }
-            threadPool!!.execute(object : Runnable {
+            threadPool?.execute(object : Runnable {
                 override fun run() {
                     val torrentName = File(info.torrentPath).name
                     val cache = cacheRoot + File.separator + torrentName.substring(0, torrentName.lastIndexOf("."))
@@ -276,12 +278,12 @@ object Thunder {
         if (url.startsWith("tvbox-oth:")) {
             stop(false)
             val idx = Integer.parseInt(url.substring(10))
-            task_url = ed2kList!!.get(idx)
+            task_url = requireNotNull(ed2kList?.getOrNull(idx)) { "thunder ed2k url missing" }
             name = XLTaskHelper.instance().getFileName(task_url)
             localPath = (File(cacheRoot + File.separator + "temp", FileUtils.getFileNameWithoutExt(name))).toString() + "/"
             currentTask = XLTaskHelper.instance().addThunderTask(task_url, localPath, null)
 
-            threadPool!!.execute(object : Runnable {
+            threadPool?.execute(object : Runnable {
                 override fun run() {
 
                     var count = 20
@@ -308,7 +310,7 @@ object Thunder {
         }
         if (isEd2k(url) || isFtp(url)) {
             if (threadPool == null) {
-                init(AppContextHolder.context()!!)
+                init(requireNotNull(AppContextHolder.context()) { "app context not initialized" })
                 threadPool = Executors.newSingleThreadExecutor()
             }
             if (currentTask > 0) {
@@ -320,7 +322,7 @@ object Thunder {
             localPath = (File(cacheRoot + File.separator + "temp", FileUtils.getFileNameWithoutExt(name))).toString() + "/"
             currentTask = XLTaskHelper.instance().addThunderTask(task_url, localPath, null)
 
-            threadPool!!.execute(object : Runnable {
+            threadPool?.execute(object : Runnable {
                 override fun run() {
 
                     var count = 20
@@ -331,8 +333,8 @@ object Thunder {
                             break
                         }
                         val playUrl = getPlayUrl()
-                        if (!TextUtils.isEmpty(playUrl)) {
-                            callback.play(playUrl!!)
+                        if (!playUrl.isNullOrEmpty()) {
+                            callback.play(playUrl)
                             return
                         }
                         try {
@@ -373,7 +375,7 @@ object Thunder {
 
     @JvmStatic
     fun isSupportUrl(url: String?): Boolean {
-        val u = url!!
+        val u = url ?: return false
         return isMagnet(u) || isThunder(u) || isTorrent(u)
     }
 

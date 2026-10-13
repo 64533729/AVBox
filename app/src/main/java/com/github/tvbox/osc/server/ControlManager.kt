@@ -22,8 +22,9 @@ class ControlManager private constructor() {
         if (mServer?.isStarting() == true) {
             return
         }
+        val context = requireNotNull(mContext) { "control manager context not initialized" }
         do {
-            val server = RemoteServer(RemoteServer.serverPort, mContext!!)
+            val server = RemoteServer(RemoteServer.serverPort, context)
             mServer = server
             try {
                 server.start()
@@ -59,7 +60,7 @@ class ControlManager private constructor() {
                     }
                 }
             }
-            return instance!!
+            return requireNotNull(instance) { "control manager instance missing" }
         }
 
         @JvmStatic

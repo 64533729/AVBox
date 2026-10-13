@@ -37,8 +37,8 @@ object SourceHelper {
     val PREPARE_POOL: ExecutorService = Executors.newFixedThreadPool(3)
 
     suspend fun siteGet(sourceBean: SourceBean, init: HttpRequest.() -> Unit = {}): String {
-        return Http.get(sourceBean.api!!) {
-            for ((key, value) in sourceBean.header!!) {
+        return Http.get(requireNotNull(sourceBean.api) { "source api missing" }) {
+            for ((key, value) in sourceBean.header.orEmpty()) {
                 headers(key, value)
             }
             init()
@@ -55,8 +55,8 @@ object SourceHelper {
     }
 
     private fun containsDouban(value: String?): Boolean {
-        if (TextUtils.isEmpty(value)) return false
-        val lower = value!!.lowercase(Locale.getDefault())
+        if (value.isNullOrEmpty()) return false
+        val lower = value.lowercase(Locale.getDefault())
         return lower.contains("douban") || value.contains("豆瓣")
     }
 
@@ -80,7 +80,7 @@ object SourceHelper {
                 val infoList = video.urlBean?.infoList
                 if (infoList != null) {
                     for (urlInfo in infoList) {
-                        val urls = urlInfo.urls!!
+                        val urls = urlInfo.urls ?: continue
                         val str: Array<String> = if (urls.contains("#")) RegexUtils.getPattern("#").split(urls) else arrayOf(urls)
                         val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()
                         for (s in str) {
@@ -103,10 +103,10 @@ object SourceHelper {
 
     @JvmStatic
     fun getFixUrl(extendCache: ConcurrentHashMap<String, String>, gson: Gson, extend: String?, timeoutSeconds: Long): String? {
-        if (TextUtils.isEmpty(extend)) return ""
-        val url = extend!!
+        if (extend.isNullOrEmpty()) return ""
+        val url = extend
         if (!url.startsWith("http")) return url
-        val key = MD5.string2MD5(url)!!
+        val key = requireNotNull(MD5.string2MD5(url)) { "md5 of extend url failed" }
         if (extendCache.containsKey(key)) {
             LOG.i("echo-getFixUrl Cache")
             return extendCache[key]
@@ -117,11 +117,12 @@ object SourceHelper {
                 var path = url.replace(Regex("^http.+/file/"), FileUtils.getRootPath() + "/")
                 path = path.replace(Regex("localhost/"), "/")
                 result = FileUtils.readFileToString(path, "UTF-8")
-                result = tryMinifyJson(gson, result!!)
+                val raw = requireNotNull(result) { "extend content read failed" }
+                result = tryMinifyJson(gson, raw)
                 extendCache.putIfAbsent(key, result)
             } else if (url.startsWith("http")) {
                 result = OkHttp.string(url, null)
-                if (!result!!.isEmpty()) {
+                if (!result.isNullOrEmpty()) {
                     result = tryMinifyJson(gson, result)
                     if (result.length > 2500) result = url
                     extendCache.putIfAbsent(key, result)
@@ -144,10 +145,10 @@ object SourceHelper {
 
     @JvmStatic
     fun getFixUrlDirect(extendCache: ConcurrentHashMap<String, String>, gson: Gson, extend: String?): String? {
-        if (TextUtils.isEmpty(extend)) return ""
-        val url = extend!!
+        if (extend.isNullOrEmpty()) return ""
+        val url = extend
         if (!url.startsWith("http")) return url
-        val key = MD5.string2MD5(url)!!
+        val key = requireNotNull(MD5.string2MD5(url)) { "md5 of extend url failed" }
         if (extendCache.containsKey(key)) {
             return extendCache[key]
         }
@@ -157,12 +158,14 @@ object SourceHelper {
                 var path = url.replace(Regex("^http.+/file/"), FileUtils.getRootPath() + "/")
                 path = path.replace(Regex("localhost/"), "/")
                 result = FileUtils.readFileToString(path, "UTF-8")
-                result = tryMinifyJson(gson, result!!)
+                val raw = requireNotNull(result) { "extend content read failed" }
+                result = tryMinifyJson(gson, raw)
                 extendCache.putIfAbsent(key, result)
             } else {
                 result = OkHttp.string(url, null)
-                if (!TextUtils.isEmpty(result)) {
-                    result = tryMinifyJson(gson, result!!)
+                if (!result.isNullOrEmpty()) {
+                    val raw = requireNotNull(result) { "extend content read failed" }
+                    result = tryMinifyJson(gson, raw)
                     if (result.length > 2500) result = url
                     extendCache.putIfAbsent(key, result)
                 }

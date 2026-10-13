@@ -64,7 +64,7 @@ object SuperParse {
         ensureConfigs(jx)
         val jsonJx = LinkedHashMap<String, String>()
         val webJx = ArrayList<String>()
-        val targetKeys = configs!![flag]
+        val targetKeys = configs.orEmpty()[flag]
         if (targetKeys != null && !targetKeys.isEmpty()) {
             for (key in targetKeys) {
                 val parseBean = jx[key]
@@ -180,8 +180,9 @@ object SuperParse {
                     "</html>"
 
             val jxs = StringBuilder()
-            if (flagWebJx.containsKey(flag!!)) {
-                val jxUrls = flagWebJx[flag!!]!!
+            val flagKey = flag ?: ""
+            if (flagWebJx.containsKey(flagKey)) {
+                val jxUrls = flagWebJx[flagKey].orEmpty()
                 for (i in 0 until jxUrls.size) {
                     jxs.append("\"")
                     jxs.append(jxUrls[i])

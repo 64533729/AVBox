@@ -35,10 +35,11 @@ object LOG {
         synchronized(LOG::class.java) {
             if (fileLogExecutor == null) fileLogExecutor = Executors.newSingleThreadExecutor()
         }
+        val executor = fileLogExecutor
         try {
-            fileLogExecutor!!.execute {
+            executor?.execute {
                 try {
-                    FileWriter(File(AppContextHolder.context()!!.filesDir, FILE_LOG_NAME), true).use { writer ->
+                    FileWriter(File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.filesDir, FILE_LOG_NAME), true).use { writer ->
                         writer.write(line + "\n")
                     }
                 } catch (ignored: Throwable) {

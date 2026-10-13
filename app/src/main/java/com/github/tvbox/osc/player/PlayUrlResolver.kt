@@ -163,7 +163,7 @@ class PlayUrlResolver(private val host: Host) {
                 parseBean = bean
             }
         }
-        doParse(parseBean!!)
+        doParse(requireNotNull(parseBean) { "parse bean not resolved" })
     }
 
     @Throws(JSONException::class)
@@ -252,15 +252,15 @@ class PlayUrlResolver(private val host: Host) {
                     val headerMap = PlaybackController.extractHeaders(jsonObject)
                     if (headerMap != null) {
                         for (key in headerMap.keys) {
-                            val value = headerMap[key]
+                            val value = headerMap[key] ?: continue
                             if (!HeaderGuard.isSendable(key, value)) {
                                 LOG.i("echo-ext-header-skip:$key")
                                 continue
                             }
                             if (key.equals("user-agent", ignoreCase = true)) {
-                                host.setWebUserAgent(value!!.trim { it <= ' ' })
+                                host.setWebUserAgent(value.trim { it <= ' ' })
                             } else {
-                                reqHeaders[key] = value!!
+                                reqHeaders[key] = value
                             }
                         }
                         if (reqHeaders.isNotEmpty()) host.setWebHeaderMap(reqHeaders)
@@ -290,7 +290,8 @@ class PlayUrlResolver(private val host: Host) {
                 LOG.e("PlayUrlResolver", e)
             }
             val view = host.view()
-            val requestUrl = pb.url + (if (view == null) webUrl else view.encodeUrl(webUrl!!))
+            val web = webUrl
+            val requestUrl = pb.url + (if (view == null) web else view.encodeUrl(requireNotNull(web)))
             jsonJob = requestScope.launch {
                 val json = try {
                     Http.get(requestUrl) {
@@ -304,7 +305,7 @@ class PlayUrlResolver(private val host: Host) {
                 }
                 if (!isParseResultCurrent(gen)) return@launch
                 try {
-                    val rs = withContext(Dispatchers.IO) { jsonParse(webUrl, json) }!!
+                    val rs = requireNotNull(withContext(Dispatchers.IO) { jsonParse(webUrl, json) })
                     val headers = PlaybackController.extractHeaders(rs)
                     if (rs.optInt("parse", 0) == 1) {
                         host.setWebHeaderMap(headers)
@@ -337,7 +338,7 @@ class PlayUrlResolver(private val host: Host) {
             }
             pool.execute {
                 if (!isParseResultCurrent(gen)) return@execute
-                val rs = ApiConfig.get().jsonExt(pb.url!!, jxs, webUrl!!)
+                val rs = ApiConfig.get().jsonExt(requireNotNull(pb.url), jxs, requireNotNull(webUrl))
                 if (rs == null || !rs.has("url") || rs.optString("url").isEmpty()) {
                     val bridge = host.view()
                     if (isParseResultCurrent(gen) && bridge != null) {
@@ -345,9 +346,10 @@ class PlayUrlResolver(private val host: Host) {
                     }
                 } else {
                     val headers = PlaybackController.extractHeaders(rs)
-                    if (rs.has("jxFrom") && host.view() != null) {
+                    val bridge = host.view()
+                    if (rs.has("jxFrom") && bridge != null) {
                         val jxFrom = rs.optString("jxFrom")
-                        host.view()!!.runOnUi { host.view()!!.toast(str(R.string.player_parse_from, jxFrom)) }
+                        bridge.runOnUi { bridge.toast(str(R.string.player_parse_from, jxFrom)) }
                     }
                     val parseWV = rs.optInt("parse", 0) == 1
                     if (parseWV) {
@@ -395,10 +397,10 @@ class PlayUrlResolver(private val host: Host) {
         pool.execute {
             if (!isParseResultCurrent(gen)) return@execute
             if (isSuper) {
-                val rs = SuperParse.parse(jxs, parseFlag + "123", webUrl!!, parseTargets)
+                val rs = SuperParse.parse(jxs, parseFlag + "123", requireNotNull(webUrl), parseTargets)
                 if (!rs.has("url") || rs.optString("url").isEmpty()) {
-                    if (isParseResultCurrent(gen) && host.view() != null) {
-                        val bridge = host.view()!!
+                    val bridge = host.view()
+                    if (isParseResultCurrent(gen) && bridge != null) {
                         bridge.runOnUi { bridge.showTip(str(R.string.player_parse_error), false, true) }
                     }
                 } else {
@@ -406,13 +408,14 @@ class PlayUrlResolver(private val host: Host) {
                         if (rs.has("ua")) {
                             host.setWebUserAgent(rs.optString("ua").trim { it <= ' ' })
                         }
-                        if (host.view() != null) {
-                            val bridge = host.view()!!
+                        val bridge = host.view()
+                        if (bridge != null) {
                             bridge.runOnUi { bridge.showTip(str(R.string.player_super_parsing), true, false) }
                         }
                         val mixParseUrl = DefaultConfig.checkReplaceProxy(rs.optString("url", ""))
-                        if (host.view() != null) {
-                            host.view()!!.runOnUi {
+                        val webBridge = host.view()
+                        if (webBridge != null) {
+                            webBridge.runOnUi {
                                 if (!isParseResultCurrent(gen)) return@runOnUi
                                 stopParse()
                                 parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
@@ -421,7 +424,7 @@ class PlayUrlResolver(private val host: Host) {
                             }
                         }
                         pool.execute {
-                            val res = SuperParse.doJsonJx(parseTargets.jsonJx, webUrl!!)
+                            val res = SuperParse.doJsonJx(parseTargets.jsonJx, requireNotNull(webUrl))
                             rsJsonJX(gen, res, true)
                         }
                     } else {
@@ -429,10 +432,10 @@ class PlayUrlResolver(private val host: Host) {
                     }
                 }
             } else {
-                val rs = ApiConfig.get().jsonExtMix(parseFlag + "111", pb.url!!, finalExtendName, jxs, webUrl!!)
+                val rs = ApiConfig.get().jsonExtMix(parseFlag + "111", requireNotNull(pb.url), finalExtendName, jxs, requireNotNull(webUrl))
                 if (rs == null || !rs.has("url") || rs.optString("url").isEmpty()) {
-                    if (isParseResultCurrent(gen) && host.view() != null) {
-                        val bridge = host.view()!!
+                    val bridge = host.view()
+                    if (isParseResultCurrent(gen) && bridge != null) {
                         bridge.runOnUi { bridge.showTip(str(R.string.player_parse_error), false, true) }
                     }
                 } else {
@@ -441,11 +444,12 @@ class PlayUrlResolver(private val host: Host) {
                             host.setWebUserAgent(rs.optString("ua").trim { it <= ' ' })
                         }
                         val mixParseUrl = DefaultConfig.checkReplaceProxy(rs.optString("url", ""))
-                        if (host.view() != null) {
-                            host.view()!!.runOnUi {
+                        val bridge = host.view()
+                        if (bridge != null) {
+                            bridge.runOnUi {
                                 if (!isParseResultCurrent(gen)) return@runOnUi
                                 stopParse()
-                                host.view()!!.showTip(str(R.string.player_sniffing_url), true, false)
+                                bridge.showTip(str(R.string.player_sniffing_url), true, false)
                                 parseHandler.removeMessages(MSG_PARSE_TIMEOUT)
                                 parseHandler.sendEmptyMessageDelayed(MSG_PARSE_TIMEOUT, PARSE_TIMEOUT_MS)
                                 loadWebView(mixParseUrl)
@@ -461,16 +465,18 @@ class PlayUrlResolver(private val host: Host) {
 
     private fun rsJsonJX(gen: Int, rs: JSONObject?, isSuper: Boolean) {
         if (!isParseResultCurrent(gen)) return
+        val result = rs ?: return
         if (isSuper) {
-            if (rs == null || !rs.has("url")) return
+            if (!result.has("url")) return
             stopLoadWebView(false)
         }
-        val headers = PlaybackController.extractHeaders(rs)
-        if (rs!!.has("jxFrom") && host.view() != null) {
-            val jxFrom = rs.optString("jxFrom")
-            host.view()!!.runOnUi { host.view()!!.toast(str(R.string.player_parse_from, jxFrom)) }
+        val headers = PlaybackController.extractHeaders(result)
+        val bridge = host.view()
+        if (result.has("jxFrom") && bridge != null) {
+            val jxFrom = result.optString("jxFrom")
+            bridge.runOnUi { bridge.toast(str(R.string.player_parse_from, jxFrom)) }
         }
-        if (host.view() != null) host.playUrl(gen, rs.optString("url", ""), headers)
+        if (bridge != null) host.playUrl(gen, result.optString("url", ""), headers)
     }
 
     fun loadWebView(url: String?) {
@@ -481,33 +487,36 @@ class PlayUrlResolver(private val host: Host) {
     }
 
     fun initWebView() {
-        if (host.view() == null) return
-        mSysWebView = host.view()!!.newSniffWebView()
+        val bridge = host.view() ?: return
+        mSysWebView = bridge.newSniffWebView()
         val web = mSysWebView ?: return
         configWebViewSys(web)
     }
 
     fun loadUrl(url: String?) {
-        if (host.view() == null || !host.view()!!.isPageAlive()) return
+        val bridge = host.view()
+        if (bridge == null || !bridge.isPageAlive()) return
         webSniffGeneration = parseGeneration.get()
-        host.view()!!.runOnUi {
+        bridge.runOnUi {
             mSysWebView?.let { web ->
+                val target = url ?: return@let
                 web.stopLoading()
                 host.webUserAgent()?.let { web.settings.userAgentString = it }
                 val headerMap = host.webHeaderMap()
                 if (headerMap != null) {
-                    web.loadUrl(url!!, headerMap)
+                    web.loadUrl(target, headerMap)
                 } else {
-                    web.loadUrl(url!!)
+                    web.loadUrl(target)
                 }
             }
         }
     }
 
     private fun loadUrl(gen: Int, url: String) {
-        if (host.view() == null || !host.view()!!.isPageAlive()) return
+        val bridge = host.view()
+        if (bridge == null || !bridge.isPageAlive()) return
         webSniffGeneration = gen
-        host.view()!!.runOnUi {
+        bridge.runOnUi {
             if (!isParseResultCurrent(gen)) return@runOnUi
             loadUrl(url)
         }
@@ -518,8 +527,8 @@ class PlayUrlResolver(private val host: Host) {
     }
 
     fun stopLoadWebView(destroy: Boolean) {
-        if (host.view() == null) return
-        host.view()!!.runOnUi {
+        val bridge = host.view() ?: return
+        bridge.runOnUi {
             mSysWebView?.let { web ->
                 web.stopLoading()
                 web.loadUrl("about:blank")
@@ -546,7 +555,7 @@ class PlayUrlResolver(private val host: Host) {
                     return SpiderReaper.track(sp) { sp.isVideoFormat(url) }
                 }
             }
-            VideoParseRuler.checkIsVideoForParse(webUrl!!, url)
+            VideoParseRuler.checkIsVideoForParse(requireNotNull(webUrl), url)
         } catch (e: Exception) {
             false
         }
@@ -560,8 +569,9 @@ class PlayUrlResolver(private val host: Host) {
         webView.isFocusableInTouchMode = false
         webView.clearFocus()
         webView.overScrollMode = View.OVER_SCROLL_ALWAYS
-        if (host.view() == null || !host.view()!!.isPageAlive()) return
-        host.view()!!.attachSniffWebView(webView)
+        val bridge = host.view()
+        if (bridge == null || !bridge.isPageAlive()) return
+        bridge.attachSniffWebView(webView)
         val settings = webView.settings
         settings.setNeedInitialFocus(false)
         settings.allowContentAccess = true
@@ -628,8 +638,9 @@ class PlayUrlResolver(private val host: Host) {
         override fun onPageFinished(view: WebView, url: String) {
             super.onPageFinished(view, url)
             LOG.i("echo-onPageFinished url:$url")
-            if (url != "about:blank" && host.view() != null) {
-                host.view()!!.evaluateScript(url, view)
+            val bridge = host.view()
+            if (url != "about:blank" && bridge != null) {
+                bridge.evaluateScript(url, view)
             }
         }
 
@@ -645,7 +656,7 @@ class PlayUrlResolver(private val host: Host) {
             if (!isSniffRequestOfCurrentRound()) {
                 return null
             }
-            val isFilter = VideoParseRuler.isFilter(webUrl!!, url)
+            val isFilter = VideoParseRuler.isFilter(requireNotNull(webUrl), url)
             if (isFilter) {
                 LOG.i("shouldInterceptLoadRequest filter:$url")
                 return null

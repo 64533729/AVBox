@@ -476,7 +476,7 @@ object M3u8 {
         for (host in hostsRegex.keys) {
             if (!tsUrlPre.contains(host)) continue
             if (hostsRegex[host] == null) continue
-            list = hostsRegex[host]!!
+            list = hostsRegex[host] ?: continue
             break
         }
         return list

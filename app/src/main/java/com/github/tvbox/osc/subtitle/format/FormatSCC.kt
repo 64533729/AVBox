@@ -62,16 +62,29 @@ class FormatSCC : TimedTextFileFormat {
 
         var line: String? = null
         var lineCounter = 0
+
+        fun truncatedResult(): TimedTextObject {
+            tto.warnings += "unexpected end of file at line " + lineCounter +
+                ", maybe last caption is not complete.\n\n"
+            tto.built = true
+            return tto
+        }
         try {
 
             lineCounter++
-            if (!br.readLine()!!.trim { it <= ' ' }.equals("Scenarist_SCC V1.0", ignoreCase = true)) {
+            val header = br.readLine()
+            if (header == null) {
+                return truncatedResult()
+            }
+            if (!header.trim { it <= ' ' }.equals("Scenarist_SCC V1.0", ignoreCase = true)) {
                 throw FatalParsingException(
                     "The fist line should define the file type: \"Scenarist_SCC V1.0\"")
 
             } else {
 
                 createSCCStyles(tto)
+                val styling = requireNotNull(tto.styling)
+                val captions = requireNotNull(tto.captions)
 
                 tto.warnings += "Only data from CC channel 1 will be extracted.\n\n"
                 line = br.readLine()
@@ -98,8 +111,9 @@ class FormatSCC : TimedTextFileFormat {
                                         textBuffer += decodeChar(c1)
                                         textBuffer += decodeChar(c2)
                                     } else {
-                                        newCaption!!.content += decodeChar(c1)
-                                        newCaption.content += decodeChar(c2)
+                                        val caption = newCaption ?: return truncatedResult()
+                                        caption.content += decodeChar(c1)
+                                        caption.content += decodeChar(c2)
                                     }
                                 }
 
@@ -130,8 +144,9 @@ class FormatSCC : TimedTextFileFormat {
                                                             style += "U"
                                                         if (italics)
                                                             style += "I"
-                                                        newCaption.style = tto.styling!![style]
-                                                        tto.captions!![newCaption.start!!.mseconds] = newCaption
+                                                        val start = newCaption.start ?: return truncatedResult()
+                                                        newCaption.style = styling[style]
+                                                        captions[start.mseconds] = newCaption
                                                     }
                                                     newCaption = Subtitle()
                                                     newCaption.start = currentTime
@@ -145,11 +160,12 @@ class FormatSCC : TimedTextFileFormat {
                                                 12 -> {
                                                     if (newCaption != null) {
                                                         newCaption.end = currentTime
-                                                        if (newCaption.start != null) {
-                                                            var key = newCaption.start!!.mseconds
-                                                            while (tto.captions!!.containsKey(key))
+                                                        val start = newCaption.start
+                                                        if (start != null) {
+                                                            var key = start.mseconds
+                                                            while (captions.containsKey(key))
                                                                 key++
-                                                            tto.captions!![newCaption.start!!.mseconds] = newCaption
+                                                            captions[start.mseconds] = newCaption
                                                             newCaption = Subtitle()
                                                         }
                                                     }
@@ -177,8 +193,11 @@ class FormatSCC : TimedTextFileFormat {
                                             italics = false
                                             if (isBuffered && !textBuffer.isEmpty())
                                                 textBuffer += "<br />"
-                                            if (!isBuffered && !newCaption!!.content!!.isEmpty())
-                                                newCaption.content += "<br />"
+                                            if (!isBuffered) {
+                                                val caption = newCaption ?: return truncatedResult()
+                                                if (!caption.content.isNullOrEmpty())
+                                                    caption.content += "<br />"
+                                            }
                                             if ((word and 0x0001) == 1)
                                                 underlined = true
                                             if ((word and 0x0010) != 0x0010) {
@@ -246,16 +265,20 @@ class FormatSCC : TimedTextFileFormat {
                                             word = word and 0x000f
                                             if (isBuffered)
                                                 textBuffer += decodeSpecialChar(word)
-                                            else
-                                                newCaption!!.content += decodeSpecialChar(word)
+                                            else {
+                                                val caption = newCaption ?: return truncatedResult()
+                                                caption.content += decodeSpecialChar(word)
+                                            }
                                         } else if ((word and 0x1660) == 0x1220) {
                                             word = word and 0x011f
                                             if (isBuffered)
                                                 decodeXtChar(textBuffer, word)
-                                            else
+                                            else {
+                                                val caption = newCaption ?: return truncatedResult()
                                                 decodeXtChar(
-                                                    newCaption!!.content,
+                                                    caption.content,
                                                     word)
+                                            }
 
                                         } else {
                                         }
@@ -273,19 +296,18 @@ class FormatSCC : TimedTextFileFormat {
 
                 }
 
-                newCaption!!.end = Time("h:m:s:f/fps", "99:59:59:29/29.97")
-                if (newCaption.start != null) {
-                    var key = newCaption.start!!.mseconds
-                    while (tto.captions!!.containsKey(key))
+                val lastCaption = newCaption ?: return truncatedResult()
+                lastCaption.end = Time("h:m:s:f/fps", "99:59:59:29/29.97")
+                val start = lastCaption.start
+                if (start != null) {
+                    var key = start.mseconds
+                    while (captions.containsKey(key))
                         key++
-                    tto.captions!![newCaption.start!!.mseconds] = newCaption
+                    captions[start.mseconds] = lastCaption
                 }
                 tto.cleanUnusedStyles()
             }
 
-        } catch (e: NullPointerException) {
-            tto.warnings += "unexpected end of file at line " + lineCounter +
-                ", maybe last caption is not complete.\n\n"
         } finally {
             `is`.close()
         }
@@ -300,8 +322,9 @@ class FormatSCC : TimedTextFileFormat {
             return null
 
         var index = 0
+        val captions = tto.captions ?: return null
         val file = ArrayList<String>(
-            20 + 2 * tto.captions!!.size)
+            20 + 2 * captions.size)
 
         file.add(index++, "Scenarist_SCC V1.0\n")
 
@@ -311,31 +334,33 @@ class FormatSCC : TimedTextFileFormat {
         newC.content = ""
         newC.end = Time("h:mm:ss.cs", "0:00:00.00")
 
-        val itrC = tto.captions!!.values.iterator()
+        val itrC = captions.values.iterator()
         while (itrC.hasNext()) {
             line = ""
             oldC = newC
             newC = itrC.next()
-            if (oldC.end!!.mseconds > newC.start!!.mseconds) {
+            val newStart = requireNotNull(newC.start)
+            val oldEnd = requireNotNull(oldC.end)
+            if (oldEnd.mseconds > newStart.mseconds) {
                 newC.content = newC.content + ("<br />" + oldC.content)
-                newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
+                newStart.mseconds = (newStart.mseconds - 1000 / 29.97).toInt()
+                line += newStart.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c "
-                newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
+                newStart.mseconds = (newStart.mseconds + 1000 / 29.97).toInt()
                 line += "94ae 94ae 9420 9420 "
 
-            } else if (oldC.end!!.mseconds < newC.start!!.mseconds) {
-                line += oldC.end!!.getTime("hh:mm:ss:ff/29.97") +
+            } else if (oldEnd.mseconds < newStart.mseconds) {
+                line += oldEnd.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c\n\n"
-                newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
+                newStart.mseconds = (newStart.mseconds - 1000 / 29.97).toInt()
+                line += newStart.getTime("hh:mm:ss:ff/29.97") +
                     "\t94ae 94ae 9420 9420 "
-                newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
+                newStart.mseconds = (newStart.mseconds + 1000 / 29.97).toInt()
             } else {
-                newC.start!!.mseconds = (newC.start!!.mseconds - 1000 / 29.97).toInt()
-                line += newC.start!!.getTime("hh:mm:ss:ff/29.97") +
+                newStart.mseconds = (newStart.mseconds - 1000 / 29.97).toInt()
+                line += newStart.getTime("hh:mm:ss:ff/29.97") +
                     "\t942c 942c 94ae 94ae 9420 9420 "
-                newC.start!!.mseconds = (newC.start!!.mseconds + 1000 / 29.97).toInt()
+                newStart.mseconds = (newStart.mseconds + 1000 / 29.97).toInt()
             }
 
             line += codeText(newC)
@@ -357,7 +382,7 @@ class FormatSCC : TimedTextFileFormat {
     private fun codeText(newC: Subtitle): String {
         var toReturn = ""
 
-        val lines = RegexUtils.getPattern("<br />").split(newC.content!!)
+        val lines = RegexUtils.getPattern("<br />").split(newC.content.orEmpty())
 
         var i = 0
         var tab = 0
@@ -687,117 +712,118 @@ class FormatSCC : TimedTextFileFormat {
 
     private fun createSCCStyles(tto: TimedTextObject) {
         var style: Style
+        val styling = requireNotNull(tto.styling)
 
         style = Style("white")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("green")
         style.color = Style.getRGBValue("name", "green")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blue")
         style.color = Style.getRGBValue("name", "blue")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyan")
         style.color = Style.getRGBValue("name", "cyan")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("red")
         style.color = Style.getRGBValue("name", "red")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellow")
         style.color = Style.getRGBValue("name", "yellow")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magenta")
         style.color = Style.getRGBValue("name", "magenta")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
     }
 

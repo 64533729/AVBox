@@ -16,9 +16,9 @@ class Danmu {
         private val param: String? = paramValue
         private val text: String? = textValue
 
-        fun getParam(): String = if (TextUtils.isEmpty(param)) "" else param!!
+        fun getParam(): String = param ?: ""
 
-        fun getText(): String = if (TextUtils.isEmpty(text)) "" else text!!
+        fun getText(): String = text ?: ""
     }
 
     companion object {
@@ -31,7 +31,7 @@ class Danmu {
         fun fromXml(xml: String?): Danmu {
             val danmu = Danmu()
             if (TextUtils.isEmpty(xml)) return danmu
-            val fixedXml = escapeIllegalEntities(xml!!)
+            val fixedXml = escapeIllegalEntities(xml ?: return danmu)
             if (parseByXmlPull(danmu, fixedXml)) return danmu
             danmu.data.clear()
             parseByTag(danmu, xml)
@@ -122,8 +122,8 @@ class Danmu {
         }
 
         private fun decodeXmlString(text: String?): String {
-            if (TextUtils.isEmpty(text)) return ""
-            return text!!.replace("&amp;", "&")
+            if (text.isNullOrEmpty()) return ""
+            return text.replace("&amp;", "&")
                 .replace("&quot;", "\"")
                 .replace("&apos;", "'")
                 .replace("&gt;", ">")

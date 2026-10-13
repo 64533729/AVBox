@@ -41,10 +41,10 @@ class HtmlParser {
 
         @JvmStatic
         fun joinUrl(parent: String?, child: String): String {
-            if (StringUtils.isEmpty(parent)) {
+            if (parent.isNullOrEmpty()) {
                 return child
             }
-            val base = parent!!
+            val base = parent
             var q = base
             try {
                 val url = URL(URL(base), child)
@@ -59,11 +59,12 @@ class HtmlParser {
             val painfo = Painfo()
             painfo.nparse_rule = nparse
             if (nparse.contains(":eq")) {
-                painfo.nparse_rule = RegexUtils.getPattern(":").split(nparse)[0]
+                val rule = RegexUtils.getPattern(":").split(nparse)[0]
+                painfo.nparse_rule = rule
                 var nparse_pos = RegexUtils.getPattern(":").split(nparse)[1]
 
-                if (painfo.nparse_rule!!.contains("--")) {
-                    val rules = RegexUtils.getPattern("--").split(painfo.nparse_rule!!)
+                if (rule.contains("--")) {
+                    val rules = RegexUtils.getPattern("--").split(rule)
                     val excludes = ArrayList(rules.toList())
                     excludes.removeAt(0)
                     painfo.excludes = excludes
@@ -83,7 +84,7 @@ class HtmlParser {
                 }
             } else {
                 if (nparse.contains("--")) {
-                    val rules = RegexUtils.getPattern("--").split(painfo.nparse_rule!!)
+                    val rules = RegexUtils.getPattern("--").split(nparse)
                     val excludes = ArrayList(rules.toList())
                     excludes.removeAt(0)
                     painfo.excludes = excludes
@@ -95,10 +96,10 @@ class HtmlParser {
 
         @JvmStatic
         fun isIndex(str: String?): Boolean {
-            if (StringUtils.isEmpty(str)) {
+            if (str.isNullOrEmpty()) {
                 return false
             }
-            val text = str!!
+            val text = str
             for (str2 in arrayOf(":eq", ":lt", ":gt", ":first", ":last", "body", "#")) {
                 if (text.contains(str2)) {
                     if (str2 == "body" || str2 == "#") {
@@ -112,10 +113,10 @@ class HtmlParser {
 
         @JvmStatic
         fun isUrl(str: String?): Boolean {
-            if (StringUtils.isEmpty(str)) {
+            if (str.isNullOrEmpty()) {
                 return false
             }
-            val text = str!!
+            val text = str
             for (str2 in arrayOf("url", "src", "href", "-original", "-play")) {
                 if (text.contains(str2)) {
                     return true
@@ -161,11 +162,11 @@ class HtmlParser {
                 pdfh_html = html
                 pdfh_doc = Jsoup.parse(html)
             }
-            val doc = pdfh_doc
+            val doc = requireNotNull(pdfh_doc) { "html doc not ready" }
             if (rule == "body&&Text" || rule == "Text") {
-                return doc!!.text()
+                return doc.text()
             } else if (rule == "body&&Html" || rule == "Html") {
-                return doc!!.html()
+                return doc.html()
             }
             var option = ""
             var currentRule = rule
@@ -180,7 +181,7 @@ class HtmlParser {
             val parses = RegexUtils.getPattern(" ").split(currentRule)
             var ret = Elements()
             for (nparse in parses) {
-                ret = parseOneRule(doc!!, nparse, ret)
+                ret = parseOneRule(doc, nparse, ret)
                 if (ret.isEmpty()) {
                     return ""
                 }
@@ -226,12 +227,12 @@ class HtmlParser {
                 pdfa_html = html
                 pdfa_doc = Jsoup.parse(html)
             }
-            val doc = pdfa_doc
+            val doc = requireNotNull(pdfa_doc) { "html doc not ready" }
             val currentRule = parseHikerToJq(rule, false)
             val parses = RegexUtils.getPattern(" ").split(currentRule)
             var ret = Elements()
             for (pars in parses) {
-                ret = parseOneRule(doc!!, pars, ret)
+                ret = parseOneRule(doc, pars, ret)
                 if (ret.isEmpty()) {
                     return ArrayList()
                 }
@@ -248,10 +249,11 @@ class HtmlParser {
         private fun parseOneRule(doc: Document, nparse: String, ret: Elements): Elements {
             val painfo = getParseInfo(nparse)
             var result: Elements
+            val rule = requireNotNull(painfo.nparse_rule) { "nparse rule is null" }
             result = if (ret.isEmpty()) {
-                doc.select(painfo.nparse_rule!!)
+                doc.select(rule)
             } else {
-                ret.select(painfo.nparse_rule!!)
+                ret.select(rule)
             }
 
             if (nparse.contains(":eq")) {
@@ -278,12 +280,12 @@ class HtmlParser {
                 pdfa_html = html
                 pdfa_doc = Jsoup.parse(html)
             }
-            val doc = pdfa_doc
+            val doc = requireNotNull(pdfa_doc) { "html doc not ready" }
             val rule = parseHikerToJq(p1, false)
             val parses = RegexUtils.getPattern(" ").split(rule)
             var ret = Elements()
             for (pars in parses) {
-                ret = parseOneRule(doc!!, pars, ret)
+                ret = parseOneRule(doc, pars, ret)
                 if (ret.isEmpty()) {
                     return ArrayList()
                 }

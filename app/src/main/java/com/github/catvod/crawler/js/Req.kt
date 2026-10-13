@@ -1,7 +1,5 @@
 package com.github.catvod.crawler.js
 
-import android.text.TextUtils
-
 import com.github.tvbox.osc.util.RegexUtils
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -48,11 +46,13 @@ class Req {
     }
 
     fun getPostType(): String {
-        return if (TextUtils.isEmpty(postType)) "json" else postType!!
+        val value = postType
+        return if (value.isNullOrEmpty()) "json" else value
     }
 
     fun getMethod(): String {
-        return if (TextUtils.isEmpty(method)) "get" else method!!
+        val value = method
+        return if (value.isNullOrEmpty()) "get" else value
     }
 
     fun getBody(): String? {
@@ -78,7 +78,7 @@ class Req {
     fun getCharset(): String {
         val header = getHeader()
         val keys = Arrays.asList("Content-Type", "content-type")
-        for (key in keys) if (header.containsKey(key)) return getCharset(header[key]!!)
+        for (key in keys) header[key]?.let { return getCharset(it) }
         return "UTF-8"
     }
 

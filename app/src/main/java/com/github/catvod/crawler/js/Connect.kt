@@ -39,13 +39,14 @@ class Connect {
 
         @JvmStatic
         fun to(url: String, req: Req, tag: Any?): Call {
-            client = withTimeout(req, if (req.isRedirect()) OkGoHelper.getDefaultClient()!! else OkGoHelper.getNoRedirectClient()!!)
-            return client!!.newCall(getRequest(url, req, req.getHeader().toHeaders(), tag))
+            val okHttpClient = withTimeout(req, if (req.isRedirect()) requireNotNull(OkGoHelper.getDefaultClient()) { "okhttp client not ready" } else requireNotNull(OkGoHelper.getNoRedirectClient()) { "okhttp client not ready" })
+            client = okHttpClient
+            return okHttpClient.newCall(getRequest(url, req, req.getHeader().toHeaders(), tag))
         }
 
         @JvmStatic
         fun withTimeout(req: Req, base: OkHttpClient): OkHttpClient {
-            var timeout = req.getTimeout()!!.toLong()
+            var timeout = requireNotNull(req.getTimeout()) { "timeout is null" }.toLong()
             if (timeout <= 0) timeout = OkGoHelper.DEFAULT_MILLISECONDS
             if (timeout == OkGoHelper.DEFAULT_MILLISECONDS) return base
             return base.newBuilder().connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).build()
@@ -95,12 +96,13 @@ class Connect {
             if (req.getData() != null && req.getPostType() == "json") return getJsonBody(req)
             if (req.getData() != null && req.getPostType() == "form") return getFormBody(req)
             if (req.getData() != null && req.getPostType() == "form-data") return getFormDataBody(req)
-            if (req.getBody() != null && contentType != null) return req.getBody()!!.toRequestBody(contentType.toMediaTypeOrNull())
+            val body = req.getBody()
+            if (body != null && contentType != null) return body.toRequestBody(contentType.toMediaTypeOrNull())
             return "".toRequestBody(null)
         }
 
         private fun getJsonBody(req: Req): RequestBody {
-            return req.getData()!!.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            return requireNotNull(req.getData()) { "data is null" }.toString().toRequestBody("application/json".toMediaTypeOrNull())
         }
 
         private fun getFormBody(req: Req): RequestBody {
@@ -128,14 +130,15 @@ class Connect {
         @JvmStatic
         fun cancelByTag(tag: Any?) {
             try {
-                if (client != null) {
-                    val target = tag!!
-                    for (call in client!!.dispatcher.queuedCalls()) {
+                val target = requireNotNull(tag) { "tag is null" }
+                val okHttpClient = client
+                if (okHttpClient != null) {
+                    for (call in okHttpClient.dispatcher.queuedCalls()) {
                         if (target == call.request().tag()) {
                             call.cancel()
                         }
                     }
-                    for (call in client!!.dispatcher.runningCalls()) {
+                    for (call in okHttpClient.dispatcher.runningCalls()) {
                         if (target == call.request().tag()) {
                             call.cancel()
                         }

@@ -114,7 +114,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         if (playState == PlayState.ERROR) {
             LOG.i(
                 "echo-player error: kernel="
-                    + (if (videoView.mediaPlayer == null) "null" else videoView.mediaPlayer!!.javaClass.simpleName)
+                    + (videoView.mediaPlayer?.javaClass?.simpleName ?: "null")
                     + " pos=" + videoView.currentPosition
                     + " started=" + controller.isPlaybackStarted()
                     + " url=" + controller.webPlayUrl()

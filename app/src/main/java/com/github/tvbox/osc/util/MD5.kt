@@ -90,7 +90,8 @@ class MD5 {
                 Log.e("MD5", "参数strSource不能为空")
                 return null
             }
-            val charArray = inStr!!.toCharArray()
+            val value = inStr ?: return null
+            val charArray = value.toCharArray()
             val byteArray = ByteArray(charArray.size)
 
             for (i in charArray.indices) {
@@ -118,8 +119,9 @@ class MD5 {
                 Log.e("MD5", "参数strSource不能为空")
                 return null
             }
+            val value = strSource ?: return null
             try {
-                val md5Bytes = digest.digest(strSource!!.toByteArray(Charsets.UTF_8))
+                val md5Bytes = digest.digest(value.toByteArray(Charsets.UTF_8))
                 val encryptBytes = Base64.encode(md5Bytes, Base64.DEFAULT)
                 val strEncrypt = String(encryptBytes, Charsets.UTF_8)
                 return strEncrypt.substring(0, strEncrypt.length - 1)

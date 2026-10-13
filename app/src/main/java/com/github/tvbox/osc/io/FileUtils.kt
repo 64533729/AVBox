@@ -80,8 +80,8 @@ object FileUtils {
                 os.write(buffer, 0, length)
             }
         } finally {
-            ins!!.close()
-            os!!.close()
+            ins?.close()
+            os?.close()
         }
     }
 
@@ -90,7 +90,7 @@ object FileUtils {
         if (!file.exists())
             return
         if (file.isDirectory) {
-            for (f in file.listFiles()!!) {
+            for (f in file.listFiles().orEmpty()) {
                 recursiveDelete(f)
             }
         }
@@ -135,7 +135,7 @@ object FileUtils {
 
     @JvmStatic
     fun getCacheDir(): File {
-        return AppContextHolder.context()!!.cacheDir
+        return requireNotNull(AppContextHolder.context()) { "app context not initialized" }.cacheDir
     }
 
     @JvmStatic
@@ -145,7 +145,7 @@ object FileUtils {
 
     @JvmStatic
     fun getFilePath(): String {
-        return AppContextHolder.context()!!.filesDir.absolutePath
+        return requireNotNull(AppContextHolder.context()) { "app context not initialized" }.filesDir.absolutePath
     }
 
     @JvmStatic
@@ -291,7 +291,7 @@ object FileUtils {
     @JvmStatic
     fun getCacheSize(): Long {
         var size = directorySize(getCacheDir(), null)
-        val externalCacheDir = AppContextHolder.context()!!.externalCacheDir
+        val externalCacheDir = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.externalCacheDir
         if (externalCacheDir != null && externalCacheDir.absolutePath != getCachePath()) {
             size += directorySize(externalCacheDir, EXTERNAL_CACHE_KEEP_DIR)
         }
@@ -335,7 +335,7 @@ object FileUtils {
                 }
             }
         }
-        val externalCacheDir = AppContextHolder.context()!!.externalCacheDir
+        val externalCacheDir = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.externalCacheDir
         if (externalCacheDir == null) return
         val files = externalCacheDir.listFiles() ?: return
         for (one in files) {
@@ -479,12 +479,13 @@ object FileUtils {
             LOG.i("echo-loadModule " + name)
             val m = URL_JOIN.matcher(name)
             if (m.find()) {
-                val cache = getCache(MD5.encode(name)!!)
+                val key = requireNotNull(MD5.encode(name)) { "md5 of module name failed" }
+                val cache = getCache(key)
                 rel = cache
                 if (StringUtils.isEmpty(cache)) {
                     val netStr = get(name)
                     if (!TextUtils.isEmpty(netStr)) {
-                        setCache(604800, MD5.encode(name)!!, netStr)
+                        setCache(604800, key, netStr)
                     }
                     rel = netStr
                 }
@@ -516,8 +517,8 @@ object FileUtils {
         if (files == null) {
             LOG.i("echo-读取AssetsList")
             try {
-                val list = AppContextHolder.context()!!.assets.list(dir)
-                files = HashSet(Arrays.asList(*list!!))
+                val list = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets.list(dir)
+                files = HashSet(Arrays.asList(*list.orEmpty()))
             } catch (e: IOException) {
                 files = Collections.emptySet()
             }
@@ -529,7 +530,7 @@ object FileUtils {
     @JvmStatic
     fun getAsOpen(name: String): String {
         try {
-            val ins = AppContextHolder.context()!!.assets.open(name)
+            val ins = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets.open(name)
             val data = ByteArray(ins.available())
             ins.read(data)
             return String(data, Charsets.UTF_8)
@@ -545,7 +546,7 @@ object FileUtils {
             var code = ""
             val file = open(name)
             if (file.exists()) {
-                code = String(readSimple(file)!!, Charset.defaultCharset())
+                code = readSimple(file)?.let { String(it, Charset.defaultCharset()) } ?: ""
             }
             if (TextUtils.isEmpty(code)) {
                 return ""
@@ -609,7 +610,7 @@ object FileUtils {
 
     @JvmStatic
     fun getExternalCachePath(): String {
-        val externalCacheDir = AppContextHolder.context()!!.externalCacheDir
+        val externalCacheDir = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.externalCacheDir
         if (externalCacheDir == null) {
             return getCachePath()
         }
@@ -618,7 +619,7 @@ object FileUtils {
 
     @JvmStatic
     fun getExternalFilesPath(): String {
-        val externalFilesDir = AppContextHolder.context()!!.getExternalFilesDir(null)
+        val externalFilesDir = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.getExternalFilesDir(null)
         if (externalFilesDir == null) {
             return getFilePath()
         }

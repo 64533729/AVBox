@@ -15,10 +15,10 @@ object EpisodeMatcher {
     @JvmStatic
     fun lineFlagsInDisplayOrder(vod: VodInfo?): List<String> {
         val lineFlags = ArrayList<String>()
-        if (vod == null || vod.seriesMap == null) {
+        if (vod == null) {
             return lineFlags
         }
-        val seriesMap = vod.seriesMap!!
+        val seriesMap = vod.seriesMap ?: return lineFlags
         val seriesFlags = vod.seriesFlags
         if (seriesFlags != null) {
             for (flag in seriesFlags) {
@@ -103,8 +103,9 @@ object EpisodeMatcher {
         if (isEmpty(name)) {
             return -1
         }
+        val raw = name ?: return -1
         try {
-            var text = name!!.replace(Regex("\\[.*?\\]|\\(.*?\\)"), "")
+            var text = raw.replace(Regex("\\[.*?\\]|\\(.*?\\)"), "")
             text = text.replace(Regex("\\b(19|20)\\d{2}\\b"), "")
             text = text.lowercase(Locale.ROOT).replace(Regex("2160p|1080p|720p|480p|4k|h26[45]|x26[45]|mp4"), "")
             val matcher = Pattern.compile("(?i)(?:ep|\\u7b2c|e|[\\-\\.\\s])\\s?(\\d{1,4})").matcher(text)

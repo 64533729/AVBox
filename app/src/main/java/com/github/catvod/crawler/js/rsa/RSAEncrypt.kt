@@ -59,28 +59,32 @@ class RSAEncrypt {
 
         @JvmStatic
         fun getPublicKey(pubKey: String?): PublicKey? {
+            if (pubKey == null) {
+                handleException(Exception("公钥数据为空")) // i18n: keep(异常消息,只进日志)
+                return null
+            }
             try {
                 return KeyFactory.getInstance(KEY_ALGORITHM).generatePublic(X509EncodedKeySpec(DataUtils.base64Decode(pubKey)))
             } catch (unused: NoSuchAlgorithmException) {
                 handleException(Exception("无此算法")) // i18n: keep(异常消息,只进日志)
             } catch (unused2: InvalidKeySpecException) {
                 handleException(Exception("公钥非法")) // i18n: keep(异常消息,只进日志)
-            } catch (unused3: NullPointerException) {
-                handleException(Exception("公钥数据为空")) // i18n: keep(异常消息,只进日志)
             }
             return null
         }
 
         @JvmStatic
         fun getPrivateKey(prvKey: String?): PrivateKey? {
+            if (prvKey == null) {
+                handleException(Exception("私钥数据为空")) // i18n: keep(异常消息,只进日志)
+                return null
+            }
             try {
                 return KeyFactory.getInstance(KEY_ALGORITHM).generatePrivate(PKCS8EncodedKeySpec(DataUtils.base64Decode(prvKey)))
             } catch (unused: NoSuchAlgorithmException) {
                 handleException(Exception("无此算法")) // i18n: keep(异常消息,只进日志)
             } catch (unused2: InvalidKeySpecException) {
                 handleException(Exception("私钥非法")) // i18n: keep(异常消息,只进日志)
-            } catch (unused3: NullPointerException) {
-                handleException(Exception("私钥数据为空")) // i18n: keep(异常消息,只进日志)
             }
             return null
         }
@@ -93,7 +97,7 @@ class RSAEncrypt {
         @JvmStatic
         fun encryptByPublicKey(data: String?, pubKey: String?, config: String?, mlong: Int, block: Boolean): String? {
             try {
-                val bytes = data!!.toByteArray(Charsets.UTF_8)
+                val bytes = requireNotNull(data) { "data is null" }.toByteArray(Charsets.UTF_8)
                 val cipher = Cipher.getInstance(config)
                 val rSAPublicKey = getPublicKey(pubKey) as RSAPublicKey?
                 cipher.init(Cipher.ENCRYPT_MODE, rSAPublicKey)
@@ -102,7 +106,7 @@ class RSAEncrypt {
                 }
                 var bitLength = MAX_ENCRYPT_BLOCK
                 if (block) {
-                    bitLength = rSAPublicKey!!.modulus.bitLength() / 8 - 11
+                    bitLength = requireNotNull(rSAPublicKey) { "rsa pubkey is null" }.modulus.bitLength() / 8 - 11
                 }
                 val inputLen = bytes.size
                 val out = ByteArrayOutputStream()
@@ -145,7 +149,7 @@ class RSAEncrypt {
                 }
                 var bitLength = MAX_DECRYPT_BLOCK
                 if (block) {
-                    bitLength = rSAPrivateKey!!.modulus.bitLength() / 8
+                    bitLength = requireNotNull(rSAPrivateKey) { "rsa prvkey is null" }.modulus.bitLength() / 8
                 }
                 val inputLen = encryptedData.size
                 val out = ByteArrayOutputStream()
@@ -178,7 +182,7 @@ class RSAEncrypt {
         @JvmStatic
         fun encryptByPrivateKey(data: String?, prvKey: String?, config: String?, mlong: Int, block: Boolean): String? {
             try {
-                val bytes = data!!.toByteArray(Charsets.UTF_8)
+                val bytes = requireNotNull(data) { "data is null" }.toByteArray(Charsets.UTF_8)
                 val cipher = Cipher.getInstance(config)
                 val rSAPrivateKey = getPrivateKey(prvKey) as RSAPrivateKey?
                 cipher.init(Cipher.ENCRYPT_MODE, rSAPrivateKey)
@@ -187,7 +191,7 @@ class RSAEncrypt {
                 }
                 var bitLength = MAX_ENCRYPT_BLOCK
                 if (block) {
-                    bitLength = rSAPrivateKey!!.modulus.bitLength() / 8 - 11
+                    bitLength = requireNotNull(rSAPrivateKey) { "rsa prvkey is null" }.modulus.bitLength() / 8 - 11
                 }
                 val inputLen = bytes.size
                 val out = ByteArrayOutputStream()
@@ -230,7 +234,7 @@ class RSAEncrypt {
                 }
                 var bitLength = MAX_DECRYPT_BLOCK
                 if (block) {
-                    bitLength = rSAPublicKey!!.modulus.bitLength() / 8
+                    bitLength = requireNotNull(rSAPublicKey) { "rsa pubkey is null" }.modulus.bitLength() / 8
                 }
                 val inputLen = encryptedData.size
                 val out = ByteArrayOutputStream()

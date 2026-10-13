@@ -57,8 +57,8 @@ class Epginfo(epgDateIn: Date, titleIn: String, date: Date, startTime: String, e
             enddateTime = calendar.time
         }
         val zoneFormat = SimpleDateFormat("HH:mm")
-        val startText = zoneFormat.format(startdateTime!!)
-        val endText = zoneFormat.format(enddateTime!!)
+        val startText = zoneFormat.format(requireNotNull(startdateTime) { "epg start time parse failed" })
+        val endText = zoneFormat.format(requireNotNull(enddateTime) { "epg end time parse failed" })
         start = startText
         end = endText
         datestart = startText.replace(":", "").toInt()

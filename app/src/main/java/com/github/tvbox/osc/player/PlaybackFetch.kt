@@ -95,9 +95,9 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 controller.setSubtitleCacheKey(info.optString("subtKey", null))
                 val lyricPick = controller.playLyric()
                 LOG.i(
-                    "echo-lyric pick: " + if (TextUtils.isEmpty(lyricPick)) {
+                    "echo-lyric pick: " + if (lyricPick.isNullOrEmpty()) {
                         "none"
-                    } else if (lyricPick!!.startsWith("data:")) {
+                    } else if (lyricPick.startsWith("data:")) {
                         "inline len=" + lyricPick.length
                     } else {
                         lyricPick
@@ -112,8 +112,9 @@ class PlaybackFetch(private val controller: PlaybackController) {
                 }
                 var artwork = info.optString("artwork", "")
                 if (TextUtils.isEmpty(artwork)) artwork = info.optString("cover", "")
-                if (TextUtils.isEmpty(artwork) && !TextUtils.isEmpty(controller.playLyric()) && controller.vod() != null) {
-                    artwork = controller.vod()!!.pic ?: ""
+                val vod = controller.vod()
+                if (TextUtils.isEmpty(artwork) && !TextUtils.isEmpty(controller.playLyric()) && vod != null) {
+                    artwork = vod.pic ?: ""
                 }
                 controller.setCurrentArtwork(artwork)
                 if (view != null) view.setArtwork(artwork)
@@ -184,17 +185,17 @@ class PlaybackFetch(private val controller: PlaybackController) {
     }
 
     private fun isLyricSubtitle(name: String?): Boolean {
-        if (TextUtils.isEmpty(name)) return false
-        val text = name!!
-        val value = text.lowercase(Locale.ROOT)
-        return value.contains("lyric") || value.contains("lrc") || text.contains("歌词") // i18n: keep
+        if (name.isNullOrEmpty()) return false
+        val value = name.lowercase(Locale.ROOT)
+        return value.contains("lyric") || value.contains("lrc") || name.contains("歌词") // i18n: keep
     }
 
     private fun searchDanmu(danmaku: String) {
-        if (!TextUtils.isEmpty(danmaku) || !DanmakuApi.canSearch(controller.sourceBean()) || controller.vod() == null) return
-        val series = controller.currentSeries(controller.vod()!!.playFlag, controller.vod()!!.playIndex)
+        if (!TextUtils.isEmpty(danmaku) || !DanmakuApi.canSearch(controller.sourceBean())) return
+        val vod = controller.vod() ?: return
+        val series = controller.currentSeries(vod.playFlag, vod.playIndex)
         val key = controller.progressKey()
-        DanmakuApi.search(controller.vod()!!.name, if (series == null) "" else series.name, object : DanmakuApi.SearchCallback {
+        DanmakuApi.search(vod.name, if (series == null) "" else series.name, object : DanmakuApi.SearchCallback {
             override fun onFound(url: String) {
                 if (!TextUtils.equals(key, controller.progressKey())) return
                 checkDanmu(url, null)

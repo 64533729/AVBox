@@ -55,6 +55,13 @@ class FormatSRT : TimedTextFileFormat {
 
         var line: String? = br.readLine()
         var lineCounter = 0
+        val captions = requireNotNull(tto.captions)
+
+        fun truncatedResult(): TimedTextObject {
+            tto.warnings += "unexpected end of file, maybe last caption is not complete.\n\n"
+            tto.built = true
+            return tto
+        }
         try {
             while (line != null) {
                 line = line.trim { it <= ' ' }
@@ -73,38 +80,52 @@ class FormatSRT : TimedTextFileFormat {
                         tto.warnings += "\n skipping to next line\n\n"
                     }
                     if (allGood) {
-                        try {
-                            lineCounter++
-                            line = br.readLine()!!.trim { it <= ' ' }
-                            val start = line.substring(0, 12)
-                            val end = line.substring(line.length - 12, line.length)
-                            var time = Time("hh:mm:ss,ms", start)
-                            caption.start = time
-                            time = Time("hh:mm:ss,ms", end)
-                            caption.end = time
-                        } catch (e: Exception) {
+                        lineCounter++
+                        val timeLine = br.readLine()
+                        if (timeLine == null) {
                             tto.warnings += "incorrect time format at line " + lineCounter
                             allGood = false
+                        } else {
+                            try {
+                                val timeText = timeLine.trim { it <= ' ' }
+                                line = timeText
+                                val start = timeText.substring(0, 12)
+                                val end = timeText.substring(timeText.length - 12, timeText.length)
+                                var time = Time("hh:mm:ss,ms", start)
+                                caption.start = time
+                                time = Time("hh:mm:ss,ms", end)
+                                caption.end = time
+                            } catch (e: Exception) {
+                                tto.warnings += "incorrect time format at line " + lineCounter
+                                allGood = false
+                            }
                         }
                     }
                     if (allGood) {
                         lineCounter++
-                        line = br.readLine()!!.trim { it <= ' ' }
+                        val contentLine = br.readLine()
+                            ?: return truncatedResult()
+                        line = contentLine.trim { it <= ' ' }
                         var text = ""
-                        while (!line!!.isEmpty()) {
+                        while (!line.isNullOrEmpty()) {
                             text += line + "<br />"
-                            line = br.readLine()!!.trim { it <= ' ' }
+                            val moreLine = br.readLine()
+                                ?: return truncatedResult()
+                            line = moreLine.trim { it <= ' ' }
                             lineCounter++
                         }
                         caption.content = text
-                        var key = caption.start!!.mseconds
-                        while (tto.captions!!.containsKey(key)) key++
-                        if (key != caption.start!!.mseconds)
+                        val startTime = requireNotNull(caption.start)
+                        var key = startTime.mseconds
+                        while (captions.containsKey(key)) key++
+                        if (key != startTime.mseconds)
                             tto.warnings += "caption with same start time found...\n\n"
-                        tto.captions!!.put(key, caption)
+                        captions.put(key, caption)
                     }
-                    while (!line!!.isEmpty()) {
-                        line = br.readLine()!!.trim { it <= ' ' }
+                    while (!line.isNullOrEmpty()) {
+                        val skipLine = br.readLine()
+                            ?: return truncatedResult()
+                        line = skipLine.trim { it <= ' ' }
                         lineCounter++
                     }
                     caption = Subtitle()
@@ -112,8 +133,6 @@ class FormatSRT : TimedTextFileFormat {
                 line = br.readLine()
             }
 
-        } catch (e: NullPointerException) {
-            tto.warnings += "unexpected end of file, maybe last caption is not complete.\n\n"
         } finally {
             `is`.close()
         }
@@ -128,22 +147,25 @@ class FormatSRT : TimedTextFileFormat {
             return null
 
         var index = 0
-        val file = ArrayList<String>(5 * tto.captions!!.size)
-        val c = tto.captions!!.values
+        val captions = tto.captions ?: return null
+        val file = ArrayList<String>(5 * captions.size)
+        val c = captions.values
         val itr = c.iterator()
         var captionNumber = 1
 
         while (itr.hasNext()) {
             val current = itr.next()
             file.add(index++, "" + captionNumber++)
+            val start = requireNotNull(current.start)
+            val end = requireNotNull(current.end)
             if (tto.offset != 0) {
-                current.start!!.mseconds += tto.offset
-                current.end!!.mseconds += tto.offset
+                start.mseconds += tto.offset
+                end.mseconds += tto.offset
             }
-            file.add(index++, current.start!!.getTime("hh:mm:ss,ms") + " --> " + current.end!!.getTime("hh:mm:ss,ms"))
+            file.add(index++, start.getTime("hh:mm:ss,ms") + " --> " + end.getTime("hh:mm:ss,ms"))
             if (tto.offset != 0) {
-                current.start!!.mseconds -= tto.offset
-                current.end!!.mseconds -= tto.offset
+                start.mseconds -= tto.offset
+                end.mseconds -= tto.offset
             }
             val lines = cleanTextForSRT(current)
             var i = 0
@@ -161,7 +183,7 @@ class FormatSRT : TimedTextFileFormat {
 
     private fun cleanTextForSRT(current: Subtitle): Array<String> {
         val text = current.content
-        val lines = RegexUtils.getPattern("<br />").split(text!!)
+        val lines = RegexUtils.getPattern("<br />").split(text.orEmpty())
         for (i in 0 until lines.size) {
             lines[i] = lines[i].replace(Regex("\\<.*?\\>"), "")
         }

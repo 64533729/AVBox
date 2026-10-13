@@ -376,7 +376,7 @@ class DanmakuApi {
                             return
                         }
                         handler.post(Runnable {
-                            if (isCurrentSearch(seq)) callback!!.onFound(xml)
+                            if (isCurrentSearch(seq)) callback?.onFound(xml)
                         })
                     } catch (th: Throwable) {
                         LOG.e("echo-danmaku builtin comment parse error: " + th.message)
@@ -428,7 +428,8 @@ class DanmakuApi {
         }
 
         private fun hasPlaceholder(apiUrl: String?): Boolean {
-            return !TextUtils.isEmpty(apiUrl) && (apiUrl!!.contains("{name}") || apiUrl.contains("{episode}"))
+            val text = apiUrl ?: return false
+            return text.contains("{name}") || text.contains("{episode}")
         }
 
         private fun isDanmakuSearchApi(apiUrl: String?): Boolean {
@@ -498,7 +499,7 @@ class DanmakuApi {
                 val match = EpisodeMatch(id, title, number)
                 if (first == null) first = match
                 if (firstMandarin == null && isMandarinTitle(title)) firstMandarin = match
-                if (!TextUtils.isEmpty(episode) && !TextUtils.isEmpty(title) && title.contains(episode!!)) {
+                if (!episode.isNullOrEmpty() && !title.isNullOrEmpty() && title.contains(episode)) {
                     return match
                 }
                 if (targetNumber > 0 && number == targetNumber) return match
@@ -562,11 +563,11 @@ class DanmakuApi {
         }
 
         private fun isMandarinTitle(title: String?): Boolean {
-            return !TextUtils.isEmpty(title) && (title!!.contains("\u56fd\u8bed") || title.contains("\u666e\u901a\u8bdd"))
+            return !title.isNullOrEmpty() && (title.contains("\u56fd\u8bed") || title.contains("\u666e\u901a\u8bdd"))
         }
 
         private fun isCantoneseTitle(title: String?): Boolean {
-            return !TextUtils.isEmpty(title) && title!!.contains("\u7ca4\u8bed")
+            return !title.isNullOrEmpty() && title.contains("\u7ca4\u8bed")
         }
 
         private fun prefersCantonese(episode: String?): Boolean {
@@ -620,17 +621,17 @@ class DanmakuApi {
 
         private fun parseEpisodeNumber(value: String?): Int {
             try {
-                if (TextUtils.isEmpty(value)) return -1
-                return value!!.toFloat().toInt()
+                if (value.isNullOrEmpty()) return -1
+                return value.toFloat().toInt()
             } catch (th: Throwable) {
                 return extractNumber(value)
             }
         }
 
         private fun extractNumber(text: String?): Int {
-            if (TextUtils.isEmpty(text)) return -1
+            if (text.isNullOrEmpty()) return -1
             val builder = StringBuilder()
-            for (i in 0 until text!!.length) {
+            for (i in 0 until text.length) {
                 val ch = text[i]
                 if (ch.isDigit()) builder.append(ch)
             }
@@ -682,8 +683,8 @@ class DanmakuApi {
 
         private fun isColorValue(value: String?): Boolean {
             try {
-                if (TextUtils.isEmpty(value)) return false
-                val text = value!!.trim { it <= ' ' }
+                if (value.isNullOrEmpty()) return false
+                val text = value.trim { it <= ' ' }
                 if (text.startsWith("#")) return true
                 if (text.startsWith("0x") || text.startsWith("0X")) return true
                 val color = text.toLong()
@@ -694,8 +695,8 @@ class DanmakuApi {
         }
 
         private fun normalizeColor(color: String?): String {
-            if (TextUtils.isEmpty(color)) return "16777215"
-            val text = color!!.trim { it <= ' ' }
+            if (color.isNullOrEmpty()) return "16777215"
+            val text = color.trim { it <= ' ' }
             try {
                 if (text.startsWith("#")) return text.substring(1).toLong(16).toString()
                 if (text.startsWith("0x") || text.startsWith("0X")) return text.substring(2).toLong(16).toString()
@@ -719,8 +720,8 @@ class DanmakuApi {
 
         private fun parseSearchList(body: String?): List<DanmuSearchResult> {
             val results: MutableList<DanmuSearchResult> = ArrayList()
-            if (TextUtils.isEmpty(body)) return results
-            val text = body!!.trim { it <= ' ' }
+            if (body.isNullOrEmpty()) return results
+            val text = body.trim { it <= ' ' }
             if (text.startsWith("[")) {
                 appendSearchResults(results, JSONArray(text))
                 return results
@@ -791,25 +792,25 @@ class DanmakuApi {
 
         private fun notifySearchListSuccess(callback: SearchListCallback?, seq: Int, results: List<DanmuSearchResult>?) {
             handler.post(Runnable {
-                if (isCurrentSearch(seq)) callback!!.onSuccess(results)
+                if (isCurrentSearch(seq)) callback?.onSuccess(results)
             })
         }
 
         private fun notifySearchListError(callback: SearchListCallback?, seq: Int, message: String?) {
             handler.post(Runnable {
-                if (isCurrentSearch(seq)) callback!!.onError(message)
+                if (isCurrentSearch(seq)) callback?.onError(message)
             })
         }
 
         private fun notifySearchResultSuccess(callback: SearchResultCallback?, seq: Int, danmu: String?) {
             handler.post(Runnable {
-                if (isCurrentSearch(seq)) callback!!.onSuccess(danmu)
+                if (isCurrentSearch(seq)) callback?.onSuccess(danmu)
             })
         }
 
         private fun notifySearchResultError(callback: SearchResultCallback?, seq: Int, message: String?) {
             handler.post(Runnable {
-                if (isCurrentSearch(seq)) callback!!.onError(message)
+                if (isCurrentSearch(seq)) callback?.onError(message)
             })
         }
 
@@ -819,8 +820,8 @@ class DanmakuApi {
         }
 
         private fun escapeXml(text: String?): String {
-            if (TextUtils.isEmpty(text)) return ""
-            return text!!.replace("&", "&amp;")
+            if (text.isNullOrEmpty()) return ""
+            return text.replace("&", "&amp;")
                     .replace("\"", "&quot;")
                     .replace("'", "&apos;")
                     .replace(">", "&gt;")
@@ -828,8 +829,8 @@ class DanmakuApi {
         }
 
         private fun parseUrl(body: String?): String {
-            if (TextUtils.isEmpty(body)) return ""
-            val text = body!!.trim { it <= ' ' }
+            if (body.isNullOrEmpty()) return ""
+            val text = body.trim { it <= ' ' }
             if (text.startsWith("[")) {
                 val array = JSONArray(text)
                 for (i in 0 until array.length()) {

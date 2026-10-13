@@ -60,7 +60,7 @@ class SpiderApi {
     fun getScreenOrientation(): Int {
         try {
             val activity = AppManager.getInstance().currentActivity()
-            val context: Context = if (activity == null) AppContextHolder.context()!! else activity
+            val context: Context = if (activity == null) requireNotNull(AppContextHolder.context()) { "app context not ready" } else activity
             val orientation = context.resources.configuration.orientation
             var rotation = Surface.ROTATION_0
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager?

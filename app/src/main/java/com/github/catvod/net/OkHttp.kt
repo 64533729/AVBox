@@ -49,8 +49,7 @@ class OkHttp {
         @JvmStatic
         fun dns(): OkDns {
             synchronized(OkHttp::class.java) {
-                if (dns == null) dns = OkDns()
-                return dns!!
+                return dns ?: OkDns().also { dns = it }
             }
         }
 
@@ -249,7 +248,7 @@ class OkHttp {
         }
 
         private fun buildUrl(url: String, params: ArrayMap<String, String>?): HttpUrl {
-            val builder = url.toHttpUrlOrNull()!!.newBuilder()
+            val builder = requireNotNull(url.toHttpUrlOrNull()) { "invalid url" }.newBuilder()
             if (params != null) for ((key, value) in params) builder.addQueryParameter(key, value)
             return builder.build()
         }

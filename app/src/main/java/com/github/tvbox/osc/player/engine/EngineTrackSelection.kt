@@ -403,8 +403,9 @@ internal class EngineTrackSelection(private val host: Host) {
         }
 
         var codec = ""
-        if (!fmt.codecs.isNullOrEmpty()) {
-            codec = fmt.codecs!!.uppercase(Locale.getDefault())
+        val codecs = fmt.codecs
+        if (!codecs.isNullOrEmpty()) {
+            codec = codecs.uppercase(Locale.getDefault())
         }
         val mime = fmt.sampleMimeType
         if (mime != null && mime.contains("/")) {

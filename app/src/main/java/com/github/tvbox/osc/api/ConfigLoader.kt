@@ -42,7 +42,7 @@ class ConfigLoader(private val owner: ApiConfig) {
             callback.error("-1")
             return
         }
-        val cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl))
+        val cache = File(requireNotNull(App.getInstance()) { "app instance not ready" }.getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl))
         if (useCache && cache.exists() && isRemoteSource(apiUrl)) {
             try {
                 val json = readConfigFile(cache)
@@ -124,7 +124,7 @@ class ConfigLoader(private val owner: ApiConfig) {
         val resolvedLive = ConfigParser.configUrl(liveApiUrl, Supplier { ApiConfig.localFileBase() })
         val liveApiConfigUrl = resolvedLive.url
         val liveConfigKey = resolvedLive.key
-        val live_cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/" + MD5.encode(liveApiUrl))
+        val live_cache = File(requireNotNull(App.getInstance()) { "app instance not ready" }.getFilesDir().getAbsolutePath() + "/" + MD5.encode(liveApiUrl))
         LOG.i("echo-load live config " + liveApiUrl)
         if (useCache && live_cache.exists() && isRemoteSource(liveApiUrl)) {
             try {
@@ -212,13 +212,16 @@ class ConfigLoader(private val owner: ApiConfig) {
     private fun isLocalSourceUnreadable(apiUrl: String): Boolean {
         val path = localSourcePath(apiUrl)
         if (path == null) return false
-        if (LocalSourceTree.serves(App.getInstance()!!, path)) return false
-        return !PermissionHelper.isStorageGranted(App.getInstance()!!) && !File(path).canRead()
+        val app = requireNotNull(App.getInstance()) { "app instance not ready" }
+        if (LocalSourceTree.serves(app, path)) return false
+        return !PermissionHelper.isStorageGranted(app) && !File(path).canRead()
     }
 
     private fun isLocalSourceMissing(apiUrl: String): Boolean {
         val path = localSourcePath(apiUrl)
-        if (path == null || LocalSourceTree.serves(App.getInstance()!!, path)) return false
+        if (path == null) return false
+        val app = requireNotNull(App.getInstance()) { "app instance not ready" }
+        if (LocalSourceTree.serves(app, path)) return false
         return !File(path).exists()
     }
 
@@ -345,7 +348,7 @@ class ConfigLoader(private val owner: ApiConfig) {
                 } else if (response.body == null) {
                     error = "empty body"
                 } else {
-                    result = ApiConfig.FindResult(response.body.string(), configKey)!!
+                    result = requireNotNull(ApiConfig.FindResult(response.body.string(), configKey)) { "find result failed" }
                     val packedPy = PySourcePack.packUrl(apiUrl, result)
                     if (packedPy != null) result = packedPy
                     if (apiUrl.startsWith("clan")) {

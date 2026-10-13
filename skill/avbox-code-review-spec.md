@@ -54,7 +54,7 @@
 - 语言构成：自有源码已**全量 Kotlin**（`app/src/main/java` 0 Java / 375 Kotlin；`app/src/python/java`（Chaquopy sourceSet）0 Java / 5 Kotlin）；唯一 Java 存量 = `app/src/test` 的 11 个测试文件（不在迁移范围；`TrackMemoryTest` 已于 2026-10-08 迁为 Kotlin，原 12 个）
 - 模块：`app`（宿主，含 api/base/bean/data/dlna/event/player/receiver/server/sourcedata/subtitle/ui/util；原 `cache` 包已于 2026-09-28 并入 `data`，原 `viewmodel` 包已于 2026-10-01 改名 `sourcedata`）、`pyramid`、`quickjs`（JS 脚本引擎）、`libs`（backdrop 等第三方）。原 `player` 模块（doikki `xyz.doikki` 骨架）已于 2026-10-06（M10）整体删除
 - UI：View 体系与 Jetpack Compose（Material3）共存；Compose 集中在 `app` 的 ui/page、ui/components、navbar、glass 系列，以及播放器 ui 层
-- 播放内核：media3/ExoPlayer（唯一内置内核，2026-09-29 起；外部播放器 MX/VLC/Kodi/Reex 仍可选用）；播放层为 app 内自研 Kotlin 栈（`osc.player` + `osc.player.engine`，M7 起 / D12 路线），预载走 `PreloadManagerHolder` / `PreloadCoordinator` 链路
+- 播放内核：media3/ExoPlayer（唯一内置内核）；播放层为 app 内自研 Kotlin 栈（`osc.player` + `osc.player.engine`，M7 起 / D12 路线），预载走 `PreloadManagerHolder` / `PreloadCoordinator` 链路
 - 存储：Room（实体 Cache / VodRecord / VodCollect）+ MMKV 键值（经 `util/kv` KV 门面）
 - 网络：OkHttp + gson；站点/爬虫为配置驱动，spider jar 动态加载
 - 无 DI 框架、无多 module feature 拆分——这是现状与既定方向，除非明确要求，**不要**建议引入 DI 或大拆 Gradle 模块
@@ -62,7 +62,7 @@
 ## 既定约定（以下不算问题，报了即误报）
 
 - 全库零注释（2026-10-06 用户指令）：代码自解释，说明归 `skill/` 文档 → 「注释缺失」永远不是问题；**「存在解释性注释」才是问题**
-- 允许存在的注释只有三类：许可证块（第三方派生文件的 Copyright / "Permission is hereby granted" / SPDX）、机器可读指令（`// i18n: keep`、`//noinspection`）、以及字符串/raw string 内部的文本（如 `Anime4kShaderTest` 的 shader 样例）
+- 允许存在的注释只有三类：许可证块（第三方派生文件的 Copyright / "Permission is hereby granted" / SPDX）、机器可读指令（`// i18n: keep`、`// null-assert: keep`、`//noinspection`）、以及字符串/raw string 内部的文本（如 `Anime4kShaderTest` 的 shader 样例）
 - 异常禁止裸 `printStackTrace`，统一 `LOG.e(类名, 异常)` → 出现裸栈才算问题
 - 依赖版本一律走 `gradle/libs.versions.toml`；禁止硬编码 URL/配置参数
 - 默认最小化修改；除非，不改变项目架构
@@ -130,6 +130,15 @@
 
 - MutableState / 可变集合外泄、StateFlow / SharedFlow 用法、suspend 函数设计
 - CoroutineScope 生命周期绑定、Job 取消、Flow 收集时机、主线程阻塞
+
+## 空安全与非空断言（2026-10-14 起为治理后基线）
+
+- 现状：`src/main` 与 Chaquopy sourceSet（`app/src/python/java`）的 `!!` 已全部清理，判定域仅剩 `libs/backdrop` 两处（vendored 第三方，属排除范围）；`src/test` 的 147 处按与 i18n 治理一致的"单测不折腾"口径豁免，**不报**。新增 `!!` 由 `.codebuddy/tools/null_assert_gate.py` 拦截（基线只允许下调）。
+- 判据只有一条：**这行的空是否属于正常业务状态**。是（用户未登录、线路没有该清晰度、生命周期未就绪）⇒ 守卫早退 / 跳过才是正确语义；否（数据本该存在、解析结果本该完整）⇒ 必须显式失败（`requireNotNull(x) { "英文消息" }`）或维持崩溃。
+- **必须报**：① 裸 `!!` 且同行 / 紧邻无可见判据（例外必须带 `// null-assert: keep` 与登记理由）；② `!!` 被换成 `?.` 造成的**静默降级**——原语义是"必须成功"却变成"失败就跳过"，黑屏有声音 / 有声音无画面 / 按钮无响应类问题多由此而来；③ 借消除 `!!` 顺手改了**可空性标注 / 签名 / 可见性 / 字段类型**（击穿调用点、Gson/XStream 序列化与契约层 `javap` 符号守恒）；④ `ui/` 层（含 `player/ui/`）新增中文 `requireNotNull` 消息（`i18n_gate.py` 对 ui 层 0 容忍，消息必须英文）。
+- **不报**（报了即误报）：`!!` 的数量本身；`src/test` 与第三方源码（`libs/`、`quickjs/`、`pyramid/`）里的 `!!`；`requireNotNull(x)` 取代 `!!` 带来的异常类型变化（`NullPointerException` → `IllegalArgumentException`，两者同属 RuntimeException，调用点落在既有 `catch (Exception)` / `catch (Throwable)` 内时可观测行为不变）。
+- 允许保留 `!!` 的唯一形态：局部量已在上文显式判空、编译器可证明非空但跨模块契约无法表达、`require` / `check` 之后紧跟的一次性解包——且**同行或紧邻必须有可见判据**，并加 `// null-assert: keep`。
+- 门禁用法：`python .codebuddy/tools/null_assert_gate.py`（默认校验 / `--detail` 逐条打印 / `--update` 只允许下调基线 / `--raw` 输出 literal 与剥离后两口径）。
 
 ## Compose 专项（本批为 Compose 目录时）
 

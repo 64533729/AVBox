@@ -23,7 +23,7 @@ object SortAdjuster {
                 Collections.sort(data)
                 return data
             }
-            val categories = sb.categories!!
+            val categories = requireNotNull(sb.categories) { "source categories missing" }
             if (!categories.isEmpty()) {
                 data = pickByCategories(list, categories)
             } else {

@@ -38,14 +38,14 @@ object AppDataManager {
                 throw RuntimeException("AppDataManager is no init")
             }
             if (dbInstance == null) {
-                dbInstance = Room.databaseBuilder(AppContextHolder.context()!!, AppDataBase::class.java, dbPath())
+                dbInstance = Room.databaseBuilder(requireNotNull(AppContextHolder.context()) { "app context not initialized" }, AppDataBase::class.java, dbPath())
                     .setDriver(BundledSQLiteDriver())
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     .allowMainThreadQueries()
                     .addMigrations(MIGRATION_1_2)
                     .build()
             }
-            return dbInstance!!
+            return requireNotNull(dbInstance) { "database instance not created" }
         }
     }
 
@@ -54,7 +54,7 @@ object AppDataManager {
     fun backup(path: File): Boolean {
         dbInstance?.close()
         dbInstance = null
-        val db = AppContextHolder.context()!!.getDatabasePath(dbPath())
+        val db = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.getDatabasePath(dbPath())
         return if (db.exists()) {
             FileUtils.copyFile(db, path)
             true
@@ -68,7 +68,7 @@ object AppDataManager {
     fun restore(path: File): Boolean {
         dbInstance?.close()
         dbInstance = null
-        val db = AppContextHolder.context()!!.getDatabasePath(dbPath())
+        val db = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.getDatabasePath(dbPath())
         if (db.exists()) {
             db.delete()
         }

@@ -12,13 +12,14 @@ import org.greenrobot.eventbus.EventBus
 
 class SearchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (action == intent.action && intent.extras != null) {
+        val extras = intent.extras
+        if (action == intent.action && extras != null) {
             if (AppManager.getInstance().getActivity(SearchActivity::class.java) != null) {
                 AppManager.getInstance().backActivity(SearchActivity::class.java)
-                EventBus.getDefault().post(ServerEvent(ServerEvent.SERVER_SEARCH, intent.extras!!.getString("title")))
+                EventBus.getDefault().post(ServerEvent(ServerEvent.SERVER_SEARCH, extras.getString("title")))
             } else {
                 val newIntent = Intent(context, SearchActivity::class.java)
-                newIntent.putExtra("title", intent.extras!!.getString("title"))
+                newIntent.putExtra("title", extras.getString("title"))
                 newIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 context.startActivity(newIntent)
             }

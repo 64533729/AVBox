@@ -191,7 +191,7 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                                 LOG.d("RemoteServer", "file open failed, fallback to tree grant")
                             }
                         }
-                        val granted = if (isLocalRequest(session)) LocalSourceTree.open(AppContextHolder.context()!!, f) else null
+                        val granted = if (isLocalRequest(session)) LocalSourceTree.open(requireNotNull(AppContextHolder.context()) { "app context not initialized" }, f) else null
                         if (granted != null) {
                             return NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "application/octet-stream", granted)
                         }
@@ -204,9 +204,9 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                     var rs = ByteArray(0)
                     try {
                         val dnsOverHttps = OkGoHelper.dnsOverHttps
-                        if (dnsOverHttps != null && !TextUtils.isEmpty(name)) {
-                            val host = name!!
-                            rs = buildDnsResponse(host, dnsOverHttps.lookup(host))
+                        val hostName = name
+                        if (dnsOverHttps != null && !hostName.isNullOrEmpty()) {
+                            rs = buildDnsResponse(hostName, dnsOverHttps.lookup(hostName))
                         }
                     } catch (th: Throwable) {
                         rs = ByteArray(0)
@@ -288,10 +288,11 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
     private fun normalizeDanmuParams(params: MutableMap<String, String>) {
         try {
             val vodInfo = App.getInstance()?.getVodInfo() ?: return
-            if (!TextUtils.isEmpty(vodInfo.name)) params["vodName"] = vodInfo.name!!
+            val vodName = vodInfo.name
+            if (!vodName.isNullOrEmpty()) params["vodName"] = vodName
             if (!isNumeric(params["vodIndex"])) {
                 val episode = getCurrentEpisodeIndex(vodInfo)
-                if (!TextUtils.isEmpty(episode)) params["vodIndex"] = episode!!
+                if (!episode.isNullOrEmpty()) params["vodIndex"] = episode
             }
         } catch (th: Throwable) {
             LOG.e("echo-proxy-danmu normalize error: " + th.message)
@@ -299,8 +300,9 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
     }
 
     private fun getCurrentEpisodeIndex(vodInfo: VodInfo): String? {
-        if (vodInfo.seriesMap != null && !TextUtils.isEmpty(vodInfo.playFlag)) {
-            val series = vodInfo.seriesMap!![vodInfo.playFlag]
+        val seriesMap = vodInfo.seriesMap
+        if (seriesMap != null && !TextUtils.isEmpty(vodInfo.playFlag)) {
+            val series = seriesMap[vodInfo.playFlag]
             if (series != null && vodInfo.playIndex >= 0 && vodInfo.playIndex < series.size) {
                 val current: VodInfo.VodSeries? = series[vodInfo.playIndex]
                 if (current != null && !TextUtils.isEmpty(current.name)) {
@@ -313,7 +315,7 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
     }
 
     private fun isNumeric(text: String?): Boolean {
-        return !TextUtils.isEmpty(text) && text!!.matches("\\d+".toRegex())
+        return !text.isNullOrEmpty() && text.matches("\\d+".toRegex())
     }
 
     private fun extractNumber(text: String?): String {
@@ -422,7 +424,8 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
         @SuppressLint("DefaultLocale")
         @JvmStatic
         fun getLocalIPAddress(context: Context?): String {
-            val wifiManager = context!!.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val appContext = context ?: return ""
+            val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             val ipAddress = wifiManager.connectionInfo.ipAddress
             if (ipAddress == 0) {
                 try {
@@ -435,7 +438,7 @@ class RemoteServer(port: Int, context: Context) : NanoHTTPD(port) {
                             while (enumIpAddr.hasMoreElements()) {
                                 val inetAddress = enumIpAddr.nextElement()
                                 if (!inetAddress.isLoopbackAddress && inetAddress is Inet4Address) {
-                                    return inetAddress.hostAddress!!
+                                    return inetAddress.hostAddress ?: ""
                                 }
                             }
                         }

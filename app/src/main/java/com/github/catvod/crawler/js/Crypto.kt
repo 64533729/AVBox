@@ -25,7 +25,7 @@ class Crypto {
         @JvmStatic
         fun aes(mode: String?, encrypt: Boolean, input: String?, inBase64: Boolean, key: String?, iv: String?, outBase64: Boolean): String {
             try {
-                var keyBuf = key!!.toByteArray(Charset.defaultCharset())
+                var keyBuf = requireNotNull(key) { "key is null" }.toByteArray(Charset.defaultCharset())
                 if (keyBuf.size < 16) keyBuf = Arrays.copyOf(keyBuf, 16)
                 var ivBuf = if (iv == null) ByteArray(0) else iv.toByteArray(Charset.defaultCharset())
                 if (ivBuf.size < 16) ivBuf = Arrays.copyOf(ivBuf, 16)
@@ -33,7 +33,8 @@ class Crypto {
                 val keySpec = SecretKeySpec(keyBuf, "AES")
                 if (iv == null) cipher.init(if (encrypt) Cipher.ENCRYPT_MODE else Cipher.DECRYPT_MODE, keySpec)
                 else cipher.init(if (encrypt) Cipher.ENCRYPT_MODE else Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(ivBuf))
-                val inBuf = if (inBase64) Base64.decode(input!!.replace("_", "/").replace("-", "+"), Base64.DEFAULT) else input!!.toByteArray(Charsets.UTF_8)
+                val text = requireNotNull(input) { "input is null" }
+                val inBuf = if (inBase64) Base64.decode(text.replace("_", "/").replace("-", "+"), Base64.DEFAULT) else text.toByteArray(Charsets.UTF_8)
                 return if (outBase64) Base64.encodeToString(cipher.doFinal(inBuf), Base64.NO_WRAP) else String(cipher.doFinal(inBuf), Charsets.UTF_8)
             } catch (e: Exception) {
                 LOG.e("Crypto", e)
@@ -47,7 +48,8 @@ class Crypto {
                 val rsaKey = generateKey(pub, key)
                 val len = getModulusLength(rsaKey)
                 var outBytes = ByteArray(0)
-                val inBytes = if (inBase64) Base64.decode(input!!.replace("_", "/").replace("-", "+"), Base64.DEFAULT) else input!!.toByteArray(Charsets.UTF_8)
+                val text = requireNotNull(input) { "input is null" }
+                val inBytes = if (inBase64) Base64.decode(text.replace("_", "/").replace("-", "+"), Base64.DEFAULT) else text.toByteArray(Charsets.UTF_8)
                 val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
                 cipher.init(if (encrypt) Cipher.ENCRYPT_MODE else Cipher.DECRYPT_MODE, rsaKey)
                 val blockLen = if (encrypt) len / 8 - 11 else len / 8
@@ -69,7 +71,7 @@ class Crypto {
 
         @Throws(Exception::class)
         private fun generateKey(pub: Boolean, key: String?): Key {
-            val raw = key!!
+            val raw = requireNotNull(key) { "key is null" }
             val normalized = if (pub) {
                 raw.replace("\r\n", "").replace("\n", "").replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", "")
             } else {

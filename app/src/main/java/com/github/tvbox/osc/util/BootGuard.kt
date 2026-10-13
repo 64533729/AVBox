@@ -103,7 +103,7 @@ object BootGuard {
 
     private fun crashMarkerFile(): File? {
         try {
-            return File(AppContextHolder.context()!!.filesDir, CRASH_MARKER_NAME)
+            return File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.filesDir, CRASH_MARKER_NAME)
         } catch (e: Throwable) {
             return null
         }
@@ -252,8 +252,9 @@ object BootGuard {
     @JvmStatic
     fun isDisabledSource(url: String?): Boolean {
         if (isEmpty(url)) return false
+        val value = url ?: return false
         try {
-            return disabledSources().contains(url!!.trim { it <= ' ' })
+            return disabledSources().contains(value.trim { it <= ' ' })
         } catch (ignored: Throwable) {
             return false
         }
@@ -300,7 +301,7 @@ object BootGuard {
     fun addDisabledSource(list: ArrayList<String>?, url: String?): ArrayList<String> {
         val next = ArrayList<String>(if (list == null) ArrayList<String>() else list)
         if (isEmpty(url)) return next
-        val value = url!!.trim { it <= ' ' }
+        val value = url?.trim { it <= ' ' } ?: return next
         if (!next.contains(value)) next.add(value)
         return next
     }
@@ -309,7 +310,7 @@ object BootGuard {
     fun removeDisabledSource(list: ArrayList<String>?, url: String?): ArrayList<String> {
         val next = ArrayList<String>(if (list == null) ArrayList<String>() else list)
         if (isEmpty(url)) return next
-        next.remove(url!!.trim { it <= ' ' })
+        next.remove(url?.trim { it <= ' ' } ?: return next)
         return next
     }
 }

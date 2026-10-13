@@ -6,7 +6,6 @@ import android.content.res.AssetFileDescriptor
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Parcelable
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.SurfaceView
 import android.view.View
@@ -210,8 +209,8 @@ open class AppPlayerView @JvmOverloads constructor(
 
     protected open fun prepareDataSource(): Boolean {
         val url = mUrl
-        if (!TextUtils.isEmpty(url)) {
-            mMediaPlayer?.setDataSource(url!!, mHeaders)
+        if (!url.isNullOrEmpty()) {
+            mMediaPlayer?.setDataSource(url, mHeaders)
             return true
         }
         return false

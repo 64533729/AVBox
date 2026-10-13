@@ -54,8 +54,8 @@ class JarLoader {
     }
 
     fun setRecentJarKey(key: String?) {
-        if (TextUtils.isEmpty(key)) return
-        recent = realKey(key!!)
+        if (key.isNullOrEmpty()) return
+        recent = realKey(key)
         injectProxyPort(loaders[recent])
     }
 
@@ -88,7 +88,7 @@ class JarLoader {
         try {
             file.setReadOnly()
             val cachePath = jarDir().absolutePath
-            val loader = DexClassLoader(file.absolutePath, cachePath, cachePath, AppContextHolder.context()!!.classLoader)
+            val loader = DexClassLoader(file.absolutePath, cachePath, cachePath, requireNotNull(AppContextHolder.context()) { "app context not ready" }.classLoader)
             invokeInit(loader)
             invokeProxy(key, loader)
             invokeDanmaku(key, loader)
@@ -142,12 +142,12 @@ class JarLoader {
     }
 
     fun parseJar(key: String?, jar: String?) {
-        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(jar)) return
+        if (key.isNullOrEmpty() || jar.isNullOrEmpty()) return
         if (loaders.containsKey(key)) return
-        val lock = lock(key!!)
+        val lock = lock(key)
         synchronized(lock) {
             if (loaders.containsKey(key)) return
-            var source = jar!!
+            var source = jar
             var md5 = ""
             val texts = RegexUtils.getPattern(";md5;").split(source)
             if (texts.size > 1) {
@@ -270,9 +270,9 @@ class JarLoader {
 
     fun proxyInvoke(params: Map<String, String>?): Array<Any?>? {
         val siteKey = params?.get("siteKey")
-        if (!TextUtils.isEmpty(siteKey)) {
-            val key = siteKey!!
-            val result = proxyInvoke(proxyMethods[siteJarKeys[key]!!], params)
+        if (!siteKey.isNullOrEmpty()) {
+            val key = siteKey
+            val result = proxyInvoke(proxyMethods[requireNotNull(siteJarKeys[key]) { "jar key not found for siteKey" }], params)
             if (result != null) return result
         }
         var result = proxyInvoke(proxyMethods[recent], params)
@@ -365,7 +365,7 @@ class JarLoader {
         var outputStream: FileOutputStream? = null
         try {
             val path = url.replace("assets://", "").replace("assets/", "")
-            val input = AppContextHolder.context()!!.assets.open(path)
+            val input = requireNotNull(AppContextHolder.context()) { "app context not ready" }.assets.open(path)
             inputStream = input
             val output = FileOutputStream(create(file))
             outputStream = output
@@ -395,7 +395,7 @@ class JarLoader {
     }
 
     private fun jarDir(): File {
-        val dir = File(AppContextHolder.context()!!.cacheDir, "jar")
+        val dir = File(requireNotNull(AppContextHolder.context()) { "app context not ready" }.cacheDir, "jar")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
@@ -426,12 +426,12 @@ class JarLoader {
 
     private fun jarKey(jar: String?): String {
         val key = MD5.string2MD5(jar ?: "")
-        return if (TextUtils.isEmpty(key)) MAIN_KEY else key!!
+        return if (key.isNullOrEmpty()) MAIN_KEY else key
     }
 
     private fun realKey(key: String): String {
         val alias = aliases[key]
-        return if (TextUtils.isEmpty(alias)) key else alias!!
+        return if (alias.isNullOrEmpty()) key else alias
     }
 
     private fun className(api: String): String {

@@ -181,6 +181,7 @@ class MusicSessionDelegate(private val host: Host) {
         if (!PlaybackService.isSupported(context)) return
         val st = host.attemptState()
         if (st.switchingPlayback) return
+        val vod = host.vod()
         val trackInfo = currentTrackInfo()
         val hasAudio: Boolean? = trackInfo != null && trackInfo.getAudio().isNotEmpty()
         val audioOnly: Boolean? = if (musicPage && java.lang.Boolean.TRUE == hasAudio) {
@@ -203,21 +204,22 @@ class MusicSessionDelegate(private val host: Host) {
         )
         if (st.audioPlayback && java.lang.Boolean.TRUE == audioOnly
             && !host.isStartedPlayState(state)
-            && TextUtils.isEmpty(playArtwork) && host.vod() != null && !TextUtils.isEmpty(host.vod()!!.pic)
+            && TextUtils.isEmpty(playArtwork) && vod != null && !TextUtils.isEmpty(vod.pic)
         ) {
-            playArtwork = host.vod()!!.pic
-            view.setArtwork(playArtwork!!)
+            val artwork = requireNotNull(vod.pic)
+            playArtwork = artwork
+            view.setArtwork(artwork)
         }
         if ((state == PlayState.ERROR && st.audioOnlyConfirmed) && host.retryAfterStartedError()) {
             LOG.i("echo-music session keep: auto retry after started error (audio-only)")
             return
         }
-        if (host.vod() == null || !st.audioPlayback
+        if (vod == null || !st.audioPlayback
             || state == PlayState.ERROR
             || state == PlayState.COMPLETED
         ) {
             LOG.i(
-                "echo-music session drop: vod=" + (host.vod() != null) + " audioPlayback=" + st.audioPlayback
+                "echo-music session drop: vod=" + (vod != null) + " audioPlayback=" + st.audioPlayback
                     + " state=" + state + " (ERROR=" + PlayState.ERROR
                     + " COMPLETED=" + PlayState.COMPLETED + ")"
             )
@@ -226,12 +228,12 @@ class MusicSessionDelegate(private val host: Host) {
             return
         }
         view.requestNotificationPermission()
-        val currentSeries = host.currentSeries(host.vod()!!.playFlag, host.vod()!!.playIndex)
+        val currentSeries = host.currentSeries(vod.playFlag, vod.playIndex)
         val episode = if (currentSeries == null || TextUtils.isEmpty(currentSeries.name)) "" else currentSeries.name
         PlaybackService.updateSession(
             context, view.playbackHost(),
-            if (TextUtils.isEmpty(host.vod()!!.name)) "TVBox" else host.vod()!!.name,
-            episode, host.vod()!!.pic, view.currentPosition(), view.duration(), view.isPlaying()
+            if (TextUtils.isEmpty(vod.name)) "TVBox" else vod.name,
+            episode, vod.pic, view.currentPosition(), view.duration(), view.isPlaying()
         )
     }
 

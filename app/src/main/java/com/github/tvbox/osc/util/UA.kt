@@ -11,7 +11,7 @@ object UA {
     @JvmStatic
     fun random(): String {
         try {
-            val fis: InputStream = AppContextHolder.context()!!.assets.open("ua.db")
+            val fis: InputStream = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets.open("ua.db")
             val dis = DataInputStream(fis)
             val len = dis.readInt()
             val random = Random().nextInt(len)

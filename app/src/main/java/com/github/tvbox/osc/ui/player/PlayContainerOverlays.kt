@@ -16,7 +16,8 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
     private var mDanmuView: DanmakuView? = null
 
     private val refreshPreloadToastRunnable: Runnable = Runnable {
-        if (preloadReadyToast != null) preloadReadyToast!!.show()
+        val toast = preloadReadyToast ?: return@Runnable
+        toast.show()
     }
 
     fun onTipStateChanged(tip: PlayerTipState) {
@@ -36,7 +37,8 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
     }
 
     fun setDanmuViewSettings(reload: Boolean) {
-        if (host.danmuLoadController != null) host.danmuLoadController!!.applySettings(reload)
+        val controller = host.danmuLoadController ?: return
+        controller.applySettings(reload)
     }
 
     fun applyDanmuSettings(reload: Boolean) {
@@ -49,27 +51,28 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
 
     fun checkDanmu(danmu: String?, callback: DanmuLoadController.LoadCallback?) {
         host.scheduler.setPlayDanmu(danmu)
-        if (host.danmuLoadController != null) {
-            val series = if (host.scheduler.vod() == null) null else host.scheduler.currentSeries(host.scheduler.vod()!!.playFlag, host.scheduler.vod()!!.playIndex)
-            host.danmuLoadController!!.check(danmu, host.scheduler.vod()?.name ?: "", series?.name ?: "", callback)
-        }
+        val controller = host.danmuLoadController ?: return
+        val vod = host.scheduler.vod()
+        val series = if (vod == null) null else host.scheduler.currentSeries(vod.playFlag, vod.playIndex)
+        controller.check(danmu, vod?.name ?: "", series?.name ?: "", callback)
     }
 
     fun startDanmuIfReady() {
-        if (host.danmuLoadController != null) host.danmuLoadController!!.startIfReady()
+        host.danmuLoadController?.startIfReady()
     }
 
     fun resetDanmuState() {
-        if (host.danmuLoadController != null) host.danmuLoadController!!.reset()
+        host.danmuLoadController?.reset()
     }
 
     fun reloadDanmuForPlayback() {
-        if (host.danmuLoadController != null) host.danmuLoadController!!.reloadForPlayback()
+        host.danmuLoadController?.reloadForPlayback()
     }
 
     fun openDanmuSearchSheet() {
         if (!host.isAttached()) return
-        val series = if (host.scheduler.vod() == null) null else host.scheduler.currentSeries(host.scheduler.vod()!!.playFlag, host.scheduler.vod()!!.playIndex)
+        val vod = host.scheduler.vod()
+        val series = if (vod == null) null else host.scheduler.currentSeries(vod.playFlag, vod.playIndex)
         val uiState = host.mController.getUiState()
         uiState.danmuSearchSheet = DanmuSearchSheetState(
             series?.name ?: "",
@@ -97,35 +100,38 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
 
     fun showPreloadReady() {
         val activity = host.mActivity
-        if (activity == null || !host.isAttached() || host.mHandler == null) return
-        if (preloadReadyToast != null) preloadReadyToast!!.cancel()
-        preloadReadyToast = Toast.makeText(activity, activity.getString(R.string.player_next_episode_ready), Toast.LENGTH_SHORT)
-        preloadReadyToast!!.show()
-        host.mHandler!!.removeCallbacks(refreshPreloadToastRunnable)
-        host.mHandler!!.postDelayed(refreshPreloadToastRunnable, PRELOAD_TOAST_REFRESH_DELAY_MS)
+        val handler = host.mHandler
+        if (activity == null || !host.isAttached() || handler == null) return
+        preloadReadyToast?.cancel()
+        val toast = Toast.makeText(activity, activity.getString(R.string.player_next_episode_ready), Toast.LENGTH_SHORT)
+        preloadReadyToast = toast
+        toast.show()
+        handler.removeCallbacks(refreshPreloadToastRunnable)
+        handler.postDelayed(refreshPreloadToastRunnable, PRELOAD_TOAST_REFRESH_DELAY_MS)
     }
 
     fun hidePreloadReady() {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             cancelPreloadToast()
-        } else if (host.mActivity != null) {
-            host.mActivity!!.runOnUiThread {
+        } else {
+            host.mActivity?.runOnUiThread {
                 cancelPreloadToast()
             }
         }
     }
 
     fun cancelPreloadToast() {
-        if (host.mHandler != null) host.mHandler!!.removeCallbacks(refreshPreloadToastRunnable)
-        if (preloadReadyToast != null) {
-            preloadReadyToast!!.cancel()
+        host.mHandler?.removeCallbacks(refreshPreloadToastRunnable)
+        val toast = preloadReadyToast
+        if (toast != null) {
+            toast.cancel()
             preloadReadyToast = null
         }
     }
 
     fun errorWithRetry(err: String, finish: Boolean) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            host.mHandler!!.post { errorWithRetry(err, finish) }
+            host.mHandler?.post { errorWithRetry(err, finish) }
             return
         }
         if (host.scheduler.isPlaybackStarted()) {

@@ -191,7 +191,7 @@ class SpiderLoader {
         val urls = RegexUtils.getPattern(";md5;").split(spider)
         var jarUrl = urls[0]
         val md5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
-        val cache = File(App.getInstance()!!.getFilesDir().getAbsolutePath() + "/csp/" + MD5.string2MD5(jarUrl) + ".jar")
+        val cache = File(requireNotNull(App.getInstance()) { "app instance not ready" }.getFilesDir().getAbsolutePath() + "/csp/" + MD5.string2MD5(jarUrl) + ".jar")
 
         if (!md5.isEmpty() || useCache) {
             if (cache.exists() && (useCache || MD5.getFileMd5(cache).equals(md5, ignoreCase = true))) {
@@ -290,13 +290,14 @@ class SpiderLoader {
     }
 
     fun getCSP(sourceBean: SourceBean): Spider {
-        if (sourceBean.api!!.endsWith(".js") || sourceBean.api!!.contains(".js?")) {
+        val api = sourceBean.api ?: ""
+        if (api.endsWith(".js") || api.contains(".js?")) {
             currentPyKey = ""
             return jsLoader.getSpider(sourceBean.key, sourceBean.api, sourceBean.ext, sourceBean.jar)
-        } else if (sourceBean.api!!.contains(".py")) {
+        } else if (api.contains(".py")) {
             currentPyKey = sourceBean.key
             pyLoader.setRecentPyKey(currentPyKey)
-            return pyLoader.getSpider(sourceBean.key!!, sourceBean.api, sourceBean.ext)
+            return pyLoader.getSpider(requireNotNull(sourceBean.key) { "source key missing" }, sourceBean.api, sourceBean.ext)
         } else {
             currentPyKey = ""
             return jarLoader.getSpider(sourceBean.key, sourceBean.api, sourceBean.ext, sourceBean.jar)
@@ -304,15 +305,17 @@ class SpiderLoader {
     }
 
     fun pySpider(key: String?, api: String?, ext: String?): Spider {
-        val result = pyLoader.getSpider(key!!, api, ext)
-        pyLoader.setRecentPyKey(key)
+        val keyValue = requireNotNull(key) { "py spider key missing" }
+        val result = pyLoader.getSpider(keyValue, api, ext)
+        pyLoader.setRecentPyKey(keyValue)
         return result
     }
 
     fun setLiveJar(liveJar: String) {
         if (liveJar.contains(".py")) {
-            currentLivePyKey = MD5.string2MD5(liveJar)
-            pyLoader.getSpider(currentLivePyKey!!, liveJar, "")
+            val key = requireNotNull(MD5.string2MD5(liveJar)) { "md5 of live jar failed" }
+            currentLivePyKey = key
+            pyLoader.getSpider(key, liveJar, "")
             pyLoader.setRecentPyKey(currentLivePyKey)
         } else if (liveJar.contains(".js")) {
             jsLoader.getSpider(MD5.string2MD5(liveJar), liveJar, "", "")
@@ -324,9 +327,10 @@ class SpiderLoader {
     }
 
     fun getPyCSP(url: String): Spider {
-        currentLivePyKey = MD5.string2MD5(url)
+        val key = requireNotNull(MD5.string2MD5(url)) { "md5 of live url failed" }
+        currentLivePyKey = key
         currentLiveSpider = url
-        return pyLoader.getSpider(currentLivePyKey!!, url, "")
+        return pyLoader.getSpider(key, url, "")
     }
 
     fun getJsCSP(url: String): Spider {
@@ -343,9 +347,10 @@ class SpiderLoader {
         if (api.contains(".py")) {
             LOG.i("echo-pyLoader.getSpider")
             val ext = liveExt(livesOBJ)
-            currentLivePyKey = MD5.string2MD5(api)
+            val key = requireNotNull(MD5.string2MD5(api)) { "md5 of live api failed" }
+            currentLivePyKey = key
             currentLiveSpider = api
-            pyLoader.getSpider(currentLivePyKey!!, api, ext)
+            pyLoader.getSpider(key, api, ext)
         } else if (api.contains(".js")) {
             LOG.i("echo-jsLoader.getSpider")
             val ext = liveExt(livesOBJ)

@@ -121,12 +121,12 @@ class DLNACastManager : DefaultRegistryListener(), ServiceConnection {
     }
 
     override fun remoteDeviceAdded(registry: Registry?, device: RemoteDevice?) {
-        val d = device!!
+        val d = device ?: return
         if (d.type.implementsVersion(RENDERER_TYPE)) addDevice(CastDevice.dlna(d))
     }
 
     override fun remoteDeviceRemoved(registry: Registry?, device: RemoteDevice?) {
-        val d = device!!
+        val d = device ?: return
         if (d.type.implementsVersion(RENDERER_TYPE)) removeDevice(CastDevice.dlna(d))
     }
 
@@ -138,14 +138,16 @@ class DLNACastManager : DefaultRegistryListener(), ServiceConnection {
     }
 
     private fun addDevice(device: CastDevice) {
-        devices[device.id!!] = device
+        val id = device.id ?: return
+        devices[id] = device
         mainHandler.post {
             deviceListener?.onDeviceChanged()
         }
     }
 
     private fun removeDevice(device: CastDevice) {
-        devices.remove(device.id!!)
+        val id = device.id ?: return
+        devices.remove(id)
         mainHandler.post {
             deviceListener?.onDeviceChanged()
         }

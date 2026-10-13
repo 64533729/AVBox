@@ -42,12 +42,10 @@ class DefaultTaskExecutor : TaskExecutor() {
     }
 
     override fun postToMainThread(task: Runnable) {
-        if (mMainHandler == null) {
-            synchronized(mLock) {
-                mMainHandler = Handler(Looper.getMainLooper())
-            }
+        val handler = mMainHandler ?: synchronized(mLock) {
+            Handler(Looper.getMainLooper()).also { mMainHandler = it }
         }
-        mMainHandler!!.post(task)
+        handler.post(task)
     }
 
     override fun isMainThread(): Boolean {

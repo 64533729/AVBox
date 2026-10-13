@@ -109,13 +109,16 @@ object TrackMemory {
 
     @JvmStatic
     fun localPath(record: String?): String {
-        return if (isSubtitleLocal(record)) record!!.substring(SUBTITLE_LOCAL.length) else ""
+        if (!isSubtitleLocal(record)) return ""
+        val value = record ?: return ""
+        return value.substring(SUBTITLE_LOCAL.length)
     }
 
     @JvmStatic
     fun onlineRelease(record: String?): String {
         if (!isSubtitleOnline(record)) return ""
-        val rest = record!!.substring(SUBTITLE_ONLINE.length)
+        val value = record ?: return ""
+        val rest = value.substring(SUBTITLE_ONLINE.length)
         val sep = rest.indexOf(ONLINE_SEP)
         return if (sep < 0) rest else rest.substring(0, sep)
     }
@@ -123,7 +126,8 @@ object TrackMemory {
     @JvmStatic
     fun onlineFileName(record: String?): String {
         if (!isSubtitleOnline(record)) return ""
-        val rest = record!!.substring(SUBTITLE_ONLINE.length)
+        val value = record ?: return ""
+        val rest = value.substring(SUBTITLE_ONLINE.length)
         val sep = rest.indexOf(ONLINE_SEP)
         return if (sep < 0) "" else rest.substring(sep + ONLINE_SEP.length)
     }
@@ -132,7 +136,8 @@ object TrackMemory {
     fun saveTrack(contentKey: String?, type: Int, fingerprint: String?) {
         if (type != TYPE_AUDIO && type != TYPE_VIDEO) return
         if (isEmpty(contentKey) || !usable(fingerprint)) return
-        KV.put(slotKey(contentKey!!, type), fingerprint)
+        val key = contentKey ?: return
+        KV.put(slotKey(key, type), fingerprint)
         LOG.i("echo-track-memory save " + slot(type) + "=" + fingerprint)
     }
 
@@ -143,7 +148,8 @@ object TrackMemory {
             LOG.i("echo-track-memory skip unusable text=" + record)
             return
         }
-        KV.put(slotKey(contentKey!!, TYPE_TEXT), record)
+        val key = contentKey ?: return
+        KV.put(slotKey(key, TYPE_TEXT), record)
         LOG.i("echo-track-memory save text=" + record)
     }
 
@@ -151,21 +157,23 @@ object TrackMemory {
     fun loadTrack(contentKey: String?, type: Int): String? {
         if (type != TYPE_AUDIO && type != TYPE_VIDEO) return null
         if (isEmpty(contentKey)) return null
-        val value = KV.get(slotKey(contentKey!!, type), "")
+        val key = contentKey ?: return null
+        val value = KV.get(slotKey(key, type), "")
         return if (usable(value)) value else null
     }
 
     @JvmStatic
     fun loadSubtitle(contentKey: String?): String? {
         if (isEmpty(contentKey)) return null
-        val value = KV.get(slotKey(contentKey!!, TYPE_TEXT), "")
+        val key = contentKey ?: return null
+        val value = KV.get(slotKey(key, TYPE_TEXT), "")
         return if (isEmpty(value)) null else value
     }
 
     @JvmStatic
     fun delete(contentKey: String?) {
         if (isEmpty(contentKey)) return
-        val key = contentKey!!
+        val key = contentKey ?: return
         KV.delete(slotKey(key, TYPE_AUDIO))
         KV.delete(slotKey(key, TYPE_VIDEO))
         KV.delete(slotKey(key, TYPE_TEXT))

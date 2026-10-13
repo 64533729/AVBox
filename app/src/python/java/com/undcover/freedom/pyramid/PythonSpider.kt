@@ -39,7 +39,7 @@ class PythonSpider : Spider {
     }
 
     override fun init(context: Context?) {
-        app!!.callAttr("init", pySpider)
+        requireNotNull(app).callAttr("init", pySpider)
     }
 
     override fun init(context: Context?, url: String?) {
@@ -47,9 +47,10 @@ class PythonSpider : Spider {
     }
 
     fun init(context: Context?, url: String?, extend: String?) {
-        app = PythonLoader.getInstance().pyApp
-        val retValue = app!!.callAttr("downloadPlugin", cachePath, url)
-        val uri = Uri.parse(url!!)
+        val pyApp = requireNotNull(PythonLoader.getInstance().pyApp)
+        app = pyApp
+        val retValue = pyApp.callAttr("downloadPlugin", cachePath, url)
+        val uri = Uri.parse(requireNotNull(url))
         var extInfo = extend
         if (extInfo == null || extInfo.length == 0) extInfo = uri.getQueryParameter("extend")
         if (null == extInfo) extInfo = ""
@@ -57,14 +58,15 @@ class PythonSpider : Spider {
         Log.i("PyLoader", "echo-init path: " + path)
         val file = File(path)
         if (file.exists()) {
-            pySpider = app!!.callAttr("loadFromDisk", path)
+            val spider = pyApp.callAttr("loadFromDisk", path)
+            pySpider = spider
             try {
-                pySpider!!.put("siteKey", name)
+                spider.put("siteKey", name)
             } catch (ignored: Exception) {
                 LOG.d("PyLoader", "set siteKey failed")
             }
 
-            val poList = app!!.callAttr("getDependence", pySpider).asList()
+            val poList = pyApp.callAttr("getDependence", spider).asList()
             for (po in poList) {
                 val api = po.toString()
                 Log.i("PyLoader", "echo-init api: " + api)
@@ -72,17 +74,17 @@ class PythonSpider : Spider {
                 if (depUrl.isEmpty()) depUrl = resolveDependenceUrl(url, api)
                 if (!depUrl.isEmpty()) {
                     Log.i("PyLoader", "echo-init depUrl: " + depUrl)
-                    val tmpPath = app!!.callAttr("downloadPlugin", cachePath, depUrl).toString()
+                    val tmpPath = pyApp.callAttr("downloadPlugin", cachePath, depUrl).toString()
                     if (!File(tmpPath).exists()) {
                         PyToast.showCancelableToast(api + "加载失败!")
                         return
                     } else {
-                        app!!.callAttr("registerPluginAlias", api, tmpPath)
+                        pyApp.callAttr("registerPluginAlias", api, tmpPath)
                         PyLog.d(api + ": 加载插件依赖成功！")
                     }
                 }
             }
-            app!!.callAttr("init", pySpider, extInfo)
+            pyApp.callAttr("init", spider, extInfo)
             loadSuccess = true
             PyLog.d(name + ": 下載插件成功！")
         } else {
@@ -98,7 +100,7 @@ class PythonSpider : Spider {
 
     fun getName(): String {
         return if (name.isEmpty()) {
-            val po = app!!.callAttr("getName", pySpider)
+            val po = requireNotNull(app).callAttr("getName", pySpider)
             po.toString()
         } else {
             name
@@ -158,7 +160,7 @@ class PythonSpider : Spider {
     }
 
     override fun proxyLocal(params: Map<String, String>?): Array<Any?>? {
-        val proxyResult = app!!.callAttr("localProxy", pySpider, map2json(params).toString())
+        val proxyResult = requireNotNull(app).callAttr("localProxy", pySpider, map2json(params).toString())
         if (proxyResult == null) return null
         val list = proxyResult.asList()
         if (list == null || list.size < 3) return null
@@ -200,8 +202,8 @@ class PythonSpider : Spider {
 
     override fun homeContent(filter: Boolean): String {
         if (pySpider == null) return "{}"
-        PyLog.nw("homeContent-$name", paramLog(filter))
-        val po = app!!.callAttr("homeContent", pySpider, filter)
+        if (PyLog.isNetworkLogEnabled()) PyLog.nw("homeContent-$name", paramLog(filter))
+        val po = requireNotNull(app).callAttr("homeContent", pySpider, filter)
         val rsp = po.toString()
         PyLog.nw("homeContent-$name", rsp)
         return rsp
@@ -209,39 +211,39 @@ class PythonSpider : Spider {
 
     override fun homeVideoContent(): String {
         PyLog.nw("homeVideoContent-$name", "")
-        val po = app!!.callAttr("homeVideoContent", pySpider)
+        val po = requireNotNull(app).callAttr("homeVideoContent", pySpider)
         val rsp = po.toString()
         PyLog.nw("homeVideoContent-$name", rsp)
         return rsp
     }
 
     override fun categoryContent(tid: String?, pg: String, filter: Boolean, extend: HashMap<String, String>?): String {
-        PyLog.nw("categoryContent-$name", paramLog(tid, pg, filter, map2json(extend).toString()))
-        val po = app!!.callAttr("categoryContent", pySpider, tid, pg, filter, map2json(extend).toString())
+        if (PyLog.isNetworkLogEnabled()) PyLog.nw("categoryContent-$name", paramLog(tid, pg, filter, map2json(extend).toString()))
+        val po = requireNotNull(app).callAttr("categoryContent", pySpider, tid, pg, filter, map2json(extend).toString())
         val rsp = po.toString()
         PyLog.nw("categoryContent-$name", rsp)
         return rsp
     }
 
     override fun detailContent(ids: List<String>?): String {
-        PyLog.nw("detailContent-$name", paramLog(list2json(ids).toString()))
-        val po = app!!.callAttr("detailContent", pySpider, list2json(ids).toString())
+        if (PyLog.isNetworkLogEnabled()) PyLog.nw("detailContent-$name", paramLog(list2json(ids).toString()))
+        val po = requireNotNull(app).callAttr("detailContent", pySpider, list2json(ids).toString())
         val rsp = po.toString()
         PyLog.nw("detailContent-$name", rsp)
         return rsp
     }
 
     override fun searchContent(key: String?, quick: Boolean): String {
-        PyLog.nw("searchContent-$name", paramLog(key, quick))
-        val po = app!!.callAttr("searchContent", pySpider, key, quick)
+        if (PyLog.isNetworkLogEnabled()) PyLog.nw("searchContent-$name", paramLog(key, quick))
+        val po = requireNotNull(app).callAttr("searchContent", pySpider, key, quick)
         val rsp = po.toString()
         PyLog.nw("searchContent-$name", rsp)
         return rsp
     }
 
     override fun playerContent(flag: String?, id: String, vipFlags: List<String>?): String {
-        PyLog.nw("playerContent-$name", paramLog(flag, id, list2json(vipFlags).toString()))
-        val po = app!!.callAttr("playerContent", pySpider, flag, id, list2json(vipFlags).toString())
+        if (PyLog.isNetworkLogEnabled()) PyLog.nw("playerContent-$name", paramLog(flag, id, list2json(vipFlags).toString()))
+        val po = requireNotNull(app).callAttr("playerContent", pySpider, flag, id, list2json(vipFlags).toString())
         val rsp = replaceLocalUrl(po.toString())
         PyLog.nw("playerContent-$name", rsp)
         return rsp
@@ -249,7 +251,7 @@ class PythonSpider : Spider {
 
     override fun liveContent(url: String?): String {
         PyLog.nw("liveContent-$name", "")
-        val po = app!!.callAttr("liveContent", pySpider, url)
+        val po = requireNotNull(app).callAttr("liveContent", pySpider, url)
         val rsp = po.toString()
         PyLog.nw("liveContent-$name", rsp)
         return rsp
@@ -265,7 +267,8 @@ class PythonSpider : Spider {
 
     override fun destroy() {
         try {
-            if (app != null && pySpider != null) app!!.callAttr("destroy", pySpider)
+            val pyApp = app
+            if (pyApp != null && pySpider != null) pyApp.callAttr("destroy", pySpider)
         } catch (ignored: Exception) {
             LOG.d("PyLoader", "python spider destroy failed")
         }

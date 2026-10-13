@@ -63,9 +63,10 @@ class PlaybackRetryDelegate(private val host: Host) {
         if (st.autoSwitchedPlayerType < 0) return
         st.setReleaseIntent(true)
         try {
-            LOG.i("echo-autoRetry restore player: " + host.playerCfg()!!.optInt("pl", -1) + " -> " + st.autoSwitchedPlayerType)
-            host.playerCfg()!!.put("pl", st.autoSwitchedPlayerType)
-            host.view()?.applyPlayerConfig(host.playerCfg()!!)
+            val cfg = requireNotNull(host.playerCfg())
+            LOG.i("echo-autoRetry restore player: " + cfg.optInt("pl", -1) + " -> " + st.autoSwitchedPlayerType)
+            cfg.put("pl", st.autoSwitchedPlayerType)
+            host.view()?.applyPlayerConfig(cfg)
         } catch (th: Throwable) {
             LOG.e("PlaybackController", th)
         } finally {
@@ -108,7 +109,8 @@ class PlaybackRetryDelegate(private val host: Host) {
         if (cfg.optInt("pl", 2) >= 10) return false
         val decodeKey = "exo"
         if ("硬解码" != cfg.optString(decodeKey, "")) return false // i18n: keep —— 已经是软解,不再回退
-        if (TextUtils.isEmpty(host.webPlayUrl())) return false
+        val webUrl = host.webPlayUrl() ?: return false
+        if (TextUtils.isEmpty(webUrl)) return false
         val oldDecode = cfg.optString(decodeKey, "")
         try {
             cfg.put(decodeKey, "软解码") // i18n: keep
@@ -127,7 +129,7 @@ class PlaybackRetryDelegate(private val host: Host) {
             view.runOnUi { view.toast(PlaybackController.str(R.string.player_decode_fallback_tip)) }
         }
         view?.releasePlayer()
-        if (view != null) host.playUrl(host.webPlayUrl()!!, host.webHeaderMap())
+        if (view != null) host.playUrl(webUrl, host.webHeaderMap())
         return true
     }
 
@@ -145,7 +147,8 @@ class PlaybackRetryDelegate(private val host: Host) {
         if (dropRetryIfCastAborted("retryAfterStartedError")) return false
         val st = host.attemptState()
         if (st.hasRetriedAfterStart) return false
-        if (TextUtils.isEmpty(host.webPlayUrl())) return false
+        val webUrl = host.webPlayUrl() ?: return false
+        if (TextUtils.isEmpty(webUrl)) return false
         st.hasRetriedAfterStart = true
         st.hasRetriedSameUrlOnBoot = true
         LOG.i("echo-autoRetry retry after started error: " + host.webPlayUrl())
@@ -157,7 +160,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         host.initParseLoadFound()
         st.playbackStarted = false
         if (view != null && !host.isCrossContentReuseAllowed()) view.releasePlayer()
-        if (view != null) host.playUrl(host.webPlayUrl()!!, host.webHeaderMap())
+        if (view != null) host.playUrl(webUrl, host.webHeaderMap())
         return true
     }
 
@@ -216,23 +219,24 @@ class PlaybackRetryDelegate(private val host: Host) {
         }
         val exoErrorKind = exoLastErrorKind()
         if (retryWithFreshResolveOnFormatError()) return true
+        val webUrl = host.webPlayUrl()
         if (exoErrorKind != ExoPlayer.ERROR_KIND_DECODE
-            && !st.hasRetriedSameUrlOnBoot && !TextUtils.isEmpty(host.webPlayUrl())
+            && !st.hasRetriedSameUrlOnBoot && !TextUtils.isEmpty(webUrl)
         ) {
             st.hasRetriedSameUrlOnBoot = true
-            LOG.i("echo-autoRetry replay same url before decode fallback: " + host.webPlayUrl())
+            LOG.i("echo-autoRetry replay same url before decode fallback: " + webUrl)
             host.stopParse()
             host.initParseLoadFound()
             val view = host.view()
             if (view != null && !host.isCrossContentReuseAllowed()) view.releasePlayer()
-            if (view != null) host.playUrl(host.webPlayUrl()!!, host.webHeaderMap())
+            if (view != null) host.playUrl(requireNotNull(webUrl), host.webHeaderMap())
             return true
         }
         if (exoErrorKind != ExoPlayer.ERROR_KIND_NETWORK && trySoftDecodeFallback()) return true
-        if (host.webPlayUrl() != null) {
+        if (webUrl != null) {
             if (st.allowSwitchPlayer && !st.hasAutoSwitchedPlayer) {
                 LOG.i("echo-autoRetry switch player and replay current url")
-                val playerType = host.playerCfg()!!.optInt("pl", -1)
+                val playerType = requireNotNull(host.playerCfg()).optInt("pl", -1)
                 val view = host.view()
                 val switchSkipped = view != null && view.switchPlayerKernel()
                 st.hasAutoSwitchedPlayer = true
@@ -242,7 +246,7 @@ class PlaybackRetryDelegate(private val host: Host) {
                     host.stopParse()
                     host.initParseLoadFound()
                     if (view != null && !host.isCrossContentReuseAllowed()) view.releasePlayer()
-                    if (view != null) host.playUrl(host.webPlayUrl()!!, host.webHeaderMap())
+                    if (view != null) host.playUrl(webUrl, host.webHeaderMap())
                     return true
                 }
             }
@@ -274,8 +278,8 @@ class PlaybackRetryDelegate(private val host: Host) {
         val currentFlag = vod.playFlag
         val currentIndex = Math.max(vod.playIndex, 0)
         val currentSeries = host.currentSeries(currentFlag, currentIndex)
-        if (!TextUtils.isEmpty(currentFlag)) {
-            st.triedLineFlags.add(currentFlag!!)
+        if (!currentFlag.isNullOrEmpty()) {
+            st.triedLineFlags.add(currentFlag)
         }
         val lineFlags = EpisodeMatcher.lineFlagsInDisplayOrder(vod)
         val currentLineIndex = EpisodeMatcher.lineFlagIndex(lineFlags, currentFlag)
@@ -299,11 +303,11 @@ class PlaybackRetryDelegate(private val host: Host) {
         }
         val flagToSwitch = nextFlag
         val preProgressKey = host.progressKey()
-        val savedProgress = if (TextUtils.isEmpty(preProgressKey)) 0L else host.getSavedProgress(preProgressKey!!)
+        val savedProgress = if (preProgressKey.isNullOrEmpty()) 0L else host.getSavedProgress(preProgressKey)
         val preProgress = Math.max(savedProgress, if (view == null) 0L else view.currentPosition())
         LOG.i("echo-autoRetry switch line: " + vod.playFlag + " -> " + flagToSwitch)
         if (view != null && view.isPageAlive()) {
-            view.runOnUi { host.view()!!.toast(PlaybackController.str(R.string.player_switch_line, flagToSwitch)) }
+            view.runOnUi { view.toast(PlaybackController.str(R.string.player_switch_line, flagToSwitch)) }
         }
         vod.playFlag = flagToSwitch
         vod.playIndex = nextIndex

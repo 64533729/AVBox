@@ -20,8 +20,9 @@ class P2PClass(str: String) {
     inner class `init`(private val cardPath: String) : Thread() {
         override fun run() {
             val p2PClass = this@P2PClass
-            p2PClass.path = cardPath + "/jpali"
-            val file = File(this@P2PClass.path!!)
+            val p = cardPath + "/jpali"
+            p2PClass.path = p
+            val file = File(p)
             if (!file.exists()) {
                 file.mkdirs()
             }

@@ -7,23 +7,23 @@ class PyLog {
         try {
             checkInit()
         } catch (e: Exception) {
-            return mLog!!
+            return requireNotNull(mLog)
         }
         Companion.logLevel = logLevel
-        return mLog!!
+        return requireNotNull(mLog)
     }
 
     fun setFilter(filter: Int): PyLog {
         try {
             checkInit()
         } catch (e: Exception) {
-            return mLog!!
+            return requireNotNull(mLog)
         }
         isLifeCycleEnable = (filter and FILTER_LC) / FILTER_LC == 1
         isNetWorkEnable = (filter and FILTER_NW) / FILTER_NW == 1
         isFrameWorkEnable = (filter and FILTER_FW) / FILTER_FW == 1
         isAtyManagerEnable = (filter and FILTER_AM) / FILTER_AM == 1
-        return mLog!!
+        return requireNotNull(mLog)
     }
 
     class TagConstant {
@@ -68,8 +68,9 @@ class PyLog {
         @JvmStatic
         fun getInstance(): PyLog {
             synchronized(PyLog::class.java) {
-                mLog = PyLog()
-                return mLog!!
+                val log = PyLog()
+                mLog = log
+                return log
             }
         }
 
@@ -316,6 +317,11 @@ class PyLog {
                     i(tag, TagConstant.TAG_NW, msg)
                 }
             }
+        }
+
+        @JvmStatic
+        fun isNetworkLogEnabled(): Boolean {
+            return isNetWorkEnable
         }
 
         @JvmStatic

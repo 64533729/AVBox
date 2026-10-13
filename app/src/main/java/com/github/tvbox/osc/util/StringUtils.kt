@@ -72,7 +72,8 @@ class StringUtils {
             if (isEmpty(url)) {
                 return url
             }
-            val baseUrls = url!!.replace("http://", "").replace("https://", "")
+            val value = url ?: return url
+            val baseUrls = value.replace("http://", "").replace("https://", "")
             val baseUrl2 = RegexUtils.getPattern("/").split(baseUrls)[0]
             val baseUrl: String
             if (url.startsWith("https")) {

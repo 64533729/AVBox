@@ -30,7 +30,7 @@ class TrackSelectorDelegate(private val host: Host) {
         val bean = trackInfo.getAudio()
         if (bean.size < 1) return
         val names = ArrayList<String>()
-        for (item in bean) names.add(item.name!!)
+        for (item in bean) names.add(item.name ?: "")
         val selected = trackInfo.getAudioSelected(false)
         LOG.i(
             "echo-setTrack list: count=" + bean.size +
@@ -61,7 +61,7 @@ class TrackSelectorDelegate(private val host: Host) {
         }
         val tracks = trackInfo.getVideo()
         val names = ArrayList<String>()
-        for (item in tracks) names.add(item.name!!)
+        for (item in tracks) names.add(item.name ?: "")
         host.uiState().selectDialog = SelectDialogState(
             context.getString(R.string.player_switch_video_track),
             names,

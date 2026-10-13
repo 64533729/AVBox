@@ -107,12 +107,12 @@ class TimedTextObject {
 
     fun cleanUnusedStyles() {
         val usedStyles = Hashtable<String, Style>()
-        val itrC = captions!!.values.iterator()
+        val itrC = captions?.values?.iterator() ?: return
         while (itrC.hasNext()) {
             val current = itrC.next()
             val style = current.style
             if (style != null) {
-                val iD = style.iD!!
+                val iD = style.iD ?: continue
                 if (!usedStyles.containsKey(iD)) usedStyles.put(iD, style)
             }
         }

@@ -112,20 +112,20 @@ object PlayerHelper {
 
     @JvmStatic
     fun getPlayersExistInfo(): HashMap<Int, Boolean> {
-        if (mPlayersExistInfo == null) {
-            val playersExist = HashMap<Int, Boolean>()
-            playersExist[2] = true
-            playersExist[13] = RemoteTVBox.getAvalible() != null
-            mPlayersExistInfo = playersExist
-        }
-        return mPlayersExistInfo!!
+        val cached = mPlayersExistInfo
+        if (cached != null) return cached
+        val playersExist = HashMap<Int, Boolean>()
+        playersExist[2] = true
+        playersExist[13] = RemoteTVBox.getAvalible() != null
+        mPlayersExistInfo = playersExist
+        return playersExist
     }
 
     @JvmStatic
     fun getPlayerExist(playType: Int): Boolean {
         val playersExistInfo = getPlayersExistInfo()
         if (playersExistInfo.containsKey(playType)) {
-            return playersExistInfo[playType]!!
+            return playersExistInfo.getValue(playType)
         } else {
             return false
         }
@@ -136,7 +136,7 @@ object PlayerHelper {
         val playersExistInfo = getPlayersExistInfo()
         val existPlayers = ArrayList<Int>()
         for (playerType in playersExistInfo.keys) {
-            if (playersExistInfo[playerType]!!) {
+            if (playersExistInfo.getValue(playerType)) {
                 existPlayers.add(playerType)
             }
         }

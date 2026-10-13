@@ -23,7 +23,7 @@ class PyToast {
                     }
                 }
             }
-            return sInstance!!
+            return requireNotNull(sInstance)
         }
 
         @JvmStatic
@@ -34,8 +34,9 @@ class PyToast {
         @JvmStatic
         fun showCancelableToast(msg: String?, duration: Int) {
             innerToast?.cancel()
-            innerToast = Toast.makeText(mContext, msg, duration)
-            innerToast!!.show()
+            val toast = Toast.makeText(mContext, msg, duration)
+            innerToast = toast
+            toast.show()
         }
 
         @JvmStatic

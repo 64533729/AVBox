@@ -93,6 +93,7 @@ class FormatSTL : TimedTextFileFormat {
 
                 if (!additionalText)
                     currentCaption = Subtitle()
+                val caption = requireNotNull(currentCaption) { "continued STL block without a previous caption" }
 
                 val currentSubNumber = ttiBlock[1] + 256 * ttiBlock[2]
                 if (currentSubNumber != subtitleNumber)
@@ -110,11 +111,11 @@ class FormatSTL : TimedTextFileFormat {
                     System.arraycopy(ttiBlock, 16, textField, 0, 112)
 
                     if (additionalText)
-                        parseTextForSTL(currentCaption!!, textField, justification, tto)
+                        parseTextForSTL(caption, textField, justification, tto)
                     else {
-                        currentCaption!!.start = Time("h:m:s:f/fps", startTime + "/" + fps)
-                        currentCaption.end = Time("h:m:s:f/fps", endTime + "/" + fps)
-                        parseTextForSTL(currentCaption, textField, justification, tto)
+                        caption.start = Time("h:m:s:f/fps", startTime + "/" + fps)
+                        caption.end = Time("h:m:s:f/fps", endTime + "/" + fps)
+                        parseTextForSTL(caption, textField, justification, tto)
                     }
                 }
                 if (!additionalText)
@@ -147,11 +148,12 @@ class FormatSTL : TimedTextFileFormat {
         val gsiBlock = ByteArray(1024)
         var ttiBlock = ByteArray(128)
 
-        val file = ByteArray(1024 + 128 * tto.captions!!.size)
+        val captions = tto.captions ?: return null
+        val file = ByteArray(1024 + 128 * captions.size)
 
         var extra = "850STL25.0110000".toByteArray(Charset.defaultCharset())
         System.arraycopy(extra, 0, gsiBlock, 0, extra.size)
-        extra = if (tto.title != null) tto.title!!.toByteArray(Charset.defaultCharset()) else tto.fileName!!.toByteArray(Charset.defaultCharset())
+        extra = (tto.title ?: tto.fileName.orEmpty()).toByteArray(Charset.defaultCharset())
         for (i in 0 until 224 - 16) {
             if (i < extra.size)
                 gsiBlock[i + 16] = extra[i]
@@ -163,10 +165,11 @@ class FormatSTL : TimedTextFileFormat {
         val date = Date()
         var aux = dateFormat.format(date)
         aux += aux + "00"
-        var aux2 = "" + tto.captions!!.size
+        var aux2 = "" + captions.size
         while (aux2.length < 5) aux2 = "0" + aux2
         aux += aux2 + aux2 + "0013216100000000"
-        aux += tto.captions!!.get(tto.captions!!.firstKey())!!.start!!.getTime("hhmmssff/25")
+        val firstCaption = requireNotNull(captions[captions.firstKey()])
+        aux += requireNotNull(firstCaption.start).getTime("hhmmssff/25")
         aux += "11OOO"
         extra = aux.toByteArray(Charset.defaultCharset())
         System.arraycopy(extra, 0, gsiBlock, 224, extra.size)
@@ -176,7 +179,7 @@ class FormatSTL : TimedTextFileFormat {
 
         System.arraycopy(gsiBlock, 0, file, 0, gsiBlock.size)
 
-        val itrC = tto.captions!!.values.iterator()
+        val itrC = captions.values.iterator()
         var subtitleNumber = 0
         while (itrC.hasNext()) {
             currentC = itrC.next()
@@ -185,30 +188,34 @@ class FormatSTL : TimedTextFileFormat {
             ttiBlock[2] = (subtitleNumber / 256).toByte()
             ttiBlock[3] = 0xff.toByte()
             ttiBlock[4] = 0
-            var timeCode = RegexUtils.getPattern(":").split(currentC.start!!.getTime("h:m:s:f/25"))
+            val captionStart = requireNotNull(currentC.start)
+            val captionEnd = requireNotNull(currentC.end)
+            var timeCode = RegexUtils.getPattern(":").split(captionStart.getTime("h:m:s:f/25"))
             ttiBlock[5] = timeCode[0].toByte()
             ttiBlock[6] = timeCode[1].toByte()
             ttiBlock[7] = timeCode[2].toByte()
             ttiBlock[8] = timeCode[3].toByte()
-            timeCode = RegexUtils.getPattern(":").split(currentC.end!!.getTime("h:m:s:f/25"))
+            timeCode = RegexUtils.getPattern(":").split(captionEnd.getTime("h:m:s:f/25"))
             ttiBlock[9] = timeCode[0].toByte()
             ttiBlock[10] = timeCode[1].toByte()
             ttiBlock[11] = timeCode[2].toByte()
             ttiBlock[12] = timeCode[3].toByte()
             ttiBlock[13] = 18
-            if (currentC.style != null) {
-                if (currentC.style!!.textAlign!!.contains("left"))
+            val currentStyle = currentC.style
+            if (currentStyle != null) {
+                val align = currentStyle.textAlign
+                if (align != null && align.contains("left"))
                     ttiBlock[14] = 1
-                else if (currentC.style!!.textAlign!!.contains("right"))
+                else if (align != null && align.contains("right"))
                     ttiBlock[14] = 3
             } else ttiBlock[14] = 2
             ttiBlock[15] = 0
-            val lines = RegexUtils.getPattern("<br />").split(currentC.content!!)
+            val lines = RegexUtils.getPattern("<br />").split(currentC.content.orEmpty())
             var pos = 16
             for (i in 0 until lines.size)
                 lines[i] = lines[i].replace(Regex("\\<.*?\\>"), "")
-            if (currentC.style != null) {
-                val style = currentC.style!!
+            if (currentStyle != null) {
+                val style = currentStyle
                 if (style.italic)
                     ttiBlock[pos++] = 0x80.toByte()
                 else ttiBlock[pos++] = 0x81.toByte()
@@ -216,7 +223,7 @@ class FormatSTL : TimedTextFileFormat {
                     ttiBlock[pos++] = 0x82.toByte()
                 else ttiBlock[pos++] = 0x83.toByte()
 
-                val color = style.color!!.substring(0, 6)
+                val color = style.color.orEmpty().take(6)
                 if (color.equals("000000", ignoreCase = true))
                     ttiBlock[pos++] = 0x00.toByte()
                 else if (color.equals("0000ff", ignoreCase = true))
@@ -261,6 +268,8 @@ class FormatSTL : TimedTextFileFormat {
     }
 
     private fun parseTextForSTL(currentCaption: Subtitle, textField: ByteArray, justification: Int, tto: TimedTextObject) {
+        val styling = requireNotNull(tto.styling)
+        val captions = requireNotNull(tto.captions)
 
         var italics = false
         var underline = false
@@ -303,30 +312,31 @@ class FormatSTL : TimedTextFileFormat {
                                 color += "U"
                             if (italics)
                                 color += "I"
-                            style = tto.styling!!.get(color)
+                            style = styling.get(color)
 
                             if (justification == 1) {
                                 color += "L"
-                                if (tto.styling!!.get(color) == null) {
-                                    style = Style(color, style!!)
+                                if (!styling.containsKey(color)) {
+                                    style = Style(color, requireNotNull(style))
                                     style.textAlign = "bottom-left"
-                                    tto.styling!!.put(color, style)
+                                    styling.put(color, style)
                                 } else
-                                    style = tto.styling!!.get(color)
+                                    style = styling.get(color)
                             } else if (justification == 3) {
                                 color += "R"
-                                if (tto.styling!!.get(color) == null) {
-                                    style = Style(color, style!!)
+                                if (!styling.containsKey(color)) {
+                                    style = Style(color, requireNotNull(style))
                                     style.textAlign = "bottom-rigth"
-                                    tto.styling!!.put(color, style)
+                                    styling.put(color, style)
                                 } else
-                                    style = tto.styling!!.get(color)
+                                    style = styling.get(color)
                             }
 
                             currentCaption.style = style
-                            var key = currentCaption.start!!.mseconds
-                            while (tto.captions!!.containsKey(key)) key++
-                            tto.captions!!.put(key, currentCaption)
+                            val key = requireNotNull(currentCaption.start) { "subtitle start time is missing" }.mseconds
+                            var uniqueKey = key
+                            while (captions.containsKey(uniqueKey)) uniqueKey++
+                            captions.put(uniqueKey, currentCaption)
                             i = textField.size
                         }
                         else -> {
@@ -379,134 +389,135 @@ class FormatSTL : TimedTextFileFormat {
 
     private fun createSTLStyles(tto: TimedTextObject) {
         var style: Style
+        val styling = requireNotNull(tto.styling)
 
         style = Style("white")
         style.color = Style.getRGBValue("name", "white")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("whiteI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("green")
         style.color = Style.getRGBValue("name", "green")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("greenI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blue")
         style.color = Style.getRGBValue("name", "blue")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blueI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyan")
         style.color = Style.getRGBValue("name", "cyan")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("cyanI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("red")
         style.color = Style.getRGBValue("name", "red")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("redI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellow")
         style.color = Style.getRGBValue("name", "yellow")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("yellowI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magenta")
         style.color = Style.getRGBValue("name", "magenta")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("magentaI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("black")
         style.color = Style.getRGBValue("name", "black")
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blackU", style)
         style.underline = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blackUI", style)
         style.italic = true
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
         style = Style("blackI", style)
         style.underline = false
-        tto.styling!!.put(style.iD, style)
+        styling.put(style.iD, style)
 
     }
 

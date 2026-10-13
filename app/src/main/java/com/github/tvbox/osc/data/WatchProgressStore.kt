@@ -259,5 +259,5 @@ object WatchProgressStore {
         }
     }
 
-    private fun md5(key: String): String = MD5.string2MD5(key)!!
+    private fun md5(key: String): String = requireNotNull(MD5.string2MD5(key)) { "md5 of progress key failed" }
 }

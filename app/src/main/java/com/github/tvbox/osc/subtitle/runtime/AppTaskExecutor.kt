@@ -63,12 +63,9 @@ class AppTaskExecutor private constructor() : TaskExecutor() {
 
         @JvmStatic
         fun getInstance(): TaskExecutor {
-            if (sInstance == null) {
-                synchronized(AppTaskExecutor::class.java) {
-                    sInstance = AppTaskExecutor()
-                }
+            return sInstance ?: synchronized(AppTaskExecutor::class.java) {
+                sInstance ?: AppTaskExecutor().also { sInstance = it }
             }
-            return sInstance!!
         }
 
         private val sDeskIO: Executor = Executor { command ->

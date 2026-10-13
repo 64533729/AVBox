@@ -61,8 +61,8 @@ class Parser : BaseDanmakuParser {
 
     private fun resolveContent(input: String?): String {
         if (isCancelled()) return ""
-        if (TextUtils.isEmpty(input)) return ""
-        val source = input!!.trim { it <= ' ' }
+        if (input.isNullOrEmpty()) return ""
+        val source = input.trim { it <= ' ' }
         if (source.startsWith("file")) return FileUtils.read(source)
         if (source.startsWith("http")) {
             try {
@@ -340,8 +340,8 @@ class Parser : BaseDanmakuParser {
     private fun isPercentageNumber(number: String?): Boolean = number != null && number.contains(".")
 
     private fun decodeXmlString(text: String?): String {
-        if (TextUtils.isEmpty(text)) return ""
-        return text!!.replace("&amp;", "&")
+        if (text.isNullOrEmpty()) return ""
+        return text.replace("&amp;", "&")
             .replace("&quot;", "\"")
             .replace("&apos;", "'")
             .replace("&gt;", ">")

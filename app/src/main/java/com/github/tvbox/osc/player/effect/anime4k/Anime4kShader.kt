@@ -62,8 +62,8 @@ internal object Anime4kShader {
                 val readsSave = item.bindings.any { it.name == save || it.name == HOOKED }
                 val reusable = existing != null && !readsSave &&
                     sizes[save]?.let { it[0] == item.width && it[1] == item.height } == true
-                outputTarget = if (reusable) {
-                    existing!!
+                outputTarget = if (reusable && existing != null) {
+                    existing
                 } else {
                     created = true
                     nextTarget++

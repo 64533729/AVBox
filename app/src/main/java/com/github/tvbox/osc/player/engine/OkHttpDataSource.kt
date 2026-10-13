@@ -127,7 +127,7 @@ class OkHttpDataSource private constructor(
             }
 
             val errorResponseBody: ByteArray = try {
-                Util.toByteArray(responseByteStream!!)
+                Util.toByteArray(requireNotNull(responseByteStream))
             } catch (e: IOException) {
                 Util.EMPTY_BYTE_ARRAY
             }
@@ -179,7 +179,7 @@ class OkHttpDataSource private constructor(
         } catch (e: IOException) {
             throw HttpDataSource.HttpDataSourceException.createForIOException(
                 e,
-                dataSpec!!,
+                requireNotNull(dataSpec),
                 HttpDataSource.HttpDataSourceException.TYPE_READ,
             )
         }
@@ -207,7 +207,7 @@ class OkHttpDataSource private constructor(
 
         val builder = Request.Builder().url(url)
         if (cacheControl != null) {
-            builder.cacheControl(cacheControl!!)
+            builder.cacheControl(cacheControl)
         }
 
         val headers = HashMap<String, String>()
@@ -220,14 +220,15 @@ class OkHttpDataSource private constructor(
 
         HttpUtil.buildRangeRequestHeader(position, length)?.let { builder.addHeader("Range", it) }
         if (userAgent != null) {
-            builder.addHeader("User-Agent", userAgent!!)
+            builder.addHeader("User-Agent", userAgent)
         }
         if (!dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_GZIP)) {
             builder.addHeader("Accept-Encoding", "identity")
         }
 
+        val httpBody: ByteArray? = dataSpec.httpBody
         val requestBody = when {
-            dataSpec.httpBody != null -> dataSpec.httpBody!!.toRequestBody(null)
+            httpBody != null -> httpBody.toRequestBody(null)
             dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST -> Util.EMPTY_BYTE_ARRAY.toRequestBody(null)
             else -> null
         }
@@ -265,7 +266,7 @@ class OkHttpDataSource private constructor(
             throw InterruptedIOException()
         }
         errorHolder[0]?.let { throw it }
-        return responseHolder[0]!!
+        return requireNotNull(responseHolder[0])
     }
 
     private fun skipFully(bytesToSkip: Long, dataSpec: DataSpec) {
@@ -277,7 +278,7 @@ class OkHttpDataSource private constructor(
         try {
             while (remaining > 0) {
                 val readLength = minOf(remaining, skipBuffer.size.toLong()).toInt()
-                val read = responseByteStream!!.read(skipBuffer, 0, readLength)
+                val read = requireNotNull(responseByteStream).read(skipBuffer, 0, readLength)
                 if (Thread.currentThread().isInterrupted) {
                     throw InterruptedIOException()
                 }
@@ -316,7 +317,7 @@ class OkHttpDataSource private constructor(
             length = minOf(length.toLong(), bytesRemaining).toInt()
         }
 
-        val read = responseByteStream!!.read(buffer, offset, length)
+        val read = requireNotNull(responseByteStream).read(buffer, offset, length)
         if (read == -1) {
             return C.RESULT_END_OF_INPUT
         }

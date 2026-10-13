@@ -156,7 +156,7 @@ class ListLoader(
             try {
                 val body = SourceHelper.siteGet(sourceBean) {
                     params("ac", if (sourceBean.type == 0) "videolist" else "detail")
-                    params("ids", TextUtils.join(",", ids!!))
+                    params("ids", TextUtils.join(",", ids.orEmpty()))
                 }
                 return withContext(Dispatchers.IO) {
                     val absXml = if (sourceBean.type == 0) {

@@ -7,8 +7,9 @@ import java.util.ArrayList
 
 class CustomWebReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (action == intent.action && intent.extras != null) {
-            val actionValue = intent.extras!!.getString("action")
+        val extras = intent.extras
+        if (action == intent.action && extras != null) {
+            val actionValue = extras.getString("action")
             if (actionValue == REFRESH_PARSE) {
                 return
             } else if (actionValue == REFRESH_LIVE) {

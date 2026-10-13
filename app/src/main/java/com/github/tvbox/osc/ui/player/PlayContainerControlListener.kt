@@ -44,7 +44,7 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
             container.scheduler.currentSeries(vod.playFlag, vod.playIndex)
         }
         ApiConfig.get().searchDanmuUi(
-            if (vod == null) "" else vod.name!!,
+            vod?.name ?: "",
             series?.name ?: "",
             longClick,
         )

@@ -69,9 +69,9 @@ open class SocketHttpStreamServer(private val configuration: Configuration) :
     override fun run() {
         while (!stopped) {
             try {
-                val socket = serverSocket!!.accept()
+                val socket = serverSocket?.accept() ?: break
                 socket.soTimeout = 30000
-                val r = router!!
+                val r = router ?: break
                 r.received(SocketUpnpStream(r.protocolFactory, socket))
             } catch (e: SocketException) {
                 break

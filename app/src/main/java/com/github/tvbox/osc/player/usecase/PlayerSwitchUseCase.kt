@@ -43,6 +43,6 @@ object PlayerSwitchUseCase {
     fun stopOther() {
         Thunder.stop(false)
         Jianpian.finish()
-        App.getInstance()!!.setDashData(null)
+        requireNotNull(App.getInstance()) { "app instance not ready" }.setDashData(null)
     }
 }

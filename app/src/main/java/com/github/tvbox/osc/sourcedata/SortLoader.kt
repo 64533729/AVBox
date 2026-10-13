@@ -106,7 +106,7 @@ class SortLoader(
             postSortResult(sourceKey, null)
             return
         }
-        val name = sourceBean.name!!
+        val name = sourceBean.name ?: return
         if (name.length <= 3 && name.endsWith("搜")) { // i18n: keep
             postSortResult(sourceKey, null)
             return

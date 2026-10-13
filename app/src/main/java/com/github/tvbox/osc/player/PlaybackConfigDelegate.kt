@@ -23,13 +23,14 @@ class PlaybackConfigDelegate(private val host: Host) {
 
     fun initPlayerCfg() {
         val cfg = try {
-            JSONObject(host.vod()!!.playerCfg)
+            JSONObject(requireNotNull(host.vod()).playerCfg)
         } catch (th: Throwable) {
             JSONObject()
         }
         try {
             if (!cfg.has("pl")) {
-                val sourcePlayerType = if (host.sourceBean() == null) -1 else host.sourceBean()!!.playerType
+                val source = host.sourceBean()
+                val sourcePlayerType = if (source == null) -1 else source.playerType
                 cfg.put("pl", if (sourcePlayerType == -1) (KV.get(HawkConfig.PLAY_TYPE, 2) as Int) else sourcePlayerType)
             }
             val configuredType = cfg.optInt("pl", 2)

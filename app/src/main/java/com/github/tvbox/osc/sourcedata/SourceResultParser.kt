@@ -52,7 +52,7 @@ class SourceResultParser(
             if (TextUtils.isEmpty(json)) {
                 return AbsSortJson().toAbsSortXml()
             }
-            val obj = JsonParser.parseString(json!!).asJsonObject
+            val obj = JsonParser.parseString(requireNotNull(json) { "source json missing" }).asJsonObject
             val sortJson = gson.fromJson<AbsSortJson>(obj, object : TypeToken<AbsSortJson>() {}.type)
             val data = sortJson.toAbsSortXml()
             try {
@@ -74,8 +74,9 @@ class SourceResultParser(
                     val sortList = data.classes?.sortList
                     if (sortList != null) {
                         for (sort in sortList) {
-                            if (sortFilters.containsKey(sort.id) && sortFilters[sort.id] != null) {
-                                sort.filters = sortFilters[sort.id]!!
+                            val filters = sortFilters[sort.id]
+                            if (filters != null) {
+                                sort.filters = filters
                             }
                         }
                     }
@@ -93,9 +94,9 @@ class SourceResultParser(
 
     fun sortXml(result: SourceChannel<AbsSortXml?>?, xml: String?): AbsSortXml? {
         try {
-            val xstream = sortXStream.get()!!
+            val xstream = requireNotNull(sortXStream.get()) { "sort xstream missing" }
             val data = xstream.fromXML(xml) as AbsSortXml
-            for (sort in data.classes!!.sortList!!) {
+            for (sort in data.classes?.sortList.orEmpty()) {
                 if (sort.filters == null) {
                     sort.filters = ArrayList()
                 }
@@ -119,8 +120,8 @@ class SourceResultParser(
     suspend fun xml(result: SourceChannel<AbsXml?>?, xml: String?, sourceKey: String?, searchToken: String?, detailToken: Int?): AbsXml? {
         var text: String? = xml
         try {
-            val xstream = listXStream.get()!!
-            val original = text!!
+            val xstream = requireNotNull(listXStream.get()) { "list xstream missing" }
+            val original = requireNotNull(text) { "list xml missing" }
             if (original.contains("<year></year>")) {
                 text = original.replace("<year></year>", "<year>0</year>")
             }

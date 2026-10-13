@@ -16,7 +16,6 @@
 package com.whl.quickjs.wrapper
 
 import android.net.Uri
-import android.text.TextUtils
 
 /**
  * Utility methods for manipulating URIs.
@@ -147,12 +146,12 @@ object UriUtil {
 
     private fun getUriIndices(uriString: String?): IntArray {
         val indices = IntArray(INDEX_COUNT)
-        if (TextUtils.isEmpty(uriString)) {
+        if (uriString.isNullOrEmpty()) {
             indices[SCHEME_COLON] = -1
             return indices
         }
 
-        val value = uriString!!
+        val value = uriString
 
         val length = value.length
         var fragmentIndex = value.indexOf('#')

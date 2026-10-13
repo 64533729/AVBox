@@ -867,7 +867,7 @@ class DetailViewModel : ViewModel() {
 
     private fun onPlaybackStarted() {
         val info = vodInfo ?: return
-        val playing = App.getInstance()!!.getVodInfo() ?: return
+        val playing = App.getInstance()?.getVodInfo() ?: return
         if (playing.id != info.id || playing.sourceKey != info.sourceKey) return
         if (playing.playFlag != info.playFlag || playing.playIndex != info.playIndex) return
         LOG.i("echo-history insert on playback-started key=" + sourceKey + "|" + vodId)
@@ -927,7 +927,7 @@ class DetailViewModel : ViewModel() {
         preview.playFlag = info.playFlag
         preview.playIndex = info.playIndex
         previewVodInfo = preview
-        App.getInstance()!!.setVodInfo(preview)
+        App.getInstance()?.setVodInfo(preview)
         return PlaybackSession(preview, sourceKey, consumeManualLineSwitch())
     }
 

@@ -273,3 +273,49 @@
     public static *** longI(...);
     public static *** longE(...);
 }
+
+-assumenosideeffects class com.undcover.freedom.pyramid.PyLog {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
+    public static *** V(...);
+    public static *** D(...);
+    public static *** I(...);
+    public static *** W(...);
+    public static *** E(...);
+    public static *** lc(...);
+    public static *** am(...);
+    public static *** fw(...);
+    public static *** nw(...);
+    *** longV(...);
+    *** longD(...);
+    *** longI(...);
+    *** longW(...);
+    *** longE(...);
+    *** getArgsStr(...);
+}
+
+-assumenosideeffects class com.undcover.freedom.pyramid.PyLog$Companion {
+    public *** v(...);
+    public *** d(...);
+    public *** i(...);
+    public *** w(...);
+    public *** e(...);
+    public *** V(...);
+    public *** D(...);
+    public *** I(...);
+    public *** W(...);
+    public *** E(...);
+    public *** lc(...);
+    public *** am(...);
+    public *** fw(...);
+    public *** nw(...);
+    *** longV(...);
+    *** longD(...);
+    *** longI(...);
+    *** longW(...);
+    *** longE(...);
+    *** getArgsStr(...);
+}

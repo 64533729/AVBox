@@ -62,6 +62,14 @@ class FormatASS : TimedTextFileFormat {
 
         var line: String?
         var lineCounter = 0
+        val styling = requireNotNull(tto.styling)
+        val captions = requireNotNull(tto.captions)
+
+        fun truncatedResult(): TimedTextObject {
+            tto.warnings += "unexpected end of file, maybe last caption is not complete.\n\n"
+            tto.built = true
+            return tto
+        }
         try {
             line = br.readLine()
             lineCounter++
@@ -70,22 +78,28 @@ class FormatASS : TimedTextFileFormat {
                 if (line.startsWith("[")) {
                     if (line.equals("[Script info]", ignoreCase = true)) {
                         lineCounter++
-                        line = br.readLine()!!.trim { it <= ' ' }
-                        while (!line!!.startsWith("[")) {
-                            if (line.startsWith("Title:")) {
-                                val titleArr = RegexUtils.getPattern(":").split(line)
+                        val scriptInfoFirst = br.readLine()
+                        if (scriptInfoFirst == null) {
+                            return truncatedResult()
+                        }
+                        val scriptInfoText = scriptInfoFirst.trim { it <= ' ' }
+                        line = scriptInfoText
+                        var scriptInfo: String = scriptInfoText
+                        while (!scriptInfo.startsWith("[")) {
+                            if (scriptInfo.startsWith("Title:")) {
+                                val titleArr = RegexUtils.getPattern(":").split(scriptInfo)
                                 tto.title = if (titleArr.size > 1) titleArr[1].trim { it <= ' ' } else ""
-                            } else if (line.startsWith("Original Script:")) {
-                                val authorArr = RegexUtils.getPattern(":").split(line)
+                            } else if (scriptInfo.startsWith("Original Script:")) {
+                                val authorArr = RegexUtils.getPattern(":").split(scriptInfo)
                                 tto.author = if (authorArr.size > 1) authorArr[1].trim { it <= ' ' } else ""
-                            } else if (line.startsWith("Script Type:")) {
-                                if (RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' }.equals("v4.00+", ignoreCase = true)) isASS = true
-                                else if (!RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' }.equals("v4.00", ignoreCase = true))
+                            } else if (scriptInfo.startsWith("Script Type:")) {
+                                if (RegexUtils.getPattern(":").split(scriptInfo)[1].trim { it <= ' ' }.equals("v4.00+", ignoreCase = true)) isASS = true
+                                else if (!RegexUtils.getPattern(":").split(scriptInfo)[1].trim { it <= ' ' }.equals("v4.00", ignoreCase = true))
                                     tto.warnings += "Script version is older than 4.00, it may produce parsing errors."
-                            } else if (line.startsWith("Timer:"))
-                                timer = RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' }.replace(',', '.').toFloat()
+                            } else if (scriptInfo.startsWith("Timer:"))
+                                timer = RegexUtils.getPattern(":").split(scriptInfo)[1].trim { it <= ' ' }.replace(',', '.').toFloat()
                             lineCounter++
-                            line = br.readLine()!!.trim { it <= ' ' }
+                            scriptInfo = br.readLine()?.trim { it <= ' ' } ?: return truncatedResult()
                         }
 
                     } else if (line.equals("[v4 Styles]", ignoreCase = true)
@@ -96,48 +110,68 @@ class FormatASS : TimedTextFileFormat {
                             tto.warnings += "ScriptType should be set to v4:00+ in the [Script Info] section.\n\n"
                         }
                         lineCounter++
-                        line = br.readLine()
-                        if (!line!!.startsWith("Format:")) {
-                            tto.warnings += "Format: (format definition) expected at line " + line + " for the styles section\n\n"
-                            while (!line!!.startsWith("Format:")) {
+                        val stylesLine = br.readLine()
+                        if (stylesLine == null) {
+                            return truncatedResult()
+                        }
+                        var formatLine: String = stylesLine
+                        if (!formatLine.startsWith("Format:")) {
+                            tto.warnings += "Format: (format definition) expected at line " + formatLine + " for the styles section\n\n"
+                            while (!formatLine.startsWith("Format:")) {
                                 lineCounter++
-                                line = br.readLine()
+                                formatLine = br.readLine() ?: return truncatedResult()
                             }
                         }
+                        line = formatLine
                         styleFormat = RegexUtils.getPattern(",").split(RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' })
                         lineCounter++
-                        line = br.readLine()
-                        while (!line!!.startsWith("Style:")) {
-                            tto.warnings += "Style: (format definition) expected at line " + line + " for the styles section\n\n"
-                            lineCounter++
-                            line = br.readLine()
+                        val styleFirst = br.readLine()
+                        if (styleFirst == null) {
+                            return truncatedResult()
                         }
+                        var styleLine: String = styleFirst
+                        while (!styleLine.startsWith("Style:")) {
+                            tto.warnings += "Style: (format definition) expected at line " + styleLine + " for the styles section\n\n"
+                            lineCounter++
+                            styleLine = br.readLine() ?: return truncatedResult()
+                        }
+                        line = styleLine
                         style = parseStyleForASS(RegexUtils.getPattern(",").split(RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' }), styleFormat, lineCounter, isASS, tto.warnings)
-                        tto.styling!!.put(style.iD, style)
+                        styling.put(style.iD, style)
 
                     } else if (line.trim { it <= ' ' }.equals("[Events]", ignoreCase = true)) {
                         lineCounter++
-                        line = br.readLine()
+                        val eventsLine = br.readLine()
                         tto.warnings += "Only dialogue events are considered, all other events are ignored.\n\n"
-                        if (!line!!.startsWith("Format:")) {
-                            tto.warnings += "Format: (format definition) expected at line " + line + " for the events section\n\n"
-                            while (!line!!.startsWith("Format:")) {
+                        if (eventsLine == null) {
+                            return truncatedResult()
+                        }
+                        var eventsFormatLine: String = eventsLine
+                        if (!eventsFormatLine.startsWith("Format:")) {
+                            tto.warnings += "Format: (format definition) expected at line " + eventsFormatLine + " for the events section\n\n"
+                            while (!eventsFormatLine.startsWith("Format:")) {
                                 lineCounter++
-                                line = br.readLine()
+                                eventsFormatLine = br.readLine() ?: return truncatedResult()
                             }
                         }
+                        line = eventsFormatLine
                         dialogueFormat = RegexUtils.getPattern(",").split(RegexUtils.getPattern(":").split(line)[1].trim { it <= ' ' })
                         lineCounter++
-                        line = br.readLine()
-                        while (!line!!.startsWith("[")) {
-                            if (line.startsWith("Dialogue:")) {
-                                caption = parseDialogueForASS(RegexUtils.getPattern(",").split(RegexUtils.getPattern(":").split(line, 2)[1].trim { it <= ' ' }, 10), dialogueFormat, timer, tto)
-                                var key = caption.start!!.mseconds
-                                while (tto.captions!!.containsKey(key)) key++
-                                tto.captions!!.put(key, caption)
+                        val dialogueFirst = br.readLine()
+                        if (dialogueFirst == null) {
+                            return truncatedResult()
+                        }
+                        var dialogueLine: String = dialogueFirst
+                        while (!dialogueLine.startsWith("[")) {
+                            if (dialogueLine.startsWith("Dialogue:")) {
+                                caption = parseDialogueForASS(RegexUtils.getPattern(",").split(RegexUtils.getPattern(":").split(dialogueLine, 2)[1].trim { it <= ' ' }, 10), dialogueFormat, timer, tto)
+                                val start = caption.start ?: return truncatedResult()
+                                var key = start.mseconds
+                                while (captions.containsKey(key)) key++
+                                captions.put(key, caption)
                             }
                             lineCounter++
-                            line = br.readLine()
+                            dialogueLine = br.readLine() ?: return truncatedResult()
                         }
 
                     } else if (line.trim { it <= ' ' }.equals("[Fonts]", ignoreCase = true) || line.trim { it <= ' ' }.equals("[Graphics]", ignoreCase = true)) {
@@ -151,8 +185,6 @@ class FormatASS : TimedTextFileFormat {
             }
             tto.cleanUnusedStyles()
 
-        } catch (e: NullPointerException) {
-            tto.warnings += "unexpected end of file, maybe last caption is not complete.\n\n"
         } finally {
             `is`.close()
         }
@@ -167,23 +199,29 @@ class FormatASS : TimedTextFileFormat {
             return null
 
         var index = 0
-        val file = ArrayList<String>(30 + tto.styling!!.size + tto.captions!!.size)
+        val styling = tto.styling ?: return null
+        val captions = tto.captions ?: return null
+        val file = ArrayList<String>(30 + styling.size + captions.size)
 
         file.add(index++, "[Script Info]")
         var title = "Title: "
-        if (tto.title == null || tto.title!!.isEmpty())
+        val ttoTitle = tto.title
+        if (ttoTitle.isNullOrEmpty())
             title += tto.fileName
-        else title += tto.title
+        else title += ttoTitle
         file.add(index++, title)
         var author = "Original Script: "
-        if (tto.author == null || tto.author!!.isEmpty())
+        val ttoAuthor = tto.author
+        if (ttoAuthor.isNullOrEmpty())
             author += "Unknown"
-        else author += tto.author
+        else author += ttoAuthor
         file.add(index++, author)
-        if (tto.copyrigth != null && !tto.copyrigth!!.isEmpty())
-            file.add(index++, "; " + tto.copyrigth)
-        if (tto.description != null && !tto.description!!.isEmpty())
-            file.add(index++, "; " + tto.description)
+        val copyright = tto.copyrigth
+        if (!copyright.isNullOrEmpty())
+            file.add(index++, "; " + copyright)
+        val description = tto.description
+        if (!description.isNullOrEmpty())
+            file.add(index++, "; " + description)
         file.add(index++, "; Converted by the Online Subtitle Converter developed by J. David Requejo")
         if (tto.useASSInsteadOfSSA)
             file.add(index++, "Script Type: V4.00+")
@@ -200,7 +238,7 @@ class FormatASS : TimedTextFileFormat {
         if (tto.useASSInsteadOfSSA)
             file.add(index++, "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding")
         else file.add(index++, "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding")
-        val itrS = tto.styling!!.values.iterator()
+        val itrS = styling.values.iterator()
         while (itrS.hasNext()) {
             var styleLine = "Style: "
             val current = itrS.next()
@@ -223,27 +261,30 @@ class FormatASS : TimedTextFileFormat {
         if (tto.useASSInsteadOfSSA)
             file.add(index++, "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
         else file.add(index++, "Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
-        val itrC = tto.captions!!.values.iterator()
+        val itrC = captions.values.iterator()
         while (itrC.hasNext()) {
             var line = "Dialogue: 0,"
             val current = itrC.next()
+            val start = requireNotNull(current.start)
+            val end = requireNotNull(current.end)
             if (tto.offset != 0) {
-                current.start!!.mseconds += tto.offset
-                current.end!!.mseconds += tto.offset
+                start.mseconds += tto.offset
+                end.mseconds += tto.offset
             }
-            line += current.start!!.getTime("h:mm:ss.cs") + ","
-            line += current.end!!.getTime("h:mm:ss.cs") + ","
+            line += start.getTime("h:mm:ss.cs") + ","
+            line += end.getTime("h:mm:ss.cs") + ","
             if (tto.offset != 0) {
-                current.start!!.mseconds -= tto.offset
-                current.end!!.mseconds -= tto.offset
+                start.mseconds -= tto.offset
+                end.mseconds -= tto.offset
             }
-            if (current.style != null)
-                line += current.style!!.iD
+            val currentStyle = current.style
+            if (currentStyle != null)
+                line += currentStyle.iD
             else
                 line += "Default"
             line += ",,0000,0000,0000,,"
 
-            line += current.content!!.replace(Regex("<br />"), "\uFFFDN").replace(Regex("\\<.*?\\>"), "").replace('\uFFFD', '\\')
+            line += current.content.orEmpty().replace(Regex("<br />"), "\uFFFDN").replace(Regex("\\<.*?\\>"), "").replace('\uFFFD', '\\')
             file.add(index++, line)
         }
         file.add(index++, "")
@@ -333,6 +374,7 @@ class FormatASS : TimedTextFileFormat {
     private fun parseDialogueForASS(line: Array<String>, dialogueFormat: Array<String>, timer: Float, tto: TimedTextObject): Subtitle {
 
         val newCaption = Subtitle()
+        val styling = requireNotNull(tto.styling)
 
         val captionText = line[9]
         newCaption.content = captionText.replace(Regex("\\{.*?\\}"), "").replace("\n", "<br />").replace("\\N", "<br />")
@@ -340,7 +382,7 @@ class FormatASS : TimedTextFileFormat {
         for (i in 0 until dialogueFormat.size) {
             if (dialogueFormat[i].trim { it <= ' ' }.equals("Style", ignoreCase = true)) {
                 newCaption.lyricCurrent = "PLAYING_CENTER" == line[i].trim { it <= ' ' }
-                val s = tto.styling!!.get(line[i].trim { it <= ' ' })
+                val s = styling.get(line[i].trim { it <= ' ' })
                 if (s != null)
                     newCaption.style = s
                 else
@@ -353,21 +395,27 @@ class FormatASS : TimedTextFileFormat {
         }
 
         if (timer != 100f) {
-            newCaption.start!!.mseconds = (newCaption.start!!.mseconds / (timer / 100)).toInt()
-            newCaption.end!!.mseconds = (newCaption.end!!.mseconds / (timer / 100)).toInt()
+            val start = newCaption.start
+            val end = newCaption.end
+            if (start != null && end != null) {
+                start.mseconds = (start.mseconds / (timer / 100)).toInt()
+                end.mseconds = (end.mseconds / (timer / 100)).toInt()
+            } else
+                tto.warnings += "dialogue without start or end time, timer adjustment skipped\n\n"
         }
         return newCaption
     }
 
     private fun getColorsForASS(useASSInsteadOfSSA: Boolean, style: Style): String {
+        val color = requireNotNull(style.color) { "style color is missing" }
+        val backgroundColor = requireNotNull(style.backgroundColor) { "style background color is missing" }
+        val rgb = color.substring(4, 6) + color.substring(2, 4) + color.substring(0, 2)
+        val bgr = backgroundColor.substring(4, 6) + backgroundColor.substring(2, 4) + backgroundColor.substring(0, 2)
         var colors: String
         if (useASSInsteadOfSSA)
-            colors = ("00" + style.color!!.substring(4, 6) + style.color!!.substring(2, 4) + style.color!!.substring(0, 2)).toInt(16).toString() + ",16777215,0," + ("80" + style.backgroundColor!!.substring(4, 6) + style.backgroundColor!!.substring(2, 4) + style.backgroundColor!!.substring(0, 2)).toLong(16) + ","
-        else {
-            val color = style.color!!.substring(4, 6) + style.color!!.substring(2, 4) + style.color!!.substring(0, 2)
-            val bgcolor = style.backgroundColor!!.substring(4, 6) + style.backgroundColor!!.substring(2, 4) + style.backgroundColor!!.substring(0, 2)
-            colors = color.toLong(16).toString() + ",16777215,0," + bgcolor.toLong(16) + ","
-        }
+            colors = ("00" + rgb).toInt(16).toString() + ",16777215,0," + ("80" + bgr).toLong(16) + ","
+        else
+            colors = rgb.toLong(16).toString() + ",16777215,0," + bgr.toLong(16) + ","
         return colors
     }
 

@@ -31,7 +31,8 @@ object SearchHelper {
     fun isSelectionStale(checked: HashMap<String, String>?): Boolean {
         val liveKeys = HashSet<String>()
         for (bean in liveSourcesProvider?.invoke().orEmpty()) {
-            liveKeys.add(bean.key!!)
+            val key = bean.key ?: continue
+            liveKeys.add(key)
         }
         return isSelectionStale(checked, liveKeys)
     }
@@ -52,7 +53,8 @@ object SearchHelper {
             if (!bean.isSearchable()) {
                 continue
             }
-            mCheckSources[bean.key!!] = "1"
+            val key = bean.key ?: continue
+            mCheckSources[key] = "1"
         }
         return mCheckSources
     }

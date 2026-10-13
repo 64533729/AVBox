@@ -82,13 +82,13 @@ class Global {
     @Function
     fun pdfa(html: String, rule: String): JSArray {
 
-        return JSUtils<String>().toArray(runtime!!, HtmlParser.parseDomForArray(html, rule))
+        return JSUtils<String>().toArray(requireNotNull(runtime) { "js runtime not ready" }, HtmlParser.parseDomForArray(html, rule))
     }
 
     @Keep
     @Function
     fun pdfla(html: String, p1: String, list_text: String, list_url: String, add_url: String): JSArray {
-        return JSUtils<String>().toArray(runtime!!, HtmlParser.parseDomForList(html, p1, list_text, list_url, add_url))
+        return JSUtils<String>().toArray(requireNotNull(runtime) { "js runtime not ready" }, HtmlParser.parseDomForList(html, p1, list_text, list_url, add_url))
     }
 
     @Keep
@@ -264,12 +264,13 @@ class Global {
     }
 
     private fun req(url: String, options: JSObject): JSObject {
+        val ctx = requireNotNull(runtime) { "js runtime not ready" }
         try {
             val req = Req.objectFrom(JSUtils.toJsonObject(options).toString())
             val res = Connect.to(url, req, httpTag).execute()
-            return Connect.success(runtime!!, req, res)
+            return Connect.success(ctx, req, res)
         } catch (e: Exception) {
-            return Connect.error(runtime!!)
+            return Connect.error(ctx)
         }
     }
 
@@ -305,7 +306,7 @@ class Global {
                     func.release()
                 }
             }
-        }, delay!!.toLong())
+        }, requireNotNull(delay) { "delay is null" }.toLong())
     }
 
     fun destroy() {
@@ -313,6 +314,7 @@ class Global {
     }
 
     private fun getCallback(complete: JSFunction, req: Req): Callback {
+        val ctx = requireNotNull(runtime) { "js runtime not ready" }
         return object : Callback {
             override fun onResponse(call: Call, res: Response) {
                 if (executor.isShutdown) {
@@ -322,7 +324,7 @@ class Global {
                 try {
                     executor.submit(Runnable {
                         try {
-                            complete.call(Connect.success(runtime!!, req, res))
+                            complete.call(Connect.success(ctx, req, res))
                         } finally {
                             try {
                                 res.close()
@@ -339,7 +341,7 @@ class Global {
             override fun onFailure(call: Call, e: IOException) {
                 if (executor.isShutdown) return
                 try {
-                    executor.submit(Runnable { complete.call(Connect.error(runtime!!)) })
+                    executor.submit(Runnable { complete.call(Connect.error(ctx)) })
                 } catch (ignored: RejectedExecutionException) {
                     LOG.d("Global", "executor shutdown, drop error callback")
                 }

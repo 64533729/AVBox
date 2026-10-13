@@ -117,7 +117,7 @@ object AppBootstrap {
                         }
                     } else {
                         dataInitOk = true
-                        if (ApiConfig.get().getSpider()!!.isEmpty()) jarInitOk = true
+                        if (ApiConfig.get().getSpider().isNullOrEmpty()) jarInitOk = true
                     }
                 }
                 if (dataInitOk && !jarInitOk) {
@@ -139,7 +139,7 @@ object AppBootstrap {
         val apiUrl = KV.get(HawkConfig.API_URL, "")
         if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) return false
         val app = App.getInstance() ?: return false
-        val cache = File(app.filesDir, MD5.encode(apiUrl)!!)
+        val cache = File(app.filesDir, requireNotNull(MD5.encode(apiUrl)) { "md5 of api url failed" })
         return cache.exists() &&
             System.currentTimeMillis() - cache.lastModified() < CONFIG_CACHE_TTL_MS
     }
@@ -178,7 +178,7 @@ object AppBootstrap {
 
     private fun toast(msg: String?) {
         if (msg.isNullOrEmpty()) return
-        val context = com.github.tvbox.osc.base.App.getInstance()!!
+        val context = com.github.tvbox.osc.base.App.getInstance() ?: return
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }

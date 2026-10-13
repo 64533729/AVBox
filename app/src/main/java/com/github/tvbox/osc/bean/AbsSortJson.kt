@@ -18,10 +18,9 @@ class AbsSortJson : Serializable {
         val absSortXml = AbsSortXml()
         val movieSort = MovieSort()
         movieSort.sortList = ArrayList()
-        if (classes == null) {
-            classes = ArrayList()
-        }
-        for (cls in classes!!) {
+        val classList = classes ?: ArrayList()
+        classes = classList
+        for (cls in classList) {
             val item: AbsJsonClass = cls ?: continue
             if (item.type_id == null || item.type_name == null) {
                 continue
@@ -30,12 +29,13 @@ class AbsSortJson : Serializable {
             sortData.id = item.type_id
             sortData.name = item.type_name
             sortData.flag = item.type_flag
-            movieSort.sortList!!.add(sortData)
+            movieSort.sortList?.add(sortData)
         }
-        if (list != null && !list!!.isEmpty()) {
+        val vods = list
+        if (!vods.isNullOrEmpty()) {
             val movie = Movie()
             val videos = ArrayList<Movie.Video>()
-            for (vod in list!!) {
+            for (vod in vods) {
                 videos.add(vod.toXmlVideo())
             }
             movie.videoList = videos

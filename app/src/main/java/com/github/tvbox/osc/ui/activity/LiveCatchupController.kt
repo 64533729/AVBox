@@ -137,7 +137,8 @@ internal class LiveCatchupController(
     }
 
     private fun currentCatchup(): JsonObject? {
-        if (currentChannelHasCatchup()) return vm.state.value.channelList.playingChannel!!.channelCatchup
+        val channel = vm.state.value.channelList.playingChannel
+        if (channel != null && currentChannelHasCatchup()) return channel.channelCatchup
         return catchup
     }
 
@@ -160,12 +161,14 @@ internal class LiveCatchupController(
     private fun buildCatchupUrl(url: String, epg: Epginfo?): String {
         if (TextUtils.isEmpty(url) || epg == null || epg.startdateTime == null || epg.enddateTime == null) return ""
         val catchupObj = currentCatchup()
-        if (LiveEpgParser.hasCatchupSource(catchupObj)) {
-            return LiveEpgParser.formatCatchupUrl(url, catchupObj!!, epg)
+        if (catchupObj != null && LiveEpgParser.hasCatchupSource(catchupObj)) {
+            return LiveEpgParser.formatCatchupUrl(url, catchupObj, epg)
         }
         if (!url.contains("/PLTV/")) return ""
-        val source = "?playseek=" + LiveEpgParser.formatCatchupTime(epg.startdateTime!!, "yyyyMMddHHmmss") +
-                "-" + LiveEpgParser.formatCatchupTime(epg.enddateTime!!, "yyyyMMddHHmmss")
+        val startTime = epg.startdateTime ?: return ""
+        val endTime = epg.enddateTime ?: return ""
+        val source = "?playseek=" + LiveEpgParser.formatCatchupTime(startTime, "yyyyMMddHHmmss") +
+                "-" + LiveEpgParser.formatCatchupTime(endTime, "yyyyMMddHHmmss")
         return LiveEpgParser.appendCatchupUrl(url, "/PLTV/,/TVOD/", source)
     }
 

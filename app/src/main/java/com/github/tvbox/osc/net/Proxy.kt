@@ -54,7 +54,7 @@ object Proxy {
             val type = params["type"]
             url = URLDecoder.decode(url, "UTF-8")
 
-            val client = OkGoHelper.getItvClient()!!
+            val client = requireNotNull(OkGoHelper.getItvClient()) { "itv client not initialized" }
             assert(type != null)
             if (type == "m3u8") {
                 val request = buildRequest(url, params)
@@ -104,7 +104,7 @@ object Proxy {
             var url = params["url"]
             url = URLDecoder.decode(url, "UTF-8")
 
-            val client = OkGoHelper.getItvClient()!!
+            val client = requireNotNull(OkGoHelper.getItvClient()) { "itv client not initialized" }
             val redirectUrl = getRedirectedUrl(url)
 
             val request = Request.Builder().url(redirectUrl).build()
@@ -359,7 +359,7 @@ object Proxy {
                 .url(url)
                 .build()
 
-        val client = OkGoHelper.getItvClient()!!
+        val client = requireNotNull(OkGoHelper.getItvClient()) { "itv client not initialized" }
         client.newCall(request).execute().use { response ->
             if (response.isSuccessful) {
                 return response.body.string()

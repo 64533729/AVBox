@@ -39,18 +39,20 @@ object SubtitleFinder {
         while (start <= end) {
             val middle = (start + end) / 2
             val middleSubtitle = subtitles[middle]
-            if (position < middleSubtitle.start!!.mseconds) {
-                if (position > middleSubtitle.end!!.mseconds) {
+            val startTime = middleSubtitle.start?.mseconds ?: return null
+            val endTime = middleSubtitle.end?.mseconds ?: return null
+            if (position < startTime) {
+                if (position > endTime) {
                     return middleSubtitle
                 }
                 end = middle - 1
-            } else if (position > middleSubtitle.end!!.mseconds) {
-                if (position < middleSubtitle.start!!.mseconds) {
+            } else if (position > endTime) {
+                if (position < startTime) {
                     return middleSubtitle
                 }
                 start = middle + 1
-            } else if (position >= middleSubtitle.start!!.mseconds &&
-                position <= middleSubtitle.end!!.mseconds) {
+            } else if (position >= startTime &&
+                position <= endTime) {
                 return middleSubtitle
             }
         }

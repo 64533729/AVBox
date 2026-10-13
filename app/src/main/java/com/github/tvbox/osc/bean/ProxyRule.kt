@@ -41,17 +41,17 @@ class ProxyRule : Comparable<ProxyRule> {
         for (url in getUrls()) {
             if (TextUtils.isEmpty(url)) continue
             val uri = Uri.parse(url)
-            if (isValid(uri)) uris!!.add(uri)
+            if (isValid(uri)) uris?.add(uri)
         }
         proxies = ArrayList()
-        for (uri in uris!!) {
+        for (uri in uris.orEmpty()) {
             val proxy = create(uri)
-            if (proxy != null) proxies!!.add(proxy)
+            if (proxy != null) proxies?.add(proxy)
         }
     }
 
     fun getName(): String {
-        return if (TextUtils.isEmpty(name)) "" else name!!
+        return name ?: ""
     }
 
     fun getHosts(): MutableList<String> {
@@ -68,7 +68,7 @@ class ProxyRule : Comparable<ProxyRule> {
 
     fun getUserInfo(host: String?): String? {
         if (uris == null || host == null) return null
-        for (uri in uris!!) {
+        for (uri in uris.orEmpty()) {
             if (uri == null || uri.host == null) continue
             if (host.equals(uri.host, true)) {
                 val userInfo = uri.userInfo

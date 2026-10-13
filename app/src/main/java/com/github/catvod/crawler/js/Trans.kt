@@ -1,7 +1,5 @@
 package com.github.catvod.crawler.js
 
-import android.text.TextUtils
-
 import com.github.tvbox.osc.util.LanguageManager
 
 class Trans private constructor(private val trans: Boolean) {
@@ -26,8 +24,8 @@ class Trans private constructor(private val trans: Boolean) {
     }
 
     private fun get(text: String?, map: Map<Char, Char>): String? {
-        if (TextUtils.isEmpty(text)) return text
-        val chars = text!!.toCharArray()
+        if (text.isNullOrEmpty()) return text
+        val chars = text.toCharArray()
         for (i in chars.indices) {
             val found = map[chars[i]]
             if (found != null) chars[i] = found

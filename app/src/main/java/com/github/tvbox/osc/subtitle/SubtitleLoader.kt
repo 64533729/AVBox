@@ -43,10 +43,10 @@ object SubtitleLoader {
 
     @JvmStatic
     fun loadSubtitle(path: String?, callback: Callback?) {
-        if (TextUtils.isEmpty(path)) {
+        if (path.isNullOrEmpty()) {
             return
         }
-        val p = path!!
+        val p = path
         if (p.startsWith("http://") ||
             p.startsWith("https://")) {
             loadFromRemoteAsync(p, callback)
@@ -184,12 +184,9 @@ object SubtitleLoader {
             filename = filename.trim { it <= ' ' }
             filename = URLDecoder.decode(filename)
         }
-        var filePath: String? = filename
-        if (filename.length < 1) {
-            val uri = Uri.parse(remoteSubtitlePath)
-            filePath = uri.path
-        }
-        if (!filePath!!.contains(".") && remoteSubtitlePath.contains("#")) {
+        val resolvedPath: String = if (filename.length >= 1) filename else (Uri.parse(remoteSubtitlePath).path ?: "")
+        var filePath = resolvedPath
+        if (!filePath.contains(".") && remoteSubtitlePath.contains("#")) {
             filePath = RegexUtils.getPattern("#").split(remoteSubtitlePath)[1]
             filePath = URLDecoder.decode(filePath)
         }

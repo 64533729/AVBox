@@ -27,10 +27,11 @@ description: 项目规则、通用原则、通用代码规范、交付验证与�
 - **状态管理**：使用单向数据流，状态集中管理，UI由状态驱动，避免维护重复状态
 - **注释**：**全库零注释**（2026-10-06 用户指令：文档已完整，代码自解释）。只有三类例外可以存在：
   - **许可证块**：第三方派生文件（`subtitle/**` 等）的 `Copyright` / `Permission is hereby granted` / `SPDX-License` 声明——删了违反许可
-  - **机器可读指令**：`// i18n: keep`（`i18n_gate.py` 的白名单，删了 ui 层硬闸门立刻变红）、`//noinspection`
+  - **机器可读指令**：`// i18n: keep`（`i18n_gate.py` 的白名单，删了 ui 层硬闸门立刻变红）、`// null-assert: keep`（`null_assert_gate.py` 的行级豁免，删了该行断言立刻变红）、`//noinspection`
   - **禁止**任何解释性注释：含"为什么"、决策叙事（日期 / 规范章节号 §x.x / 出处 / 演进对比）——这些一律归 `skill/history/`
   - 批量删注释用 `.codebuddy/tools/strip_comments_all.py`（`--dry` 报告 / `--apply` 写回 / `--verify` 校验）；`--verify` 做的是"剥注释后的代码投影与 `git HEAD` 逐行一致"，这是唯一能证明"只动了注释"的手段。删完必须重跑 `prune_imports.py`（只在注释里被引用的 import 会变成未使用）
 - **错误处理**：禁止静默忽略错误；使用统一错误处理方式，明确处理异常
+- **空安全**：不用裸 `!!`。空属正常业务状态 ⇒ 守卫早退（`?: return` / `isNullOrEmpty()`）；数据本该存在 ⇒ `requireNotNull(x) { "英文消息" }`。**禁止用 `?.` 把崩溃改成静默跳过来"消除"断言**，也不得顺手改可空性标注 / 签名。存量已清零，新增断言由 `null_assert_gate.py` 拦截（判定口径见 `skill/avbox-code-review-spec.md` 的「空安全与非空断言」）
 - **并发**：遵循项目现有异步编程方式；永远不要阻塞主线程；避免共享可变状态，确保线程安全
 - **配置**：禁止硬编码 URL、版本号、配置参数；版本一律走 `gradle/libs.versions.toml`；适用情况下支持多环境配置
 - **技术决策**：多方案需说明优缺点及对项目影响，不将某方案描述为唯一正确方案
@@ -43,6 +44,7 @@ description: 项目规则、通用原则、通用代码规范、交付验证与�
 - **禁止擅自跑 release 构建（2026-10-05 用户指令）**：`:app:assembleRelease` 未经用户明确许可一律不跑（单次 4–5 分钟，只为 R8/keep/混淆与契约层 release 侧 `javap` 比对服务）；日常验证只跑 debug 变体。
 - **验证不得攒到最后**：每完成一组改动（或一轮审查修复）立即跑 `.\gradlew :app:assembleDebug` 与 `.\gradlew :app:testDebugUnitTest`；改配置解析 / 规则 / 字段取值的必须补单测锁口径（范例：`ConfigParserTest`、`HeaderGuardTest`）。纯人眼推理会把"会崩 / 会失效"级问题拖到很后面才暴露。
 - **跑构建的三个坑（2026-09-23 实测，别再重复踩）**：①**不要用 `| Select-String … | Select-Object -First N` 过滤 gradle 输出** —— 管道会在拿到 `BUILD SUCCESSFUL/FAILED` 之前被截断，命令以非零码结束，极易误判成"构建失败"（本次为此白跑一轮）。要过滤就 `> log 2>&1` 落盘后再读。②**该日志是 UTF-16**，Git Bash 的 `grep` / `tail` 对它零命中（表现为"明明有输出却搜不到"），只能走 PowerShell 的 `Get-Content`。③Git Bash 里 `./gradlew` 报 `ClassNotFoundException: GradleWrapperMain`（jar 完好，脚本路径问题），用 PowerShell 的 `.\gradlew.bat`。判读结果以 `BUILD SUCCESSFUL` 与 `app/build/test-results/testDebugUnitTest/*.xml` 的用例计数为准，别只看退出码。
+- **新增非空断言须过门禁（手动执行，项目暂无 CI）**：与 `i18n_gate.py` 同族，交付前跑 `python .codebuddy/tools/null_assert_gate.py`；基线 `null_assert_baseline.json` **只允许下调**（`--update` 拒绝上调），行级例外用 `// null-assert: keep` 并逐条登记理由。
 - **审查有终止线，不以"零发现"为目标**：换个角度总能找到东西，无限轮没有收益。可以收尾 = 连续一轮没有 阻断 / 高 / 中 级发现，且剩余发现全部属于"既有问题"或"口味差异"。每轮发现按「严重度」×「本次引入 / 既有 / 口味差异」两轴记账，严重度单调下降即可停。
 - **改动前两项自查**：①直接沿用既有写法时必须连带抄它的防御与归一化，漏抄等于把既有缺陷一起复制进来；②改动全局字段 / 新增数据源 / 触碰"第 0 项""唯一"这类隐式约定时，先列出它打破的不变量与全部消费方。实例与修复过程见 `history/features.md` 的 2026-09-23 条目。
 
@@ -57,7 +59,7 @@ description: 项目规则、通用原则、通用代码规范、交付验证与�
 | `skill/history/steps.md` | **历史归档**：Step 0–7 改造实施记录、Step 1 删除清单实际对账 | 按需检索：某类/布局/依赖当初为什么删、某步架构决策 |
 | `skill/history/features.md` | **历史归档**：2026-09-09 起功能迭代记录（下拉刷新、隧道模式+AAC、配置管理页、主题设置页、顶栏改造、选集溢出修复、快搜删除、卡片点击分发…） | 按需检索：某功能当初怎么实现、为什么这么定、踩过什么坑 |
 | `skill/history/preload-toast-deadlock.md` | **排查归档(根因已证;2026-09-27 已按方案 A 改磁盘预缓存,待真机验证)**：拖动进度条后预载 toast 概率不出现 = media3 1.11.1 预载完成死锁(时长目标 vs 32MB 字节闸门互不收敛,静默无回调);含源码证据链、撞顶码率阈值、修复选项 A/B/C、A 的实施方案(headers/cache key/mimeType 三处桥接)与真机验证判据 | 改动**预载/`PreloadManagerHolder`/`PreloadCoordinator`/预载读盘链路** 前必读;验证预载"完成/命中"类问题先读 |
-| `skill/avbox-code-review-spec.md` | **代码审查 Spec**：把本文件整份当提示词喂给 AI 做**只读**审查。含角色定义与技术栈实况、既定约定(报了即误报)、高危约束、快速/深度(三批)模式与分批策略、审查清单与硬阈值(文件 >500 行 / 方法 >100 行 / 重复 ≥3 次 / 门面被 ≥20 文件依赖)、输出格式(第 0–6 节 + **附录 A 度量盘点** + **附录 B 上轮对账**)、审查者禁止事项、**审查收敛终止线** | 要做代码审查、或判断"本轮审查能否收尾"时**必读**；判断标准以文末「审查收敛」为准 |
+| `skill/avbox-code-review-spec.md` | **代码审查 Spec**：把本文件整份当提示词喂给 AI 做**只读**审查。含角色定义与技术栈实况、既定约定(报了即误报)、高危约束、快速/深度(三批)模式与分批策略、审查清单与硬阈值(文件 >500 行 / 方法 >100 行 / 重复 ≥3 次 / 门面被 ≥20 文件依赖；含**空安全与非空断言**小节)、输出格式(第 0–6 节 + **附录 A 度量盘点** + **附录 B 上轮对账**)、审查者禁止事项、**审查收敛终止线** | 要做代码审查、或判断"本轮审查能否收尾"时**必读**；判断标准以文末「审查收敛」为准 |
 | `skill/avbox-kotlin-migration-spec.md` | **活规范**：Java→Kotlin 迁移转换规范——M0 实测基线、每切片流程与卡口、Kotlin 静态/字段/构造器转换细则、契约层（`catvod`）逐条清单、Gson×data class 规范、并发不变量、`skill/scripts/verify-migration.ps1` 用法 | 改动 `com.github.catvod.**`、或改动被动态 jar / 第三方 AAR 按名字访问的宿主静态面前**必读** |
 | `skill/avbox-okgo-removal-spec.md` | **活规范(已完成:N0–N5 全部实施,2026-10-06;待真机走查)**：OkGo → OkHttp + 协程迁移 —— 现状盘点(19 文件)与 okgo 源码取证(E1-E10)、await 层与全 Job 化取消设计(§4)、P1-P11 决策、N0-N5 分片计划与实测登记、验收口径与风险(R1-R14) | 改动 `util/net` 请求层 / `OkGoHelper` / 涉及 `cancelTag` 取消链 / 删 okgo 依赖前**必读**;§5 为分片实测登记(终态) |
 | `skill/review/` | **审查报告存档**：`review-<YYYYMMDD>-batch<N>.md`(分批审查报告)与 `refactor-plan-*.md`(重构计划)；同批修复轮记录追加在同一文件(内容 = 改了哪些条目 / 构建与单测结果 / 回归面清单) | 接手上一轮审查结论、需要出「附录 B 上轮对账」时**必读** |

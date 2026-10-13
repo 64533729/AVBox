@@ -155,7 +155,7 @@ object RemoteTVBox {
             }
         }
         val formBody = formBodyBuilder.build()
-        val requestBuilder = Request.Builder().url(url!!)
+        val requestBuilder = Request.Builder().url(requireNotNull(url))
         if (headers != null) {
             for ((key, value) in headers) {
                 if (isBodyManagedHeader(key)) {

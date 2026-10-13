@@ -75,11 +75,13 @@ class SSLSocketFactoryCompat(tm: X509TrustManager?) : SSLSocketFactory() {
     }
 
     private fun upgradeTLS(ssl: SSLSocket) {
-        if (protocols != null) {
-            ssl.enabledProtocols = protocols!!
+        val tlsProtocols = protocols
+        if (tlsProtocols != null) {
+            ssl.enabledProtocols = tlsProtocols
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP && cipherSuites != null) {
-            ssl.enabledCipherSuites = cipherSuites!!
+        val tlsCipherSuites = cipherSuites
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP && tlsCipherSuites != null) {
+            ssl.enabledCipherSuites = tlsCipherSuites
         }
     }
 

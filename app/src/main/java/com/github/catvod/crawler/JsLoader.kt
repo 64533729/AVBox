@@ -49,9 +49,9 @@ class JsLoader {
         var success = false
         var classInit: Class<*>? = null
         try {
-            val cacheDir = File(AppContextHolder.context()!!.cacheDir.absolutePath + "/catvod_jsapi")
+            val cacheDir = File(requireNotNull(AppContextHolder.context()) { "app context not ready" }.cacheDir.absolutePath + "/catvod_jsapi")
             if (!cacheDir.exists()) cacheDir.mkdirs()
-            val classLoader = DexClassLoader(jar, cacheDir.absolutePath, null, AppContextHolder.context()!!.classLoader)
+            val classLoader = DexClassLoader(jar, cacheDir.absolutePath, null, requireNotNull(AppContextHolder.context()) { "app context not ready" }.classLoader)
             var count = 0
             do {
                 try {
@@ -79,7 +79,7 @@ class JsLoader {
             } while (count < 5)
 
             if (success) {
-                classes[key] = classInit!!
+                classes[key] = requireNotNull(classInit) { "class init is null" }
             }
         } catch (th: Throwable) {
             LOG.e("JsLoader", th)
@@ -92,7 +92,7 @@ class JsLoader {
             Log.i("JSLoader", "echo-loadJarInternal cached")
             return classes[key]
         }
-        val cache = File(AppContextHolder.context()!!.filesDir.absolutePath + "/csp/" + key + ".jar")
+        val cache = File(requireNotNull(AppContextHolder.context()) { "app context not ready" }.filesDir.absolutePath + "/csp/" + key + ".jar")
         try {
             val parent = cache.parentFile
             if (parent != null && !parent.exists()) parent.mkdirs()
@@ -138,7 +138,7 @@ class JsLoader {
     }
 
     fun getSpider(key: String?, api: String?, ext: String?, jar: String?): Spider {
-        recentKey = key!!
+        recentKey = requireNotNull(key) { "site key is null" }
         spiders[key]?.let {
             Log.i("JSLoader", "echo-getSpider cached " + key)
             return it
@@ -151,17 +151,17 @@ class JsLoader {
                 return cached
             }
             var classLoader: Class<*>? = null
-            if (!jar!!.isEmpty()) {
+            if (!jar.isNullOrEmpty()) {
                 val urls = RegexUtils.getPattern(";md5;").split(jar)
                 val jarUrl = urls[0]
-                val jarKey = MD5.string2MD5(jarUrl)!!
+                val jarKey = requireNotNull(MD5.string2MD5(jarUrl)) { "jar md5 is null" }
                 val jarMd5 = if (urls.size > 1) urls[1].trim { it <= ' ' } else ""
                 classLoader = loadJarInternal(jarUrl, jarMd5, jarKey)
             }
             var sp: Spider? = null
             try {
                 Log.i("JSLoader", "echo-getSpider load")
-                val created = JsSpider(key, api!!, classLoader)
+                val created = JsSpider(key, requireNotNull(api) { "js api is null" }, classLoader)
                 sp = created
                 created.siteKey = key
                 created.init(AppContextHolder.context(), ext)
@@ -173,9 +173,7 @@ class JsLoader {
                 return SpiderNull()
             } catch (th: Throwable) {
                 LOG.i("echo-getSpider-error " + th.message)
-                if (sp != null) {
-                    destroyLater(sp!!)
-                }
+                sp?.let { destroyLater(it) }
             }
             return SpiderNull()
         }

@@ -2,7 +2,6 @@ package com.github.tvbox.osc.player
 
 import android.content.Context
 import android.graphics.Color
-import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.SurfaceView
@@ -193,7 +192,7 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
     }
 
     fun setArtwork(url: String?) {
-        if (TextUtils.isEmpty(url)) {
+        if (url.isNullOrEmpty()) {
             clearArtwork()
             return
         }
@@ -218,7 +217,7 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
         }
         view.visibility = VISIBLE
         cancelArtworkRequest()
-        artworkDisposable = ImgUtil.loadPlayerArtwork(url!!, view)
+        artworkDisposable = ImgUtil.loadPlayerArtwork(url, view)
     }
 
     fun clearArtwork() {

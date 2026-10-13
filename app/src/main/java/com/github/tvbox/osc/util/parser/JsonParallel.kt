@@ -57,10 +57,10 @@ object JsonParallel {
                 val completionService: CompletionService<JSONObject?> = ExecutorCompletionService(task.executorService)
 
                 for (jxName in jx.keys) {
-                    val parseUrl = jx[jxName]
+                    val parseUrl = jx[jxName] ?: continue
                     task.futures.add(completionService.submit(Callable<JSONObject?> {
                         try {
-                            val reqHeaders = JsonParallel.getReqHeader(parseUrl!!)
+                            val reqHeaders = JsonParallel.getReqHeader(parseUrl)
                             val realUrl = reqHeaders["url"]
                             reqHeaders.remove("url")
                             val headers = Headers.Builder().apply { reqHeaders.forEach { (name, value) -> add(name, value) } }.build()
@@ -72,10 +72,10 @@ object JsonParallel {
 
                             val call = task.client.newCall(request)
                             val response = call.execute()
-                            val json = response.body!!.string()
+                            val json = response.body.string()
 
-                            val taskResult = Utils.jsonParse(url, json)
-                            taskResult!!.put("jxFrom", jxName)
+                            val taskResult = if (json.isEmpty()) null else Utils.jsonParse(url, json)
+                            taskResult?.put("jxFrom", jxName)
                             taskResult
                         } catch (th: Throwable) {
                             null

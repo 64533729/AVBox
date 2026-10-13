@@ -80,7 +80,7 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
         })
         mContext = this
         initSystemUiListener()
-        CutoutUtil.adaptCutoutAboveAndroidP(mContext!!, true)
+        CutoutUtil.adaptCutoutAboveAndroidP(this, true)
         AppManager.getInstance().addActivity(this)
         applyOrientationPolicy()
         init()

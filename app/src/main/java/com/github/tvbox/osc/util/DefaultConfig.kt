@@ -41,8 +41,9 @@ object DefaultConfig {
         if (TextUtils.isEmpty(name)) {
             return ""
         }
-        val endP = name!!.lastIndexOf(".")
-        return if (endP > -1) name.substring(endP) else ""
+        val value = name ?: return ""
+        val endP = value.lastIndexOf(".")
+        return if (endP > -1) value.substring(endP) else ""
     }
 
     @JvmStatic
@@ -50,8 +51,9 @@ object DefaultConfig {
         if (TextUtils.isEmpty(fileName)) {
             return ""
         }
-        val start = fileName!!.lastIndexOf(".")
-        return if (start > -1) fileName.substring(0, start) else fileName
+        val value = fileName ?: return ""
+        val start = value.lastIndexOf(".")
+        return if (start > -1) value.substring(0, start) else value
     }
 
     private val snifferMatch = Pattern.compile(

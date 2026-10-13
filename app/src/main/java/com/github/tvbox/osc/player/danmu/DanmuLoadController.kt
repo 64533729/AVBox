@@ -87,9 +87,9 @@ class DanmuLoadController(
     fun check(danmu: String?, title: String?, episode: String?, callback: LoadCallback?) {
         loadCallback = callback
         temporarilyClosed = false
-        danmuText = if (TextUtils.isEmpty(danmu)) "" else danmu!!.trim { it <= ' ' }
-        danmuTitle = if (TextUtils.isEmpty(title)) "" else title!!
-        danmuEpisode = if (TextUtils.isEmpty(episode)) "" else episode!!
+        danmuText = if (danmu.isNullOrEmpty()) "" else danmu.trim { it <= ' ' }
+        danmuTitle = if (title.isNullOrEmpty()) "" else title
+        danmuEpisode = if (episode.isNullOrEmpty()) "" else episode
         releaseView()
         val hasDanmu = !TextUtils.isEmpty(danmuText)
         controller?.setHasDanmu(hasDanmu)
@@ -280,10 +280,10 @@ class DanmuLoadController(
     }
 
     private fun getSourceSummary(danmu: String?): String {
-        if (TextUtils.isEmpty(danmu)) return ""
-        if (danmu!!.startsWith("http") || danmu.startsWith("file")) return danmu
+        if (danmu.isNullOrEmpty()) return ""
+        if (danmu.startsWith("http") || danmu.startsWith("file")) return danmu
         return "inline xml length=" + danmu.length
     }
 
-    private fun safeLog(text: String?): String = if (TextUtils.isEmpty(text)) "" else text!!
+    private fun safeLog(text: String?): String = if (text.isNullOrEmpty()) "" else text
 }

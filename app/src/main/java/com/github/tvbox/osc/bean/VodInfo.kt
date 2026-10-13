@@ -112,7 +112,7 @@ class VodInfo : Serializable {
             for (flag in flags) {
                 val list = tempSeriesMap[flag.name]
                 assert(list != null)
-                val series = list!!
+                val series = list ?: continue
                 if (flags.size <= 5) {
                     if (isReverse(series)) Collections.reverse(series)
                 }
@@ -134,8 +134,8 @@ class VodInfo : Serializable {
         var descCount = 0
         val limit = Math.min(list.size - 1, 6)
         for (i in 0 until limit) {
-            val current = extractNumber(list[i].name!!)
-            val next = extractNumber(list[i + 1].name!!)
+            val current = extractNumber(list[i].name ?: "")
+            val next = extractNumber(list[i + 1].name ?: "")
             if (current < next) {
                 ascCount++
                 if (ascCount == 2) return false
@@ -151,7 +151,8 @@ class VodInfo : Serializable {
         val map = seriesMap ?: return
         val flags = map.keys
         for (flag in flags) {
-            Collections.reverse(map[flag]!!)
+            val series = map[flag] ?: continue
+            Collections.reverse(series)
         }
     }
 

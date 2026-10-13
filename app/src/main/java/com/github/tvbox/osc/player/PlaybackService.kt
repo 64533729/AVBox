@@ -74,12 +74,9 @@ class PlaybackService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         releaseEngineOnDestroy = false
         val action = intent?.action
-        if (ACTION_UPDATE == action) {
+        if (action != null) {
             startForegroundSafely()
-            handleSessionIntent(intent!!)
-        } else if (action != null) {
-            startForegroundSafely()
-            handleSessionIntent(intent!!)
+            handleSessionIntent(requireNotNull(intent))
         }
         if (stopWhenStarted) {
             stopWhenStarted = false

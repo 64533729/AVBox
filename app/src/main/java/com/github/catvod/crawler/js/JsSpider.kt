@@ -77,19 +77,19 @@ class JsSpider : Spider {
     }
 
     private fun createObject(): JSObject {
-        return ctx!!.createNewJSObject()
+        return requireNotNull(ctx) { "js context not ready" }.createNewJSObject()
     }
 
     private fun createArray(): JSArray {
-        return ctx!!.createNewJSArray()
+        return requireNotNull(ctx) { "js context not ready" }.createNewJSArray()
     }
 
     private fun set(obj: JSObject, name: String, value: Any?) {
-        ctx!!.setProperty(obj, name, value)
+        requireNotNull(ctx) { "js context not ready" }.setProperty(obj, name, value)
     }
 
     private fun get(obj: JSObject, name: String): Any? {
-        return ctx!!.getProperty(obj, name)
+        return requireNotNull(ctx) { "js context not ready" }.getProperty(obj, name)
     }
 
     private fun toJsonArray(array: JSArray): JSONArray {
@@ -153,9 +153,10 @@ class JsSpider : Spider {
     }
 
     private fun call(func: String, vararg args: Any?): Any? {
-        if (destroyed.get() || jsObject == null) return null
+        val target = jsObject ?: return null
+        if (destroyed.get()) return null
         try {
-            val pending = executor.submit(Callable { Async.run(jsObject!!, func, args) })
+            val pending = executor.submit(Callable { Async.run(target, func, args) })
             val result = pending.get(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             return result.get(CALL_TIMEOUT_MS)
         } catch (e: Exception) {
@@ -169,14 +170,14 @@ class JsSpider : Spider {
         set(cfg, "stype", 3)
         set(cfg, "skey", if (TextUtils.isEmpty(siteKey)) key else siteKey)
         if (Json.invalid(ext)) set(cfg, "ext", ext)
-        else set(cfg, "ext", ctx!!.parse(ext) as JSObject)
+        else set(cfg, "ext", requireNotNull(ctx) { "js context not ready" }.parse(ext) as JSObject)
         return cfg
     }
 
     override fun init(context: Context?, extend: String?) {
         try {
             if (cat) call("init", submitAndWait(Callable { cfg(extend) }))
-            else call("init", if (Json.valid(extend)) ctx!!.parse(extend) else extend)
+            else call("init", if (Json.valid(extend)) requireNotNull(ctx) { "js context not ready" }.parse(extend) else extend)
         } catch (e: Exception) {
             LOG.e("JsSpider", "init js spider failed", e)
         }
@@ -200,7 +201,7 @@ class JsSpider : Spider {
 
     override fun categoryContent(tid: String?, pg: String, filter: Boolean, extend: HashMap<String, String>?): String? {
         try {
-            val obj = submitAndWait(Callable { JSUtils<String>().toObj(ctx!!, extend) })
+            val obj = submitAndWait(Callable { JSUtils<String>().toObj(requireNotNull(ctx) { "js context not ready" }, extend) })
             return call("category", tid, pg, filter, obj) as String?
         } catch (e: Exception) {
             return null
@@ -209,7 +210,8 @@ class JsSpider : Spider {
 
     override fun detailContent(ids: List<String>?): String? {
         try {
-            return call("detail", ids!!.get(0)) as String?
+            val id = ids?.firstOrNull() ?: return null
+            return call("detail", id) as String?
         } catch (e: Exception) {
             return null
         }
@@ -225,7 +227,7 @@ class JsSpider : Spider {
 
     override fun playerContent(flag: String?, id: String, vipFlags: List<String>?): String? {
         try {
-            val array = submitAndWait(Callable { JSUtils<String>().toArray(ctx!!, vipFlags) })
+            val array = submitAndWait(Callable { JSUtils<String>().toArray(requireNotNull(ctx) { "js context not ready" }, vipFlags) })
             return call("play", flag, id, array) as String?
         } catch (e: Exception) {
             return null
@@ -258,8 +260,9 @@ class JsSpider : Spider {
 
     override fun proxyLocal(params: Map<String, String>?): Array<Any?>? {
         try {
-            if ("catvod" == params!!.get("from")) return proxy2(params)
-            val result = submitAndWait(Callable { proxy1(params) })
+            val p = params ?: return arrayOfNulls(0)
+            if ("catvod" == p.get("from")) return proxy2(p)
+            val result = submitAndWait(Callable { proxy1(p) })
             return result ?: arrayOfNulls(0)
 
         } catch (E: Exception) {
@@ -277,9 +280,10 @@ class JsSpider : Spider {
 
     override fun destroy() {
         if (!destroyed.compareAndSet(false, true)) return
-        if (global != null) {
+        val globalRef = global
+        if (globalRef != null) {
             try {
-                global!!.destroy()
+                globalRef.destroy()
             } catch (ignored: Throwable) {
                 LOG.d("JsSpider", "global destroy failed")
             }
@@ -310,14 +314,14 @@ class JsSpider : Spider {
             if (isInvalidModuleContent(loaded)) {
                 return@Callable null
             }
-            var content: String = loaded!!
+            var content: String = loaded ?: return@Callable null
 
             if (content.startsWith("//bb")) {
                 cat = true
                 val b = Base64.decode(content.replace("//bb", ""), 0)
                 try {
-                    ctx!!.execute(byteFF(b))
-                    ctx!!.evaluateModule(String.format(SPIDER_STRING_CODE, key + ".js") + "globalThis." + key + " = globalThis.__JS_SPIDER__;", "tv_box_root.js")
+                    requireNotNull(ctx) { "js context not ready" }.execute(byteFF(b))
+                    requireNotNull(ctx) { "js context not ready" }.evaluateModule(String.format(SPIDER_STRING_CODE, key + ".js") + "globalThis." + key + " = globalThis.__JS_SPIDER__;", "tv_box_root.js")
                 } catch (th: Throwable) {
                     LOG.i("echo-bytecode-execute-error " + api + ", msg=" + th.message)
                     return@Callable null
@@ -332,14 +336,14 @@ class JsSpider : Spider {
                     cat = true
                 }
                 try {
-                    ctx!!.evaluateModule(content, api)
-                    ctx!!.evaluateModule(String.format(SPIDER_STRING_CODE, api) + "globalThis." + key + " = globalThis.__JS_SPIDER__;", "tv_box_root.js")
+                    requireNotNull(ctx) { "js context not ready" }.evaluateModule(content, api)
+                    requireNotNull(ctx) { "js context not ready" }.evaluateModule(String.format(SPIDER_STRING_CODE, api) + "globalThis." + key + " = globalThis.__JS_SPIDER__;", "tv_box_root.js")
                 } catch (th: Throwable) {
                     LOG.i("echo-evaluateModule-error " + api + ", msg=" + th.message)
                     return@Callable null
                 }
             }
-            jsObject = get(ctx!!.globalObject, key) as JSObject?
+            jsObject = get(requireNotNull(ctx) { "js context not ready" }.globalObject, key) as JSObject?
             jsObject?.hold()
             return@Callable null
         })
@@ -357,8 +361,8 @@ class JsSpider : Spider {
 
     private fun createCtx() {
         ctx = QuickJSContext.create()
-        emptyModuleBytecode = ctx!!.compileModule(EMPTY_MODULE_CODE, "empty.js")
-        ctx!!.setModuleLoader(object : ModuleLoader() {
+        emptyModuleBytecode = requireNotNull(ctx) { "js context not ready" }.compileModule(EMPTY_MODULE_CODE, "empty.js")
+        requireNotNull(ctx) { "js context not ready" }.setModuleLoader(object : ModuleLoader() {
             override fun isBytecodeMode(): Boolean {
                 return true
             }
@@ -368,7 +372,7 @@ class JsSpider : Spider {
                 if (isInvalidModuleContent(ss)) {
                     return compileEmptyModule(moduleName)
                 }
-                val text = ss!!
+                val text = ss ?: return compileEmptyModule(moduleName)
                 if (text.startsWith("//DRPY")) {
                     try {
                         val bytes = bytecode(Base64.decode(text.replace("//DRPY", ""), Base64.URL_SAFE))
@@ -398,7 +402,7 @@ class JsSpider : Spider {
                 return UriUtil.resolve(moduleBaseName, moduleName)
             }
         })
-        ctx!!.setConsole(object : QuickJSContext.Console {
+        requireNotNull(ctx) { "js context not ready" }.setConsole(object : QuickJSContext.Console {
             override fun log(s: String?) {
                 LOG.i("echo-QuJs " + s)
             }
@@ -417,14 +421,14 @@ class JsSpider : Spider {
         })
 
         global = Global(executor, key)
-        bind(ctx!!.globalObject, global!!)
+        bind(requireNotNull(ctx) { "js context not ready" }.globalObject, requireNotNull(global) { "global not ready" })
 
         val localObj = createObject()
-        set(ctx!!.globalObject, "local", localObj)
+        set(requireNotNull(ctx) { "js context not ready" }.globalObject, "local", localObj)
         bind(localObj, local())
 
         val net = FileUtils.loadModule("net.js")
-        if (!isInvalidModuleContent(net)) ctx!!.globalObject.context.evaluate(net)
+        if (!isInvalidModuleContent(net)) requireNotNull(ctx) { "js context not ready" }.globalObject.context.evaluate(net)
         preloadTemplate()
     }
 
@@ -436,15 +440,15 @@ class JsSpider : Spider {
     private fun compileModule(moduleName: String?, content: String): ByteArray? {
         try {
             if (moduleName != null && moduleName.contains("cheerio.min.js")) {
-                val bytecode = ctx!!.compileModule(content, "cheerio.min.js")
+                val bytecode = requireNotNull(ctx) { "js context not ready" }.compileModule(content, "cheerio.min.js")
                 FileUtils.setCacheByte("cheerio.min", bytecode)
                 return bytecode
             } else if (moduleName != null && moduleName.contains("crypto-js.js")) {
-                val bytecode = ctx!!.compileModule(content, "crypto-js.js")
+                val bytecode = requireNotNull(ctx) { "js context not ready" }.compileModule(content, "crypto-js.js")
                 FileUtils.setCacheByte("crypto-js", bytecode)
                 return bytecode
             }
-            return ctx!!.compileModule(content, moduleName)
+            return requireNotNull(ctx) { "js context not ready" }.compileModule(content, moduleName)
         } catch (th: Throwable) {
             LOG.i("echo-compileModule-error " + moduleName + ", msg=" + th.message)
             return compileEmptyModule(moduleName)
@@ -452,8 +456,8 @@ class JsSpider : Spider {
     }
 
     private fun isInvalidModuleContent(content: String?): Boolean {
-        if (TextUtils.isEmpty(content)) return true
-        var trim = content!!.trim { it <= ' ' }
+        if (content.isNullOrEmpty()) return true
+        var trim = content.trim { it <= ' ' }
         if (trim.startsWith("\uFEFF")) trim = trim.substring(1).trim { it <= ' ' }
         val lower = trim.lowercase(Locale.getDefault())
         return lower.startsWith("<")
@@ -468,7 +472,7 @@ class JsSpider : Spider {
             val template = "import tpl from '模板.js';\n" +
                     "globalThis.muban = tpl.muban;\n" +
                     "globalThis.getMubans = tpl.getMubans;"
-            ctx!!.evaluateModule(template, "tv_box_template.js")
+            requireNotNull(ctx) { "js context not ready" }.evaluateModule(template, "tv_box_template.js")
         } catch (th: Throwable) {
             LOG.i("echo-preloadTemplate-error " + th.message)
         }
@@ -477,9 +481,9 @@ class JsSpider : Spider {
     private fun createDex() {
         try {
             val obj = createObject()
-            val clz = dex!!
+            val clz = requireNotNull(dex) { "dex is null" }
             val classes = clz.declaredClasses
-            set(ctx!!.globalObject, "jsapi", obj)
+            set(requireNotNull(ctx) { "js context not ready" }.globalObject, "jsapi", obj)
             if (classes.isEmpty()) invokeSingle(clz, obj)
             if (classes.size >= 1) invokeMultiple(clz, obj)
         } catch (e: Throwable) {
@@ -527,9 +531,9 @@ class JsSpider : Spider {
         if (isInvalidModuleContent(content)) {
             return null
         }
-        val text = content!!
+        val text = content ?: return null
         return if (text.contains("__jsEvalReturn")) {
-            ctx!!.evaluate("req = http")
+            requireNotNull(ctx) { "js context not ready" }.evaluate("req = http")
             text + global + " = __jsEvalReturn()"
         } else if (text.contains("__JS_SPIDER__")) {
             text.replace("__JS_SPIDER__", global)
@@ -539,8 +543,8 @@ class JsSpider : Spider {
     }
 
     private fun proxy1(params: Map<String, String>?): Array<Any?> {
-        val obj = JSUtils<String>().toObj(ctx!!, params)
-        val array = toJsonArray(jsObject!!.getJSFunction("proxy").call(obj) as JSArray)
+        val obj = JSUtils<String>().toObj(requireNotNull(ctx) { "js context not ready" }, params)
+        val array = toJsonArray(requireNotNull(jsObject) { "js object not ready" }.getJSFunction("proxy").call(obj) as JSArray)
         val headerAvailable = array.length() > 3 && array.opt(3) != null
         val result = arrayOfNulls<Any?>(4)
         result[0] = array.opt(0)
@@ -591,13 +595,14 @@ class JsSpider : Spider {
 
     @Throws(Exception::class)
     private fun proxy2(params: Map<String, String>?): Array<Any?> {
-        val url = params!!.get("url")
-        val header = params.get("header")
-        val array = submitAndWait(Callable { JSUtils<String>().toArray(ctx!!, RegexUtils.getPattern("/").split(url!!).toList()) })
-        val obj = submitAndWait(Callable { ctx!!.parse(header) })
+        val p = requireNotNull(params) { "params is null" }
+        val url = p.get("url") ?: return arrayOfNulls(0)
+        val header = p.get("header")
+        val array = submitAndWait(Callable { JSUtils<String>().toArray(requireNotNull(ctx) { "js context not ready" }, RegexUtils.getPattern("/").split(url).toList()) })
+        val obj = submitAndWait(Callable { requireNotNull(ctx) { "js context not ready" }.parse(header) })
         if (array == null || obj == null) return arrayOfNulls(0)
-        val json = call("proxy", array, obj) as String?
-        val res = Res.objectFrom(json!!)
+        val json = call("proxy", array, obj) as String? ?: return arrayOfNulls(0)
+        val res = Res.objectFrom(json)
         var contentType = res.getContentType()
         if (TextUtils.isEmpty(contentType)) contentType = "application/octet-stream"
         val result = arrayOfNulls<Any?>(3)
@@ -617,7 +622,7 @@ class JsSpider : Spider {
             for (i in 0 until o.length()) bytes[i] = o.optInt(i).toByte()
             ByteArrayInputStream(bytes)
         } else {
-            ByteArrayInputStream(o!!.toString().toByteArray(Charset.defaultCharset()))
+            ByteArrayInputStream(requireNotNull(o) { "proxy stream is null" }.toString().toByteArray(Charset.defaultCharset()))
         }
     }
 

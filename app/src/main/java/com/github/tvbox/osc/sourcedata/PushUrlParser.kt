@@ -29,7 +29,7 @@ object PushUrlParser {
 
     @JvmStatic
     fun isCastPushUrl(url: String?): Boolean {
-        return !TextUtils.isEmpty(url) && url!!.contains(PUSH_HEADERS_MARKER)
+        return !url.isNullOrEmpty() && url.contains(PUSH_HEADERS_MARKER)
     }
 
     @JvmStatic

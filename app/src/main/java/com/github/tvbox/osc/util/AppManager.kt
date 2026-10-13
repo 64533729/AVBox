@@ -7,37 +7,32 @@ import java.util.Stack
 class AppManager private constructor() {
 
     fun addActivity(activity: Activity) {
-        if (activityStack == null) {
-            activityStack = Stack<Activity>()
-        }
-        activityStack!!.add(activity)
+        val stack = activityStack ?: Stack<Activity>()
+        activityStack = stack
+        stack.add(activity)
     }
 
     fun isActivity(): Boolean {
-        if (activityStack != null) {
-            return !activityStack!!.isEmpty()
-        }
-        return false
+        return activityStack?.isEmpty() == false
     }
 
     fun currentActivity(): Activity {
-        val activity = activityStack!!.lastElement()
-        return activity
+        return requireNotNull(activityStack) { "activity stack not initialized" }.lastElement()
     }
 
     fun finishActivity() {
-        val activity = activityStack!!.lastElement()
+        val activity = requireNotNull(activityStack) { "activity stack not initialized" }.lastElement()
         if (!activity.isFinishing()) {
             activity.finish()
         }
     }
 
     fun finishActivity(activity: Activity) {
-        activityStack!!.remove(activity)
+        activityStack?.remove(activity)
     }
 
     fun finishActivity(cls: Class<*>) {
-        for (activity in activityStack!!) {
+        for (activity in activityStack.orEmpty()) {
             if (activity.javaClass.equals(cls)) {
                 if (!activity.isFinishing()) {
                     activity.finish()
@@ -48,10 +43,11 @@ class AppManager private constructor() {
     }
 
     fun backActivity(cls: Class<*>) {
-        while (!activityStack!!.empty()) {
-            val activity = activityStack!!.pop()
+        val stack = activityStack ?: return
+        while (!stack.empty()) {
+            val activity = stack.pop()
             if (activity.javaClass.equals(cls)) {
-                activityStack!!.push(activity)
+                stack.push(activity)
                 break
             } else {
                 activity.finish()
@@ -60,25 +56,24 @@ class AppManager private constructor() {
     }
 
     fun finishAllActivity() {
-        if (activityStack != null && activityStack!!.size > 0) {
-            for (i in 0 until activityStack!!.size) {
-                val activity = activityStack!![i]
-                if (null != activityStack!![i]) {
+        val stack = activityStack
+        if (stack != null && stack.size > 0) {
+            for (i in 0 until stack.size) {
+                val activity = stack[i]
+                if (null != activity) {
                     if (!activity.isFinishing()) {
                         activity.finish()
                     }
                 }
             }
-            activityStack!!.clear()
+            stack.clear()
         }
     }
 
     fun getActivity(cls: Class<*>): Activity? {
-        if (activityStack != null) {
-            for (activity in activityStack!!) {
-                if (activity.javaClass.equals(cls)) {
-                    return activity
-                }
+        for (activity in activityStack.orEmpty()) {
+            if (activity.javaClass.equals(cls)) {
+                return activity
             }
         }
         return null
@@ -90,7 +85,7 @@ class AppManager private constructor() {
             android.os.Process.killProcess(android.os.Process.myPid())
             System.exit(code)
         } catch (e: Exception) {
-            activityStack!!.clear()
+            activityStack?.clear()
             LOG.e("AppManager", e)
         }
     }

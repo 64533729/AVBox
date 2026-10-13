@@ -93,10 +93,12 @@ class pyLoader : IPyLoader {
     }
 
     private fun getPythonLoader(): PythonLoader {
-        if (pythonLoader == null) {
-            pythonLoader = PythonLoader.getInstance().setApplication(App.getInstance()!!)
-        }
-        return pythonLoader!!
+        val cached = pythonLoader
+        if (cached != null) return cached
+        val app = requireNotNull(App.getInstance()) { "app instance not ready" }
+        val created = PythonLoader.getInstance().setApplication(app)
+        pythonLoader = created
+        return created
     }
 
     private fun isPythonSupported(): Boolean {

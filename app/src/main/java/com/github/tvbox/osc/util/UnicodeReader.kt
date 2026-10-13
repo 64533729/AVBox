@@ -36,7 +36,7 @@ class UnicodeReader : Reader {
 
     @Throws(IOException::class)
     override fun close() {
-        internalIn!!.close()
+        internalIn?.close()
     }
 
     fun getEncoding(): String? {
@@ -88,16 +88,18 @@ class UnicodeReader : Reader {
             tempIn.unread(bom, 0, 0)
         }
 
-        if (encoding == null) {
-            internalIn = InputStreamReader(tempIn)
-            encoding = internalIn!!.getEncoding()
+        val charset = encoding
+        if (charset == null) {
+            val reader = InputStreamReader(tempIn)
+            internalIn = reader
+            encoding = reader.getEncoding()
         } else {
-            internalIn = InputStreamReader(tempIn, encoding!!)
+            internalIn = InputStreamReader(tempIn, charset)
         }
     }
 
     @Throws(IOException::class)
     override fun read(cbuf: CharArray, off: Int, len: Int): Int {
-        return internalIn!!.read(cbuf, off, len)
+        return requireNotNull(internalIn) { "unicode reader not initialized" }.read(cbuf, off, len)
     }
 }

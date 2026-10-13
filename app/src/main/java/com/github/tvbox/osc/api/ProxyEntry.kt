@@ -18,7 +18,7 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
 
     fun proxyLocal(param: MutableMap<String, String>): Array<Any?>? {
         val source = getCurrentProxySource(param)
-        val api = source.api!!
+        val api = source.api ?: return null
 
         val siteKey = param["siteKey"]
         val action = param["do"]
@@ -104,8 +104,8 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
     private fun proxyDirect(param: MutableMap<String, String>): Array<Any?>? {
         try {
             var url = param["url"]
-            if (TextUtils.isEmpty(url)) return null
-            url = URLDecoder.decode(url!!, "UTF-8")
+            if (url.isNullOrEmpty()) return null
+            url = URLDecoder.decode(url, "UTF-8")
             if (!url.startsWith("http://") && !url.startsWith("https://")) return null
             if (!DefaultConfig.isVideoFormat(url)) return null
             if (url.contains(".m3u8")) {
@@ -145,7 +145,7 @@ class ProxyEntry(private val owner: ApiConfig, private val spiderLoader: SpiderL
 
     private fun getCurrentPyKey(): String? {
         val sourceBean = getCurrentProxySource(HashMap<String, String>())
-        if (sourceBean.api!!.contains(".py")) {
+        if (sourceBean.api?.contains(".py") == true) {
             if (sourceBean.key != spiderLoader.currentPyKey) {
                 spiderLoader.currentPyKey = sourceBean.key
                 spiderLoader.pySpider(sourceBean.key, sourceBean.api, sourceBean.ext)

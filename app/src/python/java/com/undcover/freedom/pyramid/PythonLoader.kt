@@ -10,6 +10,7 @@ import com.github.catvod.Proxy
 import com.github.catvod.crawler.Spider
 import com.github.catvod.crawler.SpiderNull
 import com.github.catvod.net.OkHttp
+import com.github.tvbox.osc.BuildConfig
 import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.SpiderReaper
@@ -69,8 +70,9 @@ class PythonLoader {
     }
 
     private fun setSdk(context: Context) {
-        val logLevel = PyLog.LEVEL_V
-        PyLog.getInstance().setLogLevel(logLevel).setFilter(PyLog.FILTER_NW or PyLog.FILTER_LC)
+        val logLevel = if (BuildConfig.DEBUG) PyLog.LEVEL_V else PyLog.LEVEL_RELEASE
+        val logFilter = if (BuildConfig.DEBUG) PyLog.FILTER_NW or PyLog.FILTER_LC else 0
+        PyLog.getInstance().setLogLevel(logLevel).setFilter(logFilter)
         PyLog.TagConstant.TAG_APP = "PythonLoader"
 
         PyToast.init(context)
@@ -135,7 +137,7 @@ class PythonLoader {
         var key = ""
         var url = ""
         if (siteMap.containsKey(api)) {
-            val jo = siteMap[api]!!
+            val jo = siteMap.getValue(api)
             key = jo.optString("key")
             url = jo.optString("ext")
         }
@@ -170,7 +172,7 @@ class PythonLoader {
 
             future = executor.submit {
                 try {
-                    spider.init(app!!, url, ext)
+                    spider.init(app, url, ext)
                 } catch (e: Exception) {
                     LOG.e("PythonLoader", e)
                 }
@@ -188,9 +190,9 @@ class PythonLoader {
             val initFuture = future
             executor.submit {
                 try {
-                    initFuture!!.get()
-                    val done = pending
-                    if (done!!.isLoadSuccess() && startGeneration == generation) {
+                    requireNotNull(initFuture).get()
+                    val done = requireNotNull(pending)
+                    if (done.isLoadSuccess() && startGeneration == generation) {
                         spiders.putIfAbsent(key, done)
                     }
                 } catch (th: Throwable) {
@@ -315,7 +317,7 @@ class PythonLoader {
                     }
                 }
             }
-            return sInstance!!
+            return requireNotNull(sInstance)
         }
     }
 }

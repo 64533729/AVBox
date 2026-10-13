@@ -197,7 +197,7 @@ class AbsJson : Serializable {
         fun toXmlVideo(): Movie.Video {
             val video = Movie.Video()
             video.tag = vod_tag
-            if (video.tag.isNullOrEmpty() && cate != null && !cate!!.isJsonNull) video.tag = "folder"
+            if (video.tag.isNullOrEmpty() && cate?.isJsonNull == false) video.tag = "folder"
             video.action = action
             video.last = vod_time
             video.id = vod_id
@@ -255,7 +255,7 @@ class AbsJson : Serializable {
         }
         movie.recordcount = total
         val videoList = ArrayList<Movie.Video>()
-        for (vod in list!!) {
+        for (vod in list.orEmpty()) {
             try {
                 videoList.add(vod.toXmlVideo())
             } catch (th: Throwable) {

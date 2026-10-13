@@ -135,18 +135,20 @@ class PreloadCoordinator(
             LOG.i("echo-preload-skip: resolving in-flight")
             return
         }
-        if (Jianpian.isJpUrl(snapshot.nextUrl!!)) {
+        val nextUrl = requireNotNull(snapshot.nextUrl)
+        if (Jianpian.isJpUrl(nextUrl)) {
             gaveUp(snapshot)
             return
         }
         activeSnapshot = snapshot
         requestToken = snapshot.nextKey + PRELOAD_KEY_SUFFIX
-        LOG.i("echo-preload-resolve: " + snapshot.nextUrl)
-        sourceViewModel!!.getPlayForPreload(
+        LOG.i("echo-preload-resolve: " + nextUrl)
+        val vm = requireNotNull(sourceViewModel)
+        vm.getPlayForPreload(
             snapshot.sourceKey,
             snapshot.playFlag,
             snapshot.nextKey + PRELOAD_KEY_SUFFIX,
-            snapshot.nextUrl,
+            nextUrl,
             snapshot.nextSubtitleKey + PRELOAD_KEY_SUFFIX,
         )
     }

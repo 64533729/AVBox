@@ -136,7 +136,7 @@ fun CastSheet(sheet: CastSheetState, onDismiss: () -> Unit) {
                         }
                         mainHandler.post {
                             if (ok) {
-                                RemoteTVBox.setAvalible(device.id!!)
+                                RemoteTVBox.setAvalible(requireNotNull(device.id))
                                 PlayerHelper.invalidatePlayersExistInfo()
                                 Toast.makeText(context, context.getString(R.string.toast_cast_success), Toast.LENGTH_SHORT).show()
                                 sheet.onCastSuccess()

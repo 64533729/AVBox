@@ -54,6 +54,8 @@ class FormatTTML : TimedTextFileFormat {
 
         val tto = TimedTextObject()
         tto.fileName = fileName
+        val styling = requireNotNull(tto.styling)
+        val captions = requireNotNull(tto.captions)
 
         val dbFactory = DocumentBuilderFactory.newInstance()
         var dBuilder: DocumentBuilder
@@ -76,7 +78,7 @@ class FormatTTML : TimedTextFileFormat {
             for (i in 0 until styleN.length) {
                 var style = Style(Style.defaultID())
                 node = styleN.item(i)
-                val attr: NamedNodeMap = node!!.attributes
+                val attr: NamedNodeMap = requireNotNull(node).attributes
                 var currentAtr: Node? = attr.getNamedItem("id")
                 if (currentAtr != null)
                     style.iD = currentAtr.nodeValue
@@ -86,8 +88,8 @@ class FormatTTML : TimedTextFileFormat {
 
                 currentAtr = attr.getNamedItem("style")
                 if (currentAtr != null)
-                    if (tto.styling!!.containsKey(currentAtr.nodeValue))
-                            style = Style(style.iD, tto.styling!!.get(currentAtr.nodeValue)!!)
+                    if (styling.containsKey(currentAtr.nodeValue))
+                            style = Style(style.iD, requireNotNull(styling.get(currentAtr.nodeValue)))
 
                 currentAtr = attr.getNamedItem("tts:backgroundColor")
                 if (currentAtr != null)
@@ -132,8 +134,8 @@ class FormatTTML : TimedTextFileFormat {
                         if (aa.length < 2)
                             aa = "0" + aa
 
-                        style.color = style.color!!.substring(0, 6) + aa
-                        style.backgroundColor = style.backgroundColor!!.substring(0, 6) + aa
+                        style.color = requireNotNull(style.color).substring(0, 6) + aa
+                        style.backgroundColor = requireNotNull(style.backgroundColor).substring(0, 6) + aa
 
                     } catch (e: NumberFormatException) {
                         LOG.d("FormatTTML", "alpha parse failed, keep color without alpha")
@@ -154,7 +156,7 @@ class FormatTTML : TimedTextFileFormat {
                     else if (currentAtr.nodeValue.equals("noUnderline", ignoreCase = true))
                         style.underline = false
 
-                tto.styling!!.put(style.iD, style)
+                styling.put(style.iD, style)
             }
 
             for (i in 0 until captionsN.length) {
@@ -163,27 +165,29 @@ class FormatTTML : TimedTextFileFormat {
                 var validCaption = true
                 node = captionsN.item(i)
 
-                val attr: NamedNodeMap = node!!.attributes
+                val attr: NamedNodeMap = requireNotNull(node).attributes
                 var currentAtr: Node? = attr.getNamedItem("begin")
                 caption.start = Time("", "")
                 caption.end = Time("", "")
+                val captionStart = requireNotNull(caption.start)
+                val captionEnd = requireNotNull(caption.end)
                 if (currentAtr != null)
-                    caption.start!!.mseconds = parseTimeExpression(currentAtr.nodeValue, tto, doc)
+                    captionStart.mseconds = parseTimeExpression(currentAtr.nodeValue, tto, doc)
 
                 currentAtr = attr.getNamedItem("end")
                 if (currentAtr != null)
-                    caption.end!!.mseconds = parseTimeExpression(currentAtr.nodeValue, tto, doc)
+                    captionEnd.mseconds = parseTimeExpression(currentAtr.nodeValue, tto, doc)
                 else {
                     currentAtr = attr.getNamedItem("dur")
                     if (currentAtr != null)
-                        caption.end!!.mseconds = caption.start!!.mseconds + parseTimeExpression(currentAtr.nodeValue, tto, doc)
+                        captionEnd.mseconds = captionStart.mseconds + parseTimeExpression(currentAtr.nodeValue, tto, doc)
                     else
                         validCaption = false
                 }
 
                 currentAtr = attr.getNamedItem("style")
                 if (currentAtr != null) {
-                    val style = tto.styling!!.get(currentAtr.nodeValue)
+                    val style = styling.get(currentAtr.nodeValue)
                     if (style != null)
                         caption.style = style
                     else
@@ -198,13 +202,13 @@ class FormatTTML : TimedTextFileFormat {
                         caption.content += "<br />"
 
                 }
-                if (caption.content!!.replace(Regex("<br />"), "").trim { it <= ' ' }.isEmpty())
+                if (caption.content.orEmpty().replace(Regex("<br />"), "").trim { it <= ' ' }.isEmpty())
                     validCaption = false
 
                 if (validCaption) {
-                    var key = caption.start!!.mseconds
-                    while (tto.captions!!.containsKey(key)) key++
-                    tto.captions!!.put(key, caption)
+                    var key = captionStart.mseconds
+                    while (captions.containsKey(key)) key++
+                    captions.put(key, caption)
                 }
 
             }
@@ -224,31 +228,37 @@ class FormatTTML : TimedTextFileFormat {
             return null
 
         var index = 0
-        val file = ArrayList<String>(30 + tto.styling!!.size + tto.captions!!.size)
+        val styling = tto.styling ?: return null
+        val captions = tto.captions ?: return null
+        val file = ArrayList<String>(30 + styling.size + captions.size)
 
         file.add(index++, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         file.add(index++, "<tt xml:lang=\"" + tto.language + "\" xmlns=\"http://www.w3.org/ns/ttml\" xmlns:tts=\"http://www.w3.org/ns/ttml#styling\">")
         file.add(index++, "\t<head>")
         file.add(index++, "\t\t<metadata xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\">")
         var title: String?
-        if (tto.title == null || tto.title!!.isEmpty())
+        val ttoTitle = tto.title
+        if (ttoTitle.isNullOrEmpty())
             title = tto.fileName
-        else title = tto.title
+        else title = ttoTitle
         file.add(index++, "\t\t\t<ttm:title>" + title + "</ttm:title>")
-        if (tto.copyrigth != null && !tto.copyrigth!!.isEmpty())
-            file.add(index++, "\t\t\t<ttm:copyright>" + tto.copyrigth + "</ttm:copyright>")
+        val copyright = tto.copyrigth
+        if (!copyright.isNullOrEmpty())
+            file.add(index++, "\t\t\t<ttm:copyright>" + copyright + "</ttm:copyright>")
         var desc = "Converted by the Online Subtitle Converter developed by J. David Requejo\n"
-        if (tto.author != null && !tto.author!!.isEmpty())
-            desc += "\n Original file by: " + tto.author + "\n"
-        if (tto.description != null && !tto.description!!.isEmpty())
-            desc += tto.description + "\n"
+        val ttoAuthor = tto.author
+        if (!ttoAuthor.isNullOrEmpty())
+            desc += "\n Original file by: " + ttoAuthor + "\n"
+        val ttoDescription = tto.description
+        if (!ttoDescription.isNullOrEmpty())
+            desc += ttoDescription + "\n"
         file.add(index++, "\t\t\t<ttm:desc>" + desc + "\t\t\t</ttm:desc>")
 
         file.add(index++, "\t\t</metadata>")
         file.add(index++, "\t\t<styling>")
 
         var line: String
-        val itrS = tto.styling!!.values.iterator()
+        val itrS = styling.values.iterator()
         while (itrS.hasNext()) {
             val style = itrS.next()
             line = "\t\t\t<style xml:id=\"" + style.iD + "\""
@@ -265,9 +275,10 @@ class FormatTTML : TimedTextFileFormat {
             if (style.bold)
                 line += " tts:fontWeight=\"bold\""
             line += " tts:textAlign=\""
-            if (style.textAlign!!.contains("left"))
+            val align = style.textAlign
+            if (align != null && align.contains("left"))
                 line += "left\""
-            else if (style.textAlign!!.contains("right"))
+            else if (align != null && align.contains("right"))
                 line += "rigth\""
             else line += "center\""
             if (style.underline)
@@ -282,13 +293,16 @@ class FormatTTML : TimedTextFileFormat {
         file.add(index++, "\t<body>")
         file.add(index++, "\t\t<div>")
 
-        val itrC = tto.captions!!.values.iterator()
+        val itrC = captions.values.iterator()
         while (itrC.hasNext()) {
             val caption = itrC.next()
-            line = "\t\t\t<p begin=\"" + caption.start!!.getTime("hh:mm:ss,ms").replace(',', '.') + "\""
-            line += " end=\"" + caption.end!!.getTime("hh:mm:ss,ms").replace(',', '.') + "\""
-            if (caption.style != null)
-                line += " style=\"" + caption.style!!.iD + "\""
+            val start = requireNotNull(caption.start)
+            val end = requireNotNull(caption.end)
+            line = "\t\t\t<p begin=\"" + start.getTime("hh:mm:ss,ms").replace(',', '.') + "\""
+            line += " end=\"" + end.getTime("hh:mm:ss,ms").replace(',', '.') + "\""
+            val currentStyle = caption.style
+            if (currentStyle != null)
+                line += " style=\"" + currentStyle.iD + "\""
             line += " >" + caption.content + "</p>\n"
             file.add(index++, line)
         }
@@ -362,7 +376,7 @@ class FormatTTML : TimedTextFileFormat {
             }
         }
 
-        return value!!
+        return value.orEmpty()
     }
 
     private fun parseTimeExpression(timeExpression: String, tto: TimedTextObject, doc: Document): Int {

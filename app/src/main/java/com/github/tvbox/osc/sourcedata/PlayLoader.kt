@@ -137,7 +137,7 @@ class PlayLoader(
                 return@execute
             }
             try {
-                val result = normalizePlayerResult(JSONObject(json))!!
+                val result = requireNotNull(normalizePlayerResult(JSONObject(json))) { "player result missing" }
                 result.put("key", url)
                 PushUrlParser.mergePushHeaders(result, pushUrl)
                 mergeSiteHeaders(result, sourceBean)
@@ -171,7 +171,7 @@ class PlayLoader(
         val result = JSONObject()
         try {
             result.put("key", url)
-            val playUrl = sourceBean.playerUrl!!.trim { it <= ' ' }
+            val playUrl = sourceBean.playerUrl.orEmpty().trim { it <= ' ' }
             if (DefaultConfig.isVideoFormat(requestUrl) && playUrl.isEmpty()) {
                 result.put("parse", 0)
                 result.put("url", requestUrl)
@@ -225,7 +225,7 @@ class PlayLoader(
             LOG.i(json)
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val parsed = normalizePlayerResult(JSONObject(json))!!
+                    val parsed = requireNotNull(normalizePlayerResult(JSONObject(json))) { "player result missing" }
                     parsed.put("key", url)
                     PushUrlParser.mergePushHeaders(parsed, pushUrl)
                     mergeSiteHeaders(parsed, sourceBean)
@@ -251,8 +251,8 @@ class PlayLoader(
     }
 
     private fun shouldDirectPlay(sourceBean: SourceBean?, requestUrl: String?): Boolean {
-        if (sourceBean == null || TextUtils.isEmpty(requestUrl)) return false
-        val url = requestUrl!!
+        if (sourceBean == null || requestUrl.isNullOrEmpty()) return false
+        val url = requestUrl
         return url.startsWith("http://") || url.startsWith("https://")
     }
 
@@ -331,7 +331,7 @@ class PlayLoader(
 
     private fun mergeSiteHeaders(result: JSONObject?, sourceBean: SourceBean?) {
         if (result == null || sourceBean == null) return
-        val siteHeader = sourceBean.header!!
+        val siteHeader = sourceBean.header ?: return
         if (siteHeader.isEmpty()) return
         try {
             val extracted: HashMap<String, String>? = SourceHelper.extractPlayHeaders(result)

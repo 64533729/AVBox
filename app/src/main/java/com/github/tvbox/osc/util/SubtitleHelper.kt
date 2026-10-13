@@ -6,7 +6,7 @@ object SubtitleHelper {
 
     @JvmStatic
     fun getSubtitleTextAutoSize(activity: Activity?): Int {
-        val screenSqrt = ScreenUtils.getSqrt(activity!!)
+        val screenSqrt = ScreenUtils.getSqrt(activity ?: return 16)
         var subtitleTextSize = 16
         if (screenSqrt > 7.0 && screenSqrt <= 13.0) {
             subtitleTextSize = 24

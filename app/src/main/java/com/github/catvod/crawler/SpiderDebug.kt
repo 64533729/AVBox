@@ -6,8 +6,9 @@ class SpiderDebug {
 
         @JvmStatic
         fun log(th: Throwable?) {
+            val error = th ?: return
             try {
-                android.util.Log.d("SpiderLog", "" + th!!.message, th)
+                android.util.Log.d("SpiderLog", "" + error.message, error)
             } catch (th1: Throwable) {
             }
         }

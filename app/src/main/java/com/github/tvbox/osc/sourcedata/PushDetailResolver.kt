@@ -39,7 +39,7 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                     val beanList = urlinfo.beanList
                     if (beanList != null && beanList.isNotEmpty()) {
                         for (infoBean in beanList) {
-                            val beanUrl = infoBean.url!!
+                            val beanUrl = infoBean.url ?: continue
                             if (beanUrl.startsWith("push://")) {
                                 var pushUrl = beanUrl.substring(7)
                                 if (pushUrl.startsWith("b64:")) {
@@ -145,7 +145,7 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                 }
                 if (hasThunder) {
                     thunderParse = true
-                    Thunder.parse(App.getInstance()!!, video.urlBean, object : Thunder.ThunderCallback {
+                    Thunder.parse(requireNotNull(App.getInstance()) { "app instance not ready" }, video.urlBean, object : Thunder.ThunderCallback {
                         override fun status(code: Int, info: String) {
                             if (code >= 0) {
                                 LOG.i(info)
@@ -163,7 +163,7 @@ class PushDetailResolver(private val gson: Gson, private val detailResult: Sourc
                             for (key in urlMap.keys) {
                                 if (key < 0 || key >= infoList.size) continue
                                 val urlInfo = infoList[key]
-                                val playList = urlMap[key]!!
+                                val playList = urlMap[key] ?: continue
                                 urlInfo.urls = playList
                                 val str = RegexUtils.getPattern("#").split(playList)
                                 val infoBeanList = ArrayList<Movie.Video.UrlBean.UrlInfo.InfoBean>()

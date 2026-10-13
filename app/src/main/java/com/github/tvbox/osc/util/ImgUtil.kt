@@ -90,11 +90,12 @@ object ImgUtil {
             view.setImageDrawable(createTextDrawable("TVBox", 0, 0, 1f))
             return null
         }
-        val request = ImageRequest.Builder(AppContextHolder.context()!!)
+        val context = requireNotNull(AppContextHolder.context()) { "app context not initialized" }
+        val request = ImageRequest.Builder(context)
             .data(url)
             .target(ArtworkTarget(view))
             .build()
-        return SingletonImageLoader.get(AppContextHolder.context()!!).enqueue(request)
+        return SingletonImageLoader.get(context).enqueue(request)
     }
 
     private class ArtworkTarget(private val view: ImageView) : coil3.target.Target {
@@ -111,7 +112,7 @@ object ImgUtil {
 
     @JvmStatic
     fun createTextDrawable(text: String): Drawable {
-        return createTextDrawable(text, 0, 0, AutoSizeUtils.mm2px(AppContextHolder.context()!!, 10f).toFloat())
+        return createTextDrawable(text, 0, 0, AutoSizeUtils.mm2px(requireNotNull(AppContextHolder.context()) { "app context not initialized" }, 10f).toFloat())
     }
 
     private fun createTextDrawable(textIn: String, widthIn: Int, heightIn: Int, cornerRadiusIn: Float): Drawable {
@@ -142,7 +143,7 @@ object ImgUtil {
         val x = width / 2f
         val y = (height - fontMetrics.bottom - fontMetrics.top) / 2f
         canvas.drawText(text, x, y, paint)
-        val drawable: Drawable = BitmapDrawable(AppContextHolder.context()!!.resources, bitmap)
+        val drawable: Drawable = BitmapDrawable(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.resources, bitmap)
         drawableCache.put(key, drawable)
         return drawable
     }
@@ -156,7 +157,7 @@ object ImgUtil {
     fun clearMemoryCache() {
         clearCache()
         try {
-            SingletonImageLoader.get(AppContextHolder.context()!!).memoryCache!!.clear()
+            SingletonImageLoader.get(requireNotNull(AppContextHolder.context()) { "app context not initialized" }).memoryCache?.clear()
             LOG.i("echo-img-clear-memory-cache")
         } catch (th: Throwable) {
             LOG.i("echo-img-clear-memory-cache-error:" + th.message)

@@ -248,7 +248,7 @@ object OkGoHelper {
         } catch (th: Throwable) {
             LOG.e("OkGoHelper", th)
         }
-        builder.cache(Cache(File(AppContextHolder.context()!!.cacheDir.absolutePath, "dohcache"), 100L * 1024 * 1024))
+        builder.cache(Cache(File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.cacheDir.absolutePath, "dohcache"), 100L * 1024 * 1024))
         val dohClient = builder.build()
         val dohUrl = getDohUrl(KV.get(HawkConfig.DOH_URL, 0))
         dnsOverHttps = if (dohUrl.isEmpty()) null
@@ -268,13 +268,13 @@ object OkGoHelper {
             if (hosts == null) hosts = hostsProvider?.invoke()
             var hostname = hostname
             if (hosts != null && !hosts.isEmpty() && hosts.containsKey(hostname)) {
-                hostname = hosts.get(hostname)!!
+                hostname = hosts.get(hostname) ?: hostname
             }
             assert(hostname != null)
             if (isValidIpAddress(hostname)) {
                 return Collections.singletonList(InetAddress.getByName(hostname))
             } else {
-                val dns = if (dnsOverHttps != null) dnsOverHttps!! else Dns.SYSTEM
+                val dns = dnsOverHttps ?: Dns.SYSTEM
                 return dns.lookup(hostname)
             }
         }

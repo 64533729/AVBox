@@ -126,7 +126,7 @@ class ApiConfig private constructor() {
     }
 
     fun loadJar(useCache: Boolean, spider: String?, callback: LoadConfigCallback) {
-        spiderLoader.loadJar(useCache, spider!!, callback)
+        spiderLoader.loadJar(useCache, requireNotNull(spider) { "spider url missing" }, callback)
     }
 
     fun clearLiveConfigResult() {
@@ -223,7 +223,7 @@ class ApiConfig private constructor() {
             val sh = getSource(home)
             if (sh == null) {
                 assert(firstSite != null)
-                setSourceBean(firstSite!!)
+                setSourceBean(requireNotNull(firstSite) { "first site missing" })
             } else {
                 setSourceBean(sh)
             }
@@ -551,7 +551,8 @@ class ApiConfig private constructor() {
                 liveChannelItem.channelName = channelName
                 liveChannelItem.channelSourceNames = sourceNames
                 liveChannelItem.channelUrls = sourceUrls
-                if (mergeLiveChannel(liveChannelGroup.liveChannels!!, liveChannelItem)) {
+                val channels = requireNotNull(liveChannelGroup.liveChannels) { "live channel group channels missing" }
+                if (mergeLiveChannel(channels, liveChannelItem)) {
                     liveChannelItem.channelIndex = channelIndex++
                     liveChannelItem.channelNum = ++channelNum
                 }
@@ -793,8 +794,9 @@ class ApiConfig private constructor() {
     }
 
     fun setDefaultParse(parseBean: ParseBean) {
-        if (this.mDefaultParse != null) {
-            this.mDefaultParse!!.isDefault = false
+        val previous = this.mDefaultParse
+        if (previous != null) {
+            previous.isDefault = false
         }
         this.mDefaultParse = parseBean
         KV.put(HawkConfig.DEFAULT_PARSE, parseBean.name)
@@ -853,8 +855,8 @@ class ApiConfig private constructor() {
 
     fun getMyHost(): MutableMap<String, String> {
         val merged = HashMap<String, String>()
-        if (liveHosts != null) merged.putAll(liveHosts!!)
-        if (vodHosts != null) merged.putAll(vodHosts!!)
+        merged.putAll(liveHosts.orEmpty())
+        merged.putAll(vodHosts.orEmpty())
         return merged
     }
 
@@ -910,7 +912,7 @@ class ApiConfig private constructor() {
                     }
                 }
             }
-            return instance!!
+            return requireNotNull(instance) { "api config instance missing" }
         }
 
         @JvmStatic

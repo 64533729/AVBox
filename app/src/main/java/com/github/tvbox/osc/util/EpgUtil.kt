@@ -20,7 +20,7 @@ object EpgUtil {
         if (epgDoc != null)
             return
         try {
-            val assetManager: AssetManager = AppContextHolder.context()!!.assets //获得assets资源管理器（assets中的文件无法直接访问，可以使用AssetManager访问）
+            val assetManager: AssetManager = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets //获得assets资源管理器（assets中的文件无法直接访问，可以使用AssetManager访问）
             val inputStreamReader = InputStreamReader(assetManager.open("epg_data.json"), "UTF-8") //使用IO流读取json文件内容
             val br = BufferedReader(inputStreamReader) //使用字符高效流
             var line: String? = br.readLine()
@@ -33,7 +33,8 @@ object EpgUtil {
             inputStreamReader.close()
             if (!builder.toString().isEmpty()) {
                 epgDoc = Gson().fromJson(builder.toString(), JsonObject::class.java as Type) // 从builder中读取了json中的数据。
-                for (opt: JsonElement in epgDoc!!.get("epgs").asJsonArray) {
+                val root = epgDoc ?: return
+                for (opt: JsonElement in root.get("epgs").asJsonArray) {
                     val obj = opt as JsonObject
                     val name = obj.get("name").asString.trim { it <= ' ' }
                     val names = RegexUtils.getPattern(",").split(name)
@@ -53,7 +54,7 @@ object EpgUtil {
     fun getEpgInfo(channelName: String): Array<String>? {
         try {
             if (epgHashMap.containsKey(channelName)) {
-                val obj = epgHashMap[channelName]!!
+                val obj = epgHashMap[channelName] ?: return null
                 return arrayOf(
                     obj.get("logo").asString,
                     obj.get("epgid").asString

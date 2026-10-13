@@ -162,7 +162,7 @@ class DetailActivity : BaseActivity(), PageHost {
                 it.setOnQualitySelectedListener(vm::onQualitySelectionAccepted)
             }
         }
-        return playContainer!!
+        return requireNotNull(playContainer) { "play container not created" }
     }
 
     fun playbackFacts(): DetailPlaybackFacts = DetailPlaybackFacts(

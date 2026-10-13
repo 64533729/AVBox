@@ -197,7 +197,7 @@ class EngineRenderersFactory(
             try {
                 return if (invokeArgs == null) method.invoke(renderer) else method.invoke(renderer, *invokeArgs)
             } catch (e: InvocationTargetException) {
-                throw e.cause!!
+                throw requireNotNull(e.cause)
             }
         }
     }
