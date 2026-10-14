@@ -1,8 +1,5 @@
 package com.github.tvbox.osc.ui.activity
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,32 +23,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
 import com.github.tvbox.osc.data.FollowDays
 import com.github.tvbox.osc.ui.components.FollowReminderSheet
-
-private const val PullDragMaxPx = 600f
 
 internal val HeroScrollFadeDistance = 300.dp
 
@@ -89,56 +76,9 @@ internal fun DetailContent(
     val displaySourceName = currentSource?.name ?: vm.firstsourceKey
     val heroRollPaused by vm.fullScreen.collectAsState()
 
-    val density = LocalDensity.current
-    val heroFadePx = with(density) { HeroScrollFadeDistance.roundToPx() }
-    val heroProgress by remember(listState, heroFadePx) {
-        derivedStateOf {
-            heroScrollProgress(
-                listState.firstVisibleItemIndex,
-                listState.firstVisibleItemScrollOffset,
-                heroFadePx,
-            )
-        }
-    }
-    val pullExtra = remember { mutableFloatStateOf(0f) }
-    val pullConnection = remember(listState) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput || available.y >= 0f || pullExtra.value <= 0f) {
-                    return Offset.Zero
-                }
-                val before = pullExtra.value
-                val after = (before + available.y).coerceAtLeast(0f)
-                pullExtra.value = after
-                return Offset(0f, after - before)
-            }
-
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
-                val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-                if (!atTop) return Offset.Zero
-                pullExtra.value = (pullExtra.value + available.y).coerceAtMost(PullDragMaxPx)
-                return available
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (pullExtra.value > 0f) {
-                    animate(
-                        initialValue = pullExtra.value,
-                        targetValue = 0f,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    ) { value, _ -> pullExtra.value = value }
-                }
-                return Velocity.Zero
-            }
-        }
-    }
-
     LazyColumn(
         state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(pullConnection),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         item(key = "hero") {
@@ -150,8 +90,6 @@ internal fun DetailContent(
                 type = info.type,
                 note = info.note,
                 description = description,
-                pullExtraPx = pullExtra.value,
-                scrollProgress = heroProgress,
                 collected = collected,
                 followed = followRecord != null,
                 onPosterPic = onPosterPic,

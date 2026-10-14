@@ -5837,3 +5837,35 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 **走查判据**：①首次点调色预置 → 无任何文字提示、画面自动重播一次后生效；②再切其他预置 → 即时生效、不重播、无提示；③点回「原始」→ 仍重播一次回无调色（关闭路径保留）。
 
 **已知取舍（方案 A 接受）**：`restartForPictureIfNeeded()` 里 `videoView` / `listener` 为空导致重播未触发的极端场景（面板可交互时不可达）不再有文字兜底；参数已落 KV，下次起播照样带效果。另：重播完成前连点多个预置会重复触发 rebuild+replay，属既有行为，本次不涉及。
+
+## 详情页移除海报下拉放大与上滑缩小淡出（2026-10-15，用户拍板）
+
+**背景**：47a1472 引入的两个 hero 滚动效果（下拉弹性放大 / 上滑视差缩小淡出）经走查后用户要求整体移除；此前「顶部下拉松手整页抖一下」的观感问题排查两轮未定位根因（已排除系统 overscroll 与回弹曲线两种可能），随本次一并清掉。
+
+**落地（两文件）**：①`DetailContent.kt`：删 `pullExtra` / `pullConnection`（NestedScrollConnection 整块：下拉累加 + `onPostFling` spring 回弹）、`.nestedScroll(pullConnection)`、`pullExtraPx` / `scrollProgress` 两处传参、`PullDragMaxPx` 常量与相关 import；LazyColumn 恢复系统默认 overscroll 行为。②`DetailHero.kt`：删 `pullExtraPx` / `scrollProgress` 参数、`PullDamping` / `PullMaxExtraHeight` / `HeroScrollScaleDrop` / `HeroScrollAlphaDrop` 常量、图区高度增量与 pullScale 内层 Box（DstIn 蒙版层直接挂 layerBackdrop 海报）、图区外层 graphicsLayer（scale/alpha 视差）。**保留**：`heroScrollProgress` / `HeroScrollFadeDistance`（DetailScreen 独立持有，供 DetailTopScrim alpha 淡出）与 heroGone 状态栏图标换挡（不在移除范围）。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（986 例 / 127 类；HeroScrollProgressTest 保留 —— 纯函数仍被 scrim 淡出使用）；装 MuMu。**走查判据**：①详情页顶部下拉无放大与回弹、列表跟手（overscroll 回到系统默认拉伸）；②上滑海报不再缩小淡出、正常滚出屏幕；③Hero 滚出后状态栏图标仍换挡、顶部 scrim 仍随滚动淡出。
+
+## 详情页追剧/演员弹窗面板色改为渲染点 App 主题（2026-10-15，用户报「追剧弹窗颜色和选集弹窗不一样」）
+
+**根因（两重）**：① 选集弹窗 `EpisodeSheet` 不传 `containerColor` → 走 `BottomSheetDefaults.ContainerColor`，在**渲染点**（`SheetHostScaffold` 的 `SheetHost`，位于页面取色 `MaterialTheme` 之外、`AVBoxTheme` 之内）解析 = App 主题色；② 追剧 `FollowReminderSheet` 显式传 `containerColor = MaterialTheme.colorScheme.surfaceContainer`，该值在**调用点**求值 —— 详情页内容包在 `MaterialTheme(colorScheme = 海报取色)` 里 ⇒ 拿到海报取色主题的值。而面板内容（按钮/文字/chips）在渲染点解析 = App 主题 ⇒ 同面板底色与内容色来自两套配色。
+
+**落地（2 文件各删 1 行）**：`FollowReminderSheet.kt`、`DetailTmdbSections.kt`（`TmdbCastSheet`，同源一并改）删掉 `containerColor` 传参；其他页面 sheet 的 `surfaceContainer` 传参不动（调用点与渲染点同主题，无错配）。
+
+**验证**：`:app:assembleDebug` 绿（UI 改动仅构建）；装 MuMu。**走查判据**：①「追更记录」面板底色 = App 主题色、与「选集」面板一致、不随海报变化；②演员弹窗底同样；③首页/设置页弹窗观感不变。
+
+## 选集面板删除线路行（换线 chips）（2026-10-15，用户拍板）
+
+**背景**：竖屏贴底选集面板顶部的线路 chips 行与详情页「线路」分区重复（同一换线动作两个入口），用户要求删除。
+
+**落地（1 文件）**：`DetailEpisodes.kt` 的 `EpisodeSheet` 删掉 `if (flags.size > 1 && !slideFromEnd)` 整块（线路 `FilterChip` 行 + 8dp 间距）与随之未使用的 `flags` 变量；`vm.onFlagClick` 保留（详情页 LineCard 仍在用）。面板结构 = 标题 → 分组 chips(可选) → 选集网格；横屏右侧滑出形态本来就不含此行，无变化。
+
+**验证**：`:app:assembleDebug` 绿（UI 改动仅构建）；装 MuMu。**走查判据**：①竖屏选集面板顶部无线路 chips、直接是分组/集号；②详情页「线路」分区换线照常；③横屏右侧滑出面板不变。
+
+## 详情页三圆钮 50dp + 演员阵容/分类标题挂图标（2026-10-15，用户带图拍板）
+
+**需求（两条）**：①图一三颗圆钮（音乐/投屏/追剧）高度 40dp → **50dp**；②给「演员阵容」「分类」两个分区标题补 `.tubiao` 画稿图标。
+
+**落地（3 文件 + 2 新资源）**：①`DetailHero.kt` 的 `HeroCircleButtonSize` 40→50dp（间距 24dp / 图标 24dp 不动；`DetailActionRow` 竖屏 playing 态那份共用同一常量，自动同步）；②`.tubiao/演员阵容.svg` → `drawable/ic_detail_actors.xml`、`.tubiao/分类.svg` → `drawable/ic_detail_genres.xml`（既有转换范式：viewport 960 + `translateY 960` 抵消 `viewBox="0 -960 960 960"`、pathData 照抄、fillColor `#FF1F1F1F`）；③`DetailTmdbSections.kt` 的 `TmdbCastBlock` / `TmdbGenreSection` 标题行由裸 `Text` 改为 `Row + SectionTitleIcon(22dp) + Text(start 8dp)`，与详情页其余分区标题行同款，两处 bottom padding 保持 8dp。
+
+**验证**：`:app:assembleDebug` 绿（UI 改动仅构建）；装 MuMu。**走查判据**：①详情页 Hero 下三圆钮直径 50dp（间距 24dp 不变）；②「演员阵容」「分类」标题左侧出现 22dp 画稿图标、文字间距 8dp；③playing 态内容首项那份 `DetailActionRow` 圆钮同为 50dp。

@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,12 +68,20 @@ internal fun TmdbGenreSection(name: String?, year: Int) {
             .fillMaxWidth()
             .padding(top = 16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.detail_genres),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+        ) {
+            SectionTitleIcon(painterResource(R.drawable.ic_detail_genres))
+            Text(
+                text = stringResource(R.string.detail_genres),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -118,12 +127,20 @@ private fun TmdbCastBlock(cast: List<TmdbApi.TmdbCastMember>) {
             .fillMaxWidth()
             .padding(top = 16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.detail_cast),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+        ) {
+            SectionTitleIcon(painterResource(R.drawable.ic_detail_actors))
+            Text(
+                text = stringResource(R.string.detail_cast),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -197,7 +214,6 @@ private fun rememberCastPerson(id: Int): CastPersonState {
 private fun TmdbCastSheet(member: TmdbApi.TmdbCastMember, onDismiss: () -> Unit) {
     AVBoxBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         val state = rememberCastPerson(member.id)
         val person = (state as? CastPersonState.Ready)?.person

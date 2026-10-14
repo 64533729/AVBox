@@ -58,7 +58,6 @@ fun FollowReminderSheet(
     AVBoxBottomSheet(
         onDismissRequest = onDismissRequest,
         title = null,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         headerContent = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

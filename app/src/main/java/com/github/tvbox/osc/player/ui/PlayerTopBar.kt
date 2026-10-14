@@ -149,8 +149,7 @@ internal const val TOP_BAR_BACK_TAG = "playerTopBarBack"
 @Composable
 fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
     val configuration = LocalConfiguration.current
-    val showActionsInTopBar = configuration.screenWidthDp >= 600 ||
-        configuration.orientation != Configuration.ORIENTATION_PORTRAIT
+    val showActionsInTopBar = configuration.orientation != Configuration.ORIENTATION_PORTRAIT
     val rightVisible = state.topRightVisible && !state.previewMode
     val edge = playerEdgePadding()
     val topPad = if (state.previewMode) PreviewTopPadding else FullscreenTopPadding

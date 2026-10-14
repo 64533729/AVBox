@@ -275,7 +275,6 @@ internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Bool
     val show by vm.episodeSheet.collectAsState()
     if (!show) return
     val info = vm.vodInfo ?: return
-    val flags = info.seriesFlags.orEmpty()
     val currentFlag = info.playFlag
     val episodes = info.seriesMap?.get(currentFlag).orEmpty()
     val playIndex = info.playIndex
@@ -320,23 +319,6 @@ internal fun EpisodeSheet(vm: DetailViewModel, revision: Int, slideFromEnd: Bool
     ) {
         val dismissAnimated = LocalSheetDismiss.current
         Column(modifier = Modifier.fillMaxWidth()) {
-            if (flags.size > 1 && !slideFromEnd) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    itemsIndexed(flags, key = { i, f -> "${i}_${f.name}" }) { _, flag ->
-                        FilterChip(
-                            selected = flag.name == currentFlag,
-                            onClick = { vm.onFlagClick(flag.name ?: "") },
-                            label = { Text(flag.name ?: "") },
-                            shape = RoundedCornerShape(20.dp),
-                            colors = MaterialTheme.colorScheme.filterChipColors(),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
             if (groups.isNotEmpty()) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),

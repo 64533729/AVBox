@@ -55,7 +55,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -138,21 +137,13 @@ private val HeroContentBottomPadding = 4.dp
 
 private val HeroLogoBottomPadding = 16.dp
 
-private const val PullDamping = 0.5f
-
-private val PullMaxExtraHeight = 96.dp
-
-private const val HeroScrollScaleDrop = 0.15f
-
-private const val HeroScrollAlphaDrop = 0.7f
-
 private val HeroPlayCapsuleHeight = 52.dp
 
 private val HeroPlayCapsuleMinWidth = 180.dp
 
 private val HeroPlayCapsuleHorizontalPadding = 32.dp
 
-private val HeroCircleButtonSize = 40.dp
+private val HeroCircleButtonSize = 50.dp
 
 private val HeroCircleButtonSpacing = 24.dp
 
@@ -212,8 +203,6 @@ internal fun DetailHero(
     onCollect: () -> Unit,
     onFollow: () -> Unit,
     rollPaused: Boolean = false,
-    pullExtraPx: Float = 0f,
-    scrollProgress: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -237,27 +226,15 @@ internal fun DetailHero(
     val descriptionText = detail?.overview?.takeIf { it.isNotBlank() }
         ?: description?.takeIf { it.isNotBlank() }
     var descriptionExpanded by rememberSaveable(title) { mutableStateOf(false) }
-    val density = LocalDensity.current
-    val baseImageHeight = (LocalConfiguration.current.screenHeightDp * HERO_IMAGE_HEIGHT_RATIO)
+    val imageHeight = (LocalConfiguration.current.screenHeightDp * HERO_IMAGE_HEIGHT_RATIO)
         .dp
         .coerceIn(HeroImageMinHeight, HeroImageMaxHeight)
-    val pullExtraDp = with(density) { (pullExtraPx * PullDamping).toDp() }
-        .coerceIn(0.dp, PullMaxExtraHeight)
-    val imageHeight = baseImageHeight + pullExtraDp
-    val pullScale = 1f + with(density) { pullExtraDp.toPx() / baseImageHeight.toPx() }
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(imageHeight)
-                .clipToBounds()
-                .graphicsLayer {
-                    val progress = scrollProgress.coerceIn(0f, 1f)
-                    val scale = 1f - HeroScrollScaleDrop * progress
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = 1f - HeroScrollAlphaDrop * progress
-                },
+                .clipToBounds(),
         ) {
             Box(
                 modifier = Modifier
@@ -275,31 +252,21 @@ internal fun DetailHero(
                         )
                     },
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = pullScale
-                            scaleY = pullScale
-                            transformOrigin = TransformOrigin(0.5f, 0f)
+                Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                    DetailHeroPoster(
+                        title = title,
+                        picture = picture,
+                        year = year,
+                        onImage = { image ->
+                            scope.launch {
+                                val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
+                                onSeed(seed)
+                            }
                         },
-                ) {
-                    Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
-                        DetailHeroPoster(
-                            title = title,
-                            picture = picture,
-                            year = year,
-                            onImage = { image ->
-                                scope.launch {
-                                    val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
-                                    onSeed(seed)
-                                }
-                            },
-                            onBackdropPic = onPosterPic,
-                            paused = rollPaused,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                        onBackdropPic = onPosterPic,
+                        paused = rollPaused,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
             CompositionLocalProvider(LocalTopBarGlassBackdrop provides glassBackdrop) {

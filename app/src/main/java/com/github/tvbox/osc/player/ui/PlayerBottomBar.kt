@@ -77,8 +77,7 @@ fun PlayerBottomBar(
 ) {
     val edge = playerEdgePadding()
     val configuration = LocalConfiguration.current
-    val portraitActions = configuration.screenWidthDp < 600 &&
-        configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+    val portraitActions = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
     val bottomPad = if (state.previewMode) {
         (16.dp + playerDim(R.dimen.vs_30) / 2 - PreviewPlayPauseBox / 2).coerceAtLeast(0.dp)
     } else {
@@ -123,6 +122,8 @@ fun PlayerBottomBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
+                size = if (state.previewMode) TopBarActionSize else playerDim(R.dimen.vs_70),
+                iconSize = if (state.previewMode) TopBarActionIconSize else playerDim(R.dimen.vs_50),
                 spread = true,
             )
         }
