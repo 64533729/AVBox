@@ -7,19 +7,19 @@ interface CollectRepository {
 
     fun currentCid(): String
 
-    fun isVodCollect(sourceKey: String?, vodId: String?): Boolean
+    suspend fun isVodCollect(sourceKey: String?, vodId: String?): Boolean
 
-    fun getAllVodCollect(): List<VodCollect>
+    suspend fun getAllVodCollect(): List<VodCollect>
 
     fun observeAll(): Flow<List<VodCollect>>
 
-    fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo)
+    suspend fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo)
 
-    fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo)
+    suspend fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo)
 
-    fun deleteVodCollect(id: Int)
+    suspend fun deleteVodCollect(id: Int)
 
-    fun deleteVodCollectAll()
+    suspend fun deleteVodCollectAll()
 }
 
 internal class RoomCollectRepository(
@@ -28,16 +28,16 @@ internal class RoomCollectRepository(
 
     override fun currentCid(): String = CurrentSubscription.cid()
 
-    override fun isVodCollect(sourceKey: String?, vodId: String?): Boolean {
+    override suspend fun isVodCollect(sourceKey: String?, vodId: String?): Boolean {
         val record = collects().getVodCollect(CurrentSubscription.cid(), sourceKey, vodId)
         return record != null
     }
 
-    override fun getAllVodCollect(): List<VodCollect> = collects().getAll()
+    override suspend fun getAllVodCollect(): List<VodCollect> = collects().getAll()
 
     override fun observeAll(): Flow<List<VodCollect>> = collects().observeAll()
 
-    override fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo) {
+    override suspend fun insertVodCollect(sourceKey: String?, vodInfo: VodInfo) {
         val cid = CurrentSubscription.cid()
         val dao = collects()
         if (dao.getVodCollect(cid, sourceKey, vodInfo.id) != null) {
@@ -53,11 +53,11 @@ internal class RoomCollectRepository(
         dao.insert(record)
     }
 
-    override fun deleteVodCollect(id: Int) {
+    override suspend fun deleteVodCollect(id: Int) {
         collects().delete(id)
     }
 
-    override fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo) {
+    override suspend fun deleteVodCollect(sourceKey: String?, vodInfo: VodInfo) {
         val dao = collects()
         val record = dao.getVodCollect(CurrentSubscription.cid(), sourceKey, vodInfo.id)
         if (record != null) {
@@ -65,7 +65,7 @@ internal class RoomCollectRepository(
         }
     }
 
-    override fun deleteVodCollectAll() {
+    override suspend fun deleteVodCollectAll() {
         collects().deleteAll()
     }
 }

@@ -147,11 +147,29 @@ internal class LiveEpgController(private val host: Host) {
                 } finally {
                     response.close()
                 }
+                val parsed = parseEpgBody(body, date, finalEpgTagName)
                 mHandler.post {
-                    onEpgRequestResponse(body, date, channelNameReal, finalEpgTagName, savedEpgKey, epgQueryNames, timeFormat, queryIndex)
+                    onEpgRequestResponse(parsed, date, channelNameReal, finalEpgTagName, savedEpgKey, epgQueryNames, timeFormat, queryIndex)
                 }
             }
         })
+    }
+
+    private fun parseEpgBody(body: String?, date: Date, epgTagName: String): ArrayList<Epginfo>? {
+        if (body.isNullOrEmpty() || body.trim { it <= ' ' }.isEmpty()) return null
+        LOG.i("echo-epgTagName:$epgTagName")
+        return try {
+            if (LiveEpgParser.isXmlEpgResponse(body)) {
+                LiveEpgParser.parseXmlEpg(body, epgTagName, date)
+            } else if (body.contains("epg_data") || body.trim { it <= ' ' }.startsWith("{")) {
+                LiveEpgParser.parseJsonEpg(body, date)
+            } else {
+                ArrayList()
+            }
+        } catch (jsonException: JSONException) {
+            LOG.e("LiveEpgController", jsonException)
+            ArrayList()
+        }
     }
 
     private fun onEpgRequestFailure(
@@ -174,7 +192,7 @@ internal class LiveEpgController(private val host: Host) {
     }
 
     private fun onEpgRequestResponse(
-        paramString: String?,
+        parsed: ArrayList<Epginfo>?,
         date: Date,
         channelNameReal: String,
         finalEpgTagName: String,
@@ -184,21 +202,11 @@ internal class LiveEpgController(private val host: Host) {
         queryIndex: Int,
     ) {
         if (!isCurrentEpgRequest(savedEpgKey)) return
-        if (paramString.isNullOrEmpty() || paramString.trim { it <= ' ' }.isEmpty()) {
+        if (parsed == null) {
             host.onEpgListChanged(ArrayList())
             return
         }
-        LOG.i("echo-epgTagName:$channelNameReal")
-        var arrayList = ArrayList<Epginfo>()
-        try {
-            if (LiveEpgParser.isXmlEpgResponse(paramString)) {
-                arrayList = LiveEpgParser.parseXmlEpg(paramString, finalEpgTagName, date)
-            } else if (paramString.contains("epg_data") || paramString.trim { it <= ' ' }.startsWith("{")) {
-                arrayList = LiveEpgParser.parseJsonEpg(paramString, date)
-            }
-        } catch (jsonException: JSONException) {
-            LOG.e("LiveEpgController", jsonException)
-        }
+        val arrayList = parsed
         if (arrayList.isEmpty() && requestNextEpgQueryName(date, channelNameReal, finalEpgTagName, savedEpgKey, epgQueryNames, timeFormat, queryIndex)) {
             return
         }

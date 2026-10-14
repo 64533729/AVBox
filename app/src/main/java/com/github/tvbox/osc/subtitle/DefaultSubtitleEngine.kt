@@ -46,6 +46,11 @@ import java.util.TreeMap
 
 import com.github.tvbox.osc.player.KernelPlayer
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
 class DefaultSubtitleEngine : SubtitleEngine {
     private var mWorkHandler: Handler? = null
     private var mSubtitles: MutableList<Subtitle>? = null
@@ -107,10 +112,16 @@ class DefaultSubtitleEngine : SubtitleEngine {
                     val cacheSubtitleFile = File(subtitleFile)
                     val writeResult = FileUtils.writeSimple(result.content.orEmpty().toByteArray(Charset.defaultCharset()), cacheSubtitleFile)
                     if (writeResult && playSubtitleCacheKey != null) {
-                        AppGraph.cacheRepository.save(requireNotNull(MD5.string2MD5(getPlaySubtitleCacheKey())), subtitleFile)
+                        val cacheKey = requireNotNull(MD5.string2MD5(getPlaySubtitleCacheKey()))
+                        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                            AppGraph.cacheRepository.save(cacheKey, subtitleFile)
+                        }
                     }
                 } else {
-                    AppGraph.cacheRepository.save(requireNotNull(MD5.string2MD5(getPlaySubtitleCacheKey())), p)
+                    val cacheKey = requireNotNull(MD5.string2MD5(getPlaySubtitleCacheKey()))
+                    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                        AppGraph.cacheRepository.save(cacheKey, p)
+                    }
                 }
             }
 

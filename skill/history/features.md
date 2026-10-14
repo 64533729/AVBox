@@ -5790,3 +5790,19 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 
 
 
+
+## 记录页数据面收成响应式流（2026-10-14，六面收口）
+
+收藏列表、播放进度百分比、追剧「已看」、换源 cid、历史条目列表五个数据面从「写方 EventBus post + VM 拉全表」收成响应式流（播放状态面此前已完成）：收藏/历史走 Room DAO `observeAll` Flow；进度/已看/换源 cid = `PlaybackProgress.percents` / `FollowWatched.state` / `AppBootstrap.subscriptionCid`（私有 MutableStateFlow + 只读暴露，**`by lazy` 种子化**——object init 读 KV 会炸 JVM 单测）。删掉 `TYPE_COLLECT_REFRESH` / `TYPE_API_URL_CHANGE` 事件与全部 post；播放链路 5 处 `TYPE_HISTORY_REFRESH` post 摘除，事件保留但收窄为「滚顶信号 + reloadTick + sweepDuplicates」。历史读路径副作用归位：条数修剪（reserver）移进 `insertVodRecord` 写入后，`HistoryMerge.dedupe` 由 `HistoryViewModel.onRefreshEvent` 的 `sweepDuplicates()` 承接（事件时先 sweep 再 tick，防重复条目闪一帧）；`getAllVodRecord` 删除。无痕门控在各 VM 流收集侧（KV 写被拦但流里有旧值）。换源 cid 在 `onApiUrlChanged` 内 invalidate 之后赋流（与旧 post 时序一致）；Boot.Ready 后 `reloadTick++` 兜住开机 ConfigLoader 改 `API_URL` 不发事件的时刻。口径与走查判据登记在 `skill/avbox-mobile-ui-spec.md` §4.2。
+
+**审查修复 3 处**：①cid 赋值时机移回 invalidate 之后；②追剧页 `loading` 关闸移进 combine 收集（防首帧闪空态）；③历史事件处理先 sweep 再 tick。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿；null_assert/i18n 门禁 PASS；装 MuMu。走查判据见 §4.2。
+
+## F2 修复：删除历史后继续观看条目复活（2026-10-14，走查配方实测未触发后定位）
+
+2026-10-11 审查登记的低-中级项：删除历史/进度后继续看/听同一内容，`TYPE_PLAYBACK_STARTED → insertVod` 链不被 discard 拦，条目无进度复活。实测复现配方 = 删后重进同集**不拖动**播满 1 秒（`advancedMs` 只计平滑推进，拖动大跳被单步 10s 上限丢弃不计入；音乐链路跨页持续播，连重进都省）。首测未触发是因重进后拖了进度条、平滑推进仅 220ms。
+
+**修法（消费侧拦截）**：`DetailViewModel.onPlaybackStarted()` 补 `PlaybackService.peek()?.controller()?.isSameStartedContent()` 守卫——删除动作经 `discardStartedContentOf → clearStartedContent` 清掉起播内容后该判定恒 false，与采样器 `shouldWrite` / 换线迁移同一把闸，零误伤（未删时恒真）。打点链源头（flush 重置 watchedToken 后信号照发）保留不动，只是消费侧被拦；将 discard 状态引入数据层属过度设计，不做。修复后「删除历史」与 ZeroStartGate（删进度后重进从头播）口径对齐。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿；装 MuMu（07:35:28）。走查判据：删条目 → 重进同集不拖动播满 1s → 记录页该条**保持已删**；换集/重进详情产生新起播会话后照常入库。

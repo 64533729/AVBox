@@ -54,7 +54,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
             }
         }
 
-        override fun getSavedProgress(url: String?): Long {
+        override suspend fun getSavedProgress(url: String?): Long {
             return controller.getSavedProgress(url)
         }
     }

@@ -32,11 +32,12 @@ class PlaybackProgressTracker(private val host: Host) {
 
     private var startedProgressKey: String? = null
 
-    fun getSavedProgress(url: String?): Long {
+    suspend fun getSavedProgress(url: String?): Long {
         val skip = (host.playerCfg()?.optInt("st", 0) ?: 0) * 1000L
         if (HistoryHelper.isIncognito()) return skip
-        WatchProgressStore.awaitWrites()
-        val theCache = AppGraph.cacheRepository.get(MD5.string2MD5(url))
+        val theCache = WatchProgressStore.submitAndAwait {
+            AppGraph.cacheRepository.get(MD5.string2MD5(url))
+        }
         if (theCache == null) {
             return skip
         }

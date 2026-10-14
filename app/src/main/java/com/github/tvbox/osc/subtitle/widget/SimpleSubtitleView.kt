@@ -48,6 +48,11 @@ import com.github.tvbox.osc.util.MD5
 
 import com.github.tvbox.osc.player.KernelPlayer
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
 @SuppressLint("AppCompatCustomView")
 class SimpleSubtitleView : TextView,
     SubtitleEngine, SubtitleEngine.OnSubtitleChangeListener,
@@ -155,7 +160,10 @@ class SimpleSubtitleView : TextView,
     fun clearSubtitleCache() {
         val subtitleCacheKey = getPlaySubtitleCacheKey()
         if (subtitleCacheKey != null && subtitleCacheKey.length > 0) {
-            AppGraph.cacheRepository.delete(MD5.string2MD5(subtitleCacheKey), "")
+            val cacheKey = MD5.string2MD5(subtitleCacheKey)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                AppGraph.cacheRepository.delete(cacheKey, "")
+            }
         }
     }
 

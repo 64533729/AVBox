@@ -23,7 +23,11 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +41,7 @@ import com.github.tvbox.osc.data.EpisodeTotals
 import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.ui.components.LoadState
 import com.github.tvbox.osc.ui.components.LoadStateBox
+import kotlinx.coroutines.delay
 
 private data class HistoryContent(
     val items: List<VodInfo>,
@@ -63,6 +68,7 @@ internal fun HistoryTab(
     val playedPercents by vm.playedPercents.collectAsStateWithLifecycle()
     val placementAnim by vm.placementAnim.collectAsStateWithLifecycle()
     val incognito by vm.incognito.collectAsStateWithLifecycle()
+    val nowMsState = rememberMinuteTickState()
 
     when {
         incognito -> LoadStateBox(
@@ -127,6 +133,7 @@ internal fun HistoryTab(
                             playedPercent = content.playedPercents[
                                 PlaybackProgress.key(item.sourceKey, item.id),
                             ],
+                            nowMs = nowMsState,
                             editMode = editMode,
                             selected = itemKey in selected,
                             modifier = Modifier.animateItem(
@@ -155,3 +162,17 @@ internal fun HistoryTab(
         }
     }
 }
+
+@Composable
+private fun rememberMinuteTickState(): State<Long> {
+    val nowMs = remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(MINUTE_MS - System.currentTimeMillis() % MINUTE_MS)
+            nowMs.value = System.currentTimeMillis()
+        }
+    }
+    return nowMs
+}
+
+private const val MINUTE_MS = 60_000L

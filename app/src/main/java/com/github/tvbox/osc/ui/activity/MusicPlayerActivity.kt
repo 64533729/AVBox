@@ -51,6 +51,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.github.tvbox.osc.player.host.EngineTextureRenderViewFactory
 
 private const val POSITION_TICK_MS = 400L
@@ -131,7 +132,15 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
             }
         }
         ui.playMode = MusicPlayMode.of(MusicSettings.playMode())
-        ui.collected = AppGraph.collectRepository.isVodCollect(sourceKey, vod.id)
+        scope.launch {
+            val isCollected = try {
+                withContext(Dispatchers.IO) { AppGraph.collectRepository.isVodCollect(sourceKey, vod.id) }
+            } catch (th: Throwable) {
+                LOG.e("MusicPlayerActivity", "collect state read failed: " + th, th)
+                false
+            }
+            ui.collected = isCollected
+        }
         refreshMeta()
         syncLyric()
         controller.setMusicAudioOnly(true)
@@ -293,11 +302,24 @@ class MusicPlayerActivity : BaseActivity(), PlaybackPage {
     }
 
     private fun toggleCollect() {
+        val key = sourceKey
         if (ui.collected) {
-            AppGraph.collectRepository.deleteVodCollect(sourceKey, vod)
+            scope.launch(Dispatchers.IO) {
+                try {
+                    AppGraph.collectRepository.deleteVodCollect(key, vod)
+                } catch (th: Throwable) {
+                    LOG.e("MusicPlayerActivity", "collect delete failed: " + th, th)
+                }
+            }
             ui.collected = false
         } else {
-            AppGraph.collectRepository.insertVodCollect(sourceKey, vod)
+            scope.launch(Dispatchers.IO) {
+                try {
+                    AppGraph.collectRepository.insertVodCollect(key, vod)
+                } catch (th: Throwable) {
+                    LOG.e("MusicPlayerActivity", "collect insert failed: " + th, th)
+                }
+            }
             ui.collected = true
         }
     }

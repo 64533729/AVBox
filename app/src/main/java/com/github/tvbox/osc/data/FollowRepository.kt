@@ -6,13 +6,13 @@ interface FollowRepository {
 
     fun currentCid(): String
 
-    fun find(sourceKey: String?, vodId: String?): VodFollow?
+    suspend fun find(sourceKey: String?, vodId: String?): VodFollow?
 
-    fun getAll(): List<VodFollow>
+    suspend fun getAll(): List<VodFollow>
 
-    fun upsert(sourceKey: String?, vodInfo: VodInfo, days: Set<Int>, hour: Int)
+    suspend fun upsert(sourceKey: String?, vodInfo: VodInfo, days: Set<Int>, hour: Int)
 
-    fun deleteSelected(ids: List<Int>)
+    suspend fun deleteSelected(ids: List<Int>)
 }
 
 internal class RoomFollowRepository(
@@ -21,12 +21,12 @@ internal class RoomFollowRepository(
 
     override fun currentCid(): String = CurrentSubscription.cid()
 
-    override fun find(sourceKey: String?, vodId: String?): VodFollow? =
+    override suspend fun find(sourceKey: String?, vodId: String?): VodFollow? =
         follows().getVodFollow(CurrentSubscription.cid(), sourceKey, vodId)
 
-    override fun getAll(): List<VodFollow> = follows().getAll()
+    override suspend fun getAll(): List<VodFollow> = follows().getAll()
 
-    override fun upsert(sourceKey: String?, vodInfo: VodInfo, days: Set<Int>, hour: Int) {
+    override suspend fun upsert(sourceKey: String?, vodInfo: VodInfo, days: Set<Int>, hour: Int) {
         val cid = CurrentSubscription.cid()
         val dao = follows()
         val record = dao.getVodFollow(cid, sourceKey, vodInfo.id) ?: VodFollow()
@@ -43,7 +43,7 @@ internal class RoomFollowRepository(
         dao.insert(record)
     }
 
-    override fun deleteSelected(ids: List<Int>) {
+    override suspend fun deleteSelected(ids: List<Int>) {
         if (ids.isEmpty()) return
         follows().deleteSelected(ids)
     }

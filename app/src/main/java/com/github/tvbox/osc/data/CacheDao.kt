@@ -10,17 +10,17 @@ import androidx.room3.Update
 @Dao
 interface CacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun save(cache: Cache): Long
+    suspend fun save(cache: Cache): Long
 
     @Query("select *from cache where `key`=:key")
-    fun getCache(key: String?): Cache?
+    suspend fun getCache(key: String?): Cache?
 
     @Query("select *from cache")
-    fun getAll(): List<Cache>
+    suspend fun getAll(): List<Cache>
 
     @Delete
-    fun delete(cache: Cache): Int
+    suspend fun delete(cache: Cache): Int
 
     @Update(onConflict = OnConflictStrategy.REPLACE)
-    fun update(cache: Cache): Int
+    suspend fun update(cache: Cache): Int
 }

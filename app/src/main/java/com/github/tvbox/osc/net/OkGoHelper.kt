@@ -7,6 +7,7 @@ import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.Probe
 import com.github.tvbox.osc.util.RegexUtils
 import com.github.tvbox.osc.util.SSL.SSLSocketFactoryCompat
 import com.google.gson.JsonArray
@@ -93,7 +94,7 @@ object OkGoHelper {
         }
 
         builder.dns(CustomDns())
-        ItvClient = builder.build()
+        ItvClient = Probe.call("boot:okGoItvClient") { builder.build() }
     }
 
     @JvmField
@@ -219,40 +220,60 @@ object OkGoHelper {
     }
 
     private fun initDnsOverHttps() {
-        var dohSelector = KV.get(HawkConfig.DOH_URL, 0)
-        var ips: JsonArray? = null
-        try {
-            val list = ArrayList<String>()
-            list.add("关闭") // i18n: keep(DNS 选项索引锚点,显示由设置页映射资源)
-            val jsonArray = getDohConfigArray()
-            if (dohSelector > jsonArray.size()) {
-                KV.put(HawkConfig.DOH_URL, 0)
-                dohSelector = 0
-            }
-            for (i in 0 until jsonArray.size()) {
-                val dnsConfig = jsonArray.get(i).asJsonObject
-                val name = if (dnsConfig.has("name")) dnsConfig.get("name").asString else "Unknown Name"
-                list.add(name)
-                if (dohSelector == (i + 1)) ips = if (dnsConfig.has("ips")) dnsConfig.getAsJsonArray("ips") else null
-            }
-            dnsHttpsList = list
-        } catch (e: Exception) {
-            LOG.e("OkGoHelper", e)
-        }
+        val selector = KV.get(HawkConfig.DOH_URL, 0)
+        val ips = initDohSelector(selector)
+        Thread({ buildDohClient(selector, ips) }, "okgo-doh-init").start()
+    }
 
-        val builder = OkHttpClient.Builder()
-        builder.proxySelector(proxySelector())
-        builder.proxyAuthenticator(proxyAuthenticator())
-        try {
-            setOkHttpSsl(builder)
-        } catch (th: Throwable) {
-            LOG.e("OkGoHelper", th)
+    private fun initDohSelector(selector: Int): JsonArray? {
+        var ips: JsonArray? = null
+        Probe.step("okGoDohSelector") {
+            try {
+                val jsonArray = getDohConfigArray()
+                val effective = if (selector > jsonArray.size()) {
+                    KV.put(HawkConfig.DOH_URL, 0)
+                    0
+                } else {
+                    selector
+                }
+                val list = ArrayList<String>()
+                list.add("关闭") // i18n: keep(DNS 选项索引锚点,显示由设置页映射资源)
+                for (i in 0 until jsonArray.size()) {
+                    val dnsConfig = jsonArray.get(i).asJsonObject
+                    val name = if (dnsConfig.has("name")) dnsConfig.get("name").asString else "Unknown Name"
+                    list.add(name)
+                    if (effective == (i + 1)) ips = if (dnsConfig.has("ips")) dnsConfig.getAsJsonArray("ips") else null
+                }
+                dnsHttpsList = list
+            } catch (e: Exception) {
+                LOG.e("OkGoHelper", e)
+            }
         }
-        builder.cache(Cache(File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.cacheDir.absolutePath, "dohcache"), 100L * 1024 * 1024))
-        val dohClient = builder.build()
-        val dohUrl = getDohUrl(KV.get(HawkConfig.DOH_URL, 0))
-        dnsOverHttps = if (dohUrl.isEmpty()) null
-                else DnsOverHttps.Builder().client(dohClient).url(dohUrl.toHttpUrl()).bootstrapDnsHosts(if (ips != null && dohUrl != "https://doh.pub/dns-query") DohIps(ips) else null).build()
+        return ips
+    }
+
+    private fun buildDohClient(selector: Int, ips: JsonArray?) {
+        Probe.step("okGoDohBuild") {
+            try {
+                val builder = OkHttpClient.Builder()
+                builder.proxySelector(proxySelector())
+                builder.proxyAuthenticator(proxyAuthenticator())
+                try {
+                    setOkHttpSsl(builder)
+                } catch (th: Throwable) {
+                    LOG.e("OkGoHelper", th)
+                }
+                Probe.step("okGoDohCache") {
+                    builder.cache(Cache(File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.cacheDir.absolutePath, "dohcache"), 100L * 1024 * 1024))
+                }
+                val dohClient = builder.build()
+                val dohUrl = getDohUrl(selector)
+                dnsOverHttps = if (dohUrl.isEmpty()) null
+                        else Probe.step("okGoDohDns") { DnsOverHttps.Builder().client(dohClient).url(dohUrl.toHttpUrl()).bootstrapDnsHosts(if (ips != null && dohUrl != "https://doh.pub/dns-query") DohIps(ips) else null).build() }
+            } catch (e: Throwable) {
+                LOG.e("OkGoHelper", e)
+            }
+        }
     }
 
     private class CustomDns : Dns {
@@ -357,21 +378,22 @@ object OkGoHelper {
 
     @JvmStatic
     fun init() {
-        initDnsOverHttps()
+        Probe.step("okGoDohClient") { initDnsOverHttps() }
 
         val builder = OkHttpClient.Builder()
 
-        builder.readTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-        builder.writeTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-        builder.connectTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
-
-        builder.dns(CustomDns())
-        builder.proxySelector(proxySelector())
-        builder.proxyAuthenticator(proxyAuthenticator())
-        try {
-            setOkHttpSsl(builder)
-        } catch (th: Throwable) {
-            LOG.e("OkGoHelper", th)
+        Probe.step("okGoClients") {
+            builder.dns(CustomDns())
+            builder.proxySelector(proxySelector())
+            builder.proxyAuthenticator(proxyAuthenticator())
+            builder.readTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
+            builder.writeTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
+            builder.connectTimeout(DEFAULT_MILLISECONDS, TimeUnit.MILLISECONDS)
+            try {
+                setOkHttpSsl(builder)
+            } catch (th: Throwable) {
+                LOG.e("OkGoHelper", th)
+            }
         }
 
         val okHttpClient = builder.build()
@@ -383,7 +405,7 @@ object OkGoHelper {
         builder.followSslRedirects(false)
         noRedirectClient = builder.build()
 
-        initExoOkHttpClient()
+        Probe.step("okGoExoClient") { initExoOkHttpClient() }
     }
 
     @Synchronized

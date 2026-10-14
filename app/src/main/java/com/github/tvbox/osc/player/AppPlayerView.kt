@@ -20,8 +20,12 @@ import com.github.tvbox.osc.player.host.AudioFocusTarget
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.PlayerUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 
 open class AppPlayerView @JvmOverloads constructor(
     context: Context,
@@ -32,8 +36,12 @@ open class AppPlayerView @JvmOverloads constructor(
     interface ProgressSink {
         fun saveProgress(url: String?, progress: Long)
 
-        fun getSavedProgress(url: String?): Long
+        suspend fun getSavedProgress(url: String?): Long
     }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private var startPlaySeq = 0
 
     protected var mMediaPlayer: KernelPlayer? = null
 
@@ -121,19 +129,33 @@ open class AppPlayerView @JvmOverloads constructor(
             ensureAudioFocusHelper()
             mAudioFocusHelper?.onNewPlayback()
         }
-        mProgressSink?.let { sink ->
-            mCurrentPosition = sink.getSavedProgress(progressKey())
-        }
-        if (ZeroStartGate.consume(mZeroStartKeys, progressKey())) {
-            mCurrentPosition = 0
-            LOG.i("echo-zero-start apply key=" + progressKey())
-        }
         mMediaPlayer?.release()
         mMediaPlayer = null
         initPlayer()
         addDisplay()
-        startPrepare(false)
+        val sink = mProgressSink
+        val key = progressKey()
+        if (sink == null) {
+            applyStartPosition(key, null)
+            startPrepare(false)
+            return true
+        }
+        val seq = ++startPlaySeq
+        scope.launch {
+            val saved = sink.getSavedProgress(key)
+            if (seq != startPlaySeq) return@launch
+            applyStartPosition(key, saved)
+            startPrepare(false)
+        }
         return true
+    }
+
+    private fun applyStartPosition(key: String?, saved: Long?) {
+        if (saved != null) mCurrentPosition = saved
+        if (ZeroStartGate.consume(mZeroStartKeys, key)) {
+            mCurrentPosition = 0
+            LOG.i("echo-zero-start apply key=" + key)
+        }
     }
 
     protected open fun showNetWarning(): Boolean = false

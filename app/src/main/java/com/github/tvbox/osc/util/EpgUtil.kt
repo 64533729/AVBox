@@ -5,64 +5,70 @@ import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import java.io.BufferedReader
-import java.io.IOException
 import java.io.InputStreamReader
-import java.lang.reflect.Type
-import java.util.HashMap
+import java.util.concurrent.Executors
 
 object EpgUtil {
 
-    private var epgDoc: JsonObject? = null
-    private val epgHashMap = HashMap<String, JsonObject>()
+    private val loader = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "epg-loader") }
+
+    @Volatile
+    private var started = false
+
+    @Volatile
+    private var epgHashMap: Map<String, JsonObject> = emptyMap()
 
     @JvmStatic
     fun init() {
-        if (epgDoc != null)
-            return
-        try {
-            val assetManager: AssetManager = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets //获得assets资源管理器（assets中的文件无法直接访问，可以使用AssetManager访问）
-            val inputStreamReader = InputStreamReader(assetManager.open("epg_data.json"), "UTF-8") //使用IO流读取json文件内容
-            val br = BufferedReader(inputStreamReader) //使用字符高效流
-            var line: String? = br.readLine()
-            val builder = StringBuilder()
-            while (line != null) {
-                builder.append(line)
-                line = br.readLine()
-            }
-            br.close()
-            inputStreamReader.close()
-            if (!builder.toString().isEmpty()) {
-                epgDoc = Gson().fromJson(builder.toString(), JsonObject::class.java as Type) // 从builder中读取了json中的数据。
-                val root = epgDoc ?: return
-                for (opt: JsonElement in root.get("epgs").asJsonArray) {
-                    val obj = opt as JsonObject
-                    val name = obj.get("name").asString.trim { it <= ' ' }
-                    val names = RegexUtils.getPattern(",").split(name)
-                    for (string in names) {
-                        epgHashMap[string] = obj
-                    }
-                }
-                return
-            }
+        if (started) return
+        started = true
+        loader.execute(::load)
+    }
 
-        } catch (e: IOException) {
-            LOG.e("EpgUtil", e)
+    private fun load() {
+        Probe.step("epgUtilLoad") {
+            try {
+                val assetManager: AssetManager = requireNotNull(AppContextHolder.context()) { "app context not initialized" }.assets
+                val inputStreamReader = InputStreamReader(assetManager.open("epg_data.json"), "UTF-8")
+                val br = BufferedReader(inputStreamReader)
+                var line: String? = br.readLine()
+                val builder = StringBuilder()
+                while (line != null) {
+                    builder.append(line)
+                    line = br.readLine()
+                }
+                br.close()
+                inputStreamReader.close()
+                if (builder.toString().isEmpty()) return@step
+                epgHashMap = parse(builder.toString())
+            } catch (e: Throwable) {
+                LOG.e("EpgUtil", e)
+            }
         }
+    }
+
+    internal fun parse(text: String): Map<String, JsonObject> {
+        val root = Gson().fromJson(text, JsonObject::class.java)
+        val map = HashMap<String, JsonObject>()
+        for (opt: JsonElement in root.get("epgs").asJsonArray) {
+            val obj = opt as JsonObject
+            val name = obj.get("name").asString.trim { it <= ' ' }
+            val names = RegexUtils.getPattern(",").split(name)
+            for (string in names) {
+                map[string] = obj
+            }
+        }
+        return map
     }
 
     @JvmStatic
     fun getEpgInfo(channelName: String): Array<String>? {
-        try {
-            if (epgHashMap.containsKey(channelName)) {
-                val obj = epgHashMap[channelName] ?: return null
-                return arrayOf(
-                    obj.get("logo").asString,
-                    obj.get("epgid").asString
-                )
-            }
+        val obj = epgHashMap[channelName] ?: return null
+        return try {
+            arrayOf(obj.get("logo").asString, obj.get("epgid").asString)
         } catch (ex: Exception) {
             LOG.e("EpgUtil", ex)
+            null
         }
-        return null
     }
 }

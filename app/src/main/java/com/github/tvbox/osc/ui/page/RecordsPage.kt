@@ -122,21 +122,14 @@ fun RecordsPage(
     }
 
     var historyScrollPending by remember { mutableStateOf(false) }
-    var collectScrollPending by remember { mutableStateOf(false) }
 
     LaunchedEffect(historyVm) {
         historyVm.scrollSignal.drop(1).collect { historyScrollPending = true }
     }
-    LaunchedEffect(collectVm) {
-        collectVm.scrollSignal.drop(1).collect { collectScrollPending = true }
-    }
-    LaunchedEffect(mode, historyScrollPending, collectScrollPending) {
+    LaunchedEffect(mode, historyScrollPending) {
         if (mode == RecordsMode.History && historyScrollPending) {
             historyScrollPending = false
             if (historyVm.items.value.isNotEmpty()) historyListState.animateScrollToItem(0)
-        } else if (mode == RecordsMode.Collect && collectScrollPending) {
-            collectScrollPending = false
-            if (collectVm.items.value.isNotEmpty()) collectListState.animateScrollToItem(0)
         }
     }
 

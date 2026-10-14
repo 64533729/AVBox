@@ -153,7 +153,7 @@ class PreloadCoordinator(
         )
     }
 
-    fun handlePreloadResult(info: JSONObject?) {
+    suspend fun handlePreloadResult(info: JSONObject?) {
         val snapshot = activeSnapshot
         val token = requestToken
         requestToken = null
@@ -222,8 +222,9 @@ class PreloadCoordinator(
         var startPos = snapshot.startSkipMs
         if (!HistoryHelper.isIncognito()) {
             try {
-                WatchProgressStore.awaitWrites()
-                val history = AppGraph.cacheRepository.get(MD5.string2MD5(snapshot.nextKey))
+                val history = WatchProgressStore.submitAndAwait {
+                    AppGraph.cacheRepository.get(MD5.string2MD5(snapshot.nextKey))
+                }
                 var rec = 0L
                 if (history is Long) {
                     rec = history

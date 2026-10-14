@@ -49,6 +49,7 @@ object KV {
     }
 
     private fun <T> getInternal(key: String, defaultValue: T?): T? {
+        Probe.countKvCall()
         return KVCodec.decode(key, requireStore(), defaultValue)
     }
 

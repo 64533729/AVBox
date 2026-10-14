@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,8 @@ internal fun HistoryRow(
     item: VodInfo,
     totalEpisodes: Int?,
     playedPercent: Int?,
+    // 必须传 State 且在行内取值：分钟跳动靠本行作用域失效驱动，不依赖父级是否重组
+    nowMs: State<Long>,
     editMode: Boolean,
     selected: Boolean,
     modifier: Modifier = Modifier,
@@ -185,7 +188,7 @@ internal fun HistoryRow(
                         )
                     }
                 }
-                val timeText = historyTimeAgo(item.updateTime)
+                val timeText = historyTimeAgo(item.updateTime, nowMs.value)
                 val siteText = if (item.sourceUnavailable && item.sourceName.isNotEmpty()) {
                     item.sourceName + HistoryMetaSeparator + stringResource(R.string.source_unavailable)
                 } else {
@@ -238,9 +241,9 @@ private val HistoryPlayIconSize = 22.dp
 private const val HistoryMetaSeparator = " · "
 
 @Composable
-private fun historyTimeAgo(atMs: Long): String {
+private fun historyTimeAgo(atMs: Long, nowMs: Long): String {
     if (atMs <= 0L) return ""
-    val ago = timeAgoValueOf(atMs, System.currentTimeMillis())
+    val ago = timeAgoValueOf(atMs, nowMs)
     return when (ago.unit) {
         TimeAgoUnit.JustNow -> stringResource(R.string.time_ago_just_now)
         TimeAgoUnit.Minutes -> stringResource(R.string.time_ago_minutes, ago.value)

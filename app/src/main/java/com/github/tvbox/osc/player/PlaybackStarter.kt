@@ -24,6 +24,10 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.HashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PlaybackStarter(private val host: Host) {
 
@@ -56,7 +60,7 @@ class PlaybackStarter(private val host: Host) {
 
         fun setSubtitleCacheKey(key: String?)
 
-        fun getSavedProgress(url: String?): Long
+        suspend fun getSavedProgress(url: String?): Long
 
         fun inheritProgressFrom(key: String?, position: Long)
 
@@ -110,6 +114,8 @@ class PlaybackStarter(private val host: Host) {
     }
 
     private var playUrlGeneration: Int = 0
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun play(reset: Boolean) {
         val st = host.attemptState()
@@ -191,7 +197,10 @@ class PlaybackStarter(private val host: Host) {
         if (reset && !prepareOnly) {
             host.clearInheritProgress()
             WatchProgressStore.clear(host.progressOwner(), host.progressKey())
-            AppGraph.cacheRepository.delete(MD5.string2MD5(host.subtitleCacheKey()), 0)
+            val subtitleCacheKey = MD5.string2MD5(host.subtitleCacheKey())
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                AppGraph.cacheRepository.delete(subtitleCacheKey, 0)
+            }
         } else if (!prepareOnly) {
             host.migrateProgressOnLineSwitch()
             host.inheritProgressIfNeeded()
@@ -302,20 +311,22 @@ class PlaybackStarter(private val host: Host) {
         if (bridge == null || !bridge.isPageAlive()) return
         playUrlGeneration = host.resolverCurrentGen()
         val finalUrl = url
-        bridge.runOnUi(Runnable {
+        scope.launch {
+            val live = host.view()
+            if (live == null || !live.isPageAlive()) return@launch
             if (st.switchStopPending) {
                 LOG.i("echo-ignore goPlayUrl while source switching")
-                return@Runnable
+                return@launch
             }
             if (st.castAborted) {
                 LOG.i("echo-cast abort: drop late play url")
                 host.cancelPlayTimeout()
-                return@Runnable
+                return@launch
             }
             if (playUrlGeneration != host.resolverCurrentGen()) {
                 LOG.i("echo-ignore goPlayUrl of stale parse result")
                 host.resolverCancelParseTimeout()
-                return@Runnable
+                return@launch
             }
             host.setWebPlayUrl(finalUrl)
             host.stopParse()
@@ -323,9 +334,9 @@ class PlaybackStarter(private val host: Host) {
                 host.closeCastPrepare()
                 host.cancelPlayTimeout()
                 LOG.i("echo-cast prepare: url resolved, keep playback off")
-                return@Runnable
+                return@launch
             }
-            if (host.view() == null) return@Runnable
+            if (host.view() == null) return@launch
             var targetUrl = finalUrl
             try {
                 val playerType = requireNotNull(host.playerCfg()).getInt("pl")
@@ -358,7 +369,7 @@ class PlaybackStarter(private val host: Host) {
                         callResult,
                         !callResult
                     )
-                    return@Runnable
+                    return@launch
                 }
             } catch (e: JSONException) {
                 LOG.e("PlaybackController", e)
@@ -379,7 +390,7 @@ class PlaybackStarter(private val host: Host) {
                 host.view()?.useTextureRenderForAudio()
             }
             host.view()?.startVideoPlayback(targetUrl, headers, forceExoPlayer)
-        })
+        }
     }
 
     private fun attachProxySiteKey(url: String): String {

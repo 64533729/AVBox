@@ -69,9 +69,9 @@ PlaybackService(前台服务,托管生命周期)
 | 引擎/视图/控制器/挂摘 | 主线程(`PlaybackEngine` 的 `main` Handler;跨线程入口一律 `main.post`) |
 | 取流/解析 | `SourceHelper.SPIDER_POOL` / `PREPARE_POOL` 共享池(**不得每请求新建**) |
 | 播放内核 | media3 播放线程;**预载 looper 必须与播放 looper 对齐**(`PlayerEngineConfig.playbackLooper` = `DefaultPreloadManager` 的 `preloadLooper`) |
-| 进度写盘 | `vod-progress-writer`;读回走 `awaitWrites` |
+| 进度面读/写/删 | `vod-progress-writer` 单线程队列(读经 `WatchProgressStore.submitAndAwait` 入队,**队列序即读写序**);`awaitWrites()` 屏障已删(2026-10-14) |
 | 预载结果派发 | 主线程(`Dispatchers.Main.immediate`,与旧 `LiveData.observeForever` 投递线程一致) |
-| Room | `allowMainThreadQueries()` 是显式设计(主线程查库),**不借机改** |
+| Room | `allowMainThreadQueries()` **已删除**(2026-10-14);主线程查库会抛 `IllegalStateException`,DB 访问一律经四 Repository 的 `suspend` 面 |
 
 ### 2.3 数据流与指令流
 
@@ -287,7 +287,7 @@ fongmi 的关键实现点(仍具参考价值):服务侧建/释放内核、`bindP
 
 - **口径**:不再迁移 app 内 `player/` 36 Java 与 `player` 模块 27 Java,改为**新写 app 侧 Kotlin 播放层 + 整体删除 fork**(2026-10-05 拍板)。**这是"迁移 ≠ 重构"的明示授权例外(仅限播放栈)**,纪律 = ① 替换步不夹带无关逻辑改动;② 逐类行为对照。
 - **切片**:M7-0(删 `dkplayer-ui` 死依赖)/ M7a(新内核适配层 `player/engine` 9 文件)/ M7b(内核桥切换 + 双模式渲染宿主 + 状态机 + 音频焦点)/ M7c(点播全链切换 9 片,`observeForever` → `flow`)/ M7d(直播/音乐/DLNA/第三方出口的状态读取面切 `PlayState`)/ M7e(控制器去 View + 手势改 Compose `pointerInput` + 全量去 doikki)/ M7f(`PreloadCoordinator`/`PreloadManagerHolder` 迁 Kotlin)。
-- **必须承接、不许丢的行为**:① media3 适配(`OkHttpDataSource` 的 DoH/hosts/headers、磁盘缓存数据源、`HlsErrorHandlingPolicy`、track selector、硬/软解选择 + 自动软解回退);② 渲染与效果(裸 Surface 的 `MSG_SET_VIDEO_OUTPUT_RESOLUTION` 信令"交面之后立即补发"、双渲染模式、调色/超分效果链与 `RedrawPolicy`);③ 播放语义(内核复用判定四起播点、自动重试阶梯与换线、RTMP 直播 `live=1` 后缀与缓存跳过、进度写 `vod-progress-writer`/读 `awaitWrites`);④ 外设与出口(媒体通知/会话、弹幕时间轴、字幕两路与延迟、DLNA 与第三方播放器)。
+- **必须承接、不许丢的行为**:① media3 适配(`OkHttpDataSource` 的 DoH/hosts/headers、磁盘缓存数据源、`HlsErrorHandlingPolicy`、track selector、硬/软解选择 + 自动软解回退);② 渲染与效果(裸 Surface 的 `MSG_SET_VIDEO_OUTPUT_RESOLUTION` 信令"交面之后立即补发"、双渲染模式、调色/超分效果链与 `RedrawPolicy`);③ 播放语义(内核复用判定四起播点、自动重试阶梯与换线、RTMP 直播 `live=1` 后缀与缓存跳过、进度写 `vod-progress-writer`/读同队列 —— 读侧契约已于 2026-10-14 由 `awaitWrites` 改为 `submitAndAwait` 队列序,见 `review/refactor-plan-20261014.md`);④ 外设与出口(媒体通知/会话、弹幕时间轴、字幕两路与延迟、DLNA 与第三方播放器)。
 - **M10 拆除**:`player` 模块(27 Java / 5313 行)+ `dkplayer-ui` 依赖项 + 3 个原生库(`libp2p`/`libxl_stat`/`libxl_thunder_sdk` → `app/src/main/jniLibs`)+ `WAKE_LOCK` 权限(→ app manifest)+ media3 依赖(9 项从 `:player` 的 `api` 面搬进 app 直接声明)。实测 655 用例 / 0 失败,debug APK 全部 29 个 dex 零 `xyz/doikki`。
 - **逐阶段交付、复核轮账目与未验证面**见 `avbox-kotlin-migration-spec.md` §7.13–§7.21 与 `review/refactor-plan-20261005.md` §5 M7/M10。
 

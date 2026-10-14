@@ -18,17 +18,17 @@ import kotlinx.coroutines.flow.map
 
 interface HistoryRepository {
 
-    fun getVodInfo(sourceKey: String, vodId: String): VodInfo?
+    suspend fun getVodInfo(sourceKey: String, vodId: String): VodInfo?
 
     fun observeVodRecords(cid: String?): Flow<List<VodInfo>>
 
-    fun sweepDuplicates()
+    suspend fun sweepDuplicates()
 
-    fun insertVodRecord(sourceKey: String, vodInfo: VodInfo)
+    suspend fun insertVodRecord(sourceKey: String, vodInfo: VodInfo)
 
-    fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo)
+    suspend fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo)
 
-    fun deleteVodRecordAll()
+    suspend fun deleteVodRecordAll()
 }
 
 internal class RoomHistoryRepository(
@@ -57,7 +57,7 @@ internal class RoomHistoryRepository(
 
     private fun vodInfoType(): Type = object : TypeToken<VodInfo>() {}.type
 
-    override fun getVodInfo(sourceKey: String, vodId: String): VodInfo? {
+    override suspend fun getVodInfo(sourceKey: String, vodId: String): VodInfo? {
         val record = records().getVodRecord(CurrentSubscription.cid(), sourceKey, vodId)
         try {
             if (record != null && record.dataJson != null && !TextUtils.isEmpty(record.dataJson)) {
@@ -91,7 +91,7 @@ internal class RoomHistoryRepository(
         return null
     }
 
-    override fun sweepDuplicates() {
+    override suspend fun sweepDuplicates() {
         if (!HistoryMerge.isEnabled()) return
         val dao = records()
         val cid = CurrentSubscription.cid()
@@ -104,7 +104,7 @@ internal class RoomHistoryRepository(
         }
     }
 
-    override fun insertVodRecord(sourceKey: String, vodInfo: VodInfo) {
+    override suspend fun insertVodRecord(sourceKey: String, vodInfo: VodInfo) {
         if (HistoryHelper.isIncognito()) return
         val cid = CurrentSubscription.cid()
         val dao = records()
@@ -121,7 +121,7 @@ internal class RoomHistoryRepository(
         }
     }
 
-    override fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo) {
+    override suspend fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo) {
         val dao = records()
         val record = dao.getVodRecord(CurrentSubscription.cid(), sourceKey, vodInfo.id)
         if (record != null) {
@@ -129,7 +129,7 @@ internal class RoomHistoryRepository(
         }
     }
 
-    override fun deleteVodRecordAll() {
+    override suspend fun deleteVodRecordAll() {
         records().deleteAll(CurrentSubscription.cid())
     }
 }

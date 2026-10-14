@@ -21,8 +21,14 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.util.HashMap
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PlaybackController {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var vod: VodInfo? = null
     private var playerCfg: JSONObject? = null
@@ -80,7 +86,7 @@ class PlaybackController {
         config.initPlayerCfg()
     }
 
-    fun getSavedProgress(url: String?): Long {
+    suspend fun getSavedProgress(url: String?): Long {
         return progress.getSavedProgress(url)
     }
 
@@ -95,13 +101,19 @@ class PlaybackController {
     fun migrateProgressOnLineSwitch() {
         val started = progress.startedProgressKey()
         val key = progressKey()
+        val userPicked = st.userPickedLine
         val live = view?.currentPosition() ?: 0L
-        val position = when {
-            live > 0 -> live
-            !started.isNullOrEmpty() -> getSavedProgress(started)
-            else -> 0L
+        if (live > 0 || started.isNullOrEmpty()) {
+            migrateProgressOnLineSwitchNow(userPicked, started, key, if (live > 0) live else 0L)
+            return
         }
-        if (!ProgressSampling.lineSwitchMigrate(st.userPickedLine, started, key, position)) return
+        scope.launch {
+            migrateProgressOnLineSwitchNow(userPicked, started, key, getSavedProgress(started))
+        }
+    }
+
+    private fun migrateProgressOnLineSwitchNow(userPicked: Boolean, started: String?, key: String?, position: Long) {
+        if (!ProgressSampling.lineSwitchMigrate(userPicked, started, key, position)) return
         val duration = view?.duration() ?: 0L
         WatchProgressStore.save(progressOwner(), key, position, duration)
         LOG.i("echo-switchLine migrate pos=" + position + " dur=" + duration + " key=" + key)
@@ -262,7 +274,7 @@ class PlaybackController {
 
         override fun progressKey(): String? = this@PlaybackController.progressKey()
 
-        override fun getSavedProgress(url: String): Long = this@PlaybackController.getSavedProgress(url)
+        override suspend fun getSavedProgress(url: String): Long = this@PlaybackController.getSavedProgress(url)
 
         override fun inheritProgressFrom(key: String?, position: Long) {
             this@PlaybackController.inheritProgressFrom(key, position)
@@ -489,28 +501,28 @@ class PlaybackController {
         return retry.retryAfterStartedError()
     }
 
-    fun autoRetry(): Boolean {
+    suspend fun autoRetry(): Boolean {
         return retry.autoRetry()
     }
 
-    fun tryNextLineIfEnabled(): Boolean {
+    suspend fun tryNextLineIfEnabled(): Boolean {
         return retry.tryNextLineIfEnabled()
     }
 
-    fun tryNextLine(): Boolean {
+    suspend fun tryNextLine(): Boolean {
         return retry.tryNextLine()
     }
 
     fun handleResolvePlayUrlTimeout() {
-        retry.handleResolvePlayUrlTimeout()
+        scope.launch { retry.handleResolvePlayUrlTimeout() }
     }
 
     fun handleResolvePlayUrlFailed(err: String) {
-        retry.handleResolvePlayUrlFailed(err)
+        scope.launch { retry.handleResolvePlayUrlFailed(err) }
     }
 
     fun handleSwitchLinePlayTimeout() {
-        retry.handleSwitchLinePlayTimeout()
+        scope.launch { retry.handleSwitchLinePlayTimeout() }
     }
 
     private var webPlayUrl: String? = null
@@ -649,7 +661,7 @@ class PlaybackController {
             this@PlaybackController.setSubtitleCacheKey(key)
         }
 
-        override fun getSavedProgress(url: String?): Long = this@PlaybackController.getSavedProgress(url)
+        override suspend fun getSavedProgress(url: String?): Long = this@PlaybackController.getSavedProgress(url)
 
         override fun inheritProgressFrom(key: String?, position: Long) {
             this@PlaybackController.inheritProgressFrom(key, position)

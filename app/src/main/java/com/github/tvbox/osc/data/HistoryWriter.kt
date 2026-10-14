@@ -6,6 +6,7 @@ import com.github.tvbox.osc.util.LOG
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlinx.coroutines.runBlocking
 
 object HistoryWriter {
 
@@ -19,7 +20,7 @@ object HistoryWriter {
 
     private fun writeNow(sourceKey: String, info: VodInfo) {
         try {
-            AppGraph.historyRepository.insertVodRecord(sourceKey, info)
+            runBlocking { AppGraph.historyRepository.insertVodRecord(sourceKey, info) }
         } catch (th: Throwable) {
             LOG.e("HistoryWriter", "echo-history insert failed: " + th, th)
             return

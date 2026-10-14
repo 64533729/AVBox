@@ -25,7 +25,7 @@ class PlaybackRetryDelegate(private val host: Host) {
 
         fun progressKey(): String?
 
-        fun getSavedProgress(url: String): Long
+        suspend fun getSavedProgress(url: String): Long
 
         fun inheritProgressFrom(key: String?, position: Long)
 
@@ -203,7 +203,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         return true
     }
 
-    fun autoRetry(): Boolean {
+    suspend fun autoRetry(): Boolean {
         if (dropRetryIfCastAborted("autoRetry")) return false
         val st = host.attemptState()
         if (retryWithFreshResolve("autoRetry")) return true
@@ -256,7 +256,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         return tryNextLineIfEnabled()
     }
 
-    fun tryNextLineIfEnabled(): Boolean {
+    suspend fun tryNextLineIfEnabled(): Boolean {
         restoreAutoSwitchedPlayer()
         restoreAutoSwitchedDecode()
         if (host.attemptState().allowAutoSwitchLine && (KV.get(HawkConfig.AUTO_SWITCH_LINE, false) as Boolean)) {
@@ -267,7 +267,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         return false
     }
 
-    fun tryNextLine(): Boolean {
+    suspend fun tryNextLine(): Boolean {
         val st = host.attemptState()
         val vod = host.vod()
         val seriesMap = vod?.seriesMap
@@ -328,7 +328,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         return true
     }
 
-    fun handleResolvePlayUrlTimeout() {
+    suspend fun handleResolvePlayUrlTimeout() {
         if (dropRetryIfCastAborted("resolveTimeout")) {
             host.stopMusicSessionForFailedPlayback()
             showErrorTip(PlaybackController.str(R.string.player_get_url_timeout))
@@ -352,7 +352,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         }
     }
 
-    fun handleResolvePlayUrlFailed(err: String) {
+    suspend fun handleResolvePlayUrlFailed(err: String) {
         if (dropRetryIfCastAborted("resolveFailed")) {
             host.stopMusicSessionForFailedPlayback()
             showErrorTip(err)
@@ -376,7 +376,7 @@ class PlaybackRetryDelegate(private val host: Host) {
         showErrorTip(err)
     }
 
-    fun handleSwitchLinePlayTimeout() {
+    suspend fun handleSwitchLinePlayTimeout() {
         if (dropRetryIfCastAborted("switchLineTimeout")) {
             host.stopMusicSessionForFailedPlayback()
             showErrorTip(PlaybackController.str(R.string.player_play_timeout))

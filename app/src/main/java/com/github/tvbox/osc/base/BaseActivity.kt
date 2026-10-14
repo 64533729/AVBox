@@ -25,6 +25,7 @@ import com.github.tvbox.osc.util.AppManager
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LanguageManager
+import com.github.tvbox.osc.util.Probe
 
 import java.io.BufferedReader
 import java.io.IOException
@@ -87,13 +88,15 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
     }
 
     override fun onResume() {
-        super.onResume()
-        applyOrientationPolicy()
-        applyHideStatusBarPref()
-        hideSysBar()
-        if (shouldRefreshAutoSize()) {
-            refreshAutoSize()
-            scheduleRefreshAutoSize()
+        Probe.measure(this, "onResume") {
+            super.onResume()
+            applyOrientationPolicy()
+            applyHideStatusBarPref()
+            hideSysBar()
+            if (shouldRefreshAutoSize()) {
+                refreshAutoSize()
+                scheduleRefreshAutoSize()
+            }
         }
     }
 
@@ -146,12 +149,14 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            applyHideStatusBarPref()
-            hideSysBar()
-            if (shouldRefreshAutoSize()) {
-                scheduleRefreshAutoSize()
+        Probe.measure(this, "onWindowFocusChanged") {
+            super.onWindowFocusChanged(hasFocus)
+            if (hasFocus) {
+                applyHideStatusBarPref()
+                hideSysBar()
+                if (shouldRefreshAutoSize()) {
+                    scheduleRefreshAutoSize()
+                }
             }
         }
     }

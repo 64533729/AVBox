@@ -41,7 +41,6 @@ object AppDataManager {
                 dbInstance = Room.databaseBuilder(requireNotNull(AppContextHolder.context()) { "app context not initialized" }, AppDataBase::class.java, dbPath())
                     .setDriver(BundledSQLiteDriver())
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                    .allowMainThreadQueries()
                     .addMigrations(MIGRATION_1_2)
                     .build()
             }

@@ -13,6 +13,7 @@ import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
+import com.github.tvbox.osc.util.Probe
 import java.io.File
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
@@ -50,10 +51,13 @@ object AppBootstrap {
     fun start() {
         if (started) return
         started = true
-        FileUtils.repairBogusNativeLibs()
-        BootGuard.disableBootLoopingSource()
-        ControlManager.get().startServer()
-        startInit(forceFresh = false, offline = false)
+        val generation = bootGeneration.next()
+        scope.launch {
+            Probe.trace("boot:bootstrapRepair") { FileUtils.repairBogusNativeLibs() }
+            Probe.trace("boot:bootstrapBootGuard") { BootGuard.disableBootLoopingSource() }
+            Probe.trace("boot:bootstrapServer") { ControlManager.get().startServer() }
+            startInit(forceFresh = false, offline = false, generation = generation)
+        }
     }
 
     fun retry() {

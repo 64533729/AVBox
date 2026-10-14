@@ -8,14 +8,14 @@ import androidx.room3.Query
 @Dao
 interface VodFollowDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(record: VodFollow): Long
+    suspend fun insert(record: VodFollow): Long
 
     @Query("select * from vodFollow order by addedTime desc")
-    fun getAll(): List<VodFollow>
+    suspend fun getAll(): List<VodFollow>
 
     @Query("select * from vodFollow where `cid`=:cid and `sourceKey`=:sourceKey and `vodId`=:vodId")
-    fun getVodFollow(cid: String?, sourceKey: String?, vodId: String?): VodFollow?
+    suspend fun getVodFollow(cid: String?, sourceKey: String?, vodId: String?): VodFollow?
 
     @Query("delete from vodFollow where `id` in (:ids)")
-    fun deleteSelected(ids: List<Int>)
+    suspend fun deleteSelected(ids: List<Int>)
 }

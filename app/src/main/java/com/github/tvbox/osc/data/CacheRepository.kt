@@ -5,53 +5,55 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 interface CacheRepository {
 
-    fun get(key: String?): Any?
+    suspend fun get(key: String?): Any?
 
-    fun save(key: String, body: Any?)
+    suspend fun save(key: String, body: Any?)
 
-    fun delete(key: String?, body: Any?)
+    suspend fun delete(key: String?, body: Any?)
 
-    fun clearAllProgress(): List<String>
+    suspend fun clearAllProgress(): List<String>
 }
 
 internal class RoomCacheRepository(
     private val caches: () -> CacheDao,
 ) : CacheRepository {
 
-    override fun get(key: String?): Any? {
+    override suspend fun get(key: String?): Any? {
         val cache = caches().getCache(key) ?: return null
         val data = cache.data ?: return null
-        return toObject(data)
+        return withContext(Dispatchers.IO) { toObject(data) }
     }
 
-    override fun save(key: String, body: Any?) {
+    override suspend fun save(key: String, body: Any?) {
         val cache = Cache()
         cache.key = key
-        cache.data = toByteArray(body)
+        cache.data = withContext(Dispatchers.IO) { toByteArray(body) }
         caches().save(cache)
     }
 
-    override fun delete(key: String?, body: Any?) {
+    override suspend fun delete(key: String?, body: Any?) {
         if (key == null) return
         val cache = Cache()
         cache.key = key
-        cache.data = toByteArray(body)
+        cache.data = withContext(Dispatchers.IO) { toByteArray(body) }
         caches().delete(cache)
     }
 
-    override fun clearAllProgress(): List<String> {
+    override suspend fun clearAllProgress(): List<String> {
         val dao = caches()
         val rows = dao.getAll()
-        val removed = ArrayList<String>()
-        for (row in rows) {
-            val data = row.data ?: continue
-            if (toObject(data) is Long) {
-                dao.delete(row)
-                removed.add(row.key)
-            }
+        val progressRows = withContext(Dispatchers.IO) {
+            rows.filter { row -> row.data?.let { toObject(it) is Long } == true }
+        }
+        val removed = ArrayList<String>(progressRows.size)
+        for (row in progressRows) {
+            dao.delete(row)
+            removed.add(row.key)
         }
         return removed
     }

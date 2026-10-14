@@ -43,8 +43,14 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.util.HashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, PlaybackHostApi, PlaybackPage {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val trackSelector: TrackSelectorDelegate = TrackSelectorDelegate(object : TrackSelectorDelegate.Host {
         override fun player(): MyVideoView? = mVideoView
@@ -359,10 +365,13 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
             return
         }
         val headers: HashMap<String, String>? = scheduler.webHeaderMap()?.let { HashMap(it) }
-        val video = CastVideo(castUrl, getCastTitle(), headers, getCastPosition())
-        val uiState = mController.getUiState()
-        uiState.castSheet = CastSheetState(video) {
-            mVideoView?.pause()
+        val title = getCastTitle()
+        scope.launch {
+            val video = CastVideo(castUrl, title, headers, getCastPosition())
+            val uiState = mController.getUiState()
+            uiState.castSheet = CastSheetState(video) {
+                mVideoView?.pause()
+            }
         }
     }
 
@@ -399,7 +408,7 @@ class PlayContainer(activity: Activity) : FrameLayout(activity), CustomAdapt, Pl
         return if (name.isNullOrEmpty()) "TVBox" else name
     }
 
-    private fun getCastPosition(): Long {
+    private suspend fun getCastPosition(): Long {
         val live = try {
             mVideoView?.currentPosition ?: 0L
         } catch (e: Exception) {

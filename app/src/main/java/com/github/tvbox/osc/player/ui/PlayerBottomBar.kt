@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.player.ui
 
+import android.content.res.Configuration
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -74,6 +76,9 @@ fun PlayerBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val edge = playerEdgePadding()
+    val configuration = LocalConfiguration.current
+    val portraitActions = configuration.screenWidthDp < 600 &&
+        configuration.orientation == Configuration.ORIENTATION_PORTRAIT
     val bottomPad = if (state.previewMode) {
         (16.dp + playerDim(R.dimen.vs_30) / 2 - PreviewPlayPauseBox / 2).coerceAtLeast(0.dp)
     } else {
@@ -110,6 +115,16 @@ fun PlayerBottomBar(
                     }
                 }
             }
+        }
+
+        if (portraitActions) {
+            PlayerActionIcons(
+                actions = actions,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                spread = true,
+            )
         }
 
         Row(

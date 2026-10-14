@@ -6,30 +6,20 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 
 object WatchProgressStore {
 
     private const val WRITER_THREAD_NAME = "vod-progress-writer"
 
-    private const val DRAIN_TIMEOUT_MS = 500L
-
     private val writer: ExecutorService by lazy {
-        Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, WRITER_THREAD_NAME).also { writerThread = it }
-        }
+        Executors.newSingleThreadExecutor { runnable -> Thread(runnable, WRITER_THREAD_NAME) }
     }
 
     private val cache: CacheRepository by lazy { AppGraph.cacheRepository }
-
-    private val pendingWrites = AtomicInteger(0)
-
-    @Volatile
-    private var writerThread: Thread? = null
 
     private val indexLock = Any()
 
@@ -41,39 +31,33 @@ object WatchProgressStore {
 
     private val discardedKeys: MutableSet<String> = HashSet()
 
-    private fun submit(task: () -> Unit) {
-        pendingWrites.incrementAndGet()
-        try {
+    private fun submit(task: suspend () -> Unit): Boolean {
+        return try {
             writer.execute {
                 try {
-                    task()
+                    runBlocking { task() }
                 } catch (th: Throwable) {
                     LOG.e("WatchProgressStore", "echo-progress write failed: " + th, th)
-                } finally {
-                    pendingWrites.decrementAndGet()
                 }
             }
+            true
         } catch (th: Throwable) {
-            pendingWrites.decrementAndGet()
             LOG.e("WatchProgressStore", "echo-progress submit failed: " + th, th)
+            false
         }
     }
 
-    @JvmStatic
-    fun awaitWrites() {
-        if (pendingWrites.get() == 0) return
-        if (Thread.currentThread() === writerThread) return
-        try {
-            val barrier = CountDownLatch(1)
-            writer.execute { barrier.countDown() }
-            if (!barrier.await(DRAIN_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                LOG.i("echo-progress drain-timeout pending=" + pendingWrites.get())
+    suspend fun <T> submitAndAwait(block: suspend () -> T): T {
+        val result = CompletableDeferred<T>()
+        val accepted = submit {
+            try {
+                result.complete(block())
+            } catch (th: Throwable) {
+                result.completeExceptionally(th)
             }
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-        } catch (th: Throwable) {
-            LOG.e("WatchProgressStore", "echo-progress drain failed: " + th, th)
         }
+        if (!accepted) result.completeExceptionally(IllegalStateException("echo-progress queue rejected"))
+        return result.await()
     }
 
     @JvmStatic
@@ -148,14 +132,15 @@ object WatchProgressStore {
     @JvmStatic
     fun clearOwner(owner: String?) {
         if (owner.isNullOrEmpty()) return
-        awaitWrites()
-        val cleared = synchronized(indexLock) { clearTitleLocked(owner) }
-        discard(cleared)
-        LOG.i("echo-progress clear-owner owner=" + owner + " eps=" + cleared.size)
-        PlaybackPorts.discardStartedContentOf?.invoke(listOf(owner))
-        if (cleared.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(cleared)
-        PlaybackProgress.forget(owner)
-        EpisodeTotals.remove(owner)
+        submit {
+            val cleared = clearTitleLocked(owner)
+            discard(cleared)
+            LOG.i("echo-progress clear-owner owner=" + owner + " eps=" + cleared.size)
+            PlaybackPorts.discardStartedContentOf?.invoke(listOf(owner))
+            if (cleared.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(cleared)
+            PlaybackProgress.forget(owner)
+            EpisodeTotals.remove(owner)
+        }
     }
 
     @JvmStatic
@@ -179,47 +164,56 @@ object WatchProgressStore {
 
     @JvmStatic
     fun clearAll() {
-        awaitWrites()
-        var titles = 0
-        val owners = ArrayList<String>()
-        val keys = ArrayList<String>()
-        synchronized(indexLock) {
-            for (indexKey in KV.keys(WatchProgressIndex.KEY_PREFIX)) {
+        submit {
+            var titles = 0
+            val owners = ArrayList<String>()
+            val keys = ArrayList<String>()
+            val indexKeys = KV.keys(WatchProgressIndex.KEY_PREFIX).toList()
+            for (indexKey in indexKeys) {
                 titles++
                 val owner = WatchProgressIndex.ownerOf(indexKey)
                 owners.add(owner)
                 keys.addAll(clearTitleLocked(owner))
             }
+            discard(keys)
+            PlaybackPorts.discardStartedContentOf?.invoke(owners)
+            if (keys.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(keys)
+            val stale = cache.clearAllProgress()
+            discardHashed(stale)
+            LOG.i("echo-progress clear-all titles=" + titles + " eps=" + keys.size + " stale=" + stale.size)
+            PlaybackProgress.forgetAll()
+            EpisodeTotals.removeAll()
         }
-        discard(keys)
-        PlaybackPorts.discardStartedContentOf?.invoke(owners)
-        if (keys.isNotEmpty()) PlaybackPorts.onProgressKeysCleared?.invoke(keys)
-        val stale = cache.clearAllProgress()
-        discardHashed(stale)
-        LOG.i("echo-progress clear-all titles=" + titles + " eps=" + keys.size + " stale=" + stale.size)
-        PlaybackProgress.forgetAll()
-        EpisodeTotals.removeAll()
     }
 
-    private fun clearTitleLocked(owner: String): List<String> {
+    private fun takeTitleLocked(owner: String): List<String> {
         val indexKey = WatchProgressIndex.keyOf(owner)
         val eps = WatchProgressIndex.decode(KV.get(indexKey, ""))?.eps.orEmpty()
-        eps.forEach {
-            discardedKeys.add(md5(it))
-            cache.delete(md5(it), 0L)
-        }
+        eps.forEach { discardedKeys.add(md5(it)) }
         KV.delete(indexKey)
         return eps
     }
 
-    private fun remember(owner: String?, ep: String) {
-        if (owner.isNullOrEmpty()) return
-        synchronized(indexLock) {
-            if (discardedKeys.contains(md5(ep))) return
+    private suspend fun clearTitleLocked(owner: String): List<String> {
+        val eps = synchronized(indexLock) { takeTitleLocked(owner) }
+        eps.forEach { cache.delete(md5(it), 0L) }
+        return eps
+    }
+
+    private fun indexEpisodeLocked(owner: String, ep: String): Boolean = synchronized(indexLock) {
+        if (discardedKeys.contains(md5(ep))) {
+            false
+        } else {
             val key = WatchProgressIndex.keyOf(owner)
             KV.put(key, WatchProgressIndex.withEp(KV.get(key, ""), ep, System.currentTimeMillis()))
-            trimCapacityLocked(owner)
+            true
         }
+    }
+
+    private suspend fun remember(owner: String?, ep: String) {
+        if (owner.isNullOrEmpty()) return
+        if (!indexEpisodeLocked(owner, ep)) return
+        trimCapacityLocked(owner)
     }
 
     private fun forget(owner: String?, ep: String) {
@@ -231,7 +225,7 @@ object WatchProgressStore {
         }
     }
 
-    private fun trimCapacityLocked(justSavedOwner: String) {
+    private suspend fun trimCapacityLocked(justSavedOwner: String) {
         val now = System.currentTimeMillis()
         if (now - lastTrimAt < TRIM_INTERVAL_MS) return
         lastTrimAt = now

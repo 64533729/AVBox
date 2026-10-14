@@ -252,7 +252,7 @@ class SpiderLoader {
             }
 
             override fun complete(file: File?, error: String?) {
-                if (file != null && file.exists()) {
+                if (file == cache) {
                     loadJarAsync(file, object : JarLoadCallback {
                         override fun complete(success: Boolean) {
                             if (success) {

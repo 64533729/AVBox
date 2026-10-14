@@ -1,10 +1,10 @@
 package com.github.tvbox.osc.ui.components
 
-import android.content.Context
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.request.crossfade
 import com.github.tvbox.osc.net.OkGoHelper
+import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.LOG
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -20,10 +20,10 @@ object VodImages {
     private const val PIC_HTTP_CACHE_MB = 250L
     private const val DOUBAN_SMALL_POSTER = "/s_ratio_poster/"
     private const val DOUBAN_LARGE_POSTER = "/l_ratio_poster/"
+    @Volatile
     private var picCacheDir: File? = null
 
-    fun init(context: Context) {
-        picCacheDir = File(context.cacheDir, "pic_http_cache")
+    fun init() {
         SingletonImageLoader.setSafe { appContext ->
             ImageLoader.Builder(appContext)
                 .components {
@@ -34,9 +34,16 @@ object VodImages {
         }
     }
 
+    private fun picCache(): File? {
+        picCacheDir?.let { return it }
+        val dir = File(requireNotNull(AppContextHolder.context()) { "app context not initialized" }.cacheDir, "pic_http_cache")
+        picCacheDir = dir
+        return dir
+    }
+
     private fun picClient(): OkHttpClient = OkHttpClient.Builder()
         .apply { OkGoHelper.getDefaultClient()?.dns?.let { dns(it) } }
-        .cache(picCacheDir?.let { Cache(it, PIC_HTTP_CACHE_MB * 1024L * 1024L) })
+        .cache(picCache()?.let { Cache(it, PIC_HTTP_CACHE_MB * 1024L * 1024L) })
         .addInterceptor(picHeaderInterceptor)
         .addNetworkInterceptor(picForceCacheInterceptor)
         .connectTimeout(15, TimeUnit.SECONDS)

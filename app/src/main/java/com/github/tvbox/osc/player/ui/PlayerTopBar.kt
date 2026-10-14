@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.player.ui
 
+import android.content.res.Configuration
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -37,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.state.PlayerActions
@@ -52,11 +55,93 @@ private val TopBarSysInfoHeight = 16.dp
 
 private val TopBarBatteryIconSize = 16.dp
 
-private val TopBarActionSize = 42.dp
+internal val TopBarActionSize = 42.dp
 
-private val TopBarActionIconSize = 28.dp
+internal val TopBarActionIconSize = 28.dp
 
 private val TopBarActionSpacing = 6.dp
+
+@Composable
+internal fun PlayerActionIcons(
+    actions: PlayerActions,
+    modifier: Modifier = Modifier,
+    size: Dp = TopBarActionSize,
+    iconSize: Dp = TopBarActionIconSize,
+    spread: Boolean = false,
+) {
+    Row(
+        modifier,
+        horizontalArrangement = if (spread) Arrangement.Start else Arrangement.spacedBy(TopBarActionSpacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayerActionIconButton(
+            iconRes = R.drawable.ic_detail_cast,
+            contentDescription = stringResource(R.string.common_cast),
+            box = size,
+            iconSize = iconSize,
+            expand = spread,
+            onClick = actions::onCastClicked,
+        )
+        PlayerActionIconButton(
+            iconRes = R.drawable.player_ic_menu_subtitle,
+            contentDescription = stringResource(R.string.player_menu_subtitle),
+            box = size,
+            iconSize = iconSize,
+            expand = spread,
+            onClick = actions::onSubtitleClicked,
+            onLongClick = actions::onSubtitleLongClicked,
+        )
+        PlayerActionIconButton(
+            iconRes = R.drawable.player_ic_menu_danmu,
+            contentDescription = stringResource(R.string.player_menu_danmu),
+            box = size,
+            iconSize = iconSize,
+            expand = spread,
+            onClick = actions::onDanmuSettingClicked,
+            onLongClick = actions::onDanmuSettingLongClicked,
+        )
+        PlayerActionIconButton(
+            iconRes = R.drawable.player_ic_menu_audio,
+            contentDescription = stringResource(R.string.player_menu_audio_track),
+            box = size,
+            iconSize = iconSize,
+            expand = spread,
+            onClick = actions::onAudioTrackClicked,
+        )
+        PlayerActionIconButton(
+            iconRes = R.drawable.player_ic_menu_video,
+            contentDescription = stringResource(R.string.player_menu_video_track),
+            box = size,
+            iconSize = iconSize,
+            expand = spread,
+            onClick = actions::onVideoTrackClicked,
+        )
+    }
+}
+
+@Composable
+private fun RowScope.PlayerActionIconButton(
+    @DrawableRes iconRes: Int,
+    contentDescription: String,
+    box: Dp,
+    iconSize: Dp,
+    expand: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+) {
+    Box(
+        if (expand) Modifier.weight(1f).height(box) else Modifier.size(box),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .size(iconSize)
+                .playerPressEffect(onTap = onClick, onLongClick = onLongClick),
+        )
+    }
+}
 
 internal const val TOP_BAR_ROOT_TAG = "playerTopBarRoot"
 
@@ -64,6 +149,9 @@ internal const val TOP_BAR_BACK_TAG = "playerTopBarBack"
 
 @Composable
 fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
+    val configuration = LocalConfiguration.current
+    val showActionsInTopBar = configuration.screenWidthDp >= 600 ||
+        configuration.orientation != Configuration.ORIENTATION_PORTRAIT
     val rightVisible = state.topRightVisible && !state.previewMode
     val anyVisible = state.topLeftVisible || rightVisible
     val edge = playerEdgePadding()
@@ -201,64 +289,14 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
                                 maxLines = 1,
                             )
                         }
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(TopBarActionSpacing),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TopBarIconButton(
-                                iconRes = R.drawable.ic_detail_cast,
-                                contentDescription = stringResource(R.string.common_cast),
-                                onClick = actions::onCastClicked,
-                            )
-                            TopBarIconButton(
-                                iconRes = R.drawable.player_ic_menu_subtitle,
-                                contentDescription = stringResource(R.string.player_menu_subtitle),
-                                onClick = actions::onSubtitleClicked,
-                                onLongClick = actions::onSubtitleLongClicked,
-                            )
-                            TopBarIconButton(
-                                iconRes = R.drawable.player_ic_menu_danmu,
-                                contentDescription = stringResource(R.string.player_menu_danmu),
-                                onClick = actions::onDanmuSettingClicked,
-                                onLongClick = actions::onDanmuSettingLongClicked,
-                            )
-                            TopBarIconButton(
-                                iconRes = R.drawable.player_ic_menu_audio,
-                                contentDescription = stringResource(R.string.player_menu_audio_track),
-                                onClick = actions::onAudioTrackClicked,
-                            )
-                            TopBarIconButton(
-                                iconRes = R.drawable.player_ic_menu_video,
-                                contentDescription = stringResource(R.string.player_menu_video_track),
-                                onClick = actions::onVideoTrackClicked,
-                            )
+                        if (showActionsInTopBar) {
+                            PlayerActionIcons(actions = actions)
                         }
                     }
                 }
             }
         }
     }
-    }
-}
-
-@Composable
-private fun TopBarIconButton(
-    @DrawableRes iconRes: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-) {
-    Box(
-        Modifier.size(TopBarActionSize),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = contentDescription,
-            modifier = Modifier
-                .size(TopBarActionIconSize)
-                .playerPressEffect(onTap = onClick, onLongClick = onLongClick),
-        )
     }
 }
 

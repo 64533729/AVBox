@@ -15,6 +15,7 @@ import com.github.tvbox.osc.data.HistoryWriter
 import com.github.tvbox.osc.data.VodFollow
 import com.github.tvbox.osc.event.RefreshEvent
 import com.github.tvbox.osc.net.SearchHelper
+import com.github.tvbox.osc.player.PlaybackService
 import com.github.tvbox.osc.player.PlaybackSession
 import com.github.tvbox.osc.sourcedata.SourceViewModel
 import com.github.tvbox.osc.util.HistoryHelper
@@ -314,8 +315,7 @@ class DetailViewModel : ViewModel() {
         sourceKey = key.orEmpty()
         firstsourceKey = sourceKey
         usedSourceKeys.add(firstsourceKey)
-        collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
-        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
+        refreshCollectState(sourceKey, vodId)
         if (DetailResponseGuard.isUnloadableTarget(vodId, ApiConfig.get().getSource(sourceKey) == null)) {
             onDetailUnavailable()
             return
@@ -325,6 +325,28 @@ class DetailViewModel : ViewModel() {
     }
 
     private fun nextDetailRequestToken(): Int = ++detailRequestToken
+
+    private fun refreshCollectState(key: String, vid: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val isCollected = try {
+                AppGraph.collectRepository.isVodCollect(key, vid)
+            } catch (th: Throwable) {
+                LOG.e("DetailViewModel", "collect state read failed: " + th, th)
+                return@launch
+            }
+            val followRecord = try {
+                AppGraph.followRepository.find(key, vid)
+            } catch (th: Throwable) {
+                LOG.e("DetailViewModel", "follow state read failed: " + th, th)
+                return@launch
+            }
+            withContext(Dispatchers.Main) {
+                if (sourceKey != key || vodId != vid) return@withContext
+                collected.value = isCollected
+                follow.value = followRecord
+            }
+        }
+    }
 
     fun retry() {
         if (vodId.isEmpty()) return
@@ -648,8 +670,7 @@ class DetailViewModel : ViewModel() {
         vodId = vid
         sourceKey = key
         firstsourceKey = key
-        collected.value = AppGraph.collectRepository.isVodCollect(sourceKey, vodId)
-        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
+        refreshCollectState(sourceKey, vodId)
         sourceViewModel.getDetail(sourceKey, vodId, true, requestToken)
     }
 
@@ -784,11 +805,24 @@ class DetailViewModel : ViewModel() {
 
     fun toggleCollect() {
         val info = vodInfo ?: return
+        val key = sourceKey
         if (collected.value) {
-            AppGraph.collectRepository.deleteVodCollect(sourceKey, info)
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    AppGraph.collectRepository.deleteVodCollect(key, info)
+                } catch (th: Throwable) {
+                    LOG.e("DetailViewModel", "collect delete failed: " + th, th)
+                }
+            }
             toastEvent.value = str(R.string.toast_removed_from_collect)
         } else {
-            AppGraph.collectRepository.insertVodCollect(sourceKey, info)
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    AppGraph.collectRepository.insertVodCollect(key, info)
+                } catch (th: Throwable) {
+                    LOG.e("DetailViewModel", "collect insert failed: " + th, th)
+                }
+            }
             toastEvent.value = str(R.string.toast_added_to_collect)
         }
         collected.value = !collected.value
@@ -796,8 +830,17 @@ class DetailViewModel : ViewModel() {
 
     fun saveFollow(days: Set<Int>, hour: Int) {
         val info = vodInfo ?: return
-        AppGraph.followRepository.upsert(sourceKey, info, days, hour)
-        follow.value = AppGraph.followRepository.find(sourceKey, vodId)
+        val key = sourceKey
+        val vid = vodId
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                AppGraph.followRepository.upsert(key, info, days, hour)
+                val record = AppGraph.followRepository.find(key, vid)
+                withContext(Dispatchers.Main) { follow.value = record }
+            } catch (th: Throwable) {
+                LOG.e("DetailViewModel", "follow save failed: " + th, th)
+            }
+        }
         toastEvent.value = str(R.string.toast_follow_saved)
     }
 
@@ -869,6 +912,8 @@ class DetailViewModel : ViewModel() {
         val playing = App.getInstance()?.getVodInfo() ?: return
         if (playing.id != info.id || playing.sourceKey != info.sourceKey) return
         if (playing.playFlag != info.playFlag || playing.playIndex != info.playIndex) return
+        val controller = PlaybackService.peek()?.controller() ?: return
+        if (!controller.isSameStartedContent()) return
         LOG.i("echo-history insert on playback-started key=" + sourceKey + "|" + vodId)
         insertVod()
     }

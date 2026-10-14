@@ -6,10 +6,16 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.player.danmu.DanmuLoadController
 import com.github.tvbox.osc.player.state.DanmuSearchSheetState
 import master.flame.danmaku.ui.widget.DanmakuView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 private const val PRELOAD_TOAST_REFRESH_DELAY_MS = 1000L
 
 internal class PlayContainerOverlays(private val host: PlayContainer) {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var preloadReadyToast: Toast? = null
 
@@ -138,21 +144,25 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
             host.scheduler.cancelPlayTimeout()
             hideTipOnUiThread()
             if (host.scheduler.retryAfterStartedError()) return
-            if (host.scheduler.autoRetry()) return
-            host.scheduler.stopMusicSessionForFailedPlayback()
-            if (!host.isAttached()) return
-            setTip(err, false, true)
-            if (finish) {
-                Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+            scope.launch {
+                if (host.scheduler.autoRetry()) return@launch
+                host.scheduler.stopMusicSessionForFailedPlayback()
+                if (!host.isAttached()) return@launch
+                setTip(err, false, true)
+                if (finish) {
+                    Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+                }
             }
             return
         }
-        if (!host.scheduler.autoRetry()) {
-            host.scheduler.stopMusicSessionForFailedPlayback()
-            if (!host.isAttached()) return
-            setTip(err, false, true)
-            if (finish) {
-                Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+        scope.launch {
+            if (!host.scheduler.autoRetry()) {
+                host.scheduler.stopMusicSessionForFailedPlayback()
+                if (!host.isAttached()) return@launch
+                setTip(err, false, true)
+                if (finish) {
+                    Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

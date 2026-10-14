@@ -119,9 +119,9 @@ Gson 用 `Unsafe` 直接分配实例、**不走构造器**，所以“没有无�
 
 - `SourceHelper.SPIDER_POOL` / `PREPARE_POOL` 是**共享池**，不得变成每请求新建；迁 Kotlin 后仍指向同一实例。
 - QuickJS 线程亲和：超时不能 cancel 掉正在跑脚本的线程。
-- `allowMainThreadQueries()` 主线程查库是显式设计；进度写入走 `vod-progress-writer`（读须 `awaitWrites`）。
+- 主线程查库**已禁止**（2026-10-14 落地，见 `review/refactor-plan-20261014.md`）：`allowMainThreadQueries()` 已删，Room 对主线程查库直接抛 `IllegalStateException`；四 Repository 凡触达 DB 的方法一律 `suspend`（唯一同步例外 = `currentCid()` 纯 KV 读）。进度面的读/写/删同走 `vod-progress-writer` 单线程队列，读经 `WatchProgressStore.submitAndAwait` 入队；`awaitWrites()` 屏障已删除，改由**队列序**保证「clear 先于其后 read」。
 - `synchronized (sortCache)` 的 access-order 加锁语义原样保留。
-- Repository 内出现 `withContext(` / `flowOn(` 即驳回（除 M0 白名单）——会改 D6 线程语义与读序。
+- Repository 内出现 `withContext(` / `flowOn(` 即驳回（除 M0 白名单）——会改 D6 线程语义与读序。**2026-10-14 修订**：`RoomCacheRepository` 的 Java 序列化段（`toObject`/`toByteArray`）为**唯一例外**，包 `withContext(Dispatchers.IO)`；读序契约已由 `awaitWrites()` 改为进度面单队列的顺序保证。原 D10 的该条限制随之作废。
 
 # 6. 唯一授权的结构变更
 

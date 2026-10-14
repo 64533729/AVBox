@@ -247,9 +247,7 @@ class SearchViewModel : ViewModel() {
                             pendingSources[bean.key.orEmpty()] = done
                             try {
                                 withTimeoutOrNull(SEARCH_TIMEOUT_MS) {
-                                    withContext(Dispatchers.IO) {
-                                        searchCaller.getSearch(bean.key, t, tokenStr)
-                                    }
+                                    searchCaller.getSearch(bean.key, t, tokenStr)
                                     done.await()
                                 }
                             } finally {

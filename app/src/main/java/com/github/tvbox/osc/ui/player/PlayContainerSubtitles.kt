@@ -29,6 +29,11 @@ import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.SubtitleHelper
 import com.github.tvbox.osc.util.TrackMemory
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 internal class PlayContainerSubtitles(private val host: PlayContainer) {
 
@@ -37,6 +42,10 @@ internal class PlayContainerSubtitles(private val host: PlayContainer) {
     private var exoInternalSubtitle: Boolean = false
 
     private var subtitleDecisionSeq: Int = 0
+
+    private var subtitleInitSeq: Int = 0
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun setSubtitle(path: String?) {
         if (path != null && path.length > 0) {
@@ -296,50 +305,58 @@ internal class PlayContainerSubtitles(private val host: PlayContainer) {
     }
 
     fun initSubtitleView() {
-        val view = host.mVideoView ?: return
-        var trackInfo: TrackInfo? = null
-        val mediaPlayer = view.mediaPlayer
-        host.mController.getLyricView().setTextSize(if (host.previewMode) 16f else 24f)
-        applySubtitleTextSize()
-        host.mController.getLyricView().setVisibility(View.GONE)
-        host.mController.getLyricView().reset()
-        host.mController.getLyricView().bindToMediaPlayer(mediaPlayer)
-        host.mController.getLyricView().setMergeSameTime(true)
-        host.mController.getLyricView().setLyricMode(true)
-        host.mController.getLyricView().setPlaySubtitleCacheKey(host.scheduler.lyricCacheKey())
-        host.mController.getSubtitleView().hasInternal = false
-        host.mController.getSubtitleView().isInternal = false
-        hideExoInternalSubtitle()
-        val memoryKey = trackMemoryKey()
-        if (mediaPlayer is ExoPlayer) {
-            mediaPlayer.setContentKey(memoryKey)
-            trackInfo = mediaPlayer.getTrackInfo()
-            if (trackInfo != null && !trackInfo.getSubtitle().isEmpty()) {
-                host.mController.getSubtitleView().hasInternal = true
-                exoInternalSubtitle = true
-                host.mController.getExoSubtitleView().setVisibility(View.VISIBLE)
-                mediaPlayer.setInternalSubtitleDelay(SubtitleHelper.getTimeDelay())
-                mediaPlayer.setOnCuesListener { cues -> onExoCues(cues) }
-                applyExoSubtitleSettings()
+        val seq = ++subtitleInitSeq
+        scope.launch {
+            val view = host.mVideoView ?: return@launch
+            val lyricKey = host.scheduler.lyricCacheKey()
+            val subtitleKey = host.scheduler.subtitleCacheKey()
+            val cachedPaths = async(Dispatchers.IO) {
+                cachedPlayPath(lyricKey) to cachedPlayPath(subtitleKey)
             }
-            mediaPlayer.restoreTracks()
+            var trackInfo: TrackInfo? = null
+            val mediaPlayer = view.mediaPlayer
+            host.mController.getLyricView().setTextSize(if (host.previewMode) 16f else 24f)
+            applySubtitleTextSize()
+            host.mController.getLyricView().setVisibility(View.GONE)
+            host.mController.getLyricView().reset()
+            host.mController.getLyricView().bindToMediaPlayer(mediaPlayer)
+            host.mController.getLyricView().setMergeSameTime(true)
+            host.mController.getLyricView().setLyricMode(true)
+            host.mController.getLyricView().setPlaySubtitleCacheKey(lyricKey)
+            host.mController.getSubtitleView().hasInternal = false
+            host.mController.getSubtitleView().isInternal = false
+            hideExoInternalSubtitle()
+            val memoryKey = trackMemoryKey()
+            if (mediaPlayer is ExoPlayer) {
+                mediaPlayer.setContentKey(memoryKey)
+                trackInfo = mediaPlayer.getTrackInfo()
+                if (trackInfo != null && !trackInfo.getSubtitle().isEmpty()) {
+                    host.mController.getSubtitleView().hasInternal = true
+                    exoInternalSubtitle = true
+                    host.mController.getExoSubtitleView().setVisibility(View.VISIBLE)
+                    mediaPlayer.setInternalSubtitleDelay(SubtitleHelper.getTimeDelay())
+                    mediaPlayer.setOnCuesListener { cues -> onExoCues(cues) }
+                    applyExoSubtitleSettings()
+                }
+                mediaPlayer.restoreTracks()
+            }
+            val cached = cachedPaths.await()
+            if (seq != subtitleInitSeq) return@launch
+            var lyricPath = host.scheduler.playLyric()
+            if (lyricPath.isNullOrEmpty() || !lyricPath.startsWith("data:")) {
+                if (!TextUtils.isEmpty(cached.first)) lyricPath = cached.first
+            }
+            if (!TextUtils.isEmpty(lyricPath)) {
+                host.mController.getLyricView().setSubtitlePath(lyricPath)
+                host.mController.getLyricView().setVisibility(View.VISIBLE)
+            }
+            host.mController.getSubtitleView().bindToMediaPlayer(view.mediaPlayer)
+            host.mController.getSubtitleView().setPlaySubtitleCacheKey(subtitleKey)
+            applySubtitleDecision(mediaPlayer, trackInfo, cached.second)
         }
-        val lyric = host.scheduler.playLyric()
-        var lyricPath = lyric
-        if (lyric.isNullOrEmpty() || !lyric.startsWith("data:")) {
-            val cachedLyric = cachedPlayPath(host.scheduler.lyricCacheKey())
-            if (!TextUtils.isEmpty(cachedLyric)) lyricPath = cachedLyric
-        }
-        if (!TextUtils.isEmpty(lyricPath)) {
-            host.mController.getLyricView().setSubtitlePath(lyricPath)
-            host.mController.getLyricView().setVisibility(View.VISIBLE)
-        }
-        host.mController.getSubtitleView().bindToMediaPlayer(view.mediaPlayer)
-        host.mController.getSubtitleView().setPlaySubtitleCacheKey(host.scheduler.subtitleCacheKey())
-        applySubtitleDecision(mediaPlayer, trackInfo)
     }
 
-    private fun applySubtitleDecision(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?) {
+    private fun applySubtitleDecision(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?, cachedSubtitlePath: String) {
         val memoryKey = trackMemoryKey()
         subtitleDecisionSeq++
         val record = TrackMemory.loadSubtitle(memoryKey)
@@ -358,18 +375,17 @@ internal class PlayContainerSubtitles(private val host: PlayContainer) {
             val player = mediaPlayer
             val info = trackInfo
             resolveRememberedOnlineSubtitle(memoryKey, record) {
-                applyDefaultSubtitle(player, info)
+                applyDefaultSubtitle(player, info, cachedSubtitlePath)
             }
             return
         } else if (TrackMemory.isSubtitleTrack(record) && host.mController.getSubtitleView().hasInternal) {
             showInternalSubtitle(mediaPlayer)
             return
         }
-        applyDefaultSubtitle(mediaPlayer, trackInfo)
+        applyDefaultSubtitle(mediaPlayer, trackInfo, cachedSubtitlePath)
     }
 
-    private fun applyDefaultSubtitle(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?) {
-        val subtitlePathCache = cachedPlayPath(host.scheduler.subtitleCacheKey())
+    private fun applyDefaultSubtitle(mediaPlayer: KernelPlayer?, trackInfo: TrackInfo?, subtitlePathCache: String) {
         if (!subtitlePathCache.isEmpty()) {
             hideExoInternalSubtitle()
             host.mController.getSubtitleView().setSubtitlePath(subtitlePathCache)
@@ -476,7 +492,7 @@ internal class PlayContainerSubtitles(private val host: PlayContainer) {
         return TrackMemory.contentKey(vod.sourceKey, vod.id)
     }
 
-    private fun cachedPlayPath(cacheKey: String?): String {
+    private suspend fun cachedPlayPath(cacheKey: String?): String {
         if (TextUtils.isEmpty(cacheKey)) return ""
         val cached = AppGraph.cacheRepository.get(MD5.string2MD5(cacheKey))
         if (cached !is String) return ""

@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -69,7 +70,12 @@ import com.github.tvbox.osc.ui.page.shouldPrefetchNextPage
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.github.tvbox.osc.ui.page.jumpToSearch
 
 class PartitionListActivity : BaseActivity() {
@@ -101,11 +107,16 @@ class PartitionListActivity : BaseActivity() {
         }
 
         fun startForSearch(context: Context, videos: List<Movie.Video>, title: String) {
-            context.startActivity(Intent(context, PartitionListActivity::class.java).apply {
-                putExtra(EXTRA_MODE, MODE_SEARCH)
-                putExtra(EXTRA_TITLE, title)
-                putExtra(EXTRA_VIDEOS, Gson().toJson(videos))
-            })
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                val videosJson = Gson().toJson(videos)
+                withContext(Dispatchers.Main) {
+                    context.startActivity(Intent(context, PartitionListActivity::class.java).apply {
+                        putExtra(EXTRA_MODE, MODE_SEARCH)
+                        putExtra(EXTRA_TITLE, title)
+                        putExtra(EXTRA_VIDEOS, videosJson)
+                    })
+                }
+            }
         }
     }
 
@@ -149,12 +160,11 @@ private fun PartitionListScreen(mode: String, title: String, sortJson: String?, 
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }
-    val searchVideos = remember(videosJson) {
-        if (videosJson == null) {
-            emptyList()
-        } else {
+    val searchVideos by produceState<List<Movie.Video>>(emptyList(), videosJson) {
+        val json = videosJson ?: return@produceState
+        value = withContext(Dispatchers.IO) {
             val type = object : TypeToken<List<Movie.Video>>() {}.type
-            Gson().fromJson<List<Movie.Video>>(videosJson, type)
+            Gson().fromJson<List<Movie.Video>>(json, type)
         }
     }
 

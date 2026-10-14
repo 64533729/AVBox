@@ -104,8 +104,6 @@ class CollectViewModel(
         EventBus.getDefault().unregister(this)
     }
 
-    val scrollSignal = MutableStateFlow(0)
-
     val placementAnim = MutableStateFlow(false)
 
     private fun recomputeUnavailableNow() {
