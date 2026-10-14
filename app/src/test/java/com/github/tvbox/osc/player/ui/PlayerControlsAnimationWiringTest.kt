@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.player.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -129,10 +128,9 @@ class PlayerControlsAnimationWiringTest {
                         onTapPending = { handler.markSingleTapConfirmed() },
                     ),
             ) {
-                AnimatedVisibility(
+                PlayerSlideVisibility(
                     visible = state.controlsVisible,
-                    enter = playerEnterFromBottom(0),
-                    exit = playerExitToBottom(0),
+                    fromTop = false,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 ) {
                     Box(Modifier.padding(bottom = 8.dp)) {
@@ -162,6 +160,7 @@ class PlayerControlsAnimationWiringTest {
         val recorder = Recorder()
         state.controlsVisible = false
         composeBottomOverlay(state, NoopActions(), recorder)
+        settle()
         tapBottomBand()
         assertTrue(
             "控件收起时底部区域必须仍能唤出控件, 实际派发: ${recorder.calls}",
@@ -185,7 +184,7 @@ class PlayerControlsAnimationWiringTest {
     }
 
     @Test
-    fun collapsingControlsRemovesTheBarFromTheTree() {
+    fun collapsingControlsMovesTheBarOffScreen() {
         val state = PlayerUiState()
         state.controlsVisible = true
         composeBottomOverlay(state, NoopActions(), Recorder())
@@ -193,7 +192,12 @@ class PlayerControlsAnimationWiringTest {
         rule.onNodeWithTag(TRANSPORT_PLAY_PAUSE_TAG).assertExists()
         state.controlsVisible = false
         settle()
-        rule.onNodeWithTag(TRANSPORT_PLAY_PAUSE_TAG).assertDoesNotExist()
+        val screenHeight = rule.onNodeWithTag("overlay").fetchSemanticsNode().size.height
+        val bounds = rule.onNodeWithTag(TRANSPORT_PLAY_PAUSE_TAG).fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "收起后控件必须整体移出屏幕, 实际 top=${bounds.top} / 屏高=$screenHeight",
+            bounds.top >= screenHeight,
+        )
     }
 
     @Test

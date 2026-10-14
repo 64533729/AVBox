@@ -2,7 +2,6 @@ package com.github.tvbox.osc.player.ui
 
 import android.content.res.Configuration
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -153,7 +152,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
     val showActionsInTopBar = configuration.screenWidthDp >= 600 ||
         configuration.orientation != Configuration.ORIENTATION_PORTRAIT
     val rightVisible = state.topRightVisible && !state.previewMode
-    val anyVisible = state.topLeftVisible || rightVisible
     val edge = playerEdgePadding()
     val topPad = if (state.previewMode) PreviewTopPadding else FullscreenTopPadding
     val density = LocalDensity.current
@@ -168,7 +166,7 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
     val extraTop = if (barTopPx.isNaN()) {
         0.dp
     } else {
-        with(density) { (topInsetPx - barTopPx).coerceAtLeast(0f).toDp() }
+        with(density) { (topInsetPx - barTopPx).coerceIn(0f, topInsetPx.toFloat()).toDp() }
     }
     Box(
         Modifier
@@ -178,12 +176,7 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
                 barTopPx = it.positionInWindow().y
             }
     ) {
-        AnimatedVisibility(
-            visible = anyVisible,
-            enter = playerEnterFromTop(playerSlidePx()),
-            exit = playerExitToTop(playerSlidePx()),
-        ) {
-            Box {
+        Box {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -296,7 +289,6 @@ fun PlayerTopBar(state: PlayerUiState, actions: PlayerActions) {
                 }
             }
         }
-    }
     }
 }
 

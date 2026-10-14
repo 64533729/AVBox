@@ -235,7 +235,6 @@ private fun PictureEffectUnavailableReason.hintRes(): Int? = when (this) {
     PictureEffectUnavailableReason.None -> null
     PictureEffectUnavailableReason.Tunneling -> R.string.player_picture_unavailable_tunnel
     PictureEffectUnavailableReason.Hdr -> R.string.player_picture_unavailable_hdr
-    PictureEffectUnavailableReason.RestartRequired -> R.string.player_picture_unavailable_restart
     PictureEffectUnavailableReason.DecoderUnsupported -> R.string.player_picture_unavailable_decoder
 }
 

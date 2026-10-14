@@ -2,10 +2,14 @@ package com.github.tvbox.osc.player
 
 import android.content.Context
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import coil3.request.Disposable
@@ -19,10 +23,59 @@ import master.flame.danmaku.controller.DrawHandler
 import master.flame.danmaku.danmaku.model.BaseDanmaku
 import master.flame.danmaku.danmaku.model.DanmakuTimer
 import master.flame.danmaku.ui.widget.DanmakuView
+import kotlin.math.abs
+
+private const val DANMU_SMALL_SEEK_MS = 5000L
+private const val DANMU_SEEK_FADE_IN_DELAY_MS = 80L
+private const val DANMU_SEEK_FADE_IN_MS = 250L
+private const val DANMU_CATCH_UP_MIN_STEP_MS = 32L
+private const val DANMU_CATCH_UP_FRAMES = 20
+private const val DANMU_CATCH_UP_DONE_MS = 50L
+private const val DANMU_CLOCK_DRIFT_HARD_MS = 2000.0
+private const val DANMU_CLOCK_TRACK_GAIN_PER_SEC = 0.3
 
 class MyVideoView : AppPlayerView, DrawHandler.Callback {
 
     private var danmuView: DanmakuView? = null
+
+    @Volatile
+    private var danmuClockMs: Long = 0L
+
+    @Volatile
+    private var danmuClockRunning: Boolean = false
+
+    @Volatile
+    private var danmuCatchUp: Boolean = false
+
+    private var danmuFadeInRunnable: Runnable? = null
+
+    private var danmuClockBasePositionMs: Long = 0L
+
+    private var danmuClockBaseNanos: Long = 0L
+
+    private var danmuClockBaseSpeed: Float = 1f
+
+    private var danmuClockBaseValid: Boolean = false
+
+    private var danmuClockAdvancing: Boolean = false
+
+    private var danmuClockFrozenMs: Long = 0L
+
+    private var danmuClockCorrectionMs: Double = 0.0
+
+    private var danmuClockLastFrameNanos: Long = 0L
+
+    private val danmuClockHandler = Handler(Looper.getMainLooper())
+
+    private val danmuClockChoreographer: Choreographer
+        get() = Choreographer.getInstance()
+
+    private val danmuClockTick = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            danmuClockMs = sampleDanmuClock(frameTimeNanos)
+            if (danmuClockRunning) danmuClockChoreographer.postFrameCallback(this)
+        }
+    }
 
     private var artworkView: ImageView? = null
 
@@ -275,7 +328,34 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
 
     override fun seekTo(pos: Long) {
         super.seekTo(pos)
-        if (haveDanmu()) danmuView?.seekTo(pos)
+        danmuClockBaseValid = false
+        if (!haveDanmu() || danmuClockMs <= 0) return
+        val delta = pos - danmuClockMs
+        if (delta in 0..DANMU_SMALL_SEEK_MS) {
+            startDanmuCatchUp()
+        } else {
+            hideAndSeekDanmu(pos)
+        }
+    }
+
+    private fun startDanmuCatchUp() {
+        danmuCatchUp = true
+    }
+
+    private fun hideAndSeekDanmu(pos: Long) {
+        val view = danmuView ?: return
+        danmuCatchUp = false
+        view.animate().cancel()
+        view.alpha = 0f
+        view.seekTo(pos)
+        danmuFadeInRunnable?.let { danmuClockHandler.removeCallbacks(it) }
+        val fadeIn = Runnable {
+            view.animate().alpha(1f).setDuration(DANMU_SEEK_FADE_IN_MS)
+                .withEndAction { view.alpha = 1f }
+                .start()
+        }
+        danmuFadeInRunnable = fadeIn
+        danmuClockHandler.postDelayed(fadeIn, DANMU_SEEK_FADE_IN_DELAY_MS)
     }
 
     override fun resume() {
@@ -296,28 +376,188 @@ class MyVideoView : AppPlayerView, DrawHandler.Callback {
     override fun release() {
         super.release()
         mTrackMemoryKey = ""
+        stopDanmuClock()
         if (haveDanmu()) danmuView?.release()
     }
 
     private fun haveDanmu(): Boolean = danmuView?.isPrepared == true
 
     fun setDanmuView(view: DanmakuView?) {
+        removeStaleDanmuViews(view)
         danmuView = view
         danmuView?.setCallback(this)
+        if (view == null) {
+            stopDanmuClock()
+        } else {
+            attachDanmuViewIntoContainer(view)
+            startDanmuClock()
+        }
+    }
+
+    private fun removeStaleDanmuViews(keep: DanmakuView?) {
+        for (i in mPlayerContainer.childCount - 1 downTo 0) {
+            val child = mPlayerContainer.getChildAt(i)
+            if (child is DanmakuView && child !== keep) {
+                mPlayerContainer.removeViewAt(i)
+            }
+        }
+    }
+
+    private fun attachDanmuViewIntoContainer(view: DanmakuView) {
+        val host = mVideoController?.controllerView()
+        val hostIndex = if (host != null && host.parent === mPlayerContainer) {
+            mPlayerContainer.indexOfChild(host)
+        } else {
+            -1
+        }
+        if (view.parent === mPlayerContainer) {
+            val currentIndex = mPlayerContainer.indexOfChild(view)
+            if (hostIndex < 0 || currentIndex < hostIndex) return
+            mPlayerContainer.removeView(view)
+            mPlayerContainer.addView(
+                view,
+                hostIndex,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            return
+        }
+        (view.parent as? ViewGroup)?.removeView(view)
+        val index = if (hostIndex >= 0) hostIndex else mPlayerContainer.childCount
+        mPlayerContainer.addView(
+            view,
+            index,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
+
+    fun startDanmuClock() {
+        danmuClockBaseValid = false
+        danmuClockLastFrameNanos = 0L
+        if (danmuClockRunning) return
+        danmuClockRunning = true
+        LOG.i("echo-danmu-clock start prepared=${danmuView?.isPrepared}")
+        danmuClockChoreographer.removeFrameCallback(danmuClockTick)
+        danmuClockChoreographer.postFrameCallback(danmuClockTick)
+    }
+
+    fun stopDanmuClock() {
+        if (danmuClockRunning) LOG.i("echo-danmu-clock stop")
+        danmuClockRunning = false
+        danmuCatchUp = false
+        danmuClockMs = 0L
+        danmuClockBaseValid = false
+        danmuClockAdvancing = false
+        danmuClockFrozenMs = 0L
+        danmuClockCorrectionMs = 0.0
+        danmuClockLastFrameNanos = 0L
+        danmuClockChoreographer.removeFrameCallback(danmuClockTick)
+        danmuFadeInRunnable?.let { danmuClockHandler.removeCallbacks(it) }
     }
 
     fun getDanmuView(): DanmakuView? = danmuView
 
+    private fun sampleDanmuClock(frameTimeNanos: Long): Long {
+        if (!danmuClockRunning) return danmuClockFrozenMs
+        val speed = mMediaPlayer?.speed ?: 1f
+        if (!isDanmuAdvancing()) {
+            if (danmuClockAdvancing) {
+                danmuClockFrozenMs = danmuClockExtrapolatedAt(frameTimeNanos) + danmuClockCorrectionMs.toLong()
+            }
+            danmuClockAdvancing = false
+            danmuClockBaseValid = false
+            danmuClockCorrectionMs = 0.0
+            danmuClockLastFrameNanos = frameTimeNanos
+            return danmuClockFrozenMs
+        }
+        if (!danmuClockAdvancing || !danmuClockBaseValid) {
+            rebaseDanmuClock(frameTimeNanos, speed)
+        } else if (speed != danmuClockBaseSpeed) {
+            retuneDanmuClock(frameTimeNanos, speed)
+        }
+        danmuClockAdvancing = true
+        val extrapolated = danmuClockExtrapolatedAt(frameTimeNanos)
+        trackDanmuClockDrift(frameTimeNanos, extrapolated)
+        danmuClockLastFrameNanos = frameTimeNanos
+        return (extrapolated + danmuClockCorrectionMs).toLong().coerceAtLeast(0L)
+    }
+
+    private fun danmuClockExtrapolatedAt(frameTimeNanos: Long): Long {
+        if (!danmuClockBaseValid) return danmuClockFrozenMs
+        val elapsedMs = (frameTimeNanos - danmuClockBaseNanos) / 1_000_000.0
+        return (danmuClockBasePositionMs + elapsedMs * danmuClockBaseSpeed).toLong()
+    }
+
+    private fun rebaseDanmuClock(frameTimeNanos: Long, speed: Float) {
+        danmuClockBasePositionMs = currentPosition
+        danmuClockBaseNanos = frameTimeNanos
+        danmuClockBaseSpeed = speed
+        danmuClockBaseValid = true
+        danmuClockLastFrameNanos = frameTimeNanos
+        danmuClockCorrectionMs = 0.0
+    }
+
+    private fun retuneDanmuClock(frameTimeNanos: Long, speed: Float) {
+        danmuClockBasePositionMs = danmuClockExtrapolatedAt(frameTimeNanos)
+        danmuClockBaseNanos = frameTimeNanos
+        danmuClockBaseSpeed = speed
+        danmuClockBaseValid = true
+        danmuClockLastFrameNanos = frameTimeNanos
+    }
+
+    private fun trackDanmuClockDrift(frameTimeNanos: Long, extrapolated: Long) {
+        if (danmuClockLastFrameNanos == 0L) return
+        val actual = currentPosition
+        if (actual <= 0) return
+        val drift = actual - (extrapolated + danmuClockCorrectionMs)
+        if (abs(drift) > DANMU_CLOCK_DRIFT_HARD_MS) {
+            LOG.i("echo-danmu-clock resync drift=$drift pos=$actual")
+            rebaseDanmuClock(frameTimeNanos, danmuClockBaseSpeed)
+            return
+        }
+        val deltaSeconds = ((frameTimeNanos - danmuClockLastFrameNanos) / 1_000_000_000.0).coerceAtMost(0.1)
+        danmuClockCorrectionMs += drift * DANMU_CLOCK_TRACK_GAIN_PER_SEC * deltaSeconds
+    }
+
+    private fun isDanmuAdvancing(): Boolean {
+        val player = mMediaPlayer ?: return false
+        if (!player.isPlaying) return false
+        return player.playState != PlayState.BUFFERING
+    }
+
     override fun prepared() {
-        post {
+        danmuClockHandler.post {
             val view = danmuView ?: return@post
             if (isPlaying && view.isPrepared) {
+                startDanmuClock()
                 view.start(currentPosition)
             }
         }
     }
 
     override fun updateTimer(timer: DanmakuTimer?) {
+        val t = timer ?: return
+        if (!danmuClockRunning) return
+        val position = danmuClockMs
+        if (position <= 0) return
+        if (!danmuCatchUp) {
+            t.update(position)
+            return
+        }
+        val current = t.currMillisecond
+        val diff = position - current
+        if (abs(diff) <= DANMU_CATCH_UP_DONE_MS) {
+            danmuCatchUp = false
+            t.update(position)
+            return
+        }
+        val step = maxOf(DANMU_CATCH_UP_MIN_STEP_MS, abs(diff) / DANMU_CATCH_UP_FRAMES)
+        t.update(if (diff > 0) current + step else current - step)
     }
 
     override fun danmakuShown(danmaku: BaseDanmaku?) {

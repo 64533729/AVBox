@@ -193,7 +193,6 @@
     <string name="player_picture_reset">Reset</string>
     <string name="player_picture_unavailable_tunnel">Started in tunneling mode: picture adjustment is off until playback restarts without tunneling</string>
     <string name="player_picture_unavailable_hdr">Picture adjustment is unavailable for HDR sources</string>
-    <string name="player_picture_unavailable_restart">Picture adjustment saved - it takes effect after playback restarts</string>
     <string name="player_picture_unavailable_decoder">The current decoder doesn\'t support picture adjustment</string>
 
     <string name="music_queue">Queue</string>

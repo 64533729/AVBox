@@ -41,7 +41,7 @@ object DanmuHelper {
 
     @JvmStatic
     fun getAlpha(): Float {
-        return KV.get(HawkConfig.DANMU_ALPHA, 0.9f)
+        return KV.get(HawkConfig.DANMU_ALPHA, 1.0f)
     }
 
     @JvmStatic

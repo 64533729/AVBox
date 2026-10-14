@@ -32,9 +32,9 @@ class PictureEffectUnavailableReasonTest {
     }
 
     @Test
-    fun closedPipe_withPendingLook_asksRestart() {
+    fun closedPipe_withPendingLook_neverHints() {
         assertEquals(
-            PictureEffectUnavailableReason.RestartRequired,
+            PictureEffectUnavailableReason.None,
             reason(pipeOpen = false, effectsActive = false),
         )
     }

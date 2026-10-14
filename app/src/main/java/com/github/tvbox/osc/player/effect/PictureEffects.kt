@@ -12,7 +12,7 @@ import com.github.tvbox.osc.util.LOG
 import java.lang.ref.WeakReference
 
 enum class PictureEffectUnavailableReason {
-    None, Tunneling, Hdr, RestartRequired, DecoderUnsupported;
+    None, Tunneling, Hdr, DecoderUnsupported;
 
     companion object {
         fun of(
@@ -24,7 +24,6 @@ enum class PictureEffectUnavailableReason {
         ): PictureEffectUnavailableReason = when {
             tunneling -> Tunneling
             hdr && hasLook -> Hdr
-            !pipeOpen && hasLook -> RestartRequired
             pipeOpen && !effectsActive && hasLook -> DecoderUnsupported
             else -> None
         }

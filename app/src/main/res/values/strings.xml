@@ -193,7 +193,6 @@
     <string name="player_picture_reset">恢复默认</string>
     <string name="player_picture_unavailable_tunnel">隧道模式起播，画面参数本集不生效；关闭隧道并重新起播后生效</string>
     <string name="player_picture_unavailable_hdr">HDR 片源不支持画面参数，当前按原样输出</string>
-    <string name="player_picture_unavailable_restart">画面参数已保存，重新起播后生效</string>
     <string name="player_picture_unavailable_decoder">当前解码方式不支持画面参数</string>
 
     <string name="music_queue">播放队列</string>

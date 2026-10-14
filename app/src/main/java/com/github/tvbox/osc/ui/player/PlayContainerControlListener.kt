@@ -22,7 +22,7 @@ class PlayContainerControlListener(private val container: PlayContainer) : VodCo
                 onOpenSearch = { container.openDanmuSearchSheet() },
                 onReset = {
                     DanmuHelper.reset()
-                    container.applyDanmuSettings(true)
+                    container.applyDanmuSettings(false)
                 },
             )
     }

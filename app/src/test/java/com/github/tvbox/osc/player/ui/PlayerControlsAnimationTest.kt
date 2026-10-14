@@ -51,9 +51,8 @@ class PlayerControlsAnimationTest {
     }
 
     @Test
-    fun slideStaysInsideTheLocalMotionBudget() {
-        assertTrue(PLAYER_SLIDE_DP in 1..16)
-        assertTrue(PLAYER_HINT_SLIDE_DP in 1..PLAYER_SLIDE_DP)
+    fun hintSlideStaysInsideTheLocalMotionBudget() {
+        assertTrue(PLAYER_HINT_SLIDE_DP in 1..16)
     }
 
     @Test

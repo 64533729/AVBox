@@ -4,7 +4,6 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.util.TypedValue
 import androidx.annotation.DimenRes
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -66,19 +65,16 @@ fun PlayerOverlay(
             ),
     ) {
         val iconBox = playerIconBox(maxWidth - playerEdgePadding() * 2)
-        val slidePx = playerSlidePx()
         PlayerTipLayer(state)
-        AnimatedVisibility(
-            visible = state.topLeftVisible || state.topRightVisible,
-            enter = playerEnterFromTop(slidePx),
-            exit = playerExitToTop(slidePx),
+        PlayerSlideVisibility(
+            visible = state.topLeftVisible || (state.topRightVisible && !state.previewMode),
+            fromTop = true,
         ) {
             PlayerTopBar(state, actions)
         }
-        AnimatedVisibility(
+        PlayerSlideVisibility(
             visible = state.controlsVisible,
-            enter = playerEnterFromBottom(slidePx),
-            exit = playerExitToBottom(slidePx),
+            fromTop = false,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             PlayerBottomBar(state, actions)

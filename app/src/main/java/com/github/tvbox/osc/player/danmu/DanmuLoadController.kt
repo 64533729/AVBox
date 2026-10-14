@@ -1,5 +1,7 @@
 package com.github.tvbox.osc.player.danmu
 
+import android.graphics.Typeface
+import android.os.Build
 import android.text.TextUtils
 import android.view.View
 import com.github.tvbox.osc.api.DanmakuApi
@@ -8,6 +10,7 @@ import com.github.tvbox.osc.player.controller.PlayerControlApi
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.util.DanmuHelper
 import com.github.tvbox.osc.util.LOG
+import com.github.tvbox.osc.util.PlayerUtils
 import master.flame.danmaku.danmaku.model.BaseDanmaku
 import master.flame.danmaku.danmaku.model.IDisplayer
 import master.flame.danmaku.danmaku.model.android.DanmakuContext
@@ -15,6 +18,12 @@ import master.flame.danmaku.ui.widget.DanmakuView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+
+private const val DANMU_FONT_WEIGHT = 500
+private const val DANMU_MARGIN_DP = 12
+private const val DANMU_PLACEHOLDER_MAX_COUNT = 2
+private const val DANMU_PLACEHOLDER_MAX_RETRY = 2
+private const val DANMU_PLACEHOLDER_RETRY_BASE_MS = 3000L
 
 class DanmuLoadController(
     private var videoView: MyVideoView?,
@@ -27,6 +36,19 @@ class DanmuLoadController(
     }
 
     private val danmakuContext: DanmakuContext = DanmakuContext.create()
+
+    private val danmuTypeface: Typeface by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create(Typeface.DEFAULT, DANMU_FONT_WEIGHT, false)
+        } else {
+            Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+    }
+
+    private val danmuMarginPx: Int by lazy {
+        val context = danmuView?.context ?: return@lazy DANMU_MARGIN_DP
+        PlayerUtils.dp2px(context, DANMU_MARGIN_DP.toFloat())
+    }
     private val loadSeq = AtomicInteger()
     private var executor: ExecutorService? = null
     private var danmuText: String = ""
@@ -35,12 +57,13 @@ class DanmuLoadController(
     private var startedSeq: Int = -1
     private var pendingPrepare: Boolean = false
     private var temporarilyClosed: Boolean = false
+    private var placeholderRetryCount: Int = 0
 
     private var overlayHidden: Boolean = false
     private var loadCallback: LoadCallback? = null
 
     init {
-        danmakuContext.updateMethod = 2
+        danmakuContext.updateMethod = 0
         videoView?.setDanmuView(danmuView)
         applySettings(false)
     }
@@ -64,13 +87,14 @@ class DanmuLoadController(
         maxLines[BaseDanmaku.TYPE_FIX_TOP] = maxLine
         maxLines[BaseDanmaku.TYPE_SCROLL_RL] = maxLine
         maxLines[BaseDanmaku.TYPE_SCROLL_LR] = maxLine
-        maxLines[BaseDanmaku.TYPE_FIX_BOTTOM] = maxLine
+        maxLines[BaseDanmaku.TYPE_FIX_BOTTOM] = 0
         danmakuContext.setMaximumLines(maxLines)
             .setScrollSpeedFactor(DanmuHelper.getSpeed())
             .setDanmakuTransparency(DanmuHelper.getAlpha())
             .setScaleTextSize(DanmuHelper.getSizeScale())
-        danmakuContext.setDanmakuStyle(IDisplayer.DANMAKU_STYLE_STROKEN, 3f)
-            .setDanmakuMargin(8)
+            .setTypeface(danmuTypeface)
+        danmakuContext.setDanmakuStyle(IDisplayer.DANMAKU_STYLE_STROKEN, 4f)
+            .setDanmakuMargin(danmuMarginPx)
         if (reload && !TextUtils.isEmpty(danmuText) && DanmuHelper.isOpen()) {
             prepare(danmuText)
         }
@@ -87,6 +111,7 @@ class DanmuLoadController(
     fun check(danmu: String?, title: String?, episode: String?, callback: LoadCallback?) {
         loadCallback = callback
         temporarilyClosed = false
+        placeholderRetryCount = 0
         danmuText = if (danmu.isNullOrEmpty()) "" else danmu.trim { it <= ' ' }
         danmuTitle = if (title.isNullOrEmpty()) "" else title
         danmuEpisode = if (episode.isNullOrEmpty()) "" else episode
@@ -117,6 +142,7 @@ class DanmuLoadController(
     fun reset() {
         DanmakuApi.cancel()
         temporarilyClosed = false
+        placeholderRetryCount = 0
         danmuText = ""
         danmuTitle = ""
         danmuEpisode = ""
@@ -133,6 +159,7 @@ class DanmuLoadController(
         loadSeq.incrementAndGet()
         startedSeq = -1
         pendingPrepare = false
+        placeholderRetryCount = 0
         releaseView()
     }
 
@@ -152,6 +179,7 @@ class DanmuLoadController(
         temporarilyClosed = false
         loadSeq.incrementAndGet()
         startedSeq = -1
+        placeholderRetryCount = 0
         releaseView()
         pendingPrepare = !TextUtils.isEmpty(danmuText) && DanmuHelper.isOpen()
     }
@@ -177,6 +205,10 @@ class DanmuLoadController(
 
     private fun setViewVisible(visible: Boolean) {
         val view = danmuView ?: return
+        if (!visible) {
+            view.animate().cancel()
+            view.alpha = 1f
+        }
         view.visibility = if (visible && !overlayHidden) View.VISIBLE else View.GONE
     }
 
@@ -214,9 +246,12 @@ class DanmuLoadController(
                         notifyLoadFailed(seq)
                         return@post
                     }
+                    if (retryPlaceholderLoad(seq, danmu, danmuCount)) return@post
+                    placeholderRetryCount = 0
                     view.prepare(parser, danmakuContext)
                     clearLoadCallback(seq)
                     setViewVisible(DanmuHelper.isOpen())
+                    videoView?.startDanmuClock()
                     startIfReady(seq)
                     view.postDelayed({ startIfReady(seq) }, 300)
                     view.postDelayed({ startIfReady(seq) }, 1000)
@@ -227,6 +262,21 @@ class DanmuLoadController(
                 }
             }
         }
+    }
+
+    private fun retryPlaceholderLoad(seq: Int, danmu: String, count: Int): Boolean {
+        if (!danmu.startsWith("http")) return false
+        if (count > DANMU_PLACEHOLDER_MAX_COUNT) return false
+        if (placeholderRetryCount >= DANMU_PLACEHOLDER_MAX_RETRY) return false
+        val view = danmuView ?: return false
+        placeholderRetryCount++
+        val delayMs = DANMU_PLACEHOLDER_RETRY_BASE_MS * placeholderRetryCount
+        LOG.i("echo-danmu placeholder retry=$placeholderRetryCount delay=$delayMs count=$count")
+        view.postDelayed({
+            if (seq != loadSeq.get()) return@postDelayed
+            prepare(danmu)
+        }, delayMs)
+        return true
     }
 
     private fun clearLoadCallback(seq: Int) {
@@ -257,6 +307,7 @@ class DanmuLoadController(
         setViewVisible(true)
         danmu.seekTo(position)
         danmu.start(position)
+        view.startDanmuClock()
         startedSeq = seq
         LOG.i("echo-danmu start at: $position")
     }
@@ -270,6 +321,7 @@ class DanmuLoadController(
     }
 
     private fun releaseView() {
+        videoView?.stopDanmuClock()
         val view = danmuView ?: return
         try {
             view.release()

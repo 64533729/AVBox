@@ -5825,3 +5825,15 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 - **验证**：976 例 / 125 类绿（删 3 例集名对齐测试）+ `assembleDebug` 绿；MuMu 重装（22:22:36）。
 
 **第二轮复查（同日，用户要求"再看还有没有高和中"；重装 22:28:00）**：**无新增高/中**。两条被证伪的怀疑存档：①`release()`（idle 释放/服务销毁路径）会重复刷时间 —— 停播后 `AppPlayerView.currentPosition/duration` 均返回 0（`isInPlaybackState()` 链），`flush()` 的 `position/duration > 0` 门禁即早退；②`PlaybackStarter` 的 `scope.launch`（`pl>=10` 外接分支，第 344 行）会从非主线程调 `releasePlayer()` —— 实测 `scope = Dispatchers.Main`，且全部 `release/releasePlayer/enterLive` 调用点均在主线程。顺手加固一处风格一致性：`PlaybackProgressSampler.flushNow()` 补主线程守卫（非主线程调用会撞 ExoPlayer wrong-thread，与 `discardStartedContentOf`/`markZeroStartKeys` 同类入口对齐）。另核实覆盖：通知栏停止/继续（`stopFromMediaSession`/`pauseFromMediaSession` 均走 `pause()`）、服务回收保留内核（`keepKernelAfterServiceDestroy` 内 `videoView.pause()`）都有 PAUSED 沿，无需补。⇒ **已连续一轮无阻断/高/中，达收尾线**。验证：976 例 / 125 类绿 + `assembleDebug` 绿。
+
+## 调色「重新起播后生效」提示整条删除（2026-10-15，方案 A 用户拍板）
+
+**现象（用户报告 + 截图）**：首次点调色预置出现「画面参数已保存，重新起播后生效」，但画面实际已生效；第二次切其他预置时提示消失，疑为 bug。**定性 = 提示层 bug**：`onPresetSelected` → `restartForPictureIfNeeded()` 已在同一操作内触发 `requireKernelRebuild()` + `replay(false)`（内核重建 + 自动重播，异步入队），而紧随其后的 `refreshParamsSheet()` 在 `openedThisSession` 置位前判定 `!pipeOpen && hasLook → RestartRequired` ⇒ 误报；重播完成（新内核 `onPrepare` 置 `openedThisSession=true`）后没有任何入口再刷面板 ⇒ 提示滞留；第二次操作时才转 None。直接证据 = 第二次提示消失本身就证明中间发生过 `prepareAsync`（`openedThisSession` 全类只在 `PictureEffects.onPrepare` 置 true，其余路径不可能翻真）。该提示是 10-01「方案 b」的历史产物（当时首次启用需下次起播才生效），10-07 引入自动重建重播后被架空 —— 其触发条件与 `restartForPictureIfNeeded` 同源，主路径上必错。
+
+**落地（7 文件）**：删 `PictureEffectUnavailableReason.RestartRequired` 枚举值 + `of()` 判定分支（`pipeOpen` 参数保留，`DecoderUnsupported` 仍在用）、`PlayerPicturePanel.hintRes()` 分支、三语言 `player_picture_unavailable_restart`（values / values-en / values-b+zh+Hant）、单测断言（`closedPipe_withPendingLook_asksRestart` → `_neverHints` 断言 None）；活规范 §6.17 两处同步（判定优先级去掉「本集未开通」+ 「首次启用」口径改写）。**不动**：`restartNeeded()` / `consumeRestartNeeded()`（负责触发重播，「关闭」场景必需，`PictureEffectsRestartPolicyTest` 保留）。**不选方案 B**（挂 `PlayState.PREPARED` 钩子刷新面板 + 改文案「正在重新起播」）：跨 controller → delegate → UI state 三层，且新文案在「重播被延迟消费」的边缘场景同样不准。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（986 例 / 127 类）；i18n 三道（`i18n_align.py en` / `b+zh+Hant` / `zh-rHK --subset`）PASS、`i18n_check_keys.py` 无未用残留与悬空引用、`null_assert_gate.py` / `i18n_gate.py` 无回归；装 MuMu。
+
+**走查判据**：①首次点调色预置 → 无任何文字提示、画面自动重播一次后生效；②再切其他预置 → 即时生效、不重播、无提示；③点回「原始」→ 仍重播一次回无调色（关闭路径保留）。
+
+**已知取舍（方案 A 接受）**：`restartForPictureIfNeeded()` 里 `videoView` / `listener` 为空导致重播未触发的极端场景（面板可交互时不可达）不再有文字兜底；参数已落 KV，下次起播照样带效果。另：重播完成前连点多个预置会重复触发 rebuild+replay，属既有行为，本次不涉及。
