@@ -16,8 +16,8 @@ android {
         applicationId = "com.github.avbox.osc"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 29
-        versionName = "1.2.5"
+        versionCode = 30
+        versionName = "1.2.6"
         multiDexEnabled = true
         ndk {
             abiFilters += setOf("arm64-v8a")

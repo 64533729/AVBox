@@ -17,9 +17,9 @@ import coil3.compose.AsyncImagePainter
 
 private const val BackdropScale = 1.3f
 
-private val BackdropBlurRadius = 56.dp
+private val BackdropBlurRadius = 40.dp
 
-private val BackdropScrimAlphas = listOf(0.22f, 0.5f, 0.88f)
+private val BackdropScrimAlphas = listOf(0.22f, 0.48f, 0.80f)
 
 @Composable
 internal fun PosterBackdrop(
