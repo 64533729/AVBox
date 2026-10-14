@@ -542,6 +542,7 @@
     <string name="tmdb_meta_title">TMDB 元資料</string>
     <string name="tmdb_rating">評分 %1$s / 10</string>
     <string name="detail_cast">演員陣容</string>
+    <string name="detail_genres">分類</string>
     <string name="detail_content_not_ready">內容還沒載入好</string>
     <string name="detail_no_playable_content">暫無可播放的內容</string>
     <string name="filter_title">篩選 · %1$s</string>

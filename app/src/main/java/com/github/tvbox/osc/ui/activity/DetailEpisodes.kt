@@ -62,7 +62,7 @@ import com.github.tvbox.osc.util.TmdbApi
 import com.github.tvbox.osc.util.TmdbPoster
 import kotlinx.coroutines.launch
 
-private val EpisodeThumbWidth = 180.dp
+private val EpisodeThumbWidth = 210.dp
 
 @Composable
 internal fun EpisodeRow(

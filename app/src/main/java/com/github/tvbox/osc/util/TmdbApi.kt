@@ -37,6 +37,7 @@ object TmdbApi {
     private const val RESULTS_KEY = "results"
     private const val POSTERS_KEY = "posters"
     private const val BACKDROPS_KEY = "backdrops"
+    private const val LOGOS_KEY = "logos"
     private const val CREDITS_KEY = "credits"
     private const val SEASONS_KEY = "seasons"
     private const val EPISODES_KEY = "episodes"
@@ -55,6 +56,7 @@ object TmdbApi {
     private const val HTTP_SUCCESS_MAX = 299
     private const val MAX_HERO_POSTERS = 10
     private const val MAX_MOVIE_STILLS = 10
+    private const val MAX_LOGOS = 3
     private const val MIN_SEGMENTS_PER_EPISODE = 2
     private const val MAX_SEGMENTS_PER_EPISODE = 4
     private const val LANGUAGE_EN = "en-US"
@@ -130,6 +132,7 @@ object TmdbApi {
         suspend fun search(apiKey: String, apiBaseUrl: String, query: String): List<TmdbSearchHit>
         suspend fun images(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): List<String>
         suspend fun stills(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): List<String>
+        suspend fun logos(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): List<String>
         suspend fun detail(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): TmdbDetail?
         suspend fun person(apiKey: String, apiBaseUrl: String, id: Int): TmdbPerson?
         suspend fun alternativeTitles(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): List<String>
@@ -186,6 +189,8 @@ object TmdbApi {
 
     private data class PosterEntry(val path: String, val vote: Double)
 
+    private data class LogoEntry(val path: String, val rank: Int, val vote: Double)
+
     fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
 
     fun isValidBaseUrl(value: String): Boolean {
@@ -215,6 +220,9 @@ object TmdbApi {
 
     fun stillUrl(configuredImageBase: String, stillPath: String): String =
         imageBaseUrl(configuredImageBase) + "/" + STILL_SIZE + stillPath
+
+    fun logoUrl(configuredImageBase: String, logoPath: String): String =
+        imageBaseUrl(configuredImageBase) + "/" + POSTER_SIZE_FULL + logoPath
 
     fun cleanTitle(raw: String?): String {
         var text = raw?.trim().orEmpty()
@@ -516,6 +524,30 @@ object TmdbApi {
             .take(MAX_MOVIE_STILLS)
     }
 
+    fun parseLogoPaths(json: String): List<String> {
+        val root = parseJsonObject(json) ?: return emptyList()
+        val logos = root.arrayOrNull(LOGOS_KEY) ?: return emptyList()
+        return logos.mapNotNull { element ->
+            if (!element.isJsonObject) return@mapNotNull null
+            val item = element.asJsonObject
+            val path = item.stringOrNull("file_path") ?: return@mapNotNull null
+            LogoEntry(
+                path = path,
+                rank = logoLanguageRank(item.stringOrNull("iso_639_1")),
+                vote = item.doubleOrNull("vote_average") ?: 0.0,
+            )
+        }.sortedWith(compareBy({ it.rank }, { -it.vote }))
+            .map { it.path }
+            .take(MAX_LOGOS)
+    }
+
+    private fun logoLanguageRank(iso: String?): Int = when {
+        iso == null -> 1
+        iso.startsWith(CHINESE_LANGUAGE, ignoreCase = true) -> 0
+        iso.startsWith("en", ignoreCase = true) -> 1
+        else -> 2
+    }
+
     private fun parseJsonObject(json: String): JsonObject? {
         return try {
             val parsed = JsonParser.parseString(json)
@@ -632,6 +664,19 @@ object TmdbApi {
             }
             val paths = parseBackdropPaths(text)
             if (paths.isEmpty()) LOG.i("echo-tmdb empty path=stills media=$mediaType id=$id")
+            return paths
+        }
+
+        override suspend fun logos(apiKey: String, apiBaseUrl: String, mediaType: String, id: Int): List<String> {
+            val url = apiBaseUrl(apiBaseUrl) + "/" + API_PATH + "/" + mediaType + "/" + id + "/" + IMAGES_PATH
+            val response = Http.getRaw(url, authInit(apiKey))
+            val text = String(response.body, Charsets.UTF_8)
+            if (response.code !in HTTP_SUCCESS_MIN..HTTP_SUCCESS_MAX) {
+                LOG.i("echo-tmdb http path=logos code=${response.code} body=${text.take(180)}")
+                throw HttpException(response.code)
+            }
+            val paths = parseLogoPaths(text)
+            if (paths.isEmpty()) LOG.i("echo-tmdb empty path=logos media=$mediaType id=$id")
             return paths
         }
 

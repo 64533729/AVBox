@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +34,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -70,6 +73,23 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
     val enteringFullscreen by vm.enteringFullscreen.collectAsState()
     val exitingFullscreen by vm.exitingFullscreen.collectAsState()
     val vodMenu = rememberVodCardMenuState()
+
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val heroFadePx = with(density) { HeroScrollFadeDistance.roundToPx() }
+    val heroProgress by remember(listState, heroFadePx) {
+        derivedStateOf {
+            heroScrollProgress(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+                heroFadePx,
+            )
+        }
+    }
+    val heroGone by remember(listState) {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 }
+    }
+    LaunchedEffect(heroGone) { activity.setStatusBarIconsLight(heroGone) }
 
     val configuration = LocalConfiguration.current
     val isLandscapeNow = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -232,15 +252,18 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
                                 activity = activity,
                                 vm = vm,
                                 revision = revision,
+                                listState = listState,
                                 onPosterPic = { backdropPic = it },
                                 onSeed = { argb -> if (argb != null) backdropSeed = argb },
-                                onCardLongClick = { vodMenu.show(it) },
                             )
                         }
                     }
                 }
                 if (!fullBox || exitingFullscreen) {
-                    DetailTopScrim(modifier = Modifier.align(Alignment.TopCenter))
+                    DetailTopScrim(
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        alpha = 1f - heroProgress,
+                    )
                 }
             }
 

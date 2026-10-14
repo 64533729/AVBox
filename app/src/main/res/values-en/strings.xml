@@ -542,6 +542,7 @@
     <string name="tmdb_meta_title">TMDB Metadata</string>
     <string name="tmdb_rating">Rating %1$s / 10</string>
     <string name="detail_cast">Cast</string>
+    <string name="detail_genres">Genres</string>
     <string name="detail_content_not_ready">Content is not ready yet</string>
     <string name="detail_no_playable_content">Nothing playable yet</string>
     <string name="filter_title">Filter · %1$s</string>

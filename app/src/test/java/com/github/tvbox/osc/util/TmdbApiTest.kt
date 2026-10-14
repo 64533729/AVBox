@@ -261,6 +261,45 @@ class TmdbApiTest {
     }
 
     @Test
+    fun parseLogoPaths_prefersChineseThenEnglishThenOthers() {
+        val json = """
+            {"logos":[
+              {"file_path":"/en.png","iso_639_1":"en","vote_average":9.0},
+              {"file_path":"/zh.png","iso_639_1":"zh","vote_average":1.0},
+              {"file_path":"/ja.png","iso_639_1":"ja","vote_average":9.9},
+              {"file_path":"/none.png","iso_639_1":null,"vote_average":5.0}
+            ]}
+        """.trimIndent()
+        assertEquals(listOf("/zh.png", "/en.png", "/none.png"), TmdbApi.parseLogoPaths(json))
+    }
+
+    @Test
+    fun parseLogoPaths_treatsRegionVariantsByLanguagePrefix() {
+        val json = """
+            {"logos":[
+              {"file_path":"/tw.png","iso_639_1":"zh-TW","vote_average":8.0},
+              {"file_path":"/us.png","iso_639_1":"en-US","vote_average":9.0}
+            ]}
+        """.trimIndent()
+        assertEquals(listOf("/tw.png", "/us.png"), TmdbApi.parseLogoPaths(json))
+    }
+
+    @Test
+    fun parseLogoPaths_sortsByVoteWithinLanguageAndCapsAtThree() {
+        val json = """
+            {"logos":[
+              {"file_path":"/a.png","iso_639_1":"zh","vote_average":1.0},
+              {"file_path":"/b.png","iso_639_1":"zh","vote_average":3.0},
+              {"file_path":"/c.png","iso_639_1":"zh","vote_average":2.0},
+              {"file_path":"/d.png","iso_639_1":"zh","vote_average":0.5}
+            ]}
+        """.trimIndent()
+        assertEquals(listOf("/b.png", "/c.png", "/a.png"), TmdbApi.parseLogoPaths(json))
+        assertTrue(TmdbApi.parseLogoPaths("not json").isEmpty())
+        assertTrue(TmdbApi.parseLogoPaths("{}").isEmpty())
+    }
+
+    @Test
     fun parseDetail_readsMetaAndCastSortedWithProfileOnly() {
         val json = """
             {

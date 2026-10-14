@@ -1,6 +1,8 @@
 package com.github.tvbox.osc.ui.activity
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,46 +15,61 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.api.ApiConfig
-import com.github.tvbox.osc.bean.Movie
 import com.github.tvbox.osc.data.FollowDays
 import com.github.tvbox.osc.ui.components.FollowReminderSheet
+
+private const val PullDragMaxPx = 600f
+
+internal val HeroScrollFadeDistance = 300.dp
+
+internal fun heroScrollProgress(firstVisibleIndex: Int, firstVisibleOffset: Int, referencePx: Int): Float = when {
+    firstVisibleIndex > 0 -> 1f
+    firstVisibleIndex < 0 -> 0f
+    referencePx <= 0 -> 0f
+    else -> (firstVisibleOffset.toFloat() / referencePx).coerceIn(0f, 1f)
+}
 
 @Composable
 internal fun DetailContent(
     activity: DetailActivity,
     vm: DetailViewModel,
     revision: Int,
+    listState: LazyListState,
     onPosterPic: (String) -> Unit,
     onSeed: (Int?) -> Unit,
-    onCardLongClick: (Movie.Video) -> Unit,
 ) {
     val info = vm.vodInfo ?: return
     @Suppress("UNUSED_EXPRESSION") revision
@@ -65,15 +82,63 @@ internal fun DetailContent(
     val qualitySelected by vm.qualitySelected.collectAsState()
     val collected by vm.collected.collectAsState()
     val followRecord by vm.follow.collectAsState()
-    var descExpanded by rememberSaveable { mutableStateOf(false) }
+    val description = remember(info.des) { removeHtmlTag(info.des) }
     var followScheduleOpen by rememberSaveable { mutableStateOf(false) }
 
     val currentSource = ApiConfig.get().getSource(vm.firstsourceKey)
     val displaySourceName = currentSource?.name ?: vm.firstsourceKey
     val heroRollPaused by vm.fullScreen.collectAsState()
 
+    val density = LocalDensity.current
+    val heroFadePx = with(density) { HeroScrollFadeDistance.roundToPx() }
+    val heroProgress by remember(listState, heroFadePx) {
+        derivedStateOf {
+            heroScrollProgress(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+                heroFadePx,
+            )
+        }
+    }
+    val pullExtra = remember { mutableFloatStateOf(0f) }
+    val pullConnection = remember(listState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput || available.y >= 0f || pullExtra.value <= 0f) {
+                    return Offset.Zero
+                }
+                val before = pullExtra.value
+                val after = (before + available.y).coerceAtLeast(0f)
+                pullExtra.value = after
+                return Offset(0f, after - before)
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                if (!atTop) return Offset.Zero
+                pullExtra.value = (pullExtra.value + available.y).coerceAtMost(PullDragMaxPx)
+                return available
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (pullExtra.value > 0f) {
+                    animate(
+                        initialValue = pullExtra.value,
+                        targetValue = 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    ) { value, _ -> pullExtra.value = value }
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(pullConnection),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         item(key = "hero") {
@@ -83,6 +148,10 @@ internal fun DetailContent(
                 year = info.year,
                 area = info.area,
                 type = info.type,
+                note = info.note,
+                description = description,
+                pullExtraPx = pullExtra.value,
+                scrollProgress = heroProgress,
                 collected = collected,
                 followed = followRecord != null,
                 onPosterPic = onPosterPic,
@@ -95,57 +164,6 @@ internal fun DetailContent(
                 onFollow = { followScheduleOpen = true },
                 rollPaused = heroRollPaused,
             )
-        }
-
-        item(key = "desc") {
-            val desc = remember(info.des) { removeHtmlTag(info.des) }
-            if (desc.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 4.dp),
-                ) {
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = if (descExpanded) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { descExpanded = !descExpanded },
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { descExpanded = !descExpanded },
-                    ) {
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = stringResource(if (descExpanded) R.string.detail_collapse else R.string.detail_expand),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Icon(
-                            imageVector = Icons.Filled.ArrowDropDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .rotate(if (descExpanded) 180f else 0f),
-                        )
-                    }
-                }
-            }
-        }
-
-        item(key = "tmdb_info") {
-            TmdbInfoSection(info.name, info.year)
         }
 
         if (episodes.isNotEmpty()) {
@@ -227,8 +245,12 @@ internal fun DetailContent(
             SourceSection(vm, currentSourceName = displaySourceName, revision = revision)
         }
 
-        item(key = "related") {
-            RelatedSection(activity, vm, onCardLongClick)
+        item(key = "tmdb_info") {
+            TmdbCastSection(info.name, info.year)
+        }
+
+        item(key = "tmdb_genres") {
+            TmdbGenreSection(info.name, info.year)
         }
     }
 

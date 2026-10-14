@@ -21,6 +21,7 @@ object TmdbPoster {
     private const val CACHE_KEY_PREFIX = "cache_tmdb_"
     private const val HITS_CACHE_PREFIX = "cache_tmdb_hits_"
     private const val IMAGES_CACHE_PREFIX = "cache_tmdb_images_"
+    private const val LOGOS_CACHE_PREFIX = "cache_tmdb_logos_"
     private const val DETAIL_CACHE_PREFIX = "cache_tmdb_detail2_"
     private const val EPISODES_CACHE_PREFIX = "cache_tmdb_episodes_"
     private const val SEASON_CACHE_PREFIX = "cache_tmdb_season_"
@@ -106,6 +107,9 @@ object TmdbPoster {
     fun stillUrl(stillPath: String): String =
         TmdbApi.stillUrl(readImageBase(), stillPath)
 
+    fun logoUrl(logoPath: String): String =
+        TmdbApi.logoUrl(readImageBase(), logoPath)
+
     fun cachedPoster(name: String?, year: Int): String? {
         if (!isActive()) return null
         val hits = cachedHits(name) ?: return null
@@ -127,6 +131,14 @@ object TmdbPoster {
         return cachedStillsById(best.mediaType, best.id)
     }
 
+    fun cachedLogo(name: String?, year: Int): String? {
+        if (!isActive()) return ""
+        val hits = cachedHits(name) ?: return null
+        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return ""
+        val logos = cachedLogosById(best.mediaType, best.id) ?: return null
+        return logos.firstOrNull().orEmpty()
+    }
+
     suspend fun resolvePoster(name: String?, year: Int): String? {
         val hits = ensureHits(name) ?: return null
         val best = pickBestWithAlias(hits, name, year)
@@ -144,6 +156,13 @@ object TmdbPoster {
         val hits = ensureHits(name) ?: return emptyList()
         val best = pickBestWithAlias(hits, name, year) ?: return emptyList()
         return ensureStills(best.mediaType, best.id)
+    }
+
+    suspend fun resolveLogo(name: String?, year: Int): String {
+        if (!isActive()) return ""
+        val hits = ensureHits(name) ?: return ""
+        val best = pickBestWithAlias(hits, name, year) ?: return ""
+        return ensureLogos(best.mediaType, best.id).firstOrNull().orEmpty()
     }
 
     fun cachedDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
@@ -380,6 +399,11 @@ object TmdbPoster {
         return decodeImagesValue(raw, System.currentTimeMillis())
     }
 
+    private fun cachedLogosById(mediaType: String, id: Int): List<String>? {
+        val raw = readCached(logosKey(mediaType, id)) ?: return null
+        return decodeImagesValue(raw, System.currentTimeMillis())
+    }
+
     private suspend fun ensureImages(mediaType: String, id: Int): List<String> {
         val key = imagesKey(mediaType, id)
         val cached = cachedImagesById(mediaType, id)
@@ -406,6 +430,16 @@ object TmdbPoster {
         if (cachedRaw != null) return decodeImagesValue(cachedRaw, System.currentTimeMillis()).orEmpty()
         if (!isActive() || onBackoff()) return emptyList()
         val raw = requestShared(key) { fetchStills(mediaType, id) } ?: return emptyList()
+        writeCached(key, raw)
+        return decodeFreshImages(raw)
+    }
+
+    private suspend fun ensureLogos(mediaType: String, id: Int): List<String> {
+        val key = logosKey(mediaType, id)
+        val cached = cachedLogosById(mediaType, id)
+        if (cached != null) return cached
+        if (!isActive() || onBackoff()) return emptyList()
+        val raw = requestShared(key) { fetchLogos(mediaType, id) } ?: return emptyList()
         writeCached(key, raw)
         return decodeFreshImages(raw)
     }
@@ -454,6 +488,8 @@ object TmdbPoster {
     private fun imagesKey(mediaType: String, id: Int): String = IMAGES_CACHE_PREFIX + mediaType + "_" + id
 
     private fun stillsKey(mediaType: String, id: Int): String = STILLS_CACHE_PREFIX + mediaType + "_" + id
+
+    private fun logosKey(mediaType: String, id: Int): String = LOGOS_CACHE_PREFIX + mediaType + "_" + id
 
     private fun decodeFreshHits(raw: String): List<TmdbApi.TmdbSearchHit> =
         decodeHitsValue(raw, System.currentTimeMillis()).orEmpty()
@@ -537,6 +573,20 @@ object TmdbPoster {
             throw e
         } catch (e: Exception) {
             LOG.i("echo-tmdb fail path=stills id=$id code=${httpCodeOf(e)} msg=${e.message}")
+            markBackoff(e)
+            null
+        }
+    }
+
+    private suspend fun fetchLogos(mediaType: String, id: Int): String? = semaphore.withPermit {
+        try {
+            val paths = clientFactory().logos(readApiKey(), readApiBase(), mediaType, id)
+            LOG.i("echo-tmdb logos id=$id media=$mediaType count=${paths.size}")
+            if (paths.isEmpty()) negativeValue() else paths.joinToString(LIST_SEPARATOR)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.i("echo-tmdb fail path=logos id=$id code=${httpCodeOf(e)} msg=${e.message}")
             markBackoff(e)
             null
         }

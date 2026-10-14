@@ -98,11 +98,19 @@ class DetailActivity : BaseActivity(), PageHost {
 
     override fun keepStatusBarHidden(): Boolean = fullScreen
 
+    private var statusBarIconsLight = false
+
+    fun setStatusBarIconsLight(light: Boolean) {
+        if (statusBarIconsLight == light) return
+        statusBarIconsLight = light
+        applyStatusBarAppearance()
+    }
+
     private fun applyStatusBarAppearance() {
         val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
+            isAppearanceLightStatusBars = statusBarIconsLight
             isAppearanceLightNavigationBars = !AppThemeState.isDark(systemDark)
         }
     }

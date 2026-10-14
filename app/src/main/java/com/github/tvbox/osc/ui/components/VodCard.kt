@@ -140,3 +140,10 @@ internal fun ratingBadgeText(note: String?): String? {
     }
     return n.takeIf { it.toFloatOrNull() != 0f }
 }
+
+internal fun isRatingNote(note: String?): Boolean {
+    val n = note?.trim().orEmpty()
+    if (n.isEmpty()) return false
+    if (n.toFloatOrNull() != null) return true
+    return ratingBadgeText(n) != n
+}

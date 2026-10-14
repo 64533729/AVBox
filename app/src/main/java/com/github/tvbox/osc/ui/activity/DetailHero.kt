@@ -2,6 +2,7 @@ package com.github.tvbox.osc.ui.activity
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,17 +43,21 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -66,6 +71,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import coil3.Image
 import coil3.SingletonImageLoader
+import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.github.tvbox.osc.R
@@ -76,6 +82,7 @@ import com.github.tvbox.osc.ui.components.LocalTopBarGlassBackdrop
 import com.github.tvbox.osc.ui.components.PosterSize
 import com.github.tvbox.osc.ui.components.TopBarActionBox
 import com.github.tvbox.osc.ui.components.VodPoster
+import com.github.tvbox.osc.ui.components.isRatingNote
 import com.github.tvbox.osc.ui.components.rememberHeroImageSizes
 import com.github.tvbox.osc.ui.components.tmdbPosterPath
 import com.github.tvbox.osc.ui.components.tmdbUrlOf
@@ -86,6 +93,7 @@ import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.TmdbPoster
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import java.util.Locale
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -96,33 +104,47 @@ private const val DetailTopScrimAlpha = 0.32f
 
 private const val HeroCircleAlpha = 0.6f
 
-private const val HERO_HEIGHT_RATIO = 0.75f
+private const val HERO_IMAGE_HEIGHT_RATIO = 0.50f
 
 private const val HERO_ROLL_INTERVAL_MS = 5000L
 
 private const val HERO_ROLL_ANIM_MS = 300
 
 private val DetailHeroFadeStops = arrayOf(
-    0.42f to 0.05f,
-    0.52f to 0.40f,
-    0.62f to 0.72f,
-    0.72f to 0.92f,
-    0.82f to 1f,
+    0.75f to 0.05f,
+    0.84f to 0.40f,
+    0.90f to 0.72f,
+    0.96f to 0.92f,
+    1f to 1f,
 )
 
 private const val HERO_TMDB_LOADING_TIMEOUT_MS = 1200L
 
+private const val HERO_TMDB_LOGO_TIMEOUT_MS = 1200L
+
+private const val HeroLogoWidthFraction = 0.85f
+
 private val DetailTopScrimExtra = 24.dp
 
-private val HeroMinHeight = 480.dp
+private val HeroImageMinHeight = 280.dp
 
-private val HeroMaxHeight = 660.dp
+private val HeroImageMaxHeight = 460.dp
 
-private val HeroCaptionHorizontalPadding = 24.dp
+private val HeroContentHorizontalPadding = 16.dp
 
-private val HeroCaptionBottomPadding = 16.dp
+private val HeroContentTopPadding = 10.dp
 
-private val HeroCaptionSpacing = 6.dp
+private val HeroContentBottomPadding = 4.dp
+
+private val HeroLogoBottomPadding = 16.dp
+
+private const val PullDamping = 0.5f
+
+private val PullMaxExtraHeight = 96.dp
+
+private const val HeroScrollScaleDrop = 0.15f
+
+private const val HeroScrollAlphaDrop = 0.7f
 
 private val HeroPlayCapsuleHeight = 52.dp
 
@@ -130,20 +152,32 @@ private val HeroPlayCapsuleMinWidth = 180.dp
 
 private val HeroPlayCapsuleHorizontalPadding = 32.dp
 
-private val HeroCircleButtonSize = 52.dp
+private val HeroCircleButtonSize = 40.dp
 
 private val HeroCircleButtonSpacing = 24.dp
 
-private val HeroActionSpacing = 20.dp
+private val HeroActionSpacing = 16.dp
 
 private val HeroButtonRowSpacing = 16.dp
+
+private val HeroLogoHeight = 84.dp
+
+private val HeroRatingIconSize = 14.dp
+
+private val HeroRatingStarColor = Color(0xFFFFC107)
+
+private val HeroDescriptionSpacing = 14.dp
+
+private const val HeroDescriptionAlpha = 0.82f
+
+private const val HeroDescriptionCollapsedLines = 2
 
 private val MetaSeparator = " · "
 
 private val TypeSeparators = Regex("[,，、/|;；]+")
 
 @Composable
-internal fun DetailTopScrim(modifier: Modifier = Modifier) {
+internal fun DetailTopScrim(modifier: Modifier = Modifier, alpha: Float = 1f) {
     val statusTop = with(LocalDensity.current) { WindowInsets.statusBarsIgnoringVisibility.getTop(this).toDp() }
     Box(
         modifier = modifier
@@ -151,7 +185,7 @@ internal fun DetailTopScrim(modifier: Modifier = Modifier) {
             .height(statusTop + DetailTopScrimExtra)
             .background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = DetailTopScrimAlpha),
+                    0f to Color.Black.copy(alpha = DetailTopScrimAlpha * alpha.coerceIn(0f, 1f)),
                     1f to Color.Transparent,
                 ),
             ),
@@ -165,6 +199,8 @@ internal fun DetailHero(
     year: Int,
     area: String?,
     type: String?,
+    note: String?,
+    description: String?,
     collected: Boolean,
     followed: Boolean,
     onPosterPic: (String) -> Unit,
@@ -176,119 +212,162 @@ internal fun DetailHero(
     onCollect: () -> Unit,
     onFollow: () -> Unit,
     rollPaused: Boolean = false,
+    pullExtraPx: Float = 0f,
+    scrollProgress: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
     val glassBackdrop = rememberLayerBackdrop(onDraw = { drawContent() })
     val circleColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = HeroCircleAlpha)
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(
-                (LocalConfiguration.current.screenHeightDp * HERO_HEIGHT_RATIO)
-                    .dp
-                    .coerceIn(HeroMinHeight, HeroMaxHeight),
-            ),
-    ) {
+    val detail = rememberTmdbDetail(title, year)
+    val ratingText = detail?.rating
+        ?.takeIf { it > 0.0 }
+        ?.let { String.format(Locale.US, "%.1f", it) }
+    val types = type.orEmpty()
+        .split(TypeSeparators)
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString(MetaSeparator)
+    val metaTail = listOfNotNull(
+        note?.trim().orEmpty().takeIf { it.isNotEmpty() && !isRatingNote(it) },
+        year.takeIf { it > 0 }?.toString(),
+        area?.takeIf { it.isNotBlank() },
+        types.takeIf { it.isNotEmpty() },
+    ).joinToString(MetaSeparator)
+    val descriptionText = detail?.overview?.takeIf { it.isNotBlank() }
+        ?: description?.takeIf { it.isNotBlank() }
+    var descriptionExpanded by rememberSaveable(title) { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val baseImageHeight = (LocalConfiguration.current.screenHeightDp * HERO_IMAGE_HEIGHT_RATIO)
+        .dp
+        .coerceIn(HeroImageMinHeight, HeroImageMaxHeight)
+    val pullExtraDp = with(density) { (pullExtraPx * PullDamping).toDp() }
+        .coerceIn(0.dp, PullMaxExtraHeight)
+    val imageHeight = baseImageHeight + pullExtraDp
+    val pullScale = 1f + with(density) { pullExtraDp.toPx() / baseImageHeight.toPx() }
+    Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            *DetailHeroFadeStops
-                                .map { (position, alpha) -> position to Color.White.copy(alpha = 1f - alpha) }
-                                .toTypedArray(),
-                        ),
-                        blendMode = BlendMode.DstIn,
-                    )
+                .fillMaxWidth()
+                .height(imageHeight)
+                .clipToBounds()
+                .graphicsLayer {
+                    val progress = scrollProgress.coerceIn(0f, 1f)
+                    val scale = 1f - HeroScrollScaleDrop * progress
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = 1f - HeroScrollAlphaDrop * progress
                 },
         ) {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
-                DetailHeroPoster(
-                    title = title,
-                    picture = picture,
-                    year = year,
-                    onImage = { image ->
-                        scope.launch {
-                            val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
-                            onSeed(seed)
-                        }
-                    },
-                    onBackdropPic = onPosterPic,
-                    paused = rollPaused,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        CompositionLocalProvider(LocalTopBarGlassBackdrop provides glassBackdrop) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TopBarActionBox(
-                    iconRes = R.drawable.ic_arrow_left,
-                    contentDescription = stringResource(R.string.common_back),
-                    onClick = onBack,
-                    fallbackColor = circleColor,
-                )
-                Spacer(Modifier.weight(1f))
-                TopBarActionBox(
-                    iconRes = if (collected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect,
-                    contentDescription = stringResource(
-                        if (collected) R.string.detail_uncollect else R.string.detail_collect,
-                    ),
-                    onClick = onCollect,
-                    fallbackColor = circleColor,
-                    tint = if (collected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                *DetailHeroFadeStops
+                                    .map { (position, alpha) -> position to Color.White.copy(alpha = 1f - alpha) }
+                                    .toTypedArray(),
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
                     },
-                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = pullScale
+                            scaleY = pullScale
+                            transformOrigin = TransformOrigin(0.5f, 0f)
+                        },
+                ) {
+                    Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                        DetailHeroPoster(
+                            title = title,
+                            picture = picture,
+                            year = year,
+                            onImage = { image ->
+                                scope.launch {
+                                    val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
+                                    onSeed(seed)
+                                }
+                            },
+                            onBackdropPic = onPosterPic,
+                            paused = rollPaused,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+            CompositionLocalProvider(LocalTopBarGlassBackdrop provides glassBackdrop) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TopBarActionBox(
+                        iconRes = R.drawable.ic_arrow_left,
+                        contentDescription = stringResource(R.string.common_back),
+                        onClick = onBack,
+                        fallbackColor = circleColor,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TopBarActionBox(
+                        iconRes = if (collected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect,
+                        contentDescription = stringResource(
+                            if (collected) R.string.detail_uncollect else R.string.detail_collect,
+                        ),
+                        onClick = onCollect,
+                        fallbackColor = circleColor,
+                        tint = if (collected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(
+                        start = HeroContentHorizontalPadding,
+                        end = HeroContentHorizontalPadding,
+                        bottom = HeroLogoBottomPadding,
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                DetailHeroTitle(title = title, year = year)
             }
         }
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
+                .animateContentSize()
+                .clipToBounds()
                 .padding(
-                    start = HeroCaptionHorizontalPadding,
-                    end = HeroCaptionHorizontalPadding,
-                    bottom = HeroCaptionBottomPadding,
+                    start = HeroContentHorizontalPadding,
+                    end = HeroContentHorizontalPadding,
+                    top = HeroContentTopPadding,
+                    bottom = HeroContentBottomPadding,
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight(800),
-                color = heroCaptionColor(),
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val yearArea = listOfNotNull(
-                year.takeIf { it > 0 }?.toString(),
-                area?.takeIf { it.isNotBlank() },
-            ).joinToString(MetaSeparator)
-            if (yearArea.isNotEmpty()) {
-                DetailHeroMetaLine(yearArea)
+            if (ratingText != null || metaTail.isNotEmpty()) {
+                DetailHeroRatingLine(rating = ratingText, tail = metaTail)
             }
-            val types = type.orEmpty()
-                .split(TypeSeparators)
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .joinToString(MetaSeparator)
-            if (types.isNotEmpty()) {
-                DetailHeroMetaLine(types)
+            if (!descriptionText.isNullOrEmpty()) {
+                DetailHeroDescription(
+                    text = descriptionText,
+                    expanded = descriptionExpanded,
+                    onToggle = { descriptionExpanded = !descriptionExpanded },
+                )
             }
             Box(
                 modifier = Modifier
@@ -386,28 +465,118 @@ private fun HeroCircleButton(
 }
 
 @Composable
+private fun DetailHeroTitle(title: String, year: Int) {
+    val epoch by TmdbPoster.configEpoch.collectAsState()
+    var logoPath by remember(title, year, epoch) { mutableStateOf(TmdbPoster.cachedLogo(title, year)) }
+    LaunchedEffect(title, year, epoch) {
+        if (logoPath == null) logoPath = TmdbPoster.resolveLogo(title, year)
+    }
+    var waitExpired by remember(title, year, epoch) { mutableStateOf(false) }
+    LaunchedEffect(title, year, epoch, logoPath) {
+        waitExpired = false
+        if (logoPath == null) {
+            delay(HERO_TMDB_LOGO_TIMEOUT_MS)
+            waitExpired = true
+        }
+    }
+    val logo = logoPath
+    if (logo == null) {
+        if (waitExpired) DetailHeroTitleText(title)
+    } else if (logo.isEmpty()) {
+        DetailHeroTitleText(title)
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(HeroLogoWidthFraction)
+                .height(HeroLogoHeight),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = TmdbPoster.logoUrl(logo),
+                contentDescription = title,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailHeroTitleText(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight(800),
+        color = heroCaptionColor(),
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun DetailHeroRatingLine(rating: String?, tail: String) {
+    val color = heroCaptionColor()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (rating != null) {
+            Icon(
+                painter = painterResource(R.drawable.ic_tab_collect_filled),
+                contentDescription = null,
+                tint = HeroRatingStarColor,
+                modifier = Modifier.size(HeroRatingIconSize),
+            )
+            Text(
+                text = rating,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = color,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+        if (tail.isNotEmpty()) {
+            Text(
+                text = if (rating != null) MetaSeparator + tail else tail,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailHeroDescription(text: String, expanded: Boolean, onToggle: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+        color = heroCaptionColor().copy(alpha = HeroDescriptionAlpha),
+        maxLines = if (expanded) Int.MAX_VALUE else HeroDescriptionCollapsedLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = HeroDescriptionSpacing)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onToggle),
+    )
+}
+
+@Composable
 private fun heroCaptionColor(): Color =
     if (AppThemeState.isDark(isSystemInDarkTheme())) {
         Color.White
     } else {
         Color.Black
     }
-
-@Composable
-private fun DetailHeroMetaLine(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Medium,
-        color = heroCaptionColor(),
-        textAlign = TextAlign.Center,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = HeroCaptionSpacing),
-    )
-}
 
 @Composable
 private fun DetailHeroPoster(

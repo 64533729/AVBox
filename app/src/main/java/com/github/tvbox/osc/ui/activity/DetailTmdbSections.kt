@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,80 +43,41 @@ import com.github.tvbox.osc.R
 import com.github.tvbox.osc.ui.components.AVBoxBottomSheet
 import com.github.tvbox.osc.util.TmdbApi
 import com.github.tvbox.osc.util.TmdbPoster
-import java.util.Locale
 
-private val CastAvatarSize = 64.dp
+private val CastAvatarSize = 80.dp
 
-private val CastItemWidth = 76.dp
+private val CastItemWidth = 92.dp
 
 private val CastSheetAvatarSize = 96.dp
 
 private val CastSheetLoadingSize = 40.dp
 
 @Composable
-internal fun TmdbInfoSection(name: String?, year: Int) {
+internal fun TmdbCastSection(name: String?, year: Int) {
     val detail = rememberTmdbDetail(name, year) ?: return
-    val showMeta = detail.overview.isNotBlank() || detail.rating > 0.0 || detail.genres.isNotEmpty()
-    val showCast = detail.cast.isNotEmpty()
-    if (!showMeta && !showCast) return
-    if (showMeta) TmdbMetaBlock(detail)
-    if (showCast) TmdbCastBlock(detail.cast)
+    if (detail.cast.isNotEmpty()) TmdbCastBlock(detail.cast)
 }
 
 @Composable
-private fun rememberTmdbDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
-    if (name.isNullOrBlank()) return null
-    val epoch by TmdbPoster.configEpoch.collectAsState()
-    var detail by remember(name, year, epoch) {
-        mutableStateOf(TmdbPoster.cachedDetail(name, year))
-    }
-    LaunchedEffect(name, year, epoch) {
-        if (detail == null) detail = TmdbPoster.resolveDetail(name, year)
-    }
-    return detail
-}
-
-@Composable
-private fun TmdbMetaBlock(detail: TmdbApi.TmdbDetail) {
+internal fun TmdbGenreSection(name: String?, year: Int) {
+    val detail = rememberTmdbDetail(name, year) ?: return
+    if (detail.genres.isEmpty()) return
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp),
     ) {
         Text(
-            text = stringResource(R.string.tmdb_meta_title),
+            text = stringResource(R.string.detail_genres),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
-        if (detail.rating > 0.0) {
-            Text(
-                text = stringResource(R.string.tmdb_rating, String.format(Locale.US, "%.1f", detail.rating)),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-            )
-        }
-        if (detail.overview.isNotBlank()) {
-            Text(
-                text = detail.overview,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 8.dp),
-            )
-        }
-        if (detail.genres.isNotEmpty()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                items(detail.genres) { genre -> TmdbGenreChip(genre) }
-            }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(detail.genres) { genre -> TmdbGenreChip(genre) }
         }
     }
 }
@@ -135,6 +95,19 @@ private fun TmdbGenreChip(label: String) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
         )
     }
+}
+
+@Composable
+internal fun rememberTmdbDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
+    if (name.isNullOrBlank()) return null
+    val epoch by TmdbPoster.configEpoch.collectAsState()
+    var detail by remember(name, year, epoch) {
+        mutableStateOf(TmdbPoster.cachedDetail(name, year))
+    }
+    LaunchedEffect(name, year, epoch) {
+        if (detail == null) detail = TmdbPoster.resolveDetail(name, year)
+    }
+    return detail
 }
 
 @Composable
