@@ -50,15 +50,14 @@ object Jianpian {
     @JvmStatic
     fun finish() {
         val burl = App.burl
-        val p2p = App.getp2p()
-        if (!burl.isNullOrEmpty() && p2p != null) {
-            try {
-                p2p.P2Pdoxpause(burl.toByteArray(Charset.forName("GBK")))
-                p2p.P2Pdoxdel(burl.toByteArray(Charset.forName("GBK")))
-                App.burl = ""
-            } catch (e: UnsupportedEncodingException) {
-                LOG.e("Jianpian", e)
-            }
+        if (burl.isNullOrEmpty()) return
+        val p2p = App.getp2p() ?: return
+        try {
+            p2p.P2Pdoxpause(burl.toByteArray(Charset.forName("GBK")))
+            p2p.P2Pdoxdel(burl.toByteArray(Charset.forName("GBK")))
+            App.burl = ""
+        } catch (e: UnsupportedEncodingException) {
+            LOG.e("Jianpian", e)
         }
     }
 

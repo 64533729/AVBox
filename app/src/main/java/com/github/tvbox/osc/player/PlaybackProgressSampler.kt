@@ -2,6 +2,7 @@ package com.github.tvbox.osc.player
 
 import android.os.Handler
 import android.os.Looper
+import com.github.tvbox.osc.data.HistoryWriter
 import com.github.tvbox.osc.data.PlaybackProgress
 import com.github.tvbox.osc.data.WatchProgressStore
 import com.github.tvbox.osc.player.state.PlayState
@@ -75,6 +76,15 @@ class PlaybackProgressSampler(private val host: Host) {
         ticking = false
     }
 
+    fun flushNow() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { flushNow() }
+            return
+        }
+        stop()
+        flush()
+    }
+
     private fun scheduleTick() {
         if (ticking) return
         ticking = true
@@ -106,11 +116,12 @@ class PlaybackProgressSampler(private val host: Host) {
         val duration = view.duration
         val position = view.currentPosition
         if (duration <= 0 || position <= 0) return
-        WatchProgressStore.save(controller.progressOwner(), controller.progressKey(), position, duration)
+        val saved = WatchProgressStore.save(controller.progressOwner(), controller.progressKey(), position, duration)
         val written = PlaybackProgress.flush(controller.vod(), position.toInt(), duration.toInt())
+        if (saved) touchHistory(controller)
         LOG.i(
             "echo-progress flush: pos=" + position + " dur=" + duration
-                + " written=" + written + " key=" + controller.progressKey()
+                + " written=" + written + " history=" + saved + " key=" + controller.progressKey()
         )
     }
 
@@ -121,7 +132,12 @@ class PlaybackProgressSampler(private val host: Host) {
             return
         }
         PlaybackProgress.markFinished(controller.vod())
+        if (WatchProgressStore.canRecord(controller.progressKey())) touchHistory(controller)
         LOG.i("echo-progress finished: key=" + controller.progressKey())
+    }
+
+    private fun touchHistory(controller: PlaybackController) {
+        HistoryWriter.touch(controller.sourceKey(), controller.vod())
     }
 
     companion object {

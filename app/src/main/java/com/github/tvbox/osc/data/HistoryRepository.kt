@@ -26,6 +26,8 @@ interface HistoryRepository {
 
     suspend fun insertVodRecord(sourceKey: String, vodInfo: VodInfo)
 
+    suspend fun touchVodRecord(sourceKey: String, vodId: String): Boolean
+
     suspend fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo)
 
     suspend fun deleteVodRecordAll()
@@ -119,6 +121,11 @@ internal class RoomHistoryRepository(
         if (dao.getCount(cid) > hisNum) {
             dao.reserver(cid, hisNum)
         }
+    }
+
+    override suspend fun touchVodRecord(sourceKey: String, vodId: String): Boolean {
+        if (HistoryHelper.isIncognito()) return false
+        return records().touch(CurrentSubscription.cid(), sourceKey, vodId, System.currentTimeMillis()) > 0
     }
 
     override suspend fun deleteVodRecord(sourceKey: String?, vodInfo: VodInfo) {

@@ -169,6 +169,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
 
     fun enterLive() {
         if (released) return
+        progressSampler.flushNow()
         session = null
         controller.clearStartedContent()
         LOG.i(TAG + " enter live mode")
@@ -282,6 +283,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
     fun releasePlayer() {
         if (released) return
         LOG.i(TAG + " release player kernel (engine kept)")
+        progressSampler.flushNow()
         videoView.release()
         controller.clearStartedContent()
     }
@@ -348,7 +350,7 @@ class PlaybackEngine(context: Context) : PlaybackHostApi {
         serviceLostWasPlaying = false
         setLiveFlag(false)
         LOG.i(TAG + " engine release")
-        progressSampler.stop()
+        progressSampler.flushNow()
         val page = attachedPage()
         pageRef = null
         page?.onServiceStopped()

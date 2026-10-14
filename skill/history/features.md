@@ -5806,3 +5806,22 @@ echo-exo-selector: mime=video/avc preferSoft=false count=3 first=c2.qti.avc.deco
 **修法（消费侧拦截）**：`DetailViewModel.onPlaybackStarted()` 补 `PlaybackService.peek()?.controller()?.isSameStartedContent()` 守卫——删除动作经 `discardStartedContentOf → clearStartedContent` 清掉起播内容后该判定恒 false，与采样器 `shouldWrite` / 换线迁移同一把闸，零误伤（未删时恒真）。打点链源头（flush 重置 watchedToken 后信号照发）保留不动，只是消费侧被拦；将 discard 状态引入数据层属过度设计，不做。修复后「删除历史」与 ZeroStartGate（删进度后重进从头播）口径对齐。
 
 **验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿；装 MuMu（07:35:28）。走查判据：删条目 → 重进同集不拖动播满 1s → 记录页该条**保持已删**；换集/重进详情产生新起播会话后照常入库。
+
+## 历史卡片时间改为「最后观看时刻」（2026-10-14 晚，方案 A 用户拍板）
+
+**现象（用户报告 + MuMu 取证）**：历史卡片「x 分钟前」不准。真因 = `vodRecord.updateTime` 只在起播（`TYPE_PLAYBACK_STARTED`）/换集/改播放器 cfg 时写，**观看中与退出播放都不刷新** ⇒ 时间停在最后一次起播时刻，偏差 = 观看时长。证据链：DB `updateTime=1791986047908`（=21:54:07.908）恰为日志最后一条 `echo-history insert on playback-started`（21:54:07.901）；用户实际播放到 21:56:23（`echo-progress flush pos=2016741/2722819`=「看到 74%」，与截图一致）、21:56:25 退出播放页，期间零历史写入。
+
+**落地（3 文件 + 1 测试）**：①`WatchProgressStore.save(...)` 改返回 Boolean（`true`=真正入队写入；作废/无痕/短看 SKIP 均 false），新增 `canRecord(key)`（无痕 + 作废门禁）；②`HistoryWriter` 新增 `touch(sourceKey, vod)`——键回退 `resolveWriteKey`（空则回退 `vod.sourceKey`）、集名对齐 `resolvePlayNote`（`getOrNull`，越界不崩）；③`PlaybackProgressSampler`：`flush()`（PAUSED/IDLE）以 `saved` 为门禁、`markFinished()`（COMPLETED）以 `canRecord` 为门禁，均调 `HistoryWriter.touch(controller.sourceKey(), controller.vod())`；日志新增 `echo-history touch key=…|… ep=…`、`echo-progress flush` 行补 `history=` 字段。
+
+**边界（有意为之）**：不接 `onSinkSave`（拖动落档不刷时间，防「拖动即置顶」）、不写 `EpisodeTotals`、**播放中（未暂停）查看历史页仍是旧值**（要实时需显示层读进度 KV 时间戳 = 方案 B，用户已否）。**与 F2 的关系**：新写入点复用同一把闸——flush 路径被 `isSameStartedContent`（F2 同款守卫）拦、COMPLETED 路径被 `canRecord` 的 discarded 拦 ⇒ 「删历史后仍在播」不复活条目，无需额外改动。**写入键口径**：`controller.sourceKey()` = `PlaybackSession.sourceKey()` = 详情页 `sourceKey`/`firstsourceKey`（三处赋值同源，已核对），采样器不依赖 DetailViewModel 存活。
+
+**验证**：`:app:assembleDebug` + `:app:testDebugUnitTest` 绿（979 例 / 125 类，新增 `HistoryWriterTest` 5 例）；装 MuMu（22:08:49，versionName 1.2.5，`lastUpdateTime` 已核对）。走查判据：①播满 ≥min(30s, 片长×30%) 后暂停/退出/放完 → 该条时间立刻变「刚刚」（日志出 `echo-history touch`）；②短看（不足阈值）退出不刷（与进度口径一致，别当回归）；③后台播放中删该条 → 暂停/停止不复活；④无痕/直播不写。
+
+**审查修复（同日，独立审查 + 自查一轮；重装 22:22:36）**：
+
+- **【高】touch 原实现会用「会话预览对象」整行覆写 `dataJson`**：`preparePlaySession()` 只往会话对象拷 10 个字段（`reverseSort`/`note`/`state`/`year` 等缺失），而详情页会从历史读回 `reverseSort` 并据此 `info.reverse()`（DetailViewModel.kt:410-421）⇒ 暂停/退出一次就会把倒序设置清掉、续播到镜像集。**改为 `VodRecordDao.touch` 只 `UPDATE updateTime`**（行不存在 0 行、不新建）——顺带消除两个中危发现：「COMPLETED 路径可凭空建行（0% 空壳卡片）」与「删历史后仍在播时 touch 重建行（touch 不复查 discard、跨队列无顺序）」。随之删除 `resolvePlayNote` 及其 3 例测试（不再改写写库内容）。
+- **补三条"不经过状态沿"的漏刷路径**：`PlaybackEngine.release()`（原只 `progressSampler.stop()`，划任务/服务销毁/换内核时不刷）、`releasePlayer()`（释放内核前）、`enterLive()`（`clearStartedContent()` 在 `detach` 之前 ⇒ 原 flush 早退），统一改/加 `progressSampler.flushNow()`（stop + flush，同门禁）。复查确认 `detach`（退页面，`pause()` 在前）与 `enterLiveState`（先 `detach` → `pause`）已有覆盖，**不要重复加**。
+- **回归面复查（无新发现）**：`WatchProgressStore.save` 返回值变更的 4 个调用点都是 Kotlin 语句位忽略返回、无 Java 调用方；F2 守卫（`onPlaybackStarted` 的 `isSameStartedContent`）、音乐页 `syncHistory`、直播链路、`detach` 语义均未触碰；`DataLayerSuspendContractTest` 的 suspend 契约满足（DAO/Repository 新方法均 suspend）；4 个改动文件零注释、无 `!!`、行尾 LF。
+- **验证**：976 例 / 125 类绿（删 3 例集名对齐测试）+ `assembleDebug` 绿；MuMu 重装（22:22:36）。
+
+**第二轮复查（同日，用户要求"再看还有没有高和中"；重装 22:28:00）**：**无新增高/中**。两条被证伪的怀疑存档：①`release()`（idle 释放/服务销毁路径）会重复刷时间 —— 停播后 `AppPlayerView.currentPosition/duration` 均返回 0（`isInPlaybackState()` 链），`flush()` 的 `position/duration > 0` 门禁即早退；②`PlaybackStarter` 的 `scope.launch`（`pl>=10` 外接分支，第 344 行）会从非主线程调 `releasePlayer()` —— 实测 `scope = Dispatchers.Main`，且全部 `release/releasePlayer/enterLive` 调用点均在主线程。顺手加固一处风格一致性：`PlaybackProgressSampler.flushNow()` 补主线程守卫（非主线程调用会撞 ExoPlayer wrong-thread，与 `discardStartedContentOf`/`markZeroStartKeys` 同类入口对齐）。另核实覆盖：通知栏停止/继续（`stopFromMediaSession`/`pauseFromMediaSession` 均走 `pause()`）、服务回收保留内核（`keepKernelAfterServiceDestroy` 内 `videoView.pause()`）都有 PAUSED 沿，无需补。⇒ **已连续一轮无阻断/高/中，达收尾线**。验证：976 例 / 125 类绿 + `assembleDebug` 绿。

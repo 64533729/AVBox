@@ -21,6 +21,9 @@ interface VodRecordDao {
     @Query("select * from vodRecord where `cid`=:cid and `sourceKey`=:sourceKey and `vodId`=:vodId")
     suspend fun getVodRecord(cid: String?, sourceKey: String?, vodId: String?): VodRecord?
 
+    @Query("update vodRecord set updateTime=:updateTime where `cid`=:cid and `sourceKey`=:sourceKey and `vodId`=:vodId")
+    suspend fun touch(cid: String?, sourceKey: String?, vodId: String?, updateTime: Long): Int
+
     @Delete
     suspend fun delete(record: VodRecord): Int
 

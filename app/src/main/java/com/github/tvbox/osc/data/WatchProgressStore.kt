@@ -70,23 +70,30 @@ object WatchProgressStore {
     }
 
     @JvmStatic
-    fun save(owner: String?, progressKey: String?, positionMs: Long, durationMs: Long) {
-        if (progressKey.isNullOrEmpty()) return
+    fun save(owner: String?, progressKey: String?, positionMs: Long, durationMs: Long): Boolean {
+        if (progressKey.isNullOrEmpty()) return false
         if (positionMs <= 0) {
             clear(owner, progressKey)
-            return
+            return false
         }
         if (isDiscarded(progressKey)) {
             LOG.i("echo-progress save dropped (discarded) pos=" + positionMs + " key=" + progressKey)
-            return
+            return false
         }
-        if (HistoryHelper.isIncognito()) return
-        if (WatchProgressRules.decide(positionMs, resolveDuration(owner, durationMs)) == WatchDecision.SKIP) return
-        submit {
+        if (HistoryHelper.isIncognito()) return false
+        if (WatchProgressRules.decide(positionMs, resolveDuration(owner, durationMs)) == WatchDecision.SKIP) return false
+        return submit {
             if (isDiscarded(progressKey) || HistoryHelper.isIncognito()) return@submit
             cache.save(md5(progressKey), positionMs)
             remember(owner, progressKey)
         }
+    }
+
+    @JvmStatic
+    fun canRecord(progressKey: String?): Boolean {
+        if (progressKey.isNullOrEmpty()) return false
+        if (HistoryHelper.isIncognito()) return false
+        return !isDiscarded(progressKey)
     }
 
     @JvmStatic
