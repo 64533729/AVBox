@@ -30,6 +30,23 @@ class TmdbPosterTest {
     }
 
     @Test
+    fun bestHit_seasonHintRejectsMovieCandidate() {
+        val hits = listOf(hit(id = 9, mediaType = "movie", title = "流人", originalTitle = "るにん"))
+        assertNull(TmdbPoster.bestHit(hits, "流人第六季", 0))
+        assertEquals(9, TmdbPoster.bestHit(hits, "流人", 0)?.id)
+    }
+
+    @Test
+    fun nameCandidates_primaryThenAlt() {
+        assertEquals(listOf("流人第六季", "Slow Horses"), TmdbPoster.nameCandidates("流人第六季", "Slow Horses"))
+        assertEquals(listOf("流人第六季"), TmdbPoster.nameCandidates("流人第六季", null))
+        assertEquals(listOf("流人第六季"), TmdbPoster.nameCandidates("流人第六季", " "))
+        assertEquals(listOf("流人第六季"), TmdbPoster.nameCandidates("流人第六季", "流人第六季"))
+        assertEquals(listOf("Slow Horses"), TmdbPoster.nameCandidates(null, "Slow Horses"))
+        assertEquals(emptyList<String>(), TmdbPoster.nameCandidates(null, null))
+    }
+
+    @Test
     fun hitsValue_roundTripKeepsAllFields() {
         val hits = listOf(
             hit(),

@@ -369,6 +369,16 @@ class PlaybackController {
         st.audioOnlyConfirmed = false
     }
 
+    fun isLastErrorExceedsDecodeCapability(): Boolean {
+        try {
+            val live = view?.mediaPlayer()
+            if (live is ExoPlayer) return live.lastErrorExceedsDecodeCapability()
+        } catch (ignored: Throwable) {
+            LOG.d("PlaybackController", "exo decode capability probe failed")
+        }
+        return false
+    }
+
     fun setCastPrepareOnly(prepareOnly: Boolean) {
         st.castPrepareOnly = prepareOnly
     }

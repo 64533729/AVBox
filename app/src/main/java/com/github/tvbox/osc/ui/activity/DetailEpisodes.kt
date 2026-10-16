@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
+import com.github.tvbox.osc.data.EpisodeMatcher
 import com.github.tvbox.osc.ui.components.AVBoxBottomSheet
 import com.github.tvbox.osc.ui.components.LocalSheetDismiss
 import com.github.tvbox.osc.ui.theme.filterChipColors
@@ -123,7 +124,10 @@ internal fun EpisodeRow(
         val seasonHint = remember(info.name, currentFlag) {
             TmdbApi.parseSeasonHint(info.name) ?: TmdbApi.parseSeasonHint(currentFlag)
         }
-        val episodeMeta = rememberEpisodeMeta(info.name, info.year, episodes.size, seasonHint)
+        val episodeNumbers = remember(episodes, info.reverseSort) {
+            episodes.map { EpisodeMatcher.extractEpisodeNumber(it.name) }
+        }
+        val episodeMeta = rememberEpisodeMeta(info.name, info.en, info.year, episodes.size, seasonHint, episodeNumbers)
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -132,7 +136,7 @@ internal fun EpisodeRow(
             itemsIndexed(episodes) { index, ep ->
                 EpisodeCard(
                     name = ep.name ?: (index + 1).toString(),
-                    episodeNumber = index + 1,
+                    episodeNumber = episodeNumbers.getOrNull(index)?.takeIf { it > 0 } ?: (index + 1),
                     thumbEnabled = episodeMeta != null,
                     episode = episodeMeta?.getOrNull(index),
                     selected = index == playIndex,
@@ -146,17 +150,21 @@ internal fun EpisodeRow(
 @Composable
 private fun rememberEpisodeMeta(
     name: String?,
+    altName: String?,
     year: Int,
     episodeCount: Int,
     seasonHint: Int?,
+    episodeNumbers: List<Int>,
 ): List<TmdbApi.TmdbEpisode>? {
     if (name.isNullOrBlank() || episodeCount <= 0) return null
     val epoch by TmdbPoster.configEpoch.collectAsState()
-    var meta by remember(name, episodeCount, seasonHint, epoch) {
-        mutableStateOf(TmdbPoster.cachedEpisodeMeta(name, episodeCount, seasonHint))
+    var meta by remember(name, altName, episodeCount, seasonHint, episodeNumbers, epoch) {
+        mutableStateOf(TmdbPoster.cachedEpisodeMeta(name, episodeCount, seasonHint, episodeNumbers, altName))
     }
-    LaunchedEffect(name, episodeCount, seasonHint, epoch) {
-        if (meta == null) meta = TmdbPoster.resolveEpisodeMeta(name, year, episodeCount, seasonHint)
+    LaunchedEffect(name, altName, episodeCount, seasonHint, episodeNumbers, epoch) {
+        if (meta == null) {
+            meta = TmdbPoster.resolveEpisodeMeta(name, year, episodeCount, seasonHint, episodeNumbers, altName)
+        }
     }
     return meta
 }

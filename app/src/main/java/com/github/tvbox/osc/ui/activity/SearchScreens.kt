@@ -334,6 +334,7 @@ internal fun SearchResultRow(
                 year = video.year,
                 sourceKey = video.sourceKey,
                 tmdbCacheOnly = true,
+                altName = video.en,
                 modifier = Modifier
                     .width(68.dp)
                     .fillMaxHeight(),

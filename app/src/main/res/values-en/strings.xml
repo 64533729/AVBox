@@ -56,6 +56,7 @@
 
     <string name="player_error_sniff">Sniffing error</string>
     <string name="player_error_play">Playback error</string>
+    <string name="player_decode_exceeds_capability">Exceeds the decoding capability limit</string>
     <string name="player_no_audio_track">No audio track</string>
     <string name="player_switch_audio_track">Switch audio track</string>
     <string name="player_no_video_track">No video track</string>

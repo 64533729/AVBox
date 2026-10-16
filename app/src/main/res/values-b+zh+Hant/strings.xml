@@ -56,6 +56,7 @@
 
     <string name="player_error_sniff">嗅探錯誤</string>
     <string name="player_error_play">影片播放發生錯誤</string>
+    <string name="player_decode_exceeds_capability">超出核心解碼能力上限</string>
     <string name="player_no_audio_track">沒有音軌</string>
     <string name="player_switch_audio_track">切換音軌</string>
     <string name="player_no_video_track">沒有視訊軌</string>

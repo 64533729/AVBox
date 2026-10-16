@@ -104,6 +104,7 @@ fun HeroSpotlight(
         settledVideo.sourceKey,
         size = heroSize,
         cacheOnly = true,
+        altName = settledVideo.en,
     ) ?: settledPic
 
     LaunchedEffect(settledPage, settledUrl) {
@@ -162,6 +163,7 @@ fun HeroSpotlight(
                     year = video.year,
                     sourceKey = video.sourceKey,
                     tmdbCacheOnly = true,
+                    altName = video.en,
                     onImage = { image ->
                         val pic = video.pic
                         if (!HomeBackdrop.has(pic)) {

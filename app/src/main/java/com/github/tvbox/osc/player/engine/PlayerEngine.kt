@@ -141,6 +141,9 @@ class PlayerEngine(
     private var lastErrorCodeNameValue: String? = null
 
     @Volatile
+    private var lastErrorExceedsDecodeCapabilityValue = false
+
+    @Volatile
     private var droppedFramesTotal = 0L
 
     @Volatile
@@ -328,6 +331,7 @@ class PlayerEngine(
         pictureHdrSource = false
         lastErrorKindValue = ERROR_KIND_UNKNOWN
         lastErrorCodeNameValue = null
+        lastErrorExceedsDecodeCapabilityValue = false
     }
 
     private fun resetPlaybackStats() {
@@ -598,6 +602,9 @@ class PlayerEngine(
     val lastErrorCodeName: String?
         get() = lastErrorCodeNameValue
 
+    val lastErrorExceedsDecodeCapability: Boolean
+        get() = lastErrorExceedsDecodeCapabilityValue
+
     val droppedFrames: Long
         get() = droppedFramesTotal
 
@@ -784,6 +791,7 @@ class PlayerEngine(
         val codeName = error.errorCodeName
         lastErrorKindValue = classifyError(codeName)
         lastErrorCodeNameValue = codeName
+        lastErrorExceedsDecodeCapabilityValue = exceedsDecodeCapability(codeName, error.message)
         LOG.e("Tvbox-runtime", "echo-Exo player error: $currentPlayPath", error)
         val sb = StringBuilder("echo-exo-player-error: code=").append(codeName).append(", msg=").append(error.message)
         var cause = error.cause
@@ -836,6 +844,14 @@ class PlayerEngine(
             if (codeName.startsWith("ERROR_CODE_IO") || codeName.startsWith("ERROR_CODE_PARSING")) return ERROR_KIND_NETWORK
             if (codeName.startsWith("ERROR_CODE_DECOD")) return ERROR_KIND_DECODE
             return ERROR_KIND_UNKNOWN
+        }
+
+        @JvmStatic
+        fun exceedsDecodeCapability(codeName: String?, message: String?): Boolean {
+            if (classifyError(codeName) != ERROR_KIND_DECODE) return false
+            if (codeName == "ERROR_CODE_DECODING_FORMAT_UNSUPPORTED") return true
+            if (codeName == "ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES") return true
+            return message != null && message.contains("NO_EXCEEDS_CAPABILITIES")
         }
 
         @JvmStatic

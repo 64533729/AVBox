@@ -109,10 +109,11 @@ internal fun VodPoster(
     sourceKey: String? = null,
     resolveTmdb: Boolean = true,
     tmdbCacheOnly: Boolean = false,
+    altName: String? = null,
     onImage: ((Image) -> Unit)? = null,
 ) {
     val preferLarge = size != PosterSize.THUMB
-    val tmdbUrl = if (resolveTmdb) tmdbPosterUrl(name, year, sourceKey, size, tmdbCacheOnly) else null
+    val tmdbUrl = if (resolveTmdb) tmdbPosterUrl(name, year, sourceKey, size, tmdbCacheOnly, altName) else null
     val siteUrl = if (preferLarge) VodImages.largePosterUrl(pic) else pic
     var showFallback by remember(pic) { mutableStateOf(false) }
     var posterUrl by remember(pic, siteUrl, tmdbUrl) {
@@ -168,16 +169,22 @@ internal fun VodPoster(
 }
 
 @Composable
-internal fun tmdbPosterPath(name: String?, year: Int, sourceKey: String?, cacheOnly: Boolean = false): String? {
+internal fun tmdbPosterPath(
+    name: String?,
+    year: Int,
+    sourceKey: String?,
+    cacheOnly: Boolean = false,
+    altName: String? = null,
+): String? {
     if (name.isNullOrBlank() || sourceKey == TmdbApi.SOURCE_KEY || !TmdbPoster.isActive()) return ""
     val epoch by TmdbPoster.configEpoch.collectAsState()
     // 列表场景只读缓存不解析（进过详情页的片才有 TMDB 图），滚动期零网络请求
-    if (cacheOnly) return TmdbPoster.cachedPoster(name, year)
-    var posterPath by remember(name, year, epoch) {
-        mutableStateOf(TmdbPoster.cachedPoster(name, year))
+    if (cacheOnly) return TmdbPoster.cachedPoster(name, year, altName)
+    var posterPath by remember(name, altName, year, epoch) {
+        mutableStateOf(TmdbPoster.cachedPoster(name, year, altName))
     }
-    LaunchedEffect(name, year, epoch) {
-        if (posterPath == null) posterPath = TmdbPoster.resolvePoster(name, year) ?: ""
+    LaunchedEffect(name, altName, year, epoch) {
+        if (posterPath == null) posterPath = TmdbPoster.resolvePoster(name, year, altName) ?: ""
     }
     return posterPath
 }
@@ -189,8 +196,9 @@ internal fun tmdbPosterUrl(
     sourceKey: String?,
     size: PosterSize,
     cacheOnly: Boolean = false,
+    altName: String? = null,
 ): String? =
-    tmdbPosterPath(name, year, sourceKey, cacheOnly)
+    tmdbPosterPath(name, year, sourceKey, cacheOnly, altName)
         ?.takeIf { it.isNotEmpty() }
         ?.let { tmdbUrlOf(it, size) }
 

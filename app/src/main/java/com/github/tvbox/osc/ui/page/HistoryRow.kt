@@ -93,6 +93,7 @@ internal fun HistoryRow(
                     year = item.year,
                     sourceKey = item.sourceKey,
                     tmdbCacheOnly = true,
+                    altName = item.en,
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(HistoryPosterCorner)),

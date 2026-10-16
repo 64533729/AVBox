@@ -54,14 +54,14 @@ private val CastSheetAvatarSize = 96.dp
 private val CastSheetLoadingSize = 40.dp
 
 @Composable
-internal fun TmdbCastSection(name: String?, year: Int) {
-    val detail = rememberTmdbDetail(name, year) ?: return
+internal fun TmdbCastSection(name: String?, altName: String?, year: Int) {
+    val detail = rememberTmdbDetail(name, altName, year) ?: return
     if (detail.cast.isNotEmpty()) TmdbCastBlock(detail.cast)
 }
 
 @Composable
-internal fun TmdbGenreSection(name: String?, year: Int) {
-    val detail = rememberTmdbDetail(name, year) ?: return
+internal fun TmdbGenreSection(name: String?, altName: String?, year: Int) {
+    val detail = rememberTmdbDetail(name, altName, year) ?: return
     if (detail.genres.isEmpty()) return
     Column(
         modifier = Modifier
@@ -107,14 +107,14 @@ private fun TmdbGenreChip(label: String) {
 }
 
 @Composable
-internal fun rememberTmdbDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
+internal fun rememberTmdbDetail(name: String?, altName: String?, year: Int): TmdbApi.TmdbDetail? {
     if (name.isNullOrBlank()) return null
     val epoch by TmdbPoster.configEpoch.collectAsState()
-    var detail by remember(name, year, epoch) {
-        mutableStateOf(TmdbPoster.cachedDetail(name, year))
+    var detail by remember(name, altName, year, epoch) {
+        mutableStateOf(TmdbPoster.cachedDetail(name, year, altName))
     }
-    LaunchedEffect(name, year, epoch) {
-        if (detail == null) detail = TmdbPoster.resolveDetail(name, year)
+    LaunchedEffect(name, altName, year, epoch) {
+        if (detail == null) detail = TmdbPoster.resolveDetail(name, year, altName)
     }
     return detail
 }

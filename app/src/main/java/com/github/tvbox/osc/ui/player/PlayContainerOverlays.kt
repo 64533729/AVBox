@@ -148,22 +148,32 @@ internal class PlayContainerOverlays(private val host: PlayContainer) {
                 if (host.scheduler.autoRetry()) return@launch
                 host.scheduler.stopMusicSessionForFailedPlayback()
                 if (!host.isAttached()) return@launch
-                setTip(err, false, true)
+                val text = terminalErrorText(err)
+                setTip(text, false, true)
                 if (finish) {
-                    Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(host.context, text, Toast.LENGTH_SHORT).show()
                 }
             }
             return
         }
         scope.launch {
             if (!host.scheduler.autoRetry()) {
+                host.scheduler.cancelPlayTimeout()
                 host.scheduler.stopMusicSessionForFailedPlayback()
                 if (!host.isAttached()) return@launch
-                setTip(err, false, true)
+                val text = terminalErrorText(err)
+                setTip(text, false, true)
                 if (finish) {
-                    Toast.makeText(host.context, err, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(host.context, text, Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
+
+    private fun terminalErrorText(err: String): String =
+        if (host.scheduler.isLastErrorExceedsDecodeCapability()) {
+            host.context.getString(R.string.player_decode_exceeds_capability)
+        } else {
+            err
+        }
 }

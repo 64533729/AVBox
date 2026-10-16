@@ -15,6 +15,7 @@ import com.github.tvbox.osc.player.AppPlayerView
 import com.github.tvbox.osc.player.ExoPlayer
 import com.github.tvbox.osc.player.PlayerDecodeKind
 import com.github.tvbox.osc.player.PlayerHelper
+import com.github.tvbox.osc.player.engine.AudioCodecChoice
 import com.github.tvbox.osc.player.engine.AudioDecoderLookup
 import com.github.tvbox.osc.player.state.PlayState
 import com.github.tvbox.osc.player.state.PlayerUiState
@@ -108,16 +109,10 @@ internal object InfoOsdText {
         val parts = ArrayList<String>()
         val codecs = format.codecs
         parts.add(if (!codecs.isNullOrEmpty()) codecs else format.sampleMimeType?.substringAfter('/')?.uppercase(Locale.US) ?: "-")
-        val live = exo.audioCodecChoice()
-        if (live != null) {
-            parts.add(decodeKindText(context, PlayerHelper.decodeKindOf(live.name, live.hardwareAccelerated, live.softwareOnly)))
-            parts.add(live.name)
-        } else {
-            val predicted = AudioDecoderLookup.choiceFor(format)
-            if (predicted != null) {
-                parts.add(decodeKindText(context, PlayerHelper.decodeKindOf(predicted.name, predicted.hardwareAccelerated, predicted.softwareOnly)))
-                parts.add(predicted.name)
-            }
+        val probe = probeAudioCodec(format, exo)
+        if (probe != null) {
+            parts.add(decodeKindText(context, PlayerHelper.decodeKindOf(probe.choice.name, probe.choice.hardwareAccelerated, probe.choice.softwareOnly)))
+            parts.add(probe.choice.name)
         }
         if (format.channelCount > 0) parts.add(format.channelCount.toString() + ".0")
         if (format.sampleRate > 0) {
@@ -134,18 +129,25 @@ internal object InfoOsdText {
         PlayerDecodeKind.UNKNOWN -> "-"
     }
 
+    private class AudioProbe(val choice: AudioCodecChoice, val source: String)
+
     private var lastLoggedAudioKey: String? = null
 
-    private fun logAudioCodec(format: Format, exo: ExoPlayer?) {
+    private fun probeAudioCodec(format: Format, exo: ExoPlayer?): AudioProbe? {
         val live = exo?.audioCodecChoice()
-        val predicted = if (live == null) AudioDecoderLookup.choiceFor(format) else null
-        val choice = live ?: predicted ?: return
-        val source = if (live != null) "live" else "predicted"
-        val key = source + "|" + choice.name + "|" + choice.hardwareAccelerated + "|" + choice.softwareOnly
+        if (live != null) return AudioProbe(live, "live")
+        val guess = AudioDecoderLookup.guessChoice(format) ?: return null
+        return AudioProbe(guess.first, if (guess.second) "extension" else "predicted")
+    }
+
+    private fun logAudioCodec(format: Format, exo: ExoPlayer?) {
+        val probe = probeAudioCodec(format, exo) ?: return
+        val choice = probe.choice
+        val key = probe.source + "|" + choice.name + "|" + choice.hardwareAccelerated + "|" + choice.softwareOnly
         if (key == lastLoggedAudioKey) return
         lastLoggedAudioKey = key
         LOG.i(
-            "echo-player-audio-codec: source=$source mime=${format.sampleMimeType} name=${choice.name}" +
+            "echo-player-audio-codec: source=${probe.source} mime=${format.sampleMimeType} name=${choice.name}" +
                 " hw=${choice.hardwareAccelerated} swOnly=${choice.softwareOnly}" +
                 " kind=${PlayerHelper.decodeKindOf(choice.name, choice.hardwareAccelerated, choice.softwareOnly)}" +
                 " renderer=${exo?.audioRendererName() ?: "-"}",

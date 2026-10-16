@@ -38,6 +38,26 @@ class PlayerEngineErrorTest {
     }
 
     @Test
+    fun exceedsDecodeCapability_forFormatAndCapabilitySignals() {
+        assertTrue(PlayerEngine.exceedsDecodeCapability("ERROR_CODE_DECODING_FORMAT_UNSUPPORTED", null))
+        assertTrue(PlayerEngine.exceedsDecodeCapability("ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES", null))
+        assertTrue(
+            PlayerEngine.exceedsDecodeCapability(
+                "ERROR_CODE_DECODING_FAILED",
+                "MediaCodecVideoRenderer error, format_supported=NO_EXCEEDS_CAPABILITIES",
+            ),
+        )
+    }
+
+    @Test
+    fun exceedsDecodeCapability_falseForOtherSignals() {
+        assertFalse(PlayerEngine.exceedsDecodeCapability("ERROR_CODE_DECODING_FAILED", "Decoder failed"))
+        assertFalse(PlayerEngine.exceedsDecodeCapability("ERROR_CODE_DECODER_INIT_FAILED", null))
+        assertFalse(PlayerEngine.exceedsDecodeCapability("ERROR_CODE_IO_BAD_HTTP_STATUS", "NO_EXCEEDS_CAPABILITIES"))
+        assertFalse(PlayerEngine.exceedsDecodeCapability(null, null))
+    }
+
+    @Test
     fun isParsingError_ioUnspecifiedAndParsingCodes() {
         assertTrue(PlayerEngine.isParsingError(error(PlaybackException.ERROR_CODE_IO_UNSPECIFIED)))
         assertTrue(PlayerEngine.isParsingError(error(PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED)))

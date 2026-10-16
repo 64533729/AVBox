@@ -48,6 +48,10 @@ class Movie : Serializable {
         var type: String? = null
 
         @JvmField
+        @XStreamAlias("en")
+        var en: String? = null
+
+        @JvmField
         @XStreamAlias("pic")
         var pic: String? = null
 

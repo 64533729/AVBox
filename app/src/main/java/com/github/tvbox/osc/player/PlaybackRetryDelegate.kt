@@ -397,12 +397,14 @@ class PlaybackRetryDelegate(private val host: Host) {
         if (st.hasAutoSwitchedPlayer) {
             if (!tryNextLineIfEnabled()) {
                 host.stopMusicSessionForFailedPlayback()
+                host.cancelPlayTimeout()
                 showErrorTip(PlaybackController.str(R.string.player_play_timeout))
             }
             return
         }
         if (!autoRetry()) {
             host.stopMusicSessionForFailedPlayback()
+            host.cancelPlayTimeout()
             showErrorTip(PlaybackController.str(R.string.player_play_timeout))
         }
     }

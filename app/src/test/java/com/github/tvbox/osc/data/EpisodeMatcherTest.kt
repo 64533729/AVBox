@@ -33,6 +33,8 @@ class EpisodeMatcherTest {
         assertEquals(8, EpisodeMatcher.extractEpisodeNumber("影片名 (2024) 第08集"))
         assertEquals(1000, EpisodeMatcher.extractEpisodeNumber("名侦探柯南 2024 第1000集"))
         assertEquals(2, EpisodeMatcher.extractEpisodeNumber("S01E02"))
+        assertEquals(90, EpisodeMatcher.extractEpisodeNumber("[DZAUU]90_4K.mp4[677.96MB]"))
+        assertEquals(93, EpisodeMatcher.extractEpisodeNumber("[DZAUU]93_4K.mkv"))
     }
 
     @Test

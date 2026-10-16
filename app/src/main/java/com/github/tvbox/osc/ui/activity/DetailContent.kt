@@ -84,6 +84,7 @@ internal fun DetailContent(
         item(key = "hero") {
             DetailHero(
                 title = info.name ?: "TVBox",
+                altTitle = info.en,
                 picture = info.pic,
                 year = info.year,
                 area = info.area,
@@ -184,11 +185,11 @@ internal fun DetailContent(
         }
 
         item(key = "tmdb_info") {
-            TmdbCastSection(info.name, info.year)
+            TmdbCastSection(info.name, info.en, info.year)
         }
 
         item(key = "tmdb_genres") {
-            TmdbGenreSection(info.name, info.year)
+            TmdbGenreSection(info.name, info.en, info.year)
         }
     }
 

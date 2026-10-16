@@ -288,11 +288,17 @@ object TmdbApi {
         return text.removeRange(tail.range).toString().trim()
     }
 
-    fun pickBest(hits: List<TmdbSearchHit>, name: String?, year: Int): TmdbSearchHit? {
+    fun pickBest(
+        hits: List<TmdbSearchHit>,
+        name: String?,
+        year: Int,
+        tvOnly: Boolean = parseSeasonHint(name) != null,
+    ): TmdbSearchHit? {
         val target = normalizeForMatch(name)
         if (target.isEmpty()) return null
         val matched = hits.filter { hit ->
             hit.posterPath.isNotEmpty() &&
+                (!tvOnly || hit.mediaType == MEDIA_TV) &&
                 (normalizeForMatch(hit.title) == target || normalizeForMatch(hit.originalTitle) == target)
         }
         if (matched.isEmpty()) return null
@@ -375,6 +381,23 @@ object TmdbApi {
         if (episodeCount <= 0 || episodeCount % seasonCount != 0) return 0
         val ratio = episodeCount / seasonCount
         return if (ratio in MIN_SEGMENTS_PER_EPISODE..MAX_SEGMENTS_PER_EPISODE) ratio else 0
+    }
+
+    internal fun mapEpisodesByNumber(
+        seasons: List<TmdbSeason>,
+        episodeCount: Int,
+        seasonHint: Int?,
+        episodeNumbers: List<Int>,
+    ): List<TmdbEpisodeRef>? {
+        if (seasonHint != null || episodeCount <= 0 || episodeNumbers.size != episodeCount) return null
+        if (episodeNumbers.any { it <= 0 }) return null
+        if (episodeNumbers.toSet().size != episodeCount) return null
+        val ordered = seasons.filter { it.seasonNumber > 0 && it.episodeCount > 0 }
+        if (ordered.size != 1) return null
+        val season = ordered[0]
+        val maxNumber = episodeNumbers.maxOrNull() ?: return null
+        if (maxNumber > season.episodeCount) return null
+        return episodeNumbers.map { TmdbEpisodeRef(season.seasonNumber, it) }
     }
 
     fun mapEpisodes(seasons: List<TmdbSeason>, episodeCount: Int, seasonHint: Int?): List<TmdbEpisodeRef>? {

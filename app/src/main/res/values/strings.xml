@@ -56,6 +56,7 @@
 
     <string name="player_error_sniff">嗅探错误</string>
     <string name="player_error_play">视频播放出错</string>
+    <string name="player_decode_exceeds_capability">超出内核解码能力上限</string>
     <string name="player_no_audio_track">没有音轨</string>
     <string name="player_switch_audio_track">切换音轨</string>
     <string name="player_no_video_track">没有视轨</string>

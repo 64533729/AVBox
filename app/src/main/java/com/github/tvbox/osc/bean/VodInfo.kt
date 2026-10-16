@@ -23,6 +23,9 @@ class VodInfo : Serializable {
     var type: String? = null
 
     @JvmField
+    var en: String? = null
+
+    @JvmField
     var dt: String? = null
 
     @JvmField
@@ -82,6 +85,7 @@ class VodInfo : Serializable {
         id = video.id
         tid = video.tid
         name = video.name
+        en = video.en
         type = video.type
         pic = video.pic
         lang = video.lang

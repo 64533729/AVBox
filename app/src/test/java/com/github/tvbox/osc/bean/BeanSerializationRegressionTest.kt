@@ -136,7 +136,7 @@ class BeanSerializationRegressionTest {
         val json =
             """{"code":1,"page":1,"pagecount":2,"limit":"20","total":30,"msg":"ok","list":[""" +
                 """{"vod_id":"1","vod_name":"测试片","type_id":"7","type_name":"剧情","vod_year":"2021",""" +
-                """"vod_remarks":"全2集","vod_tag":"","cate":{"x":1},""" +
+                """"vod_remarks":"全2集","vod_en":"Slow Horses","vod_tag":"","cate":{"x":1},""" +
                 """"vod_play_from":"线路甲${'$'}${'$'}${'$'}线路乙",""" +
                 """"vod_play_url":"第1集${'$'}http://a/1.m3u8#第2集${'$'}http://a/2.m3u8${'$'}${'$'}${'$'}第1集${'$'}http://b/1.m3u8"}]}"""
 
@@ -155,6 +155,7 @@ class BeanSerializationRegressionTest {
         assertEquals(7, video.tid)
         assertEquals(2021, video.year)
         assertEquals("剧情", video.type)
+        assertEquals("Slow Horses", video.en)
         assertEquals("全2集", video.note)
         assertEquals("folder", video.tag)
 

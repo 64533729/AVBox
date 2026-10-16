@@ -207,6 +207,7 @@ class AbsJson : Serializable {
                 0
             }
             video.name = vod_name
+            video.en = vod_en
             video.type = type_name
             video.pic = vod_pic
             video.lang = vod_lang

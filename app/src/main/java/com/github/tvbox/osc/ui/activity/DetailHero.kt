@@ -161,7 +161,7 @@ private val HeroDescriptionSpacing = 14.dp
 
 private const val HeroDescriptionAlpha = 0.82f
 
-private const val HeroDescriptionCollapsedLines = 2
+private const val HeroDescriptionCollapsedLines = 3
 
 private val MetaSeparator = " · "
 
@@ -186,6 +186,7 @@ internal fun DetailTopScrim(modifier: Modifier = Modifier, alpha: Float = 1f) {
 @Composable
 internal fun DetailHero(
     title: String,
+    altTitle: String?,
     picture: String?,
     year: Int,
     area: String?,
@@ -208,7 +209,7 @@ internal fun DetailHero(
     val scope = rememberCoroutineScope()
     val glassBackdrop = rememberLayerBackdrop(onDraw = { drawContent() })
     val circleColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = HeroCircleAlpha)
-    val detail = rememberTmdbDetail(title, year)
+    val detail = rememberTmdbDetail(title, altTitle, year)
     val ratingText = detail?.rating
         ?.takeIf { it > 0.0 }
         ?.let { String.format(Locale.US, "%.1f", it) }
@@ -255,6 +256,7 @@ internal fun DetailHero(
                 Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
                     DetailHeroPoster(
                         title = title,
+                        altTitle = altTitle,
                         picture = picture,
                         year = year,
                         onImage = { image ->
@@ -310,7 +312,7 @@ internal fun DetailHero(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                DetailHeroTitle(title = title, year = year)
+                DetailHeroTitle(title = title, altTitle = altTitle, year = year)
             }
         }
         Column(
@@ -432,14 +434,16 @@ private fun HeroCircleButton(
 }
 
 @Composable
-private fun DetailHeroTitle(title: String, year: Int) {
+private fun DetailHeroTitle(title: String, altTitle: String?, year: Int) {
     val epoch by TmdbPoster.configEpoch.collectAsState()
-    var logoPath by remember(title, year, epoch) { mutableStateOf(TmdbPoster.cachedLogo(title, year)) }
-    LaunchedEffect(title, year, epoch) {
-        if (logoPath == null) logoPath = TmdbPoster.resolveLogo(title, year)
+    var logoPath by remember(title, altTitle, year, epoch) {
+        mutableStateOf(TmdbPoster.cachedLogo(title, year, altTitle))
     }
-    var waitExpired by remember(title, year, epoch) { mutableStateOf(false) }
-    LaunchedEffect(title, year, epoch, logoPath) {
+    LaunchedEffect(title, altTitle, year, epoch) {
+        if (logoPath == null) logoPath = TmdbPoster.resolveLogo(title, year, altTitle)
+    }
+    var waitExpired by remember(title, altTitle, year, epoch) { mutableStateOf(false) }
+    LaunchedEffect(title, altTitle, year, epoch, logoPath) {
         waitExpired = false
         if (logoPath == null) {
             delay(HERO_TMDB_LOGO_TIMEOUT_MS)
@@ -548,6 +552,7 @@ private fun heroCaptionColor(): Color =
 @Composable
 private fun DetailHeroPoster(
     title: String,
+    altTitle: String?,
     picture: String?,
     year: Int,
     onImage: (Image) -> Unit,
@@ -561,15 +566,15 @@ private fun DetailHeroPoster(
     val wide = configuration.screenWidthDp > configuration.screenHeightDp
     val sizes = rememberHeroImageSizes()
     val source = heroImageSource(style, wide, TmdbPoster.isActive())
-    var images by remember(title, year, epoch, source) {
-        mutableStateOf(cachedHeroImages(source, title, year))
+    var images by remember(title, altTitle, year, epoch, source) {
+        mutableStateOf(cachedHeroImages(source, title, altTitle, year))
     }
-    LaunchedEffect(title, year, epoch, source) {
-        if (images == null) images = resolveHeroImages(source, title, year)
+    LaunchedEffect(title, altTitle, year, epoch, source) {
+        if (images == null) images = resolveHeroImages(source, title, altTitle, year)
     }
     val urls = remember(images, source, sizes) { heroUrls(images, source, sizes) }
     if (urls.isEmpty()) {
-        val fixedPath = tmdbPosterPath(title, year, null)
+        val fixedPath = tmdbPosterPath(title, year, null, altName = altTitle)
         val resolving = (source != HeroImageSource.NONE && images == null) || fixedPath == null
         var waitExpired by remember(title, year, epoch) { mutableStateOf(false) }
         LaunchedEffect(title, year, epoch, resolving) {
@@ -593,6 +598,7 @@ private fun DetailHeroPoster(
             pic = picture,
             size = sizes.poster,
             year = year,
+            altName = altTitle,
             modifier = modifier,
             onImage = onImage,
         )
@@ -669,15 +675,25 @@ private fun heroImageSource(style: TmdbPosterStyle, wide: Boolean, active: Boole
     else -> HeroImageSource.NONE
 }
 
-private fun cachedHeroImages(source: HeroImageSource, title: String, year: Int): List<String>? = when (source) {
-    HeroImageSource.POSTER -> TmdbPoster.cachedImages(title, year)
-    HeroImageSource.BACKDROP -> TmdbPoster.cachedBackdrops(title, year)
+private fun cachedHeroImages(
+    source: HeroImageSource,
+    title: String,
+    altTitle: String?,
+    year: Int,
+): List<String>? = when (source) {
+    HeroImageSource.POSTER -> TmdbPoster.cachedImages(title, year, altTitle)
+    HeroImageSource.BACKDROP -> TmdbPoster.cachedBackdrops(title, year, altTitle)
     HeroImageSource.NONE -> null
 }
 
-private suspend fun resolveHeroImages(source: HeroImageSource, title: String, year: Int): List<String>? = when (source) {
-    HeroImageSource.POSTER -> TmdbPoster.resolveImages(title, year)
-    HeroImageSource.BACKDROP -> TmdbPoster.resolveBackdrops(title, year)
+private suspend fun resolveHeroImages(
+    source: HeroImageSource,
+    title: String,
+    altTitle: String?,
+    year: Int,
+): List<String>? = when (source) {
+    HeroImageSource.POSTER -> TmdbPoster.resolveImages(title, year, altTitle)
+    HeroImageSource.BACKDROP -> TmdbPoster.resolveBackdrops(title, year, altTitle)
     HeroImageSource.NONE -> null
 }
 

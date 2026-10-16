@@ -92,6 +92,16 @@ object TmdbPoster {
         false
     }
 
+    internal fun nameCandidates(name: String?, altName: String?): List<String> {
+        val primary = name.orEmpty().trim()
+        val alt = altName.orEmpty().trim()
+        return when {
+            primary.isEmpty() -> if (alt.isEmpty()) emptyList() else listOf(alt)
+            alt.isEmpty() || alt == primary -> listOf(primary)
+            else -> listOf(primary, alt)
+        }
+    }
+
     fun imageUrl(posterPath: String, large: Boolean): String =
         TmdbApi.imageUrl(readImageBase(), posterPath, large)
 
@@ -110,67 +120,103 @@ object TmdbPoster {
     fun logoUrl(logoPath: String): String =
         TmdbApi.logoUrl(readImageBase(), logoPath)
 
-    fun cachedPoster(name: String?, year: Int): String? {
+    fun cachedPoster(name: String?, year: Int, altName: String? = null): String? {
         if (!isActive()) return null
-        val hits = cachedHits(name) ?: return null
-        val best = bestHit(hits, name, year) ?: cachedAliasHit(name)
-        return best?.posterPath ?: ""
+        var known = false
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = cachedHits(candidate) ?: continue
+            known = true
+            val best = bestHit(hits, candidate, year) ?: cachedAliasHit(candidate) ?: continue
+            return best.posterPath
+        }
+        return if (known) "" else null
     }
 
-    fun cachedImages(name: String?, year: Int): List<String>? {
+    fun cachedImages(name: String?, year: Int, altName: String? = null): List<String>? {
         if (!isActive()) return null
-        val hits = cachedHits(name) ?: return null
-        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return emptyList()
-        return cachedImagesById(best.mediaType, best.id)
+        var known = false
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = cachedHits(candidate) ?: continue
+            known = true
+            val best = bestHit(hits, candidate, year) ?: cachedAliasHit(candidate) ?: continue
+            return cachedImagesById(best.mediaType, best.id)
+        }
+        return if (known) emptyList() else null
     }
 
-    fun cachedBackdrops(name: String?, year: Int): List<String>? {
+    fun cachedBackdrops(name: String?, year: Int, altName: String? = null): List<String>? {
         if (!isActive()) return null
-        val hits = cachedHits(name) ?: return null
-        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return emptyList()
-        return cachedStillsById(best.mediaType, best.id)
+        var known = false
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = cachedHits(candidate) ?: continue
+            known = true
+            val best = bestHit(hits, candidate, year) ?: cachedAliasHit(candidate) ?: continue
+            return cachedStillsById(best.mediaType, best.id)
+        }
+        return if (known) emptyList() else null
     }
 
-    fun cachedLogo(name: String?, year: Int): String? {
+    fun cachedLogo(name: String?, year: Int, altName: String? = null): String? {
         if (!isActive()) return ""
-        val hits = cachedHits(name) ?: return null
-        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return ""
-        val logos = cachedLogosById(best.mediaType, best.id) ?: return null
-        return logos.firstOrNull().orEmpty()
+        var known = false
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = cachedHits(candidate) ?: continue
+            known = true
+            val best = bestHit(hits, candidate, year) ?: cachedAliasHit(candidate) ?: continue
+            val logos = cachedLogosById(best.mediaType, best.id) ?: return null
+            return logos.firstOrNull().orEmpty()
+        }
+        return if (known) "" else null
     }
 
-    suspend fun resolvePoster(name: String?, year: Int): String? {
-        val hits = ensureHits(name) ?: return null
-        val best = pickBestWithAlias(hits, name, year)
-        LOG.i("echo-tmdb pick q=${TmdbApi.searchQuery(name)} -> ${best?.posterPath ?: "none"}")
-        return best?.posterPath ?: ""
+    suspend fun resolvePoster(name: String?, year: Int, altName: String? = null): String? {
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = ensureHits(candidate) ?: continue
+            val best = pickBestWithAlias(hits, candidate, year)
+            val tvOnly = TmdbApi.parseSeasonHint(candidate) != null
+            LOG.i("echo-tmdb pick q=${TmdbApi.searchQuery(candidate)} tvOnly=$tvOnly -> ${best?.posterPath ?: "none"}")
+            best?.let { return it.posterPath }
+        }
+        return ""
     }
 
-    suspend fun resolveImages(name: String?, year: Int): List<String> {
-        val hits = ensureHits(name) ?: return emptyList()
-        val best = pickBestWithAlias(hits, name, year) ?: return emptyList()
-        return ensureImages(best.mediaType, best.id)
+    suspend fun resolveImages(name: String?, year: Int, altName: String? = null): List<String> {
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = ensureHits(candidate) ?: continue
+            val best = pickBestWithAlias(hits, candidate, year) ?: continue
+            return ensureImages(best.mediaType, best.id)
+        }
+        return emptyList()
     }
 
-    suspend fun resolveBackdrops(name: String?, year: Int): List<String> {
-        val hits = ensureHits(name) ?: return emptyList()
-        val best = pickBestWithAlias(hits, name, year) ?: return emptyList()
-        return ensureStills(best.mediaType, best.id)
+    suspend fun resolveBackdrops(name: String?, year: Int, altName: String? = null): List<String> {
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = ensureHits(candidate) ?: continue
+            val best = pickBestWithAlias(hits, candidate, year) ?: continue
+            return ensureStills(best.mediaType, best.id)
+        }
+        return emptyList()
     }
 
-    suspend fun resolveLogo(name: String?, year: Int): String {
+    suspend fun resolveLogo(name: String?, year: Int, altName: String? = null): String {
         if (!isActive()) return ""
-        val hits = ensureHits(name) ?: return ""
-        val best = pickBestWithAlias(hits, name, year) ?: return ""
-        return ensureLogos(best.mediaType, best.id).firstOrNull().orEmpty()
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = ensureHits(candidate) ?: continue
+            val best = pickBestWithAlias(hits, candidate, year) ?: continue
+            return ensureLogos(best.mediaType, best.id).firstOrNull().orEmpty()
+        }
+        return ""
     }
 
-    fun cachedDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
+    fun cachedDetail(name: String?, year: Int, altName: String? = null): TmdbApi.TmdbDetail? {
         if (!isActive()) return null
-        val hits = cachedHits(name) ?: return null
-        val best = bestHit(hits, name, year) ?: cachedAliasHit(name) ?: return null
-        val raw = readCached(detailKey(best.mediaType, best.id)) ?: return null
-        return decodeDetailValue(raw)
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = cachedHits(candidate) ?: continue
+            val best = bestHit(hits, candidate, year) ?: cachedAliasHit(candidate) ?: continue
+            val raw = readCached(detailKey(best.mediaType, best.id)) ?: return null
+            return decodeDetailValue(raw)
+        }
+        return null
     }
 
     fun cachedPerson(id: Int): TmdbApi.TmdbPerson? {
@@ -190,17 +236,29 @@ object TmdbPoster {
         return decodePersonValue(raw)
     }
 
-    suspend fun resolveDetail(name: String?, year: Int): TmdbApi.TmdbDetail? {
-        val hits = ensureHits(name) ?: return null
-        val best = pickBestWithAlias(hits, name, year) ?: return null
-        return ensureDetail(best.mediaType, best.id)
+    suspend fun resolveDetail(name: String?, year: Int, altName: String? = null): TmdbApi.TmdbDetail? {
+        for (candidate in nameCandidates(name, altName)) {
+            val hits = ensureHits(candidate) ?: continue
+            val best = pickBestWithAlias(hits, candidate, year) ?: continue
+            return ensureDetail(best.mediaType, best.id)
+        }
+        return null
     }
 
-    fun cachedEpisodeMeta(name: String?, episodeCount: Int, seasonHint: Int?): List<TmdbApi.TmdbEpisode>? {
+    fun cachedEpisodeMeta(
+        name: String?,
+        episodeCount: Int,
+        seasonHint: Int?,
+        episodeNumbers: List<Int>?,
+        altName: String? = null,
+    ): List<TmdbApi.TmdbEpisode>? {
         if (!isActive() || episodeCount <= 0) return null
-        val key = episodesKey(name, episodeCount, seasonHint) ?: return null
-        val raw = readCached(key) ?: return null
-        return decodeEpisodesValue(raw)
+        for (candidate in nameCandidates(name, altName)) {
+            val key = episodesKey(candidate, episodeCount, seasonHint, episodeNumbers) ?: continue
+            val raw = readCached(key) ?: continue
+            return decodeEpisodesValue(raw)
+        }
+        return null
     }
 
     suspend fun resolveEpisodeMeta(
@@ -208,11 +266,30 @@ object TmdbPoster {
         year: Int,
         episodeCount: Int,
         seasonHint: Int?,
+        episodeNumbers: List<Int>?,
+        altName: String? = null,
     ): List<TmdbApi.TmdbEpisode>? {
         if (episodeCount <= 0) return null
-        val key = episodesKey(name, episodeCount, seasonHint) ?: return null
-        val cachedRaw = readCached(key)
-        if (cachedRaw != null) return decodeEpisodesValue(cachedRaw)
+        val candidates = nameCandidates(name, altName)
+        for (candidate in candidates) {
+            val key = episodesKey(candidate, episodeCount, seasonHint, episodeNumbers) ?: continue
+            val cachedRaw = readCached(key)
+            if (cachedRaw != null) return decodeEpisodesValue(cachedRaw)
+            val resolved = resolveEpisodeMetaForName(candidate, year, episodeCount, seasonHint, episodeNumbers)
+            if (resolved != null) return resolved
+        }
+        LOG.i("echo-tmdb episodes names=${candidates.joinToString("|")} count=$episodeCount")
+        return null
+    }
+
+    private suspend fun resolveEpisodeMetaForName(
+        name: String,
+        year: Int,
+        episodeCount: Int,
+        seasonHint: Int?,
+        episodeNumbers: List<Int>?,
+    ): List<TmdbApi.TmdbEpisode>? {
+        val key = episodesKey(name, episodeCount, seasonHint, episodeNumbers) ?: return null
         val query = TmdbApi.searchQuery(name)
         val hits = ensureHits(name) ?: return null
         val best = pickBestWithAlias(hits, name, year)
@@ -239,7 +316,10 @@ object TmdbPoster {
             LOG.i("echo-tmdb episodes skip q=$query reason=detail count=$episodeCount")
             return null
         }
-        val refs = TmdbApi.mapEpisodes(detail.seasons, episodeCount, seasonHint)
+        val byNumber = episodeNumbers?.let {
+            TmdbApi.mapEpisodesByNumber(detail.seasons, episodeCount, seasonHint, it)
+        }
+        val refs = byNumber ?: TmdbApi.mapEpisodes(detail.seasons, episodeCount, seasonHint)
         if (refs == null) {
             LOG.i(
                 "echo-tmdb episodes skip q=$query reason=map count=$episodeCount hint=$seasonHint " +
@@ -256,7 +336,7 @@ object TmdbPoster {
             episodes.add(seasonEpisodes.getOrNull(ref.episodeNumber - 1) ?: TmdbApi.TmdbEpisode("", ""))
         }
         val fold = TmdbApi.foldSegmentsPerEpisode(detail.seasons, episodeCount, seasonHint)
-        LOG.i("echo-tmdb episodes tv=${best.id} count=$episodeCount hint=$seasonHint fold=$fold")
+        LOG.i("echo-tmdb episodes tv=${best.id} count=$episodeCount hint=$seasonHint fold=$fold byNumber=${byNumber != null}")
         val encoded = gson.toJson(episodes, episodeListType)
         writeCached(key, encoded)
         return episodes
@@ -289,10 +369,11 @@ object TmdbPoster {
         name: String?,
         year: Int,
     ): TmdbApi.TmdbSearchHit? {
-        TmdbApi.pickBest(hits, name, year)?.let { return it }
+        val tvOnly = TmdbApi.parseSeasonHint(name) != null
+        TmdbApi.pickBest(hits, name, year, tvOnly)?.let { return it }
         val variant = TmdbApi.qualityTagVariant(name)
         if (variant.isEmpty()) return null
-        return TmdbApi.pickBest(hits, variant, year)
+        return TmdbApi.pickBest(hits, variant, year, tvOnly)
     }
 
     private suspend fun pickBestWithAlias(
@@ -308,7 +389,9 @@ object TmdbPoster {
     private fun cachedAliasHit(name: String?): TmdbApi.TmdbSearchHit? {
         val key = aliasHitKey(name) ?: return null
         val raw = readCached(key) ?: return null
-        return decodeAliasHitValue(raw)
+        val hit = decodeAliasHitValue(raw) ?: return null
+        if (TmdbApi.parseSeasonHint(name) != null && hit.mediaType != TmdbApi.MEDIA_TV) return null
+        return hit
     }
 
     private suspend fun findHitByAlias(
@@ -317,7 +400,9 @@ object TmdbPoster {
     ): TmdbApi.TmdbSearchHit? {
         val target = TmdbApi.normalizeForMatch(name)
         if (target.isEmpty()) return null
-        for (hit in hits.filter { it.posterPath.isNotEmpty() }.take(MAX_ALIAS_CANDIDATES)) {
+        val tvOnly = TmdbApi.parseSeasonHint(name) != null
+        val candidates = hits.filter { it.posterPath.isNotEmpty() && (!tvOnly || it.mediaType == TmdbApi.MEDIA_TV) }
+        for (hit in candidates.take(MAX_ALIAS_CANDIDATES)) {
             val titles = ensureAlternativeTitles(hit.mediaType, hit.id) ?: continue
             if (titles.any { TmdbApi.normalizeForMatch(it) == target }) {
                 LOG.i("echo-tmdb alias hit id=${hit.id} media=${hit.mediaType} title=${hit.title}")
@@ -351,10 +436,18 @@ object TmdbPoster {
 
     private fun altsKey(mediaType: String, id: Int): String = ALTS_CACHE_PREFIX + mediaType + "_" + id
 
-    private fun episodesKey(name: String?, episodeCount: Int, seasonHint: Int?): String? {
+    private fun episodesKey(
+        name: String?,
+        episodeCount: Int,
+        seasonHint: Int?,
+        episodeNumbers: List<Int>?,
+    ): String? {
         val normalized = TmdbApi.normalizeForMatch(name)
         if (normalized.isEmpty()) return null
-        return EPISODES_CACHE_PREFIX + MD5.encode(normalized + "|" + episodeCount + "|" + (seasonHint ?: 0))
+        val numbers = episodeNumbers?.joinToString(",").orEmpty()
+        return EPISODES_CACHE_PREFIX + MD5.encode(
+            normalized + "|" + episodeCount + "|" + (seasonHint ?: 0) + "|" + numbers,
+        )
     }
 
     private fun seasonKey(tvId: Int, seasonNumber: Int): String = SEASON_CACHE_PREFIX + tvId + "_" + seasonNumber
