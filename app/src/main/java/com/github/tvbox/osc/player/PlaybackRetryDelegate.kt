@@ -259,7 +259,7 @@ class PlaybackRetryDelegate(private val host: Host) {
     suspend fun tryNextLineIfEnabled(): Boolean {
         restoreAutoSwitchedPlayer()
         restoreAutoSwitchedDecode()
-        if (host.attemptState().allowAutoSwitchLine && (KV.get(HawkConfig.AUTO_SWITCH_LINE, false) as Boolean)) {
+        if (host.attemptState().allowAutoSwitchLine && (KV.get(HawkConfig.AUTO_SWITCH_LINE, HawkConfig.AUTO_SWITCH_LINE_DEFAULT) as Boolean)) {
             return tryNextLine()
         }
         LOG.i("echo-autoRetry line switching disabled")

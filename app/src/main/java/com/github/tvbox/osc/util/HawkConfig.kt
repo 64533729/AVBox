@@ -52,6 +52,7 @@ object HawkConfig {
     const val LIVE_API_URL = "live_api_url"
     const val M3U8_PURIFY = "m3u8_purify"
     const val AUTO_SWITCH_LINE = "auto_switch_line"
+    const val AUTO_SWITCH_LINE_DEFAULT = true
     const val COLLECT_COLUMNS = "collect_columns"
     const val LIVE_WEB_HEADER = "live_web_header"
     const val DEFAULT_LOAD_LIVE = "DEFAULT_LOAD_LIVE"
