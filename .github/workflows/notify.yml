@@ -112,7 +112,7 @@ jobs:
           parse-mode: markdown
           disable-web-page-preview: true
 
-      # APK 已压到 Telegram Bot API 的 50MB 上限内，直接作为文档附件发送（文件名由 Telegram 自动展示）
+      # APK 已压到 Telegram Bot API 的 50MB 上限内，直接作为文档附件发送；不带 caption，文件名与体积由 Telegram 自己展示
       - name: Send Telegram APK attachment
         if: steps.fetch.outputs.apk != ''
         uses: cbrgm/telegram-github-action@v1
@@ -122,6 +122,5 @@ jobs:
           thread-id: ${{ secrets.TELEGRAM_THREAD_ID }}
           media: ${{ steps.fetch.outputs.apk }}
           media-type: document
-          message: 📦 新版本安装包 · arm64-v8a（${{ steps.fetch.outputs.apk_size }}）
           parse-mode: markdown
           disable-web-page-preview: true
