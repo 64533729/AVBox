@@ -21,12 +21,80 @@ on:
         required: false
       TELEGRAM_THREAD_ID:
         required: false
+      GH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
 
 jobs:
   notify-on-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Telegram Notification
+      # tag 来源：workflow_call / workflow_dispatch 取 inputs.tag，release 事件取 event.release.tag_name
+      - name: Resolve release context
+        id: ctx
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-${EVENT_TAG:-}}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "::notice::resolved tag: '${TAG:-none}'"
+
+      # 从 Release 取更新日志（正文）与 APK 资产；手动测试（tag 为空）时整步跳过
+      - name: Fetch changelog and APK from release
+        id: fetch
+        if: steps.ctx.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          # 本 job 没有 actions/checkout，工作区不是 git 仓库；gh 只认 GH_REPO（不认 GITHUB_REPOSITORY），
+          # 不设它 gh 会以 "not a git repository" 失败并让通知静默退化成纯文本
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.ctx.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+
+          if gh release view "$TAG" --json body --jq '.body' > out/notes.md 2>out/gh_view.err; then
+            echo "::notice::已取到 $TAG 的更新日志（$(wc -l < out/notes.md) 行）"
+          else
+            echo "::warning::读取 $TAG 的 Release 正文失败，本条通知不带更新日志"
+            sed 's/^/  gh: /' out/gh_view.err || true
+            : > out/notes.md
+          fi
+          # 去空行 + 限行数 + 限字节数 + 清理截断产生的无效 UTF-8，避免撑爆 Telegram 4096 字符上限
+          sed '/^[[:space:]]*$/d' out/notes.md \
+            | head -n 60 \
+            | head -c 3500 \
+            | iconv -c -f UTF-8 -t UTF-8 > out/notes.trim.md || true
+
+          if gh release download "$TAG" --pattern '*.apk' --dir out --clobber 2>out/gh_dl.err; then
+            APK="$(find out -maxdepth 1 -type f -name '*.apk' | head -n1 || true)"
+          else
+            APK=""
+            sed 's/^/  gh: /' out/gh_dl.err || true
+          fi
+
+          if [ -n "${APK:-}" ] && [ -f "$APK" ]; then
+            echo "apk=$APK" >> "$GITHUB_OUTPUT"
+            echo "apk_size=$(du -h "$APK" | cut -f1)" >> "$GITHUB_OUTPUT"
+            echo "::notice::APK 资产: $(basename "$APK")（$(du -h "$APK" | cut -f1)）"
+          else
+            echo "::warning::$TAG 未找到 APK 资产，本条通知只发文字"
+          fi
+
+          {
+            echo 'notes<<NOTES_EOF'
+            if [ -s out/notes.trim.md ]; then
+              printf '📝 更新日志\n'
+              cat out/notes.trim.md
+            fi
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send Telegram notification
         uses: cbrgm/telegram-github-action@v1
         with:
           token: ${{ secrets.TELEGRAM_TOKEN }}
@@ -39,5 +107,21 @@ jobs:
             仓库: ${{ github.repository }}
             发布者: ${{ github.actor }}
             查看: ${{ inputs.tag && format('{0}/{1}/releases/tag/{2}', github.server_url, github.repository, inputs.tag) || github.event.release.html_url || '手动测试' }}
+
+            ${{ steps.fetch.outputs.notes }}
+          parse-mode: markdown
+          disable-web-page-preview: true
+
+      # APK 已压到 Telegram Bot API 的 50MB 上限内，直接作为文档附件发送（文件名由 Telegram 自动展示）
+      - name: Send Telegram APK attachment
+        if: steps.fetch.outputs.apk != ''
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          thread-id: ${{ secrets.TELEGRAM_THREAD_ID }}
+          media: ${{ steps.fetch.outputs.apk }}
+          media-type: document
+          message: 📦 新版本安装包 · arm64-v8a（${{ steps.fetch.outputs.apk_size }}）
           parse-mode: markdown
           disable-web-page-preview: true
