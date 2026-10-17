@@ -79,13 +79,13 @@ fun PlayerTipLayer(state: PlayerUiState) {
             if (state.tipLoading) {
                 ContainedLoadingIndicator(
                     containerColor = Color.White.copy(alpha = 0.2f),
-                    indicatorColor = Color.White.copy(alpha = 0.75f),
+                    indicatorColor = Color.White,
                 )
             } else {
                 Icon(
-                    painter = painterResource(R.drawable.icon_error),
+                    painter = painterResource(R.drawable.ic_warning),
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.75f),
+                    tint = Color.White,
                     modifier = Modifier.size(48.dp),
                 )
             }
@@ -94,7 +94,7 @@ fun PlayerTipLayer(state: PlayerUiState) {
                 Text(
                     text = state.tipMsg,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = Color.White,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 24.dp),
                 )

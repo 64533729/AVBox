@@ -10,9 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
@@ -123,6 +127,12 @@ private const val HERO_TMDB_LOGO_TIMEOUT_MS = 1200L
 
 private const val HeroLogoWidthFraction = 0.85f
 
+private const val HeroFlatLogoWidthFraction = 0.42f
+
+private const val HeroFlatDescriptionWidthFraction = 0.55f
+
+private val HeroFlatBottomPadding = 28.dp
+
 private val DetailTopScrimExtra = 24.dp
 
 private val HeroImageMinHeight = 280.dp
@@ -227,9 +237,67 @@ internal fun DetailHero(
     val descriptionText = detail?.overview?.takeIf { it.isNotBlank() }
         ?: description?.takeIf { it.isNotBlank() }
     var descriptionExpanded by rememberSaveable(title) { mutableStateOf(false) }
-    val imageHeight = (LocalConfiguration.current.screenHeightDp * HERO_IMAGE_HEIGHT_RATIO)
+    val configuration = LocalConfiguration.current
+    val imageHeight = (configuration.screenHeightDp * HERO_IMAGE_HEIGHT_RATIO)
         .dp
         .coerceIn(HeroImageMinHeight, HeroImageMaxHeight)
+    val flat = flatHeroLayout(
+        configuration.smallestScreenWidthDp,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+    )
+    val captionColor = if (flat) Color.White else heroCaptionColor()
+    if (flat) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(min = configuration.screenHeightDp.dp)
+                .clipToBounds(),
+        ) {
+            DetailHeroTopActions(
+                collected = collected,
+                onBack = onBack,
+                onCollect = onCollect,
+                fallbackColor = circleColor,
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                    .padding(
+                        start = HeroContentHorizontalPadding,
+                        end = HeroContentHorizontalPadding,
+                        bottom = HeroFlatBottomPadding,
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                DetailHeroTitle(
+                    title = title,
+                    altTitle = altTitle,
+                    year = year,
+                    widthFraction = HeroFlatLogoWidthFraction,
+                    color = captionColor,
+                )
+                DetailHeroInfoBlock(
+                    ratingText = ratingText,
+                    metaTail = metaTail,
+                    descriptionText = descriptionText,
+                    descriptionExpanded = descriptionExpanded,
+                    onToggleDescription = { descriptionExpanded = !descriptionExpanded },
+                    onPlay = onPlay,
+                    followed = followed,
+                    onMusic = onMusic,
+                    onCast = onCast,
+                    onFollow = onFollow,
+                    captionColor = captionColor,
+                    flat = true,
+                    modifier = Modifier.padding(top = HeroContentTopPadding),
+                )
+            }
+        }
+        return
+    }
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -272,34 +340,12 @@ internal fun DetailHero(
                 }
             }
             CompositionLocalProvider(LocalTopBarGlassBackdrop provides glassBackdrop) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TopBarActionBox(
-                        iconRes = R.drawable.ic_arrow_left,
-                        contentDescription = stringResource(R.string.common_back),
-                        onClick = onBack,
-                        fallbackColor = circleColor,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    TopBarActionBox(
-                        iconRes = if (collected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect,
-                        contentDescription = stringResource(
-                            if (collected) R.string.detail_uncollect else R.string.detail_collect,
-                        ),
-                        onClick = onCollect,
-                        fallbackColor = circleColor,
-                        tint = if (collected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                }
+                DetailHeroTopActions(
+                    collected = collected,
+                    onBack = onBack,
+                    onCollect = onCollect,
+                    fallbackColor = circleColor,
+                )
             }
             Column(
                 modifier = Modifier
@@ -312,67 +358,143 @@ internal fun DetailHero(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                DetailHeroTitle(title = title, altTitle = altTitle, year = year)
-            }
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .animateContentSize()
-                .clipToBounds()
-                .padding(
-                    start = HeroContentHorizontalPadding,
-                    end = HeroContentHorizontalPadding,
-                    top = HeroContentTopPadding,
-                    bottom = HeroContentBottomPadding,
-                ),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (ratingText != null || metaTail.isNotEmpty()) {
-                DetailHeroRatingLine(rating = ratingText, tail = metaTail)
-            }
-            if (!descriptionText.isNullOrEmpty()) {
-                DetailHeroDescription(
-                    text = descriptionText,
-                    expanded = descriptionExpanded,
-                    onToggle = { descriptionExpanded = !descriptionExpanded },
+                DetailHeroTitle(
+                    title = title,
+                    altTitle = altTitle,
+                    year = year,
+                    widthFraction = HeroLogoWidthFraction,
+                    color = captionColor,
                 )
             }
-            Box(
-                modifier = Modifier
-                    .padding(top = HeroActionSpacing)
-                    .widthIn(min = HeroPlayCapsuleMinWidth)
-                    .height(HeroPlayCapsuleHeight)
-                    .playerPressEffect(onTap = onPlay)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(horizontal = HeroPlayCapsuleHorizontalPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.player_ic_play),
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
-                        modifier = Modifier.size(22.dp),
-                    )
-                    Text(
-                        text = stringResource(R.string.common_play),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
-            }
-            DetailActionRow(
-                followed = followed,
-                onMusic = onMusic,
-                onCast = onCast,
-                onFollow = onFollow,
-                modifier = Modifier.padding(top = HeroButtonRowSpacing),
+        }
+        DetailHeroInfoBlock(
+            ratingText = ratingText,
+            metaTail = metaTail,
+            descriptionText = descriptionText,
+            descriptionExpanded = descriptionExpanded,
+            onToggleDescription = { descriptionExpanded = !descriptionExpanded },
+            onPlay = onPlay,
+            followed = followed,
+            onMusic = onMusic,
+            onCast = onCast,
+            onFollow = onFollow,
+            captionColor = captionColor,
+            modifier = Modifier.padding(
+                start = HeroContentHorizontalPadding,
+                end = HeroContentHorizontalPadding,
+                top = HeroContentTopPadding,
+                bottom = HeroContentBottomPadding,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun DetailHeroTopActions(
+    collected: Boolean,
+    onBack: () -> Unit,
+    onCollect: () -> Unit,
+    fallbackColor: Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TopBarActionBox(
+            iconRes = R.drawable.ic_arrow_left,
+            contentDescription = stringResource(R.string.common_back),
+            onClick = onBack,
+            fallbackColor = fallbackColor,
+        )
+        Spacer(Modifier.weight(1f))
+        TopBarActionBox(
+            iconRes = if (collected) R.drawable.ic_tab_collect_filled else R.drawable.ic_tab_collect,
+            contentDescription = stringResource(
+                if (collected) R.string.detail_uncollect else R.string.detail_collect,
+            ),
+            onClick = onCollect,
+            fallbackColor = fallbackColor,
+            tint = if (collected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+    }
+}
+
+@Composable
+private fun DetailHeroInfoBlock(
+    ratingText: String?,
+    metaTail: String,
+    descriptionText: String?,
+    descriptionExpanded: Boolean,
+    onToggleDescription: () -> Unit,
+    onPlay: () -> Unit,
+    followed: Boolean,
+    onMusic: () -> Unit,
+    onCast: () -> Unit,
+    onFollow: () -> Unit,
+    captionColor: Color,
+    flat: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .clipToBounds(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (ratingText != null || metaTail.isNotEmpty()) {
+            DetailHeroRatingLine(rating = ratingText, tail = metaTail, color = captionColor)
+        }
+        if (!descriptionText.isNullOrEmpty()) {
+            DetailHeroDescription(
+                text = descriptionText,
+                expanded = descriptionExpanded,
+                onToggle = onToggleDescription,
+                color = captionColor,
+                flat = flat,
             )
         }
+        Box(
+            modifier = Modifier
+                .padding(top = HeroActionSpacing)
+                .widthIn(min = HeroPlayCapsuleMinWidth)
+                .height(HeroPlayCapsuleHeight)
+                .playerPressEffect(onTap = onPlay)
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.primary)
+                .padding(horizontal = HeroPlayCapsuleHorizontalPadding),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(R.drawable.player_ic_play),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                    modifier = Modifier.size(22.dp),
+                )
+                Text(
+                    text = stringResource(R.string.common_play),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+        DetailActionRow(
+            followed = followed,
+            onMusic = onMusic,
+            onCast = onCast,
+            onFollow = onFollow,
+            modifier = Modifier.padding(top = HeroButtonRowSpacing),
+        )
     }
 }
 
@@ -434,7 +556,7 @@ private fun HeroCircleButton(
 }
 
 @Composable
-private fun DetailHeroTitle(title: String, altTitle: String?, year: Int) {
+private fun DetailHeroTitle(title: String, altTitle: String?, year: Int, widthFraction: Float, color: Color) {
     val epoch by TmdbPoster.configEpoch.collectAsState()
     var logoPath by remember(title, altTitle, year, epoch) {
         mutableStateOf(TmdbPoster.cachedLogo(title, year, altTitle))
@@ -452,13 +574,13 @@ private fun DetailHeroTitle(title: String, altTitle: String?, year: Int) {
     }
     val logo = logoPath
     if (logo == null) {
-        if (waitExpired) DetailHeroTitleText(title)
+        if (waitExpired) DetailHeroTitleText(title, color)
     } else if (logo.isEmpty()) {
-        DetailHeroTitleText(title)
+        DetailHeroTitleText(title, color)
     } else {
         Box(
             modifier = Modifier
-                .fillMaxWidth(HeroLogoWidthFraction)
+                .fillMaxWidth(widthFraction)
                 .height(HeroLogoHeight),
             contentAlignment = Alignment.Center,
         ) {
@@ -473,12 +595,12 @@ private fun DetailHeroTitle(title: String, altTitle: String?, year: Int) {
 }
 
 @Composable
-private fun DetailHeroTitleText(title: String) {
+private fun DetailHeroTitleText(title: String, color: Color) {
     Text(
         text = title,
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight(800),
-        color = heroCaptionColor(),
+        color = color,
         textAlign = TextAlign.Center,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
@@ -487,8 +609,7 @@ private fun DetailHeroTitleText(title: String) {
 }
 
 @Composable
-private fun DetailHeroRatingLine(rating: String?, tail: String) {
-    val color = heroCaptionColor()
+private fun DetailHeroRatingLine(rating: String?, tail: String, color: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -525,16 +646,23 @@ private fun DetailHeroRatingLine(rating: String?, tail: String) {
 }
 
 @Composable
-private fun DetailHeroDescription(text: String, expanded: Boolean, onToggle: () -> Unit) {
+private fun DetailHeroDescription(
+    text: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    color: Color,
+    flat: Boolean,
+) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.Medium,
-        color = heroCaptionColor().copy(alpha = HeroDescriptionAlpha),
+        color = color.copy(alpha = HeroDescriptionAlpha),
+        textAlign = if (flat) TextAlign.Center else TextAlign.Start,
         maxLines = if (expanded) Int.MAX_VALUE else HeroDescriptionCollapsedLines,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxWidth(if (flat) HeroFlatDescriptionWidthFraction else 1f)
             .padding(top = HeroDescriptionSpacing)
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onToggle),
@@ -550,7 +678,7 @@ private fun heroCaptionColor(): Color =
     }
 
 @Composable
-private fun DetailHeroPoster(
+internal fun DetailHeroPoster(
     title: String,
     altTitle: String?,
     picture: String?,

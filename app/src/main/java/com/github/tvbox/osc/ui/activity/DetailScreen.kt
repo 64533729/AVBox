@@ -19,6 +19,7 @@ import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -30,6 +31,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -46,10 +49,13 @@ import com.github.tvbox.osc.ui.components.HomeBackdrop
 import com.github.tvbox.osc.ui.components.ImagePalette
 import com.github.tvbox.osc.ui.components.LoadState
 import com.github.tvbox.osc.ui.components.LoadStateBox
+import com.github.tvbox.osc.ui.components.LocalTopBarGlassBackdrop
 import com.github.tvbox.osc.ui.components.PosterBackdrop
 import com.github.tvbox.osc.ui.components.VodCardMenu
 import com.github.tvbox.osc.ui.components.rememberVodCardMenuState
 import com.github.tvbox.osc.ui.theme.AppThemeState
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -58,6 +64,15 @@ import com.github.tvbox.osc.ui.page.jumpToSearch
 
 private const val EntrySlideDurationMs = 300
 private const val ContentSlideRatio = 0.2f
+
+private const val FlatScrollScrimAlpha = 0.45f
+
+private val FlatPageScrimStops = arrayOf(
+    0f to Color.Black.copy(alpha = 0.05f),
+    0.45f to Color.Black.copy(alpha = 0.28f),
+    0.75f to Color.Black.copy(alpha = 0.48f),
+    1f to Color.Black.copy(alpha = 0.62f),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,9 +104,14 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
     val heroGone by remember(listState) {
         derivedStateOf { listState.firstVisibleItemIndex > 0 }
     }
-    LaunchedEffect(heroGone) { activity.setStatusBarIconsLight(heroGone) }
-
     val configuration = LocalConfiguration.current
+    val flatHero = flatHeroLayout(
+        configuration.smallestScreenWidthDp,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+    )
+    LaunchedEffect(heroGone, flatHero) { activity.setStatusBarIconsLight(heroGone && !flatHero) }
+
     val isLandscapeNow = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val fullBox = DetailFullScreenFrame.fullBox(rotating, full, isLandscapeNow)
     val inTransition = enteringFullscreen || exitingFullscreen
@@ -104,8 +124,9 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
     val pendingPic = vm.pendingPicture
     val backdropSource = backdropPic.ifEmpty { pendingPic }
     val backdropSeedArgb = backdropSeed ?: HomeBackdrop.seedOf(pendingPic)
-    val darkTheme = AppThemeState.isDark(isSystemInDarkTheme())
-    val colorScheme = backdropSeedArgb?.let { argb ->
+    val darkTheme = AppThemeState.isDark(isSystemInDarkTheme()) || flatHero
+    val schemeSeed = backdropSeedArgb ?: if (flatHero) AppThemeState.config.seedArgb else null
+    val colorScheme = schemeSeed?.let { argb ->
         remember(argb, darkTheme) {
             AppThemeState.customScheme(argb, darkTheme, AppThemeState.config.style)
         }
@@ -202,6 +223,7 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
         }
     }
 
+    val pageBackdrop = rememberLayerBackdrop(onDraw = { drawContent() })
     MaterialTheme(colorScheme = colorScheme) {
         Box(
             modifier = Modifier
@@ -209,15 +231,46 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
                 .onSizeChanged { slideWidthPx = it.width.toFloat() }
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            PosterBackdrop(
-                pic = backdropSource,
-                onImage = { image ->
-                    scope.launch {
-                        val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
-                        if (seed != null && backdropSeed == null) backdropSeed = seed
+            if (flatHero) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) {
+                        val info = vm.vodInfo
+                        if (info != null) {
+                            DetailHeroPoster(
+                                title = info.name ?: "TVBox",
+                                altTitle = info.en,
+                                picture = info.pic,
+                                year = info.year,
+                                onImage = { image ->
+                                    scope.launch {
+                                        val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
+                                        if (seed != null && backdropSeed == null) backdropSeed = seed
+                                    }
+                                },
+                                onBackdropPic = { backdropPic = it },
+                                paused = full,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Brush.verticalGradient(*FlatPageScrimStops)),
+                        )
                     }
-                },
-            )
+                    FlatScrollScrim(progress = { heroProgress })
+                }
+            } else {
+                PosterBackdrop(
+                    pic = backdropSource,
+                    onImage = { image ->
+                        scope.launch {
+                            val seed = withContext(Dispatchers.Default) { ImagePalette.seedOf(image) }
+                            if (seed != null && backdropSeed == null) backdropSeed = seed
+                        }
+                    },
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -248,21 +301,23 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
                         }
 
                         is DetailViewModel.PageState.Ready -> {
-                            DetailContent(
-                                activity = activity,
-                                vm = vm,
-                                revision = revision,
-                                listState = listState,
-                                onPosterPic = { backdropPic = it },
-                                onSeed = { argb -> if (argb != null) backdropSeed = argb },
-                            )
+                            CompositionLocalProvider(LocalTopBarGlassBackdrop provides pageBackdrop) {
+                                DetailContent(
+                                    activity = activity,
+                                    vm = vm,
+                                    revision = revision,
+                                    listState = listState,
+                                    onPosterPic = { backdropPic = it },
+                                    onSeed = { argb -> if (argb != null) backdropSeed = argb },
+                                )
+                            }
                         }
                     }
                 }
                 if (!fullBox || exitingFullscreen) {
                     DetailTopScrim(
                         modifier = Modifier.align(Alignment.TopCenter),
-                        alpha = 1f - heroProgress,
+                        alpha = if (flatHero) 1f else 1f - heroProgress,
                     )
                 }
             }
@@ -301,4 +356,17 @@ fun DetailScreen(activity: DetailActivity, vm: DetailViewModel) {
         EpisodeSheet(vm, revision, slideFromEnd = fullBox && isLandscapeNow)
         VodCardMenu(vodMenu) { menuContext.jumpToSearch(it) }
     }
+}
+
+@Composable
+private fun FlatScrollScrim(progress: () -> Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Color.Black.copy(
+                    alpha = FlatScrollScrimAlpha * progress().coerceIn(0f, 1f),
+                ),
+            ),
+    )
 }

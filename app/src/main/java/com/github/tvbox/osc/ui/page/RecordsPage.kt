@@ -230,7 +230,7 @@ fun RecordsPage(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = topPad + 8.dp),
+                    .padding(start = 16.dp + navStart, end = 16.dp, top = topPad + 8.dp),
             )
             AnimatedContent(
                 targetState = mode,
