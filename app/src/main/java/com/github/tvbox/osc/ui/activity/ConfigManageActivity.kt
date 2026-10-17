@@ -15,6 +15,7 @@ import com.github.tvbox.osc.ui.page.ConfigManageScreen
 import com.github.tvbox.osc.ui.theme.AVBoxTheme
 import com.github.tvbox.osc.ui.theme.enableTransparentEdgeToEdge
 import com.github.tvbox.osc.util.PermissionHelper
+import com.github.tvbox.osc.util.SpiderStorageNotice
 
 class ConfigManageActivity : BaseActivity() {
 
@@ -40,16 +41,21 @@ class ConfigManageActivity : BaseActivity() {
         startLocalConfig(localConfigLauncher) { api -> onResult(api) }
     }
 
+    private fun launchSourceTree() {
+        SpiderStorageNotice.suppress()
+        sourceTreeLauncher.launch(null)
+    }
+
     private fun settleUnreachableSource(uri: Uri) {
         if (PermissionHelper.isStorageGranted(this)) {
-            sourceTreeLauncher.launch(null)
+            launchSourceTree()
             return
         }
         PermissionHelper.requestStorage(this) { granted, _ ->
             if (granted.isNullOrEmpty()) {
-                sourceTreeLauncher.launch(null)
+                launchSourceTree()
             } else {
-                handleLocalConfigResult(this, uri) { needTree -> if (needTree) sourceTreeLauncher.launch(null) }
+                handleLocalConfigResult(this, uri) { needTree -> if (needTree) launchSourceTree() }
             }
         }
     }

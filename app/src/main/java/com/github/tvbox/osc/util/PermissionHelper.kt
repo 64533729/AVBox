@@ -3,6 +3,7 @@ package com.github.tvbox.osc.util
 import android.app.Activity
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 
 import com.hjq.permissions.OnPermissionCallback
 import com.hjq.permissions.XXPermissions
@@ -13,6 +14,15 @@ object PermissionHelper {
 
     @Volatile
     private var notificationAsked: Boolean = false
+
+    private const val HOST_ASK_WINDOW_MS = 5_000L
+
+    @Volatile
+    private var hostAskAt = 0L
+
+    @JvmStatic
+    fun hostAskedStorageRecently(): Boolean =
+        hostAskAt != 0L && SystemClock.elapsedRealtime() - hostAskAt <= HOST_ASK_WINDOW_MS
 
     @JvmStatic
     fun isStorageGranted(context: Context): Boolean {
@@ -30,6 +40,7 @@ object PermissionHelper {
 
     @JvmStatic
     fun requestStorage(activity: Activity, callback: OnPermissionCallback) {
+        hostAskAt = SystemClock.elapsedRealtime()
         val permissions: Array<IPermission> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
             arrayOf(PermissionLists.getManageExternalStoragePermission())
         else

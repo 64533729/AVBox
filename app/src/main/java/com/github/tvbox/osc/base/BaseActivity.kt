@@ -26,6 +26,7 @@ import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.LanguageManager
 import com.github.tvbox.osc.util.Probe
+import com.github.tvbox.osc.util.SpiderStorageNotice
 
 import java.io.BufferedReader
 import java.io.IOException
@@ -90,6 +91,7 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
     override fun onResume() {
         Probe.measure(this, "onResume") {
             super.onResume()
+            SpiderStorageNotice.onHostResumed(this)
             applyOrientationPolicy()
             applyHideStatusBarPref()
             hideSysBar()
@@ -144,6 +146,7 @@ abstract class BaseActivity : AppCompatActivity(), CustomAdapt {
 
     override fun onPause() {
         super.onPause()
+        SpiderStorageNotice.onHostPaused(this)
         window.decorView.removeCallbacks(refreshAutoSizeRunnable)
         window.decorView.removeCallbacks(hideSysBarRunnable)
     }

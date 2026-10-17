@@ -14,6 +14,7 @@ import com.github.tvbox.osc.util.AppContextHolder
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
+import com.github.tvbox.osc.util.SpiderInitWatch
 import com.github.tvbox.osc.util.SpiderReaper
 import com.github.tvbox.osc.util.net.Http
 
@@ -218,7 +219,9 @@ class JarLoader {
                 val spider = loader.loadClass("com.github.catvod.spider." + className(spiderApi)).newInstance() as Spider
                 spider.siteKey = spiderKey
                 spider.initApi(SpiderApi())
+                SpiderInitWatch.begin()
                 spider.init(AppContextHolder.context(), spiderExt)
+                SpiderInitWatch.end()
                 if (generation != clearGeneration.get()) return SpiderNull()
                 spiders[spKey] = spider
                 Log.i(TAG, "getSpider success key=" + spKey)

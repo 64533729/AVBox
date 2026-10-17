@@ -63,6 +63,7 @@ import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.HistoryMerge
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.MusicSettings
+import com.github.tvbox.osc.util.SpiderStorageNotice
 import com.github.tvbox.osc.util.TmdbPoster
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -417,6 +418,7 @@ private const val GITHUB_REPO_URL = "https://github.com/XiaochangXu/AVBox"
 
 private fun openExternalUrl(context: Context, url: String) {
     try {
+        SpiderStorageNotice.suppress()
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     } catch (e: Exception) {
         Toast.makeText(context, context.getString(R.string.toast_no_app_for_link), Toast.LENGTH_SHORT).show()

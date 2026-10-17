@@ -31,6 +31,7 @@ import com.github.tvbox.osc.ui.theme.AppThemeState
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MusicSettings
 import com.github.tvbox.osc.util.PermissionHelper
+import com.github.tvbox.osc.util.SpiderStorageNotice
 import kotlinx.coroutines.launch
 
 private const val SYSBAR_APPEARANCE_REASSERT_DELAY_MS = 400L
@@ -84,6 +85,7 @@ class DetailActivity : BaseActivity(), PageHost {
 
     override fun launchLocalSubtitlePicker() {
         try {
+            SpiderStorageNotice.suppress()
             localSubtitlePicker.launch(arrayOf("*/*"))
         } catch (e: Exception) {
             Toast.makeText(this, getString(R.string.toast_file_picker_unavailable), Toast.LENGTH_SHORT).show()

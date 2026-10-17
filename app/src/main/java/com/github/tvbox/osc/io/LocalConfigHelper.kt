@@ -19,6 +19,7 @@ import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.PermissionHelper
 import com.github.tvbox.osc.util.PySourcePack
+import com.github.tvbox.osc.util.SpiderStorageNotice
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -52,6 +53,7 @@ fun startLocalConfig(
     launcher: ActivityResultLauncher<Array<String>>,
     onResult: (api: String) -> Unit,
 ) {
+    SpiderStorageNotice.suppress()
     LocalConfigHost.pending = onResult
     launcher.launch(arrayOf("*/*"))
 }
