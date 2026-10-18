@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.player
 
 import android.text.TextUtils
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import com.github.tvbox.osc.R
 import com.github.tvbox.osc.bean.VodInfo
 import com.github.tvbox.osc.data.EpisodeMatcher
@@ -102,6 +103,14 @@ class PlaybackRetryDelegate(private val host: Host) {
         return ExoPlayer.ERROR_KIND_UNKNOWN
     }
 
+    private fun softwareDecodeCandidateName(): String? {
+        val exo = host.view()?.mediaPlayer() as? ExoPlayer ?: return null
+        val mime = exo.selectedVideoFormat?.sampleMimeType ?: return null
+        return runCatching {
+            MediaCodecSelector.PREFER_SOFTWARE.getDecoderInfos(mime, false, false)
+        }.getOrNull()?.firstOrNull()?.name
+    }
+
     private fun trySoftDecodeFallback(): Boolean {
         val st = host.attemptState()
         val cfg = host.playerCfg() ?: return false
@@ -109,6 +118,16 @@ class PlaybackRetryDelegate(private val host: Host) {
         if (cfg.optInt("pl", 2) >= 10) return false
         val decodeKey = "exo"
         if ("硬解码" != cfg.optString(decodeKey, "")) return false // i18n: keep —— 已经是软解,不再回退
+        val currentCodec = PlayerCodecStats.videoDecoderName
+        if (PlayerHelper.shouldSkipSoftDecodeFallback(
+                softwareDecodeCandidateName(),
+                currentCodec,
+                PlayerCodecStats.videoDecodeKind,
+            )
+        ) {
+            LOG.i("echo-autoRetry skip soft decode: software target already in use ($currentCodec)")
+            return false
+        }
         val webUrl = host.webPlayUrl() ?: return false
         if (TextUtils.isEmpty(webUrl)) return false
         val oldDecode = cfg.optString(decodeKey, "")

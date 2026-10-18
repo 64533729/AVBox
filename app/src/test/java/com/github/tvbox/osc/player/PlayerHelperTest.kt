@@ -73,6 +73,60 @@ class PlayerHelperTest {
     }
 
     @Test
+    fun softDecodeFallbackSkippedOnlyWhenTargetIsCurrentCodec() {
+        assertTrue(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                "OMX.google.hevc.decoder",
+                "OMX.google.hevc.decoder",
+                PlayerDecodeKind.SOFTWARE,
+            ),
+        )
+        assertFalse(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                "c2.android.hevc.decoder",
+                "OMX.google.hevc.decoder",
+                PlayerDecodeKind.SOFTWARE,
+            ),
+        )
+        assertFalse(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                "c2.android.hevc.decoder",
+                "c2.qti.hevc.decoder",
+                PlayerDecodeKind.HARDWARE,
+            ),
+        )
+        assertFalse(PlayerHelper.shouldSkipSoftDecodeFallback(null, null, PlayerDecodeKind.UNKNOWN))
+        assertFalse(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                "OMX.google.hevc.decoder",
+                "OMX.google.hevc.decoder",
+                PlayerDecodeKind.HARDWARE,
+            ),
+        )
+        assertFalse(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                null,
+                "OMX.google.hevc.decoder",
+                PlayerDecodeKind.UNKNOWN,
+            ),
+        )
+        assertTrue(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                null,
+                "OMX.google.hevc.decoder",
+                PlayerDecodeKind.SOFTWARE,
+            ),
+        )
+        assertFalse(
+            PlayerHelper.shouldSkipSoftDecodeFallback(
+                null,
+                "c2.qti.hevc.decoder",
+                PlayerDecodeKind.HARDWARE,
+            ),
+        )
+    }
+
+    @Test
     fun decodeDisplayIndex_actualKindWinsOverConfigured() {
         assertEquals(1, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.SOFTWARE, "硬解码"))
         assertEquals(1, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.SOFTWARE, "软解码"))

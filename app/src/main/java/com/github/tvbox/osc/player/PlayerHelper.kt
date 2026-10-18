@@ -115,6 +115,23 @@ object PlayerHelper {
         PlayerDecodeKind.UNKNOWN -> if ("软解码" == configuredExo) 1 else 0 // i18n: keep
     }
 
+    /**
+     * 自动软解回退是否会落到当前已经使用的 codec 上（设备没有硬解时常见）。
+     * 只在实际已跑在软解器上时才可能"切了没变化"：当前是硬解器一律允许回退；
+     * media3 会按 format 支持再重排软解候选，所以不拿排序前的首候选去否决硬解回退。
+     */
+    @JvmStatic
+    fun shouldSkipSoftDecodeFallback(
+        softCandidateName: String?,
+        currentCodecName: String?,
+        currentKind: PlayerDecodeKind,
+    ): Boolean {
+        if (currentKind != PlayerDecodeKind.SOFTWARE) return false
+        if (currentCodecName.isNullOrEmpty()) return false
+        if (!softCandidateName.isNullOrEmpty()) return softCandidateName == currentCodecName
+        return true
+    }
+
     @JvmStatic
     fun getPlayerName(playType: Int): String {
         return when (playType) {
