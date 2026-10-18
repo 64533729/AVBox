@@ -70,10 +70,27 @@ class PySourcePackTest {
     }
 
     @Test
+    fun packLocalJsKeepsClanApiAndDisablesFilter() {
+        val api = "clan://localhost/Android/data/com.github.avbox.osc/files/config/ab12cd34/spider_ab12cd34.js"
+        val json = PySourcePack.packLocalJs(api, "枫叶", "js_ab12cd34")
+        assertEquals(
+            "{\"sites\":[{\"key\":\"js_ab12cd34\",\"name\":\"枫叶\",\"type\":3," +
+                "\"api\":\"" + api + "\",\"searchable\":1,\"quickSearch\":1,\"filterable\":0}]}",
+            json,
+        )
+    }
+
+    @Test
+    fun packLocalJsNameFallsBackToJsSource() {
+        val json = PySourcePack.packLocalJs("clan://localhost/x/s.js", "", "k")
+        assertTrue(json.contains("\"name\":\"JS源\""))
+    }
+
+    @Test
     fun nameAndApiAreEscaped() {
-        val json = PySourcePack.packLocal("s.py", "he\"llo\\x", "k")!!
+        val json = PySourcePack.packLocal("s.py", "he\"llo\\x", "k")
         assertTrue(json.contains("\"name\":\"he\\\"llo\\\\x\""))
-        val blank = PySourcePack.packLocal("s.py", "", "k")!!
+        val blank = PySourcePack.packLocal("s.py", "", "k")
         assertTrue(blank.contains("\"name\":\"Python源\""))
     }
 }

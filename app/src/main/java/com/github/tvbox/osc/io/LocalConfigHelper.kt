@@ -166,6 +166,9 @@ private fun importLocalConfig(context: Context, uri: Uri): LocalConfigImport? {
     if (displayName.endsWith(".py", ignoreCase = true)) {
         return importLocalPySpider(context, uri, displayName)
     }
+    if (displayName.endsWith(".js", ignoreCase = true)) {
+        return importLocalJsSpider(context, uri, displayName)
+    }
     val storageRoot = Environment.getExternalStorageDirectory().absolutePath
     val path = getPathFromUri(context, uri)
     val source = readablePath(path)
@@ -204,6 +207,26 @@ private fun importLocalPySpider(context: Context, uri: Uri, pyName: String): Loc
     if (!writeBytes(configFile, config.toByteArray(Charsets.UTF_8))) return null
     val api = toClanApi(configFile.absolutePath, storageRoot) ?: return null
     LOG.i("echo-local-src py-pack name=" + pyName + " py=" + pyFile.absolutePath + " api=" + api)
+    return LocalConfigImport(api, false, null, emptyList(), null)
+}
+
+private fun importLocalJsSpider(context: Context, uri: Uri, jsName: String): LocalConfigImport? {
+    val storageRoot = Environment.getExternalStorageDirectory().absolutePath
+    val data = readBytes(context, uri, MAX_CONFIG_SIZE) ?: return null
+    val digest = requireNotNull(MD5.encode(uri.toString())) { "md5 of js uri failed" }
+    val dir = File(File(FileUtils.getExternalFilesPath(), "config"), digest)
+    val jsFile = File(dir, "spider_${digest.take(8)}.js")
+    if (!writeBytes(jsFile, data)) return null
+    val jsApi = toClanApi(jsFile.absolutePath, storageRoot) ?: return null
+    val config = PySourcePack.packLocalJs(
+        jsApi = jsApi,
+        siteName = jsName.substringBeforeLast('.'),
+        key = "js_${digest.take(8)}",
+    )
+    val configFile = File(dir, "spider_${digest.take(8)}.json")
+    if (!writeBytes(configFile, config.toByteArray(Charsets.UTF_8))) return null
+    val api = toClanApi(configFile.absolutePath, storageRoot) ?: return null
+    LOG.i("echo-local-src js-pack name=" + jsName + " js=" + jsFile.absolutePath + " api=" + api)
     return LocalConfigImport(api, false, null, emptyList(), null)
 }
 

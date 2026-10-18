@@ -17,9 +17,19 @@ object PySourcePack {
     fun packLocal(pyFileName: String, siteName: String, key: String): String =
         build(key, siteName, "./" + pyFileName)
 
-    private fun build(key: String, name: String, api: String): String =
-        "{\"sites\":[{\"key\":\"${jsonEscape(key)}\",\"name\":\"${jsonEscape(name.ifBlank { "Python源" })}\"," +
-            "\"type\":3,\"api\":\"${jsonEscape(api)}\",\"searchable\":1,\"quickSearch\":1,\"filterable\":1}]}"
+    @JvmStatic
+    fun packLocalJs(jsApi: String, siteName: String, key: String): String =
+        build(key, siteName, jsApi, filterable = 0, fallbackName = "JS源")
+
+    private fun build(
+        key: String,
+        name: String,
+        api: String,
+        filterable: Int = 1,
+        fallbackName: String = "Python源",
+    ): String =
+        "{\"sites\":[{\"key\":\"${jsonEscape(key)}\",\"name\":\"${jsonEscape(name.ifBlank { fallbackName })}\"," +
+            "\"type\":3,\"api\":\"${jsonEscape(api)}\",\"searchable\":1,\"quickSearch\":1,\"filterable\":$filterable}]}"
 
     private fun rewriteLanClan(url: String): String {
         if (!url.startsWith("clan://") || url.startsWith("clan://localhost/")) return url
