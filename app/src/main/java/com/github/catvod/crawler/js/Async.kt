@@ -8,13 +8,18 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-class Async private constructor() {
+class Async private constructor(private val converter: ((Any?) -> Any?)? = null) {
 
     private val future: Result = Result()
 
     private val success: JSCallFunction = object : JSCallFunction {
         override fun call(vararg args: Any?): Any? {
-            future.complete(if (args != null && args.size > 0) args[0] else null)
+            val value = if (args != null && args.size > 0) args[0] else null
+            try {
+                future.complete(convert(value))
+            } catch (th: Throwable) {
+                future.completeExceptionally(th)
+            }
             return null
         }
     }
@@ -32,7 +37,7 @@ class Async private constructor() {
         if (function == null) return empty()
         try {
             val result = function.call(*args)
-            if (result is JSObject) then(result) else future.complete(result)
+            if (result is JSObject) then(result) else future.complete(convert(result))
         } catch (t: Throwable) {
             future.completeExceptionally(t)
         } finally {
@@ -46,10 +51,15 @@ class Async private constructor() {
         return future
     }
 
+    private fun convert(value: Any?): Any? {
+        val transform = converter ?: return value
+        return transform(value)
+    }
+
     private fun then(promise: JSObject) {
         val then = promise.getJSFunction("then")
         if (then == null) {
-            future.complete(promise)
+            future.complete(convert(promise))
         } else {
             consume(then, success)
             consume(promise.getJSFunction("catch"), error)
@@ -108,6 +118,11 @@ class Async private constructor() {
         @JvmStatic
         fun run(obj: JSObject, name: String, args: Array<out Any?>): Result {
             return Async().call(obj, name, args)
+        }
+
+        @JvmStatic
+        fun run(obj: JSObject, name: String, args: Array<out Any?>, converter: ((Any?) -> Any?)?): Result {
+            return Async(converter).call(obj, name, args)
         }
     }
 }

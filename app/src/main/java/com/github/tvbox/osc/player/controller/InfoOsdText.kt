@@ -189,17 +189,10 @@ internal object InfoOsdText {
         return String.format(Locale.US, "%02d:%02d", seconds / 60, seconds % 60)
     }
 
-    private fun decodeText(context: Context, exo: ExoPlayer?): String {
-        val name = exo?.videoDecoderName()?.takeIf { it.isNotEmpty() } ?: return "-"
-        val software = name.startsWith("c2.android.") || name.startsWith("OMX.google.") ||
-            name.startsWith("OMX.ffmpeg.") || name.contains(".sw.")
-        return context.getString(if (software) R.string.player_decode_soft else R.string.player_decode_hard)
-    }
-
     private fun configText(context: Context, videoView: AppPlayerView?, exo: ExoPlayer?): String {
         val parts = ArrayList<String>()
         parts.add(context.getString(R.string.player_exo))
-        parts.add(decodeText(context, exo))
+        parts.add(decodeKindText(context, exo?.videoDecodeKind() ?: PlayerDecodeKind.UNKNOWN))
         parts.add(if (videoView?.renderIsSurface == true) "Surface" else "Texture")
         parts.add(context.getString(R.string.osd_tunnel) + " " + onOffText(context, exo?.isTunnelingEnabled == true))
         parts.add(context.getString(R.string.osd_frame_rate_match) + " " + onOffText(context, false))

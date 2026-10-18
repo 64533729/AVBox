@@ -95,6 +95,26 @@ object PlayerHelper {
             name.contains(".sw.") ||
             name.endsWith(".sw")
 
+    /**
+     * 视频解码器实际类型：MediaCodec 的视频解码器非软即硬，不依赖 API 29 的
+     * isHardwareAccelerated 标志（低版本会拿不到）。ffmpeg 兜底渲染器不走 MediaCodec，不在此列。
+     */
+    @JvmStatic
+    fun videoDecodeKindOf(codecName: String?, softwareOnly: Boolean): PlayerDecodeKind {
+        val name = codecName.orEmpty()
+        if (name.isEmpty()) return PlayerDecodeKind.UNKNOWN
+        if (softwareOnly || isSoftwareCodecName(name)) return PlayerDecodeKind.SOFTWARE
+        return PlayerDecodeKind.HARDWARE
+    }
+
+    /** 参数面板「解码方式」的选中项：实际生效优先，未初始化时回落到本片档位。0=硬解码 1=软解码。 */
+    @JvmStatic
+    fun decodeDisplayIndex(actualKind: PlayerDecodeKind, configuredExo: String?): Int = when (actualKind) {
+        PlayerDecodeKind.SOFTWARE -> 1
+        PlayerDecodeKind.HARDWARE -> 0
+        PlayerDecodeKind.UNKNOWN -> if ("软解码" == configuredExo) 1 else 0 // i18n: keep
+    }
+
     @JvmStatic
     fun getPlayerName(playType: Int): String {
         return when (playType) {

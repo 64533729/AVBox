@@ -332,6 +332,8 @@ class ExoPlayer(context: Context) : KernelPlayer() {
 
     fun videoDecoderName(): String = engine?.videoDecoderName ?: ""
 
+    fun videoDecodeKind(): PlayerDecodeKind = engine?.videoDecodeKind ?: PlayerDecodeKind.UNKNOWN
+
     fun audioCodecChoice(): AudioCodecChoice? = engine?.audioCodecChoice
 
     fun audioRendererName(): String? = engine?.audioRendererName

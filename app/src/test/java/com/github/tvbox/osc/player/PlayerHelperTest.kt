@@ -60,4 +60,26 @@ class PlayerHelperTest {
     fun decodeKindOf_vendorNameWithoutHardwareFlagIsUnknown() {
         assertEquals(PlayerDecodeKind.UNKNOWN, PlayerHelper.decodeKindOf("OMX.qcom.audio.decoder.aac", false, false))
     }
+
+    @Test
+    fun videoDecodeKindOf_onlySoftwareNamesOrFlagAreSoftware() {
+        assertEquals(PlayerDecodeKind.SOFTWARE, PlayerHelper.videoDecodeKindOf("OMX.google.hevc.decoder", false))
+        assertEquals(PlayerDecodeKind.SOFTWARE, PlayerHelper.videoDecodeKindOf("c2.android.hevc.decoder", false))
+        assertEquals(PlayerDecodeKind.SOFTWARE, PlayerHelper.videoDecodeKindOf("c2.qti.hevc.decoder", true))
+        assertEquals(PlayerDecodeKind.HARDWARE, PlayerHelper.videoDecodeKindOf("c2.qti.hevc.decoder", false))
+        assertEquals(PlayerDecodeKind.HARDWARE, PlayerHelper.videoDecodeKindOf("OMX.qcom.video.decoder.hevc", false))
+        assertEquals(PlayerDecodeKind.UNKNOWN, PlayerHelper.videoDecodeKindOf("", false))
+        assertEquals(PlayerDecodeKind.UNKNOWN, PlayerHelper.videoDecodeKindOf(null, false))
+    }
+
+    @Test
+    fun decodeDisplayIndex_actualKindWinsOverConfigured() {
+        assertEquals(1, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.SOFTWARE, "硬解码"))
+        assertEquals(1, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.SOFTWARE, "软解码"))
+        assertEquals(0, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.HARDWARE, "软解码"))
+        assertEquals(0, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.HARDWARE, "硬解码"))
+        assertEquals(1, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.UNKNOWN, "软解码"))
+        assertEquals(0, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.UNKNOWN, "硬解码"))
+        assertEquals(0, PlayerHelper.decodeDisplayIndex(PlayerDecodeKind.UNKNOWN, null))
+    }
 }

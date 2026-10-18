@@ -33,6 +33,7 @@ import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import com.github.tvbox.osc.player.PlayerCodecStats
+import com.github.tvbox.osc.player.PlayerDecodeKind
 import com.github.tvbox.osc.player.TrackInfo
 import com.github.tvbox.osc.player.TrackInfoBean
 import com.github.tvbox.osc.player.effect.PictureEffects
@@ -338,7 +339,6 @@ class PlayerEngine(
         droppedFramesTotal = 0
         rebufferCountTotal = 0
         playbackStarted = false
-        PlayerCodecStats.videoDecoderName = ""
         renderedFrameCount.set(0)
         frameRateWindowStartMs = 0
         measuredFrameRateValue = 0f
@@ -404,6 +404,7 @@ class PlayerEngine(
         pendingOutputHeight = 0
         outputSurfacePresent = false
         speedPlaybackParameters = null
+        PlayerCodecStats.resetVideo()
     }
 
     val isPlaying: Boolean
@@ -589,6 +590,9 @@ class PlayerEngine(
 
     val videoDecoderName: String
         get() = PlayerCodecStats.videoDecoderName
+
+    val videoDecodeKind: PlayerDecodeKind
+        get() = PlayerCodecStats.videoDecodeKind
 
     val audioCodecChoice: AudioCodecChoice?
         get() = AudioCodecProbe.liveInfo(audioRenderersFactory?.audioRenderer)

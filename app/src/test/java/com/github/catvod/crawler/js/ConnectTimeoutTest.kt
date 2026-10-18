@@ -27,6 +27,26 @@ class ConnectTimeoutTest {
     }
 
     @Test
+    fun withTimeout_appliesCallTimeout() {
+        val derived = Connect.withTimeout(Req.objectFrom("{\"callTimeout\":1500}"), OkHttpClient.Builder().build())
+        assertEquals(1_500, derived.callTimeoutMillis)
+        assertEquals(10_000, derived.connectTimeoutMillis)
+    }
+
+    @Test
+    fun withTimeout_combinesCallTimeoutAndCrawlerTimeout() {
+        val derived = Connect.withTimeout(Req.objectFrom("{\"timeout\":3000,\"callTimeout\":1500}"), OkHttpClient.Builder().build())
+        assertEquals(1_500, derived.callTimeoutMillis)
+        assertEquals(3_000, derived.readTimeoutMillis)
+    }
+
+    @Test
+    fun withTimeout_reusesBaseWhenCallTimeoutIsZero() {
+        val base = OkHttpClient.Builder().build()
+        assertSame(base, Connect.withTimeout(Req.objectFrom("{\"callTimeout\":0}"), base))
+    }
+
+    @Test
     fun derivedClientKeepsSharedDispatcherSoTagCancelStillWorks() {
         val base = OkHttpClient.Builder().build()
         val derived = Connect.withTimeout(Req.objectFrom("{\"timeout\":3000}"), base)

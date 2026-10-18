@@ -6,6 +6,7 @@ import android.util.Base64
 
 import com.github.catvod.crawler.Spider
 import com.github.tvbox.osc.io.FileUtils
+import com.github.tvbox.osc.net.ProxyHeaderPolicy
 import com.github.tvbox.osc.util.LOG
 import com.github.tvbox.osc.util.MD5
 import com.github.tvbox.osc.util.RegexUtils
@@ -21,7 +22,6 @@ import com.whl.quickjs.wrapper.ModuleLoader
 import com.whl.quickjs.wrapper.QuickJSContext
 import com.whl.quickjs.wrapper.UriUtil
 
-import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -73,6 +73,7 @@ class JsSpider : Spider {
     }
 
     override fun cancelByTag() {
+        global?.cancelPending()
         Connect.cancelByTag(global?.getHttpTag() ?: "js_okhttp_tag")
     }
 
@@ -90,10 +91,6 @@ class JsSpider : Spider {
 
     private fun get(obj: JSObject, name: String): Any? {
         return requireNotNull(ctx) { "js context not ready" }.getProperty(obj, name)
-    }
-
-    private fun toJsonArray(array: JSArray): JSONArray {
-        return JSUtils.toJsonArray(array)
     }
 
     private fun bind(target: JSObject, receiver: Any) {
@@ -176,6 +173,7 @@ class JsSpider : Spider {
 
     override fun init(context: Context?, extend: String?) {
         try {
+            global?.setSiteKey(siteKey)
             if (cat) call("init", submitAndWait(Callable { cfg(extend) }))
             else call("init", if (Json.valid(extend)) requireNotNull(ctx) { "js context not ready" }.parse(extend) else extend)
         } catch (e: Exception) {
@@ -262,10 +260,9 @@ class JsSpider : Spider {
         try {
             val p = params ?: return arrayOfNulls(0)
             if ("catvod" == p.get("from")) return proxy2(p)
-            val result = submitAndWait(Callable { proxy1(p) })
-            return result ?: arrayOfNulls(0)
-
-        } catch (E: Exception) {
+            return proxy1(p) ?: arrayOfNulls(0)
+        } catch (e: Exception) {
+            LOG.e("JsSpider", e)
             return arrayOfNulls(0)
         }
     }
@@ -361,6 +358,7 @@ class JsSpider : Spider {
 
     private fun createCtx() {
         ctx = QuickJSContext.create()
+        set(requireNotNull(ctx) { "js context not ready" }.globalObject, "__jsSiteKey", key)
         emptyModuleBytecode = requireNotNull(ctx) { "js context not ready" }.compileModule(EMPTY_MODULE_CODE, "empty.js")
         requireNotNull(ctx) { "js context not ready" }.setModuleLoader(object : ModuleLoader() {
             override fun isBytecodeMode(): Boolean {
@@ -428,7 +426,13 @@ class JsSpider : Spider {
         bind(localObj, local())
 
         val net = FileUtils.loadModule("net.js")
-        if (!isInvalidModuleContent(net)) requireNotNull(ctx) { "js context not ready" }.globalObject.context.evaluate(net)
+        if (!isInvalidModuleContent(net)) {
+            try {
+                requireNotNull(ctx) { "js context not ready" }.globalObject.context.evaluate(net)
+            } catch (th: Throwable) {
+                LOG.e("JsSpider", th)
+            }
+        }
         preloadTemplate()
     }
 
@@ -542,27 +546,84 @@ class JsSpider : Spider {
         }
     }
 
-    private fun proxy1(params: Map<String, String>?): Array<Any?> {
-        val obj = JSUtils<String>().toObj(requireNotNull(ctx) { "js context not ready" }, params)
-        val array = toJsonArray(requireNotNull(jsObject) { "js object not ready" }.getJSFunction("proxy").call(obj) as JSArray)
-        val headerAvailable = array.length() > 3 && array.opt(3) != null
-        val result = arrayOfNulls<Any?>(4)
-        result[0] = array.opt(0)
-        result[1] = array.opt(1)
-        result[2] = getStream(array.opt(2))
-        result[3] = if (headerAvailable) getHeader(array.opt(3)) else null
-        if (array.length() > 4) {
-            try {
-                if (array.optInt(4) == 1) {
-                    var content = array.optString(2)
-                    if (content.contains("base64,")) content = content.substring(content.indexOf("base64,") + 7)
-                    result[2] = ByteArrayInputStream(Base64.decode(content, Base64.DEFAULT))
-                }
-            } catch (e: Exception) {
-                LOG.e("JsSpider", e)
-            }
+    @Suppress("UNCHECKED_CAST")
+    private fun proxy1(params: Map<String, String>): Array<Any?>? {
+        if (destroyed.get() || jsObject == null) return null
+        val args = submitAndWait(Callable {
+            JSUtils<String>().toObj(requireNotNull(ctx) { "js context not ready" }, params)
+        }) ?: return null
+        return callConverted("proxy", { value -> toProxyResult(value) }, args) as? Array<Any?>
+    }
+
+    private fun callConverted(func: String, converter: (Any?) -> Any?, vararg args: Any?): Any? {
+        val target = jsObject ?: return null
+        if (destroyed.get()) return null
+        return try {
+            val pending = executor.submit(Callable { Async.run(target, func, args, converter) })
+            val result = pending.get(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            result.get(CALL_TIMEOUT_MS)
+        } catch (e: Exception) {
+            LOG.i("echo-js-call-failed " + e)
+            null
         }
+    }
+
+    private fun toProxyResult(value: Any?): Array<Any?>? {
+        val array = value as? JSArray ?: run {
+            LOG.i("echo-js-proxy-result " + (value?.javaClass?.simpleName ?: "null"))
+            return null
+        }
+        val size = array.length()
+        if (size < 3) return null
+        val encoded = size > 4 && (array.get(4) as? Number)?.toInt() == 1
+        val body = (if (encoded) base64Body(array.get(2)) else proxyBody(array.get(2))) ?: return null
+        val result = arrayOfNulls<Any?>(4)
+        result[0] = (array.get(0) as? Number)?.toInt() ?: 0
+        result[1] = array.get(1) as? String ?: DEFAULT_MIME
+        result[2] = body
+        result[3] = proxyHeaders(if (size > 3) array.get(3) else null)
         return result
+    }
+
+    private fun proxyBody(raw: Any?): Any? {
+        if (raw == null) return null
+        if (raw is JSObject) {
+            val token = proxyToken(raw)
+            if (token != null) return global?.consumeStream(token)
+            return ByteArrayInputStream(raw.stringify().toByteArray(Charset.defaultCharset()))
+        }
+        if (raw is JSArray) {
+            val bytes = ByteArray(raw.length())
+            for (index in bytes.indices) bytes[index] = (raw.get(index) as? Number)?.toInt()?.toByte() ?: 0
+            return ByteArrayInputStream(bytes)
+        }
+        return ByteArrayInputStream(raw.toString().toByteArray(Charset.defaultCharset()))
+    }
+
+    private fun proxyToken(handle: JSObject): Int? {
+        return try {
+            (handle.getProperty("__token") as? Number)?.toInt()
+        } catch (th: Throwable) {
+            null
+        }
+    }
+
+    private fun base64Body(raw: Any?): Any? {
+        val text = raw as? String ?: return proxyBody(raw)
+        return try {
+            var content = text
+            if (content.contains("base64,")) content = content.substring(content.indexOf("base64,") + 7)
+            ByteArrayInputStream(Base64.decode(content, Base64.DEFAULT))
+        } catch (e: Exception) {
+            LOG.e("JsSpider", e)
+            proxyBody(raw)
+        }
+    }
+
+    private fun proxyHeaders(raw: Any?): Map<String, String> {
+        if (raw == null) return emptyMap()
+        val headers = if (raw is JSObject) getHeader(raw.stringify()) else getHeader(raw)
+        return ProxyHeaderPolicy.filter(headers)
     }
 
     private fun getHeader(headerRaw: Any?): Map<String, String> {
@@ -616,17 +677,9 @@ class JsSpider : Spider {
         return result
     }
 
-    private fun getStream(o: Any?): ByteArrayInputStream {
-        return if (o is JSONArray) {
-            val bytes = ByteArray(o.length())
-            for (i in 0 until o.length()) bytes[i] = o.optInt(i).toByte()
-            ByteArrayInputStream(bytes)
-        } else {
-            ByteArrayInputStream(requireNotNull(o) { "proxy stream is null" }.toString().toByteArray(Charset.defaultCharset()))
-        }
-    }
-
     companion object {
+
+        private const val DEFAULT_MIME = "application/octet-stream"
 
         private const val BYTECODE_VERSION: Byte = 67
         private const val EMPTY_MODULE_CODE: String =

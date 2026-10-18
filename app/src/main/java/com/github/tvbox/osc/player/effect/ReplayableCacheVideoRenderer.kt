@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper
 import androidx.media3.exoplayer.video.VideoFrameReleaseControl
 import com.github.tvbox.osc.player.PlayerCodecStats
+import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.engine.CodecPreferences
 import com.github.tvbox.osc.util.LOG
 
@@ -40,8 +41,15 @@ class ReplayableCacheVideoRenderer(
         initializationDurationMs: Long,
     ) {
         super.onCodecInitialized(name, configuration, initializedTimestampMs, initializationDurationMs)
+        val info = configuration.codecInfo
+        val kind = PlayerHelper.videoDecodeKindOf(name, info.softwareOnly)
         PlayerCodecStats.videoDecoderName = name
-        LOG.i("echo-exo-codec-init: name=$name preferSoft=${CodecPreferences.isPreferSoftwareDecode()}")
+        PlayerCodecStats.videoDecodeKind = kind
+        PlayerCodecStats.videoCodecGeneration.incrementAndGet()
+        LOG.i(
+            "echo-exo-codec-init: name=$name kind=$kind hw=${info.hardwareAccelerated}" +
+                " swOnly=${info.softwareOnly} preferSoft=${CodecPreferences.isPreferSoftwareDecode()}",
+        )
     }
 
     override fun onEnabled(joining: Boolean, mayRenderFirstFrame: Boolean) {

@@ -1,6 +1,8 @@
 package com.github.tvbox.osc.player.controller
 
+import android.os.SystemClock
 import com.github.tvbox.osc.R
+import com.github.tvbox.osc.player.PlayerCodecStats
 import com.github.tvbox.osc.player.PlayerHelper
 import com.github.tvbox.osc.player.effect.PictureEffects
 import com.github.tvbox.osc.player.effect.anime4k.Anime4kSettings
@@ -15,10 +17,15 @@ import org.json.JSONException
 import org.json.JSONObject
 
 private const val SPEED_RETRY_MAX = 30
+private const val DECODE_PENDING_TIMEOUT_MS = 10000L
 
 internal class PlayerConfigDelegate(private val host: VideoPlayerController) {
 
     private var speedRetryCount = 0
+
+    private var pendingDecode: String? = null
+    private var pendingDecodeAt = 0L
+    private var pendingDecodeGeneration = 0
 
     private val speedRetryRunnable by lazy { Runnable { applySpeedWhenReady() } }
 
@@ -143,15 +150,27 @@ internal class PlayerConfigDelegate(private val host: VideoPlayerController) {
     }
 
     private fun decodeChoice(cfg: JSONObject): ParamsChoice {
-        val isSoft = cfg.optString("exo", "硬解码") == "软解码" // i18n: keep
+        val configured = cfg.optString("exo", "硬解码") // i18n: keep
+        val selected = pendingDecodeIndex()
+            ?: PlayerHelper.decodeDisplayIndex(PlayerCodecStats.videoDecodeKind, configured)
         return ParamsChoice(
             options = listOf(
                 host.context.getString(R.string.player_decode_hard),
                 host.context.getString(R.string.player_decode_soft),
             ),
-            selected = if (isSoft) 1 else 0,
+            selected = selected,
             onSelect = { applyDecode(if (it == 1) "软解码" else "硬解码") }, // i18n: keep
         )
+    }
+
+    private fun pendingDecodeIndex(): Int? {
+        val pending = pendingDecode ?: return null
+        val expired = SystemClock.elapsedRealtime() - pendingDecodeAt > DECODE_PENDING_TIMEOUT_MS
+        if (expired || PlayerCodecStats.videoCodecGeneration.get() != pendingDecodeGeneration) {
+            pendingDecode = null
+            return null
+        }
+        return if (pending == "软解码") 1 else 0 // i18n: keep
     }
 
     fun applySpeed(value: Float) {
@@ -200,13 +219,21 @@ internal class PlayerConfigDelegate(private val host: VideoPlayerController) {
         host.actions.keepControlsAlive()
         try {
             val cfg = host.playerConfig ?: return
-            val unchanged = cfg.optString("exo") == value
+            val displayed = pendingDecodeIndex()
+                ?: PlayerHelper.decodeDisplayIndex(
+                    PlayerCodecStats.videoDecodeKind,
+                    cfg.optString("exo", "硬解码"), // i18n: keep
+                )
+            if (displayed == (if (value == "软解码") 1 else 0)) return // i18n: keep
             cfg.put("exo", value) // i18n: keep
             cfg.put("exoSet", 1)
+            pendingDecode = value
+            pendingDecodeAt = SystemClock.elapsedRealtime()
+            pendingDecodeGeneration = PlayerCodecStats.videoCodecGeneration.get()
             host.listener?.setAllowDecodeFallback(false)
             updatePlayerCfgState()
             host.listener?.updatePlayerCfg()
-            if (!unchanged) host.listener?.replay(false)
+            host.listener?.replay(false)
         } catch (e: JSONException) {
             LOG.e("VideoPlayerController", e)
         }

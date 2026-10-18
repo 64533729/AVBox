@@ -5,10 +5,12 @@ import android.util.Base64
 import com.github.tvbox.osc.net.OkGoHelper
 import com.github.tvbox.osc.util.LOG
 import com.google.common.net.HttpHeaders
+import com.google.gson.JsonElement
 import com.whl.quickjs.wrapper.JSObject
 import com.whl.quickjs.wrapper.JSUtils
 import com.whl.quickjs.wrapper.QuickJSContext
 
+import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
@@ -27,6 +29,8 @@ import okhttp3.Response
 
 class Connect {
 
+    class Result(@JvmField val code: Int, @JvmField val headers: Headers, @JvmField val bytes: ByteArray)
+
     companion object {
 
         @JvmField
@@ -39,57 +43,135 @@ class Connect {
 
         @JvmStatic
         fun to(url: String, req: Req, tag: Any?): Call {
-            val okHttpClient = withTimeout(req, if (req.isRedirect()) requireNotNull(OkGoHelper.getDefaultClient()) { "okhttp client not ready" } else requireNotNull(OkGoHelper.getNoRedirectClient()) { "okhttp client not ready" })
+            val session = req.getSessionId()?.let { JsSession.find(it) ?: throw IllegalStateException("session closed") }
+            val base = when {
+                session != null -> session.client(req.isRedirect())
+                req.isCookie() -> WebViewCookies.client(req.isRedirect())
+                req.isRedirect() -> requireNotNull(OkGoHelper.getDefaultClient()) { "okhttp client not ready" }
+                else -> requireNotNull(OkGoHelper.getNoRedirectClient()) { "okhttp client not ready" }
+            }
+            val okHttpClient = withTimeout(req, base)
             client = okHttpClient
-            return okHttpClient.newCall(getRequest(url, req, req.getHeader().toHeaders(), tag))
+            return okHttpClient.newCall(getRequest(url, req, req.getHeader().toHeaders(), session?.tag ?: tag))
         }
 
         @JvmStatic
         fun withTimeout(req: Req, base: OkHttpClient): OkHttpClient {
             var timeout = requireNotNull(req.getTimeout()) { "timeout is null" }.toLong()
             if (timeout <= 0) timeout = OkGoHelper.DEFAULT_MILLISECONDS
-            if (timeout == OkGoHelper.DEFAULT_MILLISECONDS) return base
-            return base.newBuilder().connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).build()
+            val callTimeout = req.getCallTimeout().toLong()
+            if (timeout == OkGoHelper.DEFAULT_MILLISECONDS && callTimeout <= 0) return base
+            val builder = base.newBuilder()
+            if (timeout != OkGoHelper.DEFAULT_MILLISECONDS) {
+                builder.connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS)
+            }
+            if (callTimeout > 0) builder.callTimeout(callTimeout, TimeUnit.MILLISECONDS)
+            return builder.build()
+        }
+
+        @JvmStatic
+        fun read(res: Response): Result {
+            try {
+                return Result(res.code, res.headers, res.body.bytes())
+            } finally {
+                res.close()
+            }
         }
 
         @JvmStatic
         fun success(ctx: QuickJSContext, req: Req, res: Response): JSObject {
+            return try {
+                success(ctx, req, read(res))
+            } catch (e: Exception) {
+                error(ctx, e.message.orEmpty())
+            }
+        }
+
+        @JvmStatic
+        fun success(ctx: QuickJSContext, req: Req, result: Result): JSObject {
             try {
                 val jsObject = ctx.createNewJSObject()
                 val jsHeader = ctx.createNewJSObject()
-                setHeader(ctx, res, jsHeader)
+                setHeader(ctx, result.headers, jsHeader)
+                ctx.setProperty(jsObject, "code", result.code)
                 ctx.setProperty(jsObject, "headers", jsHeader)
-                if (req.getBuffer() == 0) ctx.setProperty(jsObject, "content", String(res.body.bytes(), Charset.forName(req.getCharset())))
-                if (req.getBuffer() == 1) {
-                    val array = ctx.createNewJSArray()
-                    val bytes = res.body.bytes()
-                    for (i in bytes.indices) array.set(bytes[i].toInt() and 0xFF, i)
-                    ctx.setProperty(jsObject, "content", array)
+                when (req.getBuffer()) {
+                    0 -> ctx.setProperty(jsObject, "content", String(result.bytes, Charset.forName(req.getCharset())))
+                    1 -> {
+                        val array = ctx.createNewJSArray()
+                        for (i in result.bytes.indices) array.set(result.bytes[i].toInt() and 0xFF, i)
+                        ctx.setProperty(jsObject, "content", array)
+                    }
+
+                    2 -> ctx.setProperty(jsObject, "content", Base64.encodeToString(result.bytes, Base64.DEFAULT or Base64.NO_WRAP))
+                    else -> ctx.setProperty(jsObject, "content", result.bytes)
                 }
-                if (req.getBuffer() == 2) ctx.setProperty(jsObject, "content", Base64.encodeToString(res.body.bytes(), Base64.DEFAULT or Base64.NO_WRAP))
                 return jsObject
             } catch (e: Exception) {
-                return error(ctx)
+                return error(ctx, e.message.orEmpty())
             }
         }
 
         @JvmStatic
         fun error(ctx: QuickJSContext): JSObject {
+            return error(ctx, "")
+        }
+
+        @JvmStatic
+        fun error(ctx: QuickJSContext, message: String): JSObject {
             val jsObject = ctx.createNewJSObject()
             val jsHeader = ctx.createNewJSObject()
+            ctx.setProperty(jsObject, "code", "")
             ctx.setProperty(jsObject, "headers", jsHeader)
             ctx.setProperty(jsObject, "content", "")
+            ctx.setProperty(jsObject, "error", message)
             return jsObject
         }
 
         private fun getRequest(url: String, req: Req, headers: Headers, tag: Any?): Request {
+            val target = buildUrl(url, req.getParams())
             return if (req.getMethod().equals("post", ignoreCase = true)) {
-                Request.Builder().url(url).tag(tag).headers(headers).post(getPostBody(req, headers.get(HttpHeaders.CONTENT_TYPE))).build()
+                Request.Builder().url(target).tag(tag).headers(headers).post(getPostBody(req, headers.get(HttpHeaders.CONTENT_TYPE))).build()
             } else if (req.getMethod().equals("header", ignoreCase = true)) {
-                Request.Builder().url(url).tag(tag).headers(headers).head().build()
+                Request.Builder().url(target).tag(tag).headers(headers).head().build()
             } else {
-                Request.Builder().url(url).tag(tag).headers(headers).get().build()
+                Request.Builder().url(target).tag(tag).headers(headers).get().build()
             }
+        }
+
+        @JvmStatic
+        fun buildUrl(url: String, params: JsonElement?): String {
+            if (params == null || !params.isJsonObject) return url
+            val entries = params.asJsonObject.entrySet()
+            if (entries.isEmpty()) return url
+            val builder = StringBuilder(url)
+            var first = !url.contains('?')
+            for ((key, value) in entries) {
+                if (value == null || value.isJsonNull) continue
+                if (value.isJsonArray) {
+                    for (item in value.asJsonArray) {
+                        val text = paramText(item) ?: continue
+                        first = appendParam(builder, first, key, text)
+                    }
+                } else {
+                    val text = paramText(value) ?: continue
+                    first = appendParam(builder, first, key, text)
+                }
+            }
+            return builder.toString()
+        }
+
+        private fun paramText(value: JsonElement?): String? {
+            if (value == null || !value.isJsonPrimitive) return null
+            return value.asString
+        }
+
+        private fun appendParam(builder: StringBuilder, first: Boolean, key: String, value: String): Boolean {
+            builder.append(if (first) '?' else '&')
+            builder.append(URLEncoder.encode(key, "UTF-8"))
+            builder.append('=')
+            builder.append(URLEncoder.encode(value, "UTF-8"))
+            return false
         }
 
         private fun getPostBody(req: Req, contentType: String?): RequestBody {
@@ -120,8 +202,9 @@ class Connect {
             return builder.build()
         }
 
-        private fun setHeader(ctx: QuickJSContext, res: Response, obj: JSObject) {
-            for (entry in res.headers.toMultimap().entries) {
+        @JvmStatic
+        fun setHeader(ctx: QuickJSContext, headers: Headers, obj: JSObject) {
+            for (entry in headers.toMultimap().entries) {
                 if (entry.value.size == 1) ctx.setProperty(obj, entry.key, entry.value[0])
                 if (entry.value.size >= 2) ctx.setProperty(obj, entry.key, JSUtils<String>().toArray(ctx, entry.value))
             }
@@ -131,37 +214,22 @@ class Connect {
         fun cancelByTag(tag: Any?) {
             try {
                 val target = requireNotNull(tag) { "tag is null" }
-                val okHttpClient = client
-                if (okHttpClient != null) {
-                    for (call in okHttpClient.dispatcher.queuedCalls()) {
-                        if (target == call.request().tag()) {
-                            call.cancel()
-                        }
-                    }
-                    for (call in okHttpClient.dispatcher.runningCalls()) {
-                        if (target == call.request().tag()) {
-                            call.cancel()
-                        }
-                    }
-                }
-                cancelDefaultClient(tag)
+                cancelCalls(client, target)
+                cancelCalls(OkGoHelper.getDefaultClient(), target)
+                cancelCalls(OkGoHelper.getNoRedirectClient(), target)
             } catch (e: Exception) {
                 LOG.d("Connect", "cancel tag failed")
             }
         }
 
-        private fun cancelDefaultClient(tag: Any?) {
-            val defaultClient = OkGoHelper.getDefaultClient()
-            if (defaultClient == null || tag == null) return
-            for (call in defaultClient.dispatcher.queuedCalls()) {
-                if (tag == call.request().tag()) {
-                    call.cancel()
-                }
+        @JvmStatic
+        fun cancelCalls(okHttpClient: OkHttpClient?, tag: Any?) {
+            if (okHttpClient == null || tag == null) return
+            for (call in okHttpClient.dispatcher.queuedCalls()) {
+                if (tag == call.request().tag()) call.cancel()
             }
-            for (call in defaultClient.dispatcher.runningCalls()) {
-                if (tag == call.request().tag()) {
-                    call.cancel()
-                }
+            for (call in okHttpClient.dispatcher.runningCalls()) {
+                if (tag == call.request().tag()) call.cancel()
             }
         }
     }

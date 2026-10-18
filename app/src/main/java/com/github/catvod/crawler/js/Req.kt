@@ -18,6 +18,15 @@ class Req {
     @field:SerializedName("timeout")
     private var timeout: Int? = null
 
+    @field:SerializedName("callTimeout")
+    private var callTimeout: Int? = null
+
+    @field:SerializedName("cookie")
+    private var cookie: Boolean? = null
+
+    @field:SerializedName("__session")
+    private var session: Int? = null
+
     @field:SerializedName("postType")
     private var postType: String? = null
 
@@ -33,6 +42,9 @@ class Req {
     @field:SerializedName("headers")
     private var headers: JsonElement? = null
 
+    @field:SerializedName("params")
+    private var params: JsonElement? = null
+
     fun getBuffer(): Int {
         return buffer ?: 0
     }
@@ -43,6 +55,18 @@ class Req {
 
     fun getTimeout(): Int? {
         return timeout ?: 10000
+    }
+
+    fun getCallTimeout(): Int {
+        return callTimeout ?: 0
+    }
+
+    fun isCookie(): Boolean {
+        return cookie == true
+    }
+
+    fun getSessionId(): Int? {
+        return session
     }
 
     fun getPostType(): String {
@@ -61,6 +85,10 @@ class Req {
 
     fun getData(): JsonElement? {
         return data
+    }
+
+    fun getParams(): JsonElement? {
+        return params
     }
 
     private fun getHeaders(): JsonElement? {

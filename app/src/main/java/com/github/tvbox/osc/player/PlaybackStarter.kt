@@ -272,6 +272,7 @@ class PlaybackStarter(private val host: Host) {
     }
 
     fun playUrl(url: String, headers: HashMap<String, String>?) {
+        host.syncDecodeFromGlobal()
         host.startSwitchLinePlayTimeout()
         val target = attachProxySiteKey(url)
         if (!target.startsWith("data:application")) {
