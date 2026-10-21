@@ -8,6 +8,7 @@ import com.github.tvbox.osc.io.FileUtils
 import com.github.tvbox.osc.server.ControlManager
 import com.github.tvbox.osc.ui.activity.SearchViewModel
 import com.github.tvbox.osc.util.BootGuard
+import com.github.tvbox.osc.util.BuiltInApi
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.KV
@@ -55,6 +56,8 @@ object AppBootstrap {
         scope.launch {
             Probe.trace("boot:bootstrapRepair") { FileUtils.repairBogusNativeLibs() }
             Probe.trace("boot:bootstrapBootGuard") { BootGuard.disableBootLoopingSource() }
+            // 未配置接口时自动启用内置接口（在 BootGuard 处理之后，保证安全模式生效）
+            BuiltInApi.applyIfMissing()
             Probe.trace("boot:bootstrapServer") { ControlManager.get().startServer() }
             startInit(forceFresh = false, offline = false, generation = generation)
         }
@@ -62,6 +65,7 @@ object AppBootstrap {
 
     fun retry() {
         _state.value = Boot.Loading
+        BuiltInApi.applyIfMissing()
         startInit(forceFresh = true, offline = false)
     }
 
