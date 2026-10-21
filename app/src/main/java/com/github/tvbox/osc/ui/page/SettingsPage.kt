@@ -3,8 +3,6 @@
 package com.github.tvbox.osc.ui.page
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -27,6 +26,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -57,19 +57,32 @@ import com.github.tvbox.osc.ui.components.SettingsCardPosition
 import com.github.tvbox.osc.ui.components.SettingsGroup
 import com.github.tvbox.osc.ui.components.SettingsOptionMenuRow
 import com.github.tvbox.osc.ui.components.SettingsRow
+import com.github.tvbox.osc.util.AppUpdater
 import com.github.tvbox.osc.util.DefaultConfig
 import com.github.tvbox.osc.util.HawkConfig
 import com.github.tvbox.osc.util.HistoryHelper
 import com.github.tvbox.osc.util.HistoryMerge
 import com.github.tvbox.osc.util.KV
 import com.github.tvbox.osc.util.MusicSettings
-import com.github.tvbox.osc.util.SpiderStorageNotice
 import com.github.tvbox.osc.util.TmdbPoster
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 private const val CACHE_SIZE_REFRESH_MIN_INTERVAL_MS = 60_000L
+
+/** 在线更新界面状态 */
+private sealed interface UpdateUiState {
+    data object Idle : UpdateUiState
+    data object Checking : UpdateUiState
+    data class Available(val info: AppUpdater.UpdateInfo) : UpdateUiState
+    data class Downloading(val progress: Int) : UpdateUiState
+    data class Ready(val info: AppUpdater.UpdateInfo, val apk: File) : UpdateUiState
+    data class Failed(val message: String, val info: AppUpdater.UpdateInfo?) : UpdateUiState
+}
 
 data class SettingsState(
     val playType: Int,
@@ -213,6 +226,69 @@ fun SettingsPage(
     val context = LocalContext.current
     val versionName = remember { DefaultConfig.getAppVersionName(context) ?: "" }
     var aboutSheet by remember { mutableStateOf(false) }
+
+    // 在线更新
+    val updateScope = rememberCoroutineScope()
+    var showUpdateDialog by rememberSaveable { mutableStateOf(false) }
+    var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+    var updateJob by remember { mutableStateOf<Job?>(null) }
+    val currentVersionCode = remember { DefaultConfig.getAppVersionCode(context) }
+
+    fun dismissUpdateDialog() {
+        showUpdateDialog = false
+        updateJob?.cancel()
+        updateJob = null
+        updateState = UpdateUiState.Idle
+    }
+
+    fun startCheckUpdate() {
+        updateState = UpdateUiState.Checking
+        updateJob = updateScope.launch {
+            try {
+                updateState = when (val result = AppUpdater.check(currentVersionCode)) {
+                    is AppUpdater.CheckResult.UpdateAvailable -> UpdateUiState.Available(result.info)
+                    AppUpdater.CheckResult.UpToDate -> {
+                        Toast.makeText(context, R.string.settings_update_latest, Toast.LENGTH_SHORT).show()
+                        showUpdateDialog = false
+                        UpdateUiState.Idle
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_update_check_failed, e.message ?: ""),
+                    Toast.LENGTH_LONG,
+                ).show()
+                showUpdateDialog = false
+                UpdateUiState.Idle
+            }
+        }
+    }
+
+    fun startDownloadUpdate(info: AppUpdater.UpdateInfo) {
+        updateState = UpdateUiState.Downloading(0)
+        updateJob = updateScope.launch {
+            try {
+                updateState = try {
+                    val apk = AppUpdater.download(context, info) { progress ->
+                        updateState = UpdateUiState.Downloading(progress)
+                    }
+                    UpdateUiState.Ready(info, apk)
+                } catch (e: AppUpdater.MD5MismatchException) {
+                    UpdateUiState.Failed(context.getString(R.string.settings_update_md5_mismatch), info)
+                } catch (e: Exception) {
+                    UpdateUiState.Failed(
+                        context.getString(R.string.settings_update_download_failed, e.message ?: ""),
+                        info,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            }
+        }
+    }
 
     val listState = rememberScrollState()
 
@@ -372,10 +448,13 @@ fun SettingsPage(
 
                 SettingsCard(SettingsCardPosition.LAST) {
                     SettingsRow(
-                        title = stringResource(R.string.settings_github),
-                        subtitle = stringResource(R.string.settings_github_subtitle),
-                        iconRes = R.drawable.ic_settings_github,
-                        onClick = { openExternalUrl(context, GITHUB_REPO_URL) },
+                        title = stringResource(R.string.settings_update),
+                        subtitle = stringResource(R.string.settings_update_subtitle),
+                        iconRes = R.drawable.ic_settings_update,
+                        onClick = {
+                            showUpdateDialog = true
+                            if (updateState == UpdateUiState.Idle) startCheckUpdate()
+                        },
                     )
                 }
             }
@@ -384,6 +463,129 @@ fun SettingsPage(
 
     if (aboutSheet) {
         AboutSheet(versionName = versionName, onDismiss = { aboutSheet = false })
+    }
+
+    if (showUpdateDialog) {
+        when (val st = updateState) {
+            UpdateUiState.Idle -> Unit
+            UpdateUiState.Checking -> {
+                AVBoxAlertDialog(
+                    onDismissRequest = { dismissUpdateDialog() },
+                    confirmButton = {},
+                    title = { Text(stringResource(R.string.settings_update_checking)) },
+                )
+            }
+            is UpdateUiState.Available -> {
+                AVBoxAlertDialog(
+                    onDismissRequest = { dismissUpdateDialog() },
+                    title = { Text(stringResource(R.string.settings_update_found, st.info.versionName)) },
+                    text = {
+                        Text(
+                            text = st.info.notes,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dismissUpdateDialog() }) {
+                            Text(stringResource(R.string.common_cancel))
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { startDownloadUpdate(st.info) }) {
+                            Text(stringResource(R.string.settings_update_download))
+                        }
+                    },
+                )
+            }
+            is UpdateUiState.Downloading -> {
+                AVBoxAlertDialog(
+                    onDismissRequest = { dismissUpdateDialog() },
+                    confirmButton = {},
+                    title = { Text(stringResource(R.string.settings_update)) },
+                    text = {
+                        Column {
+                            LinearProgressIndicator(
+                                progress = { st.progress / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_update_downloading, st.progress),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dismissUpdateDialog() }) {
+                            Text(stringResource(R.string.common_cancel))
+                        }
+                    },
+                )
+            }
+            is UpdateUiState.Ready -> {
+                AVBoxAlertDialog(
+                    onDismissRequest = { dismissUpdateDialog() },
+                    title = { Text(stringResource(R.string.settings_update_ready)) },
+                    text = {
+                        Text(
+                            text = stringResource(R.string.settings_update_ready_text, st.info.versionName),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dismissUpdateDialog() }) {
+                            Text(stringResource(R.string.common_cancel))
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (AppUpdater.canInstall(context)) {
+                                AppUpdater.install(context, st.apk)
+                                dismissUpdateDialog()
+                            } else {
+                                AppUpdater.requestInstallPermission(context)
+                                Toast.makeText(
+                                    context,
+                                    R.string.settings_update_install_permission,
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        }) {
+                            Text(stringResource(R.string.settings_update_install))
+                        }
+                    },
+                )
+            }
+            is UpdateUiState.Failed -> {
+                AVBoxAlertDialog(
+                    onDismissRequest = { dismissUpdateDialog() },
+                    title = { Text(stringResource(R.string.settings_update)) },
+                    text = {
+                        Text(
+                            text = st.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { dismissUpdateDialog() }) {
+                            Text(stringResource(R.string.common_cancel))
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val info = st.info
+                            if (info != null) startDownloadUpdate(info) else startCheckUpdate()
+                        }) {
+                            Text(stringResource(R.string.settings_update_retry))
+                        }
+                    },
+                )
+            }
+        }
     }
 
 }
@@ -411,17 +613,6 @@ private fun AboutSheet(versionName: String, onDismiss: () -> Unit) {
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-    }
-}
-
-private const val GITHUB_REPO_URL = "https://github.com/XiaochangXu/AVBox"
-
-private fun openExternalUrl(context: Context, url: String) {
-    try {
-        SpiderStorageNotice.suppress()
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    } catch (e: Exception) {
-        Toast.makeText(context, context.getString(R.string.toast_no_app_for_link), Toast.LENGTH_SHORT).show()
     }
 }
 
