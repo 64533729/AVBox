@@ -478,8 +478,21 @@
     <string name="settings_about_subtitle">View details</string>
     <string name="settings_about_version">Version v%1$s</string>
     <string name="settings_about_disclaimer">This app only aggregates and displays content from the internet. It does not host, create, upload, store, or download any content, and accepts no donations, tips, or payments. It is provided for open-source learning purposes only; please uninstall it within 24 hours of installation.\n\nKeep the credits when redistributing\nhttps://github.com/CatVodTVOfficial/TVBoxOSC\nhttps://github.com/q215613905/TVBoxOS</string>
-    <string name="settings_github">Visit GitHub Repository</string>
-    <string name="settings_github_subtitle">Open the project source repository</string>
+    <string name="settings_update">Software Update</string>
+    <string name="settings_update_subtitle">Check and install the latest version</string>
+    <string name="settings_update_checking">Checking for updates…</string>
+    <string name="settings_update_latest">You are on the latest version</string>
+    <string name="settings_update_check_failed">Check for updates failed: %1$s</string>
+    <string name="settings_update_found">New version v%1$s available</string>
+    <string name="settings_update_download">Update now</string>
+    <string name="settings_update_downloading">Downloading update %1$d%%</string>
+    <string name="settings_update_download_failed">Download failed: %1$s</string>
+    <string name="settings_update_retry">Retry</string>
+    <string name="settings_update_ready">Update package downloaded</string>
+    <string name="settings_update_ready_text">New version v%1$s is ready. Tap "Install now" to finish the update.</string>
+    <string name="settings_update_install">Install now</string>
+    <string name="settings_update_install_permission">Please allow this app to install unknown apps first, then try again</string>
+    <string name="settings_update_md5_mismatch">APK verification failed, please retry</string>
     <string name="settings_app_tagline">Open-source video player</string>
     <string name="settings_app_version">App version</string>
 
