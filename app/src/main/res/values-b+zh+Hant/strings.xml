@@ -478,8 +478,21 @@
     <string name="settings_about_subtitle">檢視詳細資訊</string>
     <string name="settings_about_version">版本 v%1$s</string>
     <string name="settings_about_disclaimer">本軟體僅提供聚合展示功能，所有資源均來自網際網路，軟體不參與任何內建、製作、上傳、儲存、下載等內容，也不接受任何捐贈、打賞、付費等謀利行為，軟體僅供開源學習參考，請於安裝後24小時內刪除。\n\n打包分發請保留出處\nhttps://github.com/CatVodTVOfficial/TVBoxOSC\nhttps://github.com/q215613905/TVBoxOS</string>
-    <string name="settings_github">造訪 GitHub 儲存庫</string>
-    <string name="settings_github_subtitle">造訪專案原始碼儲存庫</string>
+    <string name="settings_update">線上更新</string>
+    <string name="settings_update_subtitle">檢查並安裝最新版本</string>
+    <string name="settings_update_checking">正在檢查更新…</string>
+    <string name="settings_update_latest">當前已是最新版本</string>
+    <string name="settings_update_check_failed">檢查更新失敗：%1$s</string>
+    <string name="settings_update_found">發現新版本 v%1$s</string>
+    <string name="settings_update_download">立即更新</string>
+    <string name="settings_update_downloading">正在下載更新包 %1$d%%</string>
+    <string name="settings_update_download_failed">下載失敗：%1$s</string>
+    <string name="settings_update_retry">重試</string>
+    <string name="settings_update_ready">更新包下載完成</string>
+    <string name="settings_update_ready_text">新版本 v%1$s 已就緒，點擊「立即安裝」完成更新。</string>
+    <string name="settings_update_install">立即安裝</string>
+    <string name="settings_update_install_permission">請先允許本應用安裝未知應用，再重新安裝</string>
+    <string name="settings_update_md5_mismatch">安裝包校驗失敗，請重試</string>
     <string name="settings_app_tagline">一款開源的影片播放器</string>
     <string name="settings_app_version">應用版本</string>
 
