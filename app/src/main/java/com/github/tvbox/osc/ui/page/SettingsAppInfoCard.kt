@@ -61,7 +61,6 @@ internal fun AppInfoHeaderCard(versionName: String) {
                 Icon(
                     painter = painterResource(R.drawable.ic_launcher_foreground),
                     contentDescription = null,
-                    tint = contentColor,
                     modifier = Modifier
                         .size(AppBadgeSize)
                         .scale(AppIconGlyphScale),
