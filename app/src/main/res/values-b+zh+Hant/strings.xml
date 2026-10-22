@@ -108,11 +108,11 @@
     <string name="search_no_result">「%1$s」暫無搜尋結果</string>
 
     <string name="cast_title">投放到裝置</string>
-    <string name="cast_hint">確認電視/盒子已安裝AVBox或已開啟DLNA投放\n電視/盒子與手機連線在同一Wi-Fi下</string>
+    <string name="cast_hint">確認電視/盒子已安裝刺桐影视或已開啟DLNA投放\n電視/盒子與手機連線在同一Wi-Fi下</string>
     <string name="cast_permission_hint">需要允許「附近的裝置」權限才能搜尋投放裝置\n開啟後點「重新整理」重試</string>
     <string name="cast_searching">正在搜尋裝置...</string>
     <string name="cast_no_device">未找到可用裝置</string>
-    <string name="toast_cast_tvbox_failed">TVBox投放失敗</string>
+    <string name="toast_cast_tvbox_failed">刺桐影视投放失敗</string>
     <string name="toast_cast_success">投放成功</string>
     <string name="toast_cast_failed">投放失敗</string>
 
@@ -477,7 +477,7 @@
     <string name="settings_about">關於</string>
     <string name="settings_about_subtitle">檢視詳細資訊</string>
     <string name="settings_about_version">版本 v%1$s</string>
-    <string name="settings_about_disclaimer">本軟體僅提供聚合展示功能，所有資源均來自網際網路，軟體不參與任何內建、製作、上傳、儲存、下載等內容，也不接受任何捐贈、打賞、付費等謀利行為，軟體僅供開源學習參考，請於安裝後24小時內刪除。\n\n打包分發請保留出處\nhttps://github.com/CatVodTVOfficial/TVBoxOSC\nhttps://github.com/q215613905/TVBoxOS</string>
+    <string name="settings_about_disclaimer">本軟體僅提供聚合展示功能，所有資源均來自網際網路，軟體不參與任何內建、製作、上傳、儲存、下載等內容，也不接受任何捐贈、打賞、付費等謀利行為，軟體僅供開源學習參考，請於安裝後24小時內刪除。\n\n刺桐娱乐官网\nhttps://www.cttv.vip</string>
     <string name="settings_update">線上更新</string>
     <string name="settings_update_subtitle">檢查並安裝最新版本</string>
     <string name="settings_update_checking">正在檢查更新…</string>
