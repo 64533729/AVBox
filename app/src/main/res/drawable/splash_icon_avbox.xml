@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 由 ic_brand_splash.png 包装而来：保留原资源名，代码/主题引用无需改动 -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_brand_splash"/>
